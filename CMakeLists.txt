@@ -24,6 +24,16 @@ add_custom_command(
 )
 add_custom_target(shaders DEPENDS vertex.spv fragment.spv)
 
+add_executable(packer src/packer.cpp src/ResourceTypes.h)
+
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/res.pak
+    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/fragment.spv
+    DEPENDS packer ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/fragment.spv
+)
+
+add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
+
 add_executable(shader_triangle src/main.cpp src/resource.cpp)
-add_dependencies(shader_triangle shaders)
+add_dependencies(shader_triangle shaders res_pak)
 target_link_libraries(shader_triangle ${SDL2_LIBRARIES} Vulkan::Vulkan)

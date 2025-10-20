@@ -13,9 +13,6 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     return value;
 }
 
-const int WIDTH = 800;
-const int HEIGHT = 600;
-
 struct VulkanContext {
     VkInstance instance;
     VkSurfaceKHR surface;
@@ -41,9 +38,10 @@ struct VulkanContext {
     size_t currentFrame = 0;
     uint32_t graphicsQueueFamilyIndex;
     VkFramebuffer* swapchainFramebuffers;
+    PakResource pakResource;
 };
 
-VkShaderModule createShaderModule(VkDevice device, const ShaderCode& code) {
+VkShaderModule createShaderModule(VkDevice device, const ResourceData& code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = code.size;
@@ -355,8 +353,8 @@ void createPipelineLayout(VulkanContext& ctx) {
 }
 
 void createGraphicsPipeline(VulkanContext& ctx) {
-    ShaderCode vertShaderCode = readFile("vertex.spv");
-    ShaderCode fragShaderCode = readFile("fragment.spv");
+    ResourceData vertShaderCode = ctx.pakResource.getResource(1);
+    ResourceData fragShaderCode = ctx.pakResource.getResource(2);
     VkShaderModule vertShaderModule = createShaderModule(ctx.device, vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(ctx.device, fragShaderCode);
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
@@ -454,8 +452,6 @@ void createGraphicsPipeline(VulkanContext& ctx) {
     }
     vkDestroyShaderModule(ctx.device, fragShaderModule, nullptr);
     vkDestroyShaderModule(ctx.device, vertShaderModule, nullptr);
-    freeShaderCode(vertShaderCode);
-    freeShaderCode(fragShaderCode);
 }
 
 uint32_t findMemoryType(VulkanContext& ctx, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -587,6 +583,7 @@ int main() {
     }
 
     VulkanContext ctx{};
+    ctx.pakResource.load("res.pak");
     try {
         createInstance(ctx, window);
         createSurface(ctx, window);

@@ -1,9 +1,23 @@
 #include <cstddef>
+#include <cstdint>
 
-struct ShaderCode {
+struct ResourceData {
     char* data;
     size_t size;
 };
 
-ShaderCode readFile(const char* filename);
-void freeShaderCode(ShaderCode& code);
+class PakResource {
+public:
+    PakResource();
+    ~PakResource();
+    bool load(const char* filename);
+    ResourceData getResource(uint64_t id);
+private:
+    ResourceData m_pakData;
+#ifdef _WIN32
+    HANDLE m_hFile;
+    HANDLE m_hMapping;
+#else
+    int m_fd;
+#endif
+};
