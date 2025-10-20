@@ -35,7 +35,7 @@ typedef struct
 // Compressed data
 //--------------------------------------------------------------
 #define COMPRESSION_FLAGS_UNCOMPRESSED    0
-#define COMPRESSION_FLAGS_WFLZ            1
+#define COMPRESSION_FLAGS_LZ4             1
 
 typedef struct
 {

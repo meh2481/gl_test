@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 struct ResourceData {
     char* data;
@@ -14,6 +15,7 @@ public:
     ResourceData getResource(uint64_t id);
 private:
     ResourceData m_pakData;
+    std::vector<char> m_decompressedData;
 #ifdef _WIN32
     HANDLE m_hFile;
     HANDLE m_hMapping;

@@ -1,9 +1,8 @@
-#pragma once
-
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
 #include "resource.h"
+#include <vector>
 
 class VulkanRenderer {
 public:
@@ -16,6 +15,10 @@ public:
     void cleanup();
 
 private:
+    // Shader data storage
+    std::vector<char> m_vertShaderData;
+    std::vector<char> m_fragShaderData;
+
     // Vulkan handles and state
     VkInstance instance;
     VkSurfaceKHR surface;
@@ -51,13 +54,13 @@ private:
     void createImageViews();
     void createRenderPass();
     void createPipelineLayout();
-    void createGraphicsPipeline(const ResourceData& vertShader, const ResourceData& fragShader);
+    void createGraphicsPipeline();
     void createFramebuffers();
     void createVertexBuffer();
     void createCommandPool();
     void createCommandBuffers();
     void createSyncObjects();
-    VkShaderModule createShaderModule(const ResourceData& code);
+    VkShaderModule createShaderModule(const std::vector<char>& code);
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);
     bool isDeviceSuitable(VkPhysicalDevice device);
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR* availableFormats, uint32_t formatCount);

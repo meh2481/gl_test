@@ -1,6 +1,7 @@
 #include "resource.h"
 #include "ResourceTypes.h"
 #include <cstring>
+#include <lz4.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -83,8 +84,16 @@ ResourceData PakResource::getResource(uint64_t id) {
     for (uint32_t i = 0; i < header->numResources; i++) {
         if (ptrs[i].id == id) {
             CompressionHeader* comp = (CompressionHeader*)(m_pakData.data + ptrs[i].offset);
+            char* compressedData = (char*)(comp + 1);
             if (comp->compressionType == COMPRESSION_FLAGS_UNCOMPRESSED) {
-                return ResourceData{m_pakData.data + ptrs[i].offset + sizeof(CompressionHeader), comp->decompressedSize};
+                return ResourceData{compressedData, comp->decompressedSize};
+            } else if (comp->compressionType == COMPRESSION_FLAGS_LZ4) {
+                m_decompressedData.resize(comp->decompressedSize);
+                int result = LZ4_decompress_safe(compressedData, m_decompressedData.data(), comp->compressedSize, comp->decompressedSize);
+                if (result != (int)comp->decompressedSize) {
+                    return ResourceData{nullptr, 0}; // decompression failed
+                }
+                return ResourceData{m_decompressedData.data(), comp->decompressedSize};
             }
         }
     }

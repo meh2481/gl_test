@@ -46,6 +46,13 @@ VulkanRenderer::~VulkanRenderer() {
 }
 
 void VulkanRenderer::initialize(SDL_Window* window, const ResourceData& vertShader, const ResourceData& fragShader) {
+    // Copy shader data
+    m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
+    m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
+
+    if (m_vertShaderData.empty()) throw std::runtime_error("Vertex shader data is empty");
+    if (m_fragShaderData.empty()) throw std::runtime_error("Fragment shader data is empty");
+
     createInstance(window);
     createSurface(window);
     pickPhysicalDevice();
@@ -54,7 +61,7 @@ void VulkanRenderer::initialize(SDL_Window* window, const ResourceData& vertShad
     createImageViews();
     createRenderPass();
     createPipelineLayout();
-    createGraphicsPipeline(vertShader, fragShader);
+    createGraphicsPipeline();
     createFramebuffers();
     createVertexBuffer();
     createCommandPool();
@@ -65,7 +72,10 @@ void VulkanRenderer::initialize(SDL_Window* window, const ResourceData& vertShad
 void VulkanRenderer::setShaders(const ResourceData& vertShader, const ResourceData& fragShader) {
     vkDeviceWaitIdle(device);
     vkDestroyPipeline(device, graphicsPipeline, nullptr);
-    createGraphicsPipeline(vertShader, fragShader);
+    // Copy new shader data
+    m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
+    m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
+    createGraphicsPipeline();
     // Note: Command buffers may need to be re-recorded if pipeline changes, but for simplicity, assume it's ok
 }
 
@@ -194,11 +204,11 @@ void VulkanRenderer::cleanup() {
     }
 }
 
-VkShaderModule VulkanRenderer::createShaderModule(const ResourceData& code) {
+VkShaderModule VulkanRenderer::createShaderModule(const std::vector<char>& code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = code.size;
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data);
+    createInfo.codeSize = code.size();
+    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
     VkShaderModule shaderModule;
     if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
         throw std::runtime_error("failed to create shader module!");
@@ -505,9 +515,9 @@ void VulkanRenderer::createPipelineLayout() {
     }
 }
 
-void VulkanRenderer::createGraphicsPipeline(const ResourceData& vertShader, const ResourceData& fragShader) {
-    VkShaderModule vertShaderModule = createShaderModule(vertShader);
-    VkShaderModule fragShaderModule = createShaderModule(fragShader);
+void VulkanRenderer::createGraphicsPipeline() {
+    VkShaderModule vertShaderModule = createShaderModule(m_vertShaderData);
+    VkShaderModule fragShaderModule = createShaderModule(m_fragShaderData);
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;

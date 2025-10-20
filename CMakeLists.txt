@@ -3,7 +3,9 @@ project(ShaderTriangle)
 set(CMAKE_CXX_STANDARD 17)
 find_package(Vulkan REQUIRED)
 find_package(SDL2 REQUIRED)
-include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS})
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LZ4 REQUIRED liblz4)
+include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LZ4_INCLUDE_DIRS})
 
 # Find glslc for shader compilation
 find_program(GLSLC glslc)
@@ -25,6 +27,7 @@ add_custom_command(
 add_custom_target(shaders DEPENDS vertex.spv fragment.spv)
 
 add_executable(packer src/packer.cpp src/ResourceTypes.h)
+target_link_libraries(packer ${LZ4_LIBRARIES})
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/res.pak
@@ -36,4 +39,4 @@ add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 
 add_executable(shader_triangle src/main.cpp src/resource.cpp src/VulkanRenderer.cpp)
 add_dependencies(shader_triangle shaders res_pak)
-target_link_libraries(shader_triangle ${SDL2_LIBRARIES} Vulkan::Vulkan)
+target_link_libraries(shader_triangle ${SDL2_LIBRARIES} Vulkan::Vulkan ${LZ4_LIBRARIES})

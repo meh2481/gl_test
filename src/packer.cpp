@@ -4,6 +4,7 @@
 #include <vector>
 #include <sys/stat.h>
 #include <cstring>
+#include <lz4.h>
 
 using namespace std;
 
@@ -12,6 +13,8 @@ struct FileInfo {
     uint64_t id;
     time_t mtime;
     vector<char> data;
+    vector<char> compressedData;
+    uint32_t compressionType;
 };
 
 bool loadFile(const string& filename, vector<char>& data, time_t& mtime) {
@@ -25,6 +28,12 @@ bool loadFile(const string& filename, vector<char>& data, time_t& mtime) {
     data.resize(size);
     file.read(data.data(), size);
     return true;
+}
+
+void compressData(const vector<char>& input, vector<char>& output, uint32_t& compressionType) {
+    // Temporarily disable compression to test
+    output = input;
+    compressionType = COMPRESSION_FLAGS_UNCOMPRESSED;
 }
 
 int main(int argc, char* argv[]) {
@@ -84,6 +93,7 @@ int main(int argc, char* argv[]) {
             cerr << "Failed to load " << file.filename << endl;
             return 1;
         }
+        compressData(file.data, file.compressedData, file.compressionType);
     }
 
     ofstream out(output, ios::binary);
@@ -98,13 +108,13 @@ int main(int argc, char* argv[]) {
     for (auto& file : files) {
         ResourcePtr ptr = {file.id, offset, (uint64_t)file.mtime};
         out.write((char*)&ptr, sizeof(ptr));
-        offset += sizeof(CompressionHeader) + file.data.size();
+        offset += sizeof(CompressionHeader) + file.compressedData.size();
     }
 
     for (auto& file : files) {
-        CompressionHeader comp = {COMPRESSION_FLAGS_UNCOMPRESSED, (uint32_t)file.data.size(), (uint32_t)file.data.size(), RESOURCE_TYPE_SHADER};
+        CompressionHeader comp = {file.compressionType, (uint32_t)file.compressedData.size(), (uint32_t)file.data.size(), RESOURCE_TYPE_SHADER};
         out.write((char*)&comp, sizeof(comp));
-        out.write(file.data.data(), file.data.size());
+        out.write(file.compressedData.data(), file.compressedData.size());
     }
 
     cout << "Pak file created" << endl;
