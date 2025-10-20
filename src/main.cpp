@@ -5,6 +5,7 @@
 #include <fstream>
 #include <cstdint>
 #include <cstring>
+#include "resource.h"
 
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     if (value < min) return min;
@@ -41,24 +42,6 @@ struct VulkanContext {
     uint32_t graphicsQueueFamilyIndex;
     VkFramebuffer* swapchainFramebuffers;
 };
-
-struct ShaderCode {
-    char* data;
-    size_t size;
-};
-
-ShaderCode readFile(const char* filename) {
-    std::ifstream file(filename, std::ios::ate | std::ios::binary);
-    if (!file.is_open()) {
-        throw std::runtime_error("failed to open file!");
-    }
-    size_t fileSize = (size_t)file.tellg();
-    char* buffer = new char[fileSize];
-    file.seekg(0);
-    file.read(buffer, fileSize);
-    file.close();
-    return {buffer, fileSize};
-}
 
 VkShaderModule createShaderModule(VkDevice device, const ShaderCode& code) {
     VkShaderModuleCreateInfo createInfo{};
@@ -471,8 +454,8 @@ void createGraphicsPipeline(VulkanContext& ctx) {
     }
     vkDestroyShaderModule(ctx.device, fragShaderModule, nullptr);
     vkDestroyShaderModule(ctx.device, vertShaderModule, nullptr);
-    delete[] vertShaderCode.data;
-    delete[] fragShaderCode.data;
+    freeShaderCode(vertShaderCode);
+    freeShaderCode(fragShaderCode);
 }
 
 uint32_t findMemoryType(VulkanContext& ctx, uint32_t typeFilter, VkMemoryPropertyFlags properties) {

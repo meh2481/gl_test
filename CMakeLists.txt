@@ -24,6 +24,6 @@ add_custom_command(
 )
 add_custom_target(shaders DEPENDS vertex.spv fragment.spv)
 
-add_executable(shader_triangle src/main.cpp)
+add_executable(shader_triangle src/main.cpp src/resource.cpp)
 add_dependencies(shader_triangle shaders)
 target_link_libraries(shader_triangle ${SDL2_LIBRARIES} Vulkan::Vulkan)
