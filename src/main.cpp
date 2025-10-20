@@ -3,10 +3,14 @@
 #include <vulkan/vulkan.h>
 #include <iostream>
 #include <fstream>
-#include <array>
-#include <limits>
-#include <algorithm>
+#include <cstdint>
 #include <cstring>
+
+inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+}
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
@@ -224,7 +228,7 @@ VkPresentModeKHR chooseSwapPresentMode(VkPresentModeKHR* availablePresentModes, 
 }
 
 VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, SDL_Window* window) {
-    if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+    if (capabilities.currentExtent.width != UINT32_MAX) {
         return capabilities.currentExtent;
     } else {
         int width, height;
@@ -233,8 +237,8 @@ VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, SDL_Wi
             static_cast<uint32_t>(width),
             static_cast<uint32_t>(height)
         };
-        actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        actualExtent.width = clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        actualExtent.height = clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
         return actualExtent;
     }
 }
