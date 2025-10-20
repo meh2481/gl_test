@@ -98,11 +98,16 @@ int main() {
     }
     glUseProgram(program);
 
+    // Get uniform locations
+    GLint resLoc = glGetUniformLocation(program, "iResolution");
+    GLint timeLoc = glGetUniformLocation(program, "iTime");
+
     // Triangle data
     float vertices[] = {
-        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, // bottom left, red
-        0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f,  // bottom right, green
-        0.0f,  0.5f, 0.0f, 0.0f, 0.0f, 1.0f   // top, blue
+        -1.0f, -1.0f, 0.0f, 0.0f, // bottom left
+        1.0f, -1.0f, 1.0f, 0.0f,  // bottom right
+        -1.0f,  1.0f, 0.0f, 1.0f, // top left
+        1.0f,  1.0f, 1.0f, 1.0f   // top right
     };
 
     GLuint VBO, VAO;
@@ -111,9 +116,9 @@ int main() {
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
     bool running = true;
@@ -131,8 +136,11 @@ int main() {
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(program);
+        // Set uniforms
+        glUniform2f(resLoc, (float)displayMode.w, (float)displayMode.h);
+        glUniform1f(timeLoc, SDL_GetTicks() / 1000.0f);
         glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         SDL_GL_SwapWindow(window);
     }
 
