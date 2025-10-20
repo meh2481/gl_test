@@ -34,6 +34,6 @@ add_custom_command(
 
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 
-add_executable(shader_triangle src/main.cpp src/resource.cpp)
+add_executable(shader_triangle src/main.cpp src/resource.cpp src/VulkanRenderer.cpp)
 add_dependencies(shader_triangle shaders res_pak)
 target_link_libraries(shader_triangle ${SDL2_LIBRARIES} Vulkan::Vulkan)
