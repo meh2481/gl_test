@@ -3,11 +3,10 @@
 #include <vulkan/vulkan.h>
 #include <iostream>
 #include <fstream>
-#include <vector>
 #include <array>
-#include <set>
 #include <limits>
 #include <algorithm>
+#include <cstring>
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
@@ -19,43 +18,49 @@ struct VulkanContext {
     VkDevice device;
     VkQueue graphicsQueue;
     VkSwapchainKHR swapchain;
-    std::vector<VkImage> swapchainImages;
+    VkImage* swapchainImages;
+    uint32_t swapchainImageCount;
     VkFormat swapchainImageFormat;
     VkExtent2D swapchainExtent;
-    std::vector<VkImageView> swapchainImageViews;
+    VkImageView* swapchainImageViews;
     VkRenderPass renderPass;
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
     VkCommandPool commandPool;
-    std::vector<VkCommandBuffer> commandBuffers;
+    VkCommandBuffer* commandBuffers;
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
+    VkSemaphore imageAvailableSemaphores[2];
+    VkSemaphore renderFinishedSemaphores[2];
+    VkFence inFlightFences[2];
     size_t currentFrame = 0;
     uint32_t graphicsQueueFamilyIndex;
-    std::vector<VkFramebuffer> swapchainFramebuffers;
+    VkFramebuffer* swapchainFramebuffers;
 };
 
-std::vector<char> readFile(const std::string& filename) {
+struct ShaderCode {
+    char* data;
+    size_t size;
+};
+
+ShaderCode readFile(const char* filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
     if (!file.is_open()) {
         throw std::runtime_error("failed to open file!");
     }
     size_t fileSize = (size_t)file.tellg();
-    std::vector<char> buffer(fileSize);
+    char* buffer = new char[fileSize];
     file.seekg(0);
-    file.read(buffer.data(), fileSize);
+    file.read(buffer, fileSize);
     file.close();
-    return buffer;
+    return {buffer, fileSize};
 }
 
-VkShaderModule createShaderModule(VkDevice device, const std::vector<char>& code) {
+VkShaderModule createShaderModule(VkDevice device, const ShaderCode& code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    createInfo.codeSize = code.size;
+    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data);
     VkShaderModule shaderModule;
     if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
         throw std::runtime_error("failed to create shader module!");
@@ -80,14 +85,15 @@ void createInstance(VulkanContext& ctx, SDL_Window* window) {
     if (!SDL_Vulkan_GetInstanceExtensions(window, &count, nullptr)) {
         throw std::runtime_error("failed to get SDL Vulkan extensions");
     }
-    std::vector<const char*> extensions(count);
-    SDL_Vulkan_GetInstanceExtensions(window, &count, extensions.data());
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-    createInfo.ppEnabledExtensionNames = extensions.data();
+    const char** extensions = new const char*[count];
+    SDL_Vulkan_GetInstanceExtensions(window, &count, extensions);
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(count);
+    createInfo.ppEnabledExtensionNames = extensions;
 
     if (vkCreateInstance(&createInfo, nullptr, &ctx.instance) != VK_SUCCESS) {
         throw std::runtime_error("failed to create instance!");
     }
+    delete[] extensions;
 }
 
 void createSurface(VulkanContext& ctx, SDL_Window* window) {
@@ -99,13 +105,18 @@ void createSurface(VulkanContext& ctx, SDL_Window* window) {
 bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
     uint32_t extensionCount;
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
-    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
-    std::set<std::string> requiredExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-    for (const auto& extension : availableExtensions) {
-        requiredExtensions.erase(extension.extensionName);
+    VkExtensionProperties* availableExtensions = new VkExtensionProperties[extensionCount];
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions);
+    const char* requiredExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    bool found = false;
+    for (uint32_t i = 0; i < extensionCount; i++) {
+        if (strcmp(availableExtensions[i].extensionName, requiredExtensions[0]) == 0) {
+            found = true;
+            break;
+        }
     }
-    return requiredExtensions.empty();
+    delete[] availableExtensions;
+    return found;
 }
 
 bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
@@ -132,14 +143,15 @@ void pickPhysicalDevice(VulkanContext& ctx) {
     if (deviceCount == 0) {
         throw std::runtime_error("failed to find GPUs with Vulkan support!");
     }
-    std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, devices.data());
-    for (const auto& device : devices) {
-        if (isDeviceSuitable(device, ctx.surface)) {
-            ctx.physicalDevice = device;
+    VkPhysicalDevice* devices = new VkPhysicalDevice[deviceCount];
+    vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, devices);
+    for (uint32_t i = 0; i < deviceCount; i++) {
+        if (isDeviceSuitable(devices[i], ctx.surface)) {
+            ctx.physicalDevice = devices[i];
             break;
         }
     }
+    delete[] devices;
     if (ctx.physicalDevice == VK_NULL_HANDLE) {
         throw std::runtime_error("failed to find a suitable GPU!");
     }
@@ -148,8 +160,8 @@ void pickPhysicalDevice(VulkanContext& ctx) {
 void createLogicalDevice(VulkanContext& ctx) {
     uint32_t queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(ctx.physicalDevice, &queueFamilyCount, nullptr);
-    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(ctx.physicalDevice, &queueFamilyCount, queueFamilies.data());
+    VkQueueFamilyProperties* queueFamilies = new VkQueueFamilyProperties[queueFamilyCount];
+    vkGetPhysicalDeviceQueueFamilyProperties(ctx.physicalDevice, &queueFamilyCount, queueFamilies);
     int graphicsFamily = -1;
     int presentFamily = -1;
     for (int i = 0; i < queueFamilyCount; i++) {
@@ -162,46 +174,50 @@ void createLogicalDevice(VulkanContext& ctx) {
             presentFamily = i;
         }
     }
-    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> uniqueQueueFamilies = {static_cast<uint32_t>(graphicsFamily), static_cast<uint32_t>(presentFamily)};
+    VkDeviceQueueCreateInfo queueCreateInfos[2];
+    uint32_t uniqueQueueFamilies[2];
+    int numUnique = 0;
+    if (graphicsFamily >= 0) uniqueQueueFamilies[numUnique++] = static_cast<uint32_t>(graphicsFamily);
+    if (presentFamily >= 0 && presentFamily != graphicsFamily) uniqueQueueFamilies[numUnique++] = static_cast<uint32_t>(presentFamily);
     float queuePriority = 1.0f;
-    for (uint32_t queueFamily : uniqueQueueFamilies) {
+    for (int i = 0; i < numUnique; i++) {
         VkDeviceQueueCreateInfo queueCreateInfo{};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = queueFamily;
+        queueCreateInfo.queueFamilyIndex = uniqueQueueFamilies[i];
         queueCreateInfo.queueCount = 1;
         queueCreateInfo.pQueuePriorities = &queuePriority;
-        queueCreateInfos.push_back(queueCreateInfo);
+        queueCreateInfos[i] = queueCreateInfo;
     }
     VkPhysicalDeviceFeatures deviceFeatures{};
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-    createInfo.pQueueCreateInfos = queueCreateInfos.data();
+    createInfo.queueCreateInfoCount = static_cast<uint32_t>(numUnique);
+    createInfo.pQueueCreateInfos = queueCreateInfos;
     createInfo.pEnabledFeatures = &deviceFeatures;
-    std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-    createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    const char* deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    createInfo.enabledExtensionCount = 1;
+    createInfo.ppEnabledExtensionNames = deviceExtensions;
     if (vkCreateDevice(ctx.physicalDevice, &createInfo, nullptr, &ctx.device) != VK_SUCCESS) {
         throw std::runtime_error("failed to create logical device!");
     }
     vkGetDeviceQueue(ctx.device, graphicsFamily, 0, &ctx.graphicsQueue);
     ctx.graphicsQueueFamilyIndex = graphicsFamily;
+    delete[] queueFamilies;
 }
 
-VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
-    for (const auto& availableFormat : availableFormats) {
-        if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-            return availableFormat;
+VkSurfaceFormatKHR chooseSwapSurfaceFormat(VkSurfaceFormatKHR* availableFormats, uint32_t count) {
+    for (uint32_t i = 0; i < count; i++) {
+        if (availableFormats[i].format == VK_FORMAT_B8G8R8A8_UNORM && availableFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            return availableFormats[i];
         }
     }
     return availableFormats[0];
 }
 
-VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
-    for (const auto& availablePresentMode : availablePresentModes) {
-        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-            return availablePresentMode;
+VkPresentModeKHR chooseSwapPresentMode(VkPresentModeKHR* availablePresentModes, uint32_t count) {
+    for (uint32_t i = 0; i < count; i++) {
+        if (availablePresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
+            return availablePresentModes[i];
         }
     }
     return VK_PRESENT_MODE_FIFO_KHR;
@@ -228,14 +244,14 @@ void createSwapchain(VulkanContext& ctx, SDL_Window* window) {
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ctx.physicalDevice, ctx.surface, &capabilities);
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(ctx.physicalDevice, ctx.surface, &formatCount, nullptr);
-    std::vector<VkSurfaceFormatKHR> formats(formatCount);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(ctx.physicalDevice, ctx.surface, &formatCount, formats.data());
+    VkSurfaceFormatKHR* formats = new VkSurfaceFormatKHR[formatCount];
+    vkGetPhysicalDeviceSurfaceFormatsKHR(ctx.physicalDevice, ctx.surface, &formatCount, formats);
     uint32_t presentModeCount;
     vkGetPhysicalDeviceSurfacePresentModesKHR(ctx.physicalDevice, ctx.surface, &presentModeCount, nullptr);
-    std::vector<VkPresentModeKHR> presentModes(presentModeCount);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(ctx.physicalDevice, ctx.surface, &presentModeCount, presentModes.data());
-    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(formats);
-    VkPresentModeKHR presentMode = chooseSwapPresentMode(presentModes);
+    VkPresentModeKHR* presentModes = new VkPresentModeKHR[presentModeCount];
+    vkGetPhysicalDeviceSurfacePresentModesKHR(ctx.physicalDevice, ctx.surface, &presentModeCount, presentModes);
+    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(formats, formatCount);
+    VkPresentModeKHR presentMode = chooseSwapPresentMode(presentModes, presentModeCount);
     VkExtent2D extent = chooseSwapExtent(capabilities, window);
     uint32_t imageCount = capabilities.minImageCount + 1;
     if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
@@ -259,15 +275,18 @@ void createSwapchain(VulkanContext& ctx, SDL_Window* window) {
         throw std::runtime_error("failed to create swap chain!");
     }
     vkGetSwapchainImagesKHR(ctx.device, ctx.swapchain, &imageCount, nullptr);
-    ctx.swapchainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(ctx.device, ctx.swapchain, &imageCount, ctx.swapchainImages.data());
+    ctx.swapchainImageCount = imageCount;
+    ctx.swapchainImages = new VkImage[imageCount];
+    vkGetSwapchainImagesKHR(ctx.device, ctx.swapchain, &imageCount, ctx.swapchainImages);
     ctx.swapchainImageFormat = surfaceFormat.format;
     ctx.swapchainExtent = extent;
+    delete[] formats;
+    delete[] presentModes;
 }
 
 void createImageViews(VulkanContext& ctx) {
-    ctx.swapchainImageViews.resize(ctx.swapchainImages.size());
-    for (size_t i = 0; i < ctx.swapchainImages.size(); i++) {
+    ctx.swapchainImageViews = new VkImageView[ctx.swapchainImageCount];
+    for (size_t i = 0; i < ctx.swapchainImageCount; i++) {
         VkImageViewCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         createInfo.image = ctx.swapchainImages[i];
@@ -289,8 +308,8 @@ void createImageViews(VulkanContext& ctx) {
 }
 
 void createFramebuffers(VulkanContext& ctx) {
-    ctx.swapchainFramebuffers.resize(ctx.swapchainImageViews.size());
-    for (size_t i = 0; i < ctx.swapchainImageViews.size(); i++) {
+    ctx.swapchainFramebuffers = new VkFramebuffer[ctx.swapchainImageCount];
+    for (size_t i = 0; i < ctx.swapchainImageCount; i++) {
         VkImageView attachments[] = {ctx.swapchainImageViews[i]};
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -349,8 +368,8 @@ void createPipelineLayout(VulkanContext& ctx) {
 }
 
 void createGraphicsPipeline(VulkanContext& ctx) {
-    auto vertShaderCode = readFile("vertex.spv");
-    auto fragShaderCode = readFile("fragment.spv");
+    ShaderCode vertShaderCode = readFile("vertex.spv");
+    ShaderCode fragShaderCode = readFile("fragment.spv");
     VkShaderModule vertShaderModule = createShaderModule(ctx.device, vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(ctx.device, fragShaderCode);
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
@@ -448,6 +467,8 @@ void createGraphicsPipeline(VulkanContext& ctx) {
     }
     vkDestroyShaderModule(ctx.device, fragShaderModule, nullptr);
     vkDestroyShaderModule(ctx.device, vertShaderModule, nullptr);
+    delete[] vertShaderCode.data;
+    delete[] fragShaderCode.data;
 }
 
 uint32_t findMemoryType(VulkanContext& ctx, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -503,21 +524,18 @@ void createCommandPool(VulkanContext& ctx) {
 }
 
 void createCommandBuffers(VulkanContext& ctx) {
-    ctx.commandBuffers.resize(ctx.swapchainImageViews.size());
+    ctx.commandBuffers = new VkCommandBuffer[ctx.swapchainImageCount];
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = ctx.commandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = (uint32_t)ctx.commandBuffers.size();
-    if (vkAllocateCommandBuffers(ctx.device, &allocInfo, ctx.commandBuffers.data()) != VK_SUCCESS) {
+    allocInfo.commandBufferCount = (uint32_t)ctx.swapchainImageCount;
+    if (vkAllocateCommandBuffers(ctx.device, &allocInfo, ctx.commandBuffers) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate command buffers!");
     }
 }
 
 void createSyncObjects(VulkanContext& ctx) {
-    ctx.imageAvailableSemaphores.resize(2);
-    ctx.renderFinishedSemaphores.resize(2);
-    ctx.inFlightFences.resize(2);
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     VkFenceCreateInfo fenceInfo{};
@@ -666,12 +684,16 @@ int main() {
     vkDestroyPipeline(ctx.device, ctx.graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(ctx.device, ctx.pipelineLayout, nullptr);
     vkDestroyRenderPass(ctx.device, ctx.renderPass, nullptr);
-    for (auto framebuffer : ctx.swapchainFramebuffers) {
-        vkDestroyFramebuffer(ctx.device, framebuffer, nullptr);
+    for (size_t i = 0; i < ctx.swapchainImageCount; i++) {
+        vkDestroyFramebuffer(ctx.device, ctx.swapchainFramebuffers[i], nullptr);
     }
-    for (auto imageView : ctx.swapchainImageViews) {
-        vkDestroyImageView(ctx.device, imageView, nullptr);
+    delete[] ctx.swapchainFramebuffers;
+    for (size_t i = 0; i < ctx.swapchainImageCount; i++) {
+        vkDestroyImageView(ctx.device, ctx.swapchainImageViews[i], nullptr);
     }
+    delete[] ctx.swapchainImageViews;
+    delete[] ctx.swapchainImages;
+    delete[] ctx.commandBuffers;
     vkDestroySwapchainKHR(ctx.device, ctx.swapchain, nullptr);
     vkDestroyDevice(ctx.device, nullptr);
     vkDestroySurfaceKHR(ctx.instance, ctx.surface, nullptr);
