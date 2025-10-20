@@ -1,9 +1,29 @@
 cmake_minimum_required(VERSION 3.10)
 project(ShaderTriangle)
 set(CMAKE_CXX_STANDARD 17)
-find_package(OpenGL REQUIRED)
+find_package(Vulkan REQUIRED)
 find_package(SDL2 REQUIRED)
-find_package(GLEW REQUIRED)
-include_directories(${SDL2_INCLUDE_DIRS})
+include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS})
+
+# Find glslc for shader compilation
+find_program(GLSLC glslc)
+if(NOT GLSLC)
+    message(FATAL_ERROR "glslc not found. Please install Vulkan SDK.")
+endif()
+
+# Compile shaders
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/vertex.spv
+    COMMAND ${GLSLC} -fshader-stage=vert ${CMAKE_SOURCE_DIR}/shaders/vertex.glsl -o vertex.spv
+    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/vertex.glsl
+)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/fragment.spv
+    COMMAND ${GLSLC} -fshader-stage=frag ${CMAKE_SOURCE_DIR}/shaders/fragment.glsl -o fragment.spv
+    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/fragment.glsl
+)
+add_custom_target(shaders DEPENDS vertex.spv fragment.spv)
+
 add_executable(shader_triangle src/main.cpp)
-target_link_libraries(shader_triangle GLEW::GLEW ${OPENGL_LIBRARIES} ${SDL2_LIBRARIES})
+add_dependencies(shader_triangle shaders)
+target_link_libraries(shader_triangle ${SDL2_LIBRARIES} Vulkan::Vulkan)
