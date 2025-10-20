@@ -41,13 +41,13 @@ float noise(vec2 p) {
 
 float fbm(vec2 p) {
     float value = 0.0;
-    float amplitude = 0.5;
-    float frequency = 1.0;
+    float amplitude = 0.6;
+    float frequency = 0.8;
 
-    for(int i = 0; i < 6; i++) {
+    for(int i = 0; i < 4; i++) {
         value += amplitude * noise(p * frequency);
-        amplitude *= 0.5;
-        frequency *= 2.0;
+        amplitude *= 0.55;
+        frequency *= 2.1;
     }
 
     return value;
@@ -112,15 +112,5 @@ void main() {
     // Add a subtle glow
     color += vec3(1.0, 1.0, 1.0) * density * 0.3;
 
-    // Add starfield
-    float threshold = 0.8 + fbm(uv * 100.0) * 0.1;
-    float star_val = step(threshold, fbm(uv * 250.0));
-    float star_brightness = 0.5 + fbm(uv * 150.0) * 0.5;
-    float color_hue = fbm(uv * 100.0 + 123.0);
-    float color_variation = fbm(uv * 100.0 + 456.0);
-    vec3 star_color = mix(vec3(0.2, 0.4, 1.0), vec3(1.0, 1.0, 0.2), color_hue); // Blue to Yellow
-    star_color = mix(star_color, vec3(1.0, 0.1, 0.1), color_variation * 0.7); // Add Red
-    vec3 stars = star_val * star_brightness * star_color * 2.0;
-
-    FragColor = vec4(color + stars, 1.0);
+    FragColor = vec4(color, 1.0);
 }
