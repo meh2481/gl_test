@@ -17,6 +17,8 @@ struct FileInfo {
     vector<char> data;
     vector<char> compressedData;
     uint32_t compressionType;
+    bool changed;
+    uint64_t offset; // for unchanged files
 };
 
 bool loadFile(const string& filename, vector<char>& data, time_t& mtime) {
@@ -62,45 +64,59 @@ int main(int argc, char* argv[]) {
         cout << "Adding file: " << filename << " with ID " << id << endl;
     }
 
-    bool needRebuild = true;
+    vector<ResourcePtr> existingPtrs;
     // Check if pak exists and timestamps match
     ifstream pakFile(output, ios::binary);
     if (pakFile) {
         PakFileHeader header;
         pakFile.read((char*)&header, sizeof(header));
         if (pakFile && memcmp(header.sig, "PAKC", 4) == 0 && header.numResources == (uint32_t)files.size()) {
-            vector<ResourcePtr> ptrs(header.numResources);
-            pakFile.read((char*)ptrs.data(), sizeof(ResourcePtr) * header.numResources);
-            needRebuild = false;
+            existingPtrs.resize(header.numResources);
+            pakFile.read((char*)existingPtrs.data(), sizeof(ResourcePtr) * header.numResources);
             for (auto& file : files) {
                 if (!loadFile(file.filename, file.data, file.mtime)) {
-                    needRebuild = true;
-                    break;
+                    file.changed = true;
+                    continue;
                 }
                 // Find the ptr
                 bool found = false;
-                for (auto& ptr : ptrs) {
+                for (auto& ptr : existingPtrs) {
                     if (ptr.id == file.id) {
                         if (ptr.lastModified != (uint64_t)file.mtime) {
-                            needRebuild = true;
+                            file.changed = true;
+                        } else {
+                            file.changed = false;
+                            file.offset = ptr.offset;
                         }
                         found = true;
                         break;
                     }
                 }
-                if (!found || needRebuild) {
-                    needRebuild = true;
-                    break;
+                if (!found) {
+                    file.changed = true;
                 }
             }
         } else {
-            needRebuild = true;
+            for (auto& file : files) {
+                file.changed = true;
+            }
         }
     } else {
-        needRebuild = true;
+        for (auto& file : files) {
+            file.changed = true;
+        }
     }
 
-    if (!needRebuild) {
+    // Check if any file changed
+    bool anyChanged = false;
+    for (const auto& file : files) {
+        if (file.changed) {
+            anyChanged = true;
+            break;
+        }
+    }
+
+    if (!anyChanged) {
         cout << "Pak file is up to date" << endl;
         return 0;
     }
@@ -108,12 +124,24 @@ int main(int argc, char* argv[]) {
     // Rebuild
     cout << "Building pak file" << endl;
     for (auto& file : files) {
-        if (!loadFile(file.filename, file.data, file.mtime)) {
-            cerr << "Failed to load " << file.filename << endl;
-            return 1;
+        if (file.changed) {
+            if (!loadFile(file.filename, file.data, file.mtime)) {
+                cerr << "Failed to load " << file.filename << endl;
+                return 1;
+            }
+            compressData(file.data, file.compressedData, file.compressionType);
+            cout << "File " << file.filename << " original " << file.data.size() << " compressed " << file.compressedData.size() << " type " << file.compressionType << endl;
+        } else {
+            // Load from existing pak
+            pakFile.seekg(file.offset);
+            CompressionHeader comp;
+            pakFile.read((char*)&comp, sizeof(comp));
+            file.compressedData.resize(comp.compressedSize);
+            pakFile.read(file.compressedData.data(), comp.compressedSize);
+            file.compressionType = comp.compressionType;
+            file.data.resize(comp.decompressedSize); // Not needed, but for consistency
+            cout << "File " << file.filename << " unchanged, using cached data" << endl;
         }
-        compressData(file.data, file.compressedData, file.compressionType);
-        cout << "File " << file.filename << " original " << file.data.size() << " compressed " << file.compressedData.size() << " type " << file.compressionType << endl;
     }
 
     ofstream out(output, ios::binary);
