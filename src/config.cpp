@@ -21,7 +21,7 @@ Config loadConfig() {
                     if (SDL_strncmp(line, "display=", 8) == 0) {
                         config.display = SDL_atoi(line + 8);
                     } else if (SDL_strncmp(line, "fullscreen=", 11) == 0) {
-                        config.fullscreen = SDL_atoi(line + 11) != 0;
+                        config.fullscreenMode = SDL_atoi(line + 11);
                     }
                     len = 0;
                 } else {
@@ -34,7 +34,7 @@ Config loadConfig() {
                 if (SDL_strncmp(line, "display=", 8) == 0) {
                     config.display = SDL_atoi(line + 8);
                 } else if (SDL_strncmp(line, "fullscreen=", 11) == 0) {
-                    config.fullscreen = SDL_atoi(line + 11) != 0;
+                    config.fullscreenMode = SDL_atoi(line + 11);
                 }
             }
             SDL_RWclose(file);
@@ -54,7 +54,7 @@ void saveConfig(const Config& config) {
             char line[256];
             SDL_snprintf(line, sizeof(line), "display=%d\n", config.display);
             SDL_RWwrite(file, line, 1, SDL_strlen(line));
-            SDL_snprintf(line, sizeof(line), "fullscreen=%d\n", config.fullscreen ? 1 : 0);
+            SDL_snprintf(line, sizeof(line), "fullscreen=%d\n", config.fullscreenMode);
             SDL_RWwrite(file, line, 1, SDL_strlen(line));
             SDL_RWclose(file);
         }

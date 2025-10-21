@@ -5,7 +5,7 @@
 
 struct Config {
     int display = 0;
-    bool fullscreen = true;
+    int fullscreenMode = SDL_WINDOW_FULLSCREEN_DESKTOP;
 };
 
 Config loadConfig();

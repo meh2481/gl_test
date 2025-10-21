@@ -34,7 +34,7 @@ int main() {
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("Shader Triangle", SDL_WINDOWPOS_CENTERED_DISPLAY(config.display), SDL_WINDOWPOS_CENTERED_DISPLAY(config.display), displayMode.w, displayMode.h, SDL_WINDOW_VULKAN | (config.fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
+    SDL_Window* window = SDL_CreateWindow("Shader Triangle", SDL_WINDOWPOS_CENTERED_DISPLAY(config.display), SDL_WINDOWPOS_CENTERED_DISPLAY(config.display), displayMode.w, displayMode.h, SDL_WINDOW_VULKAN | config.fullscreenMode);
     if (window == nullptr) {
         std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
         SDL_Quit();
@@ -70,9 +70,14 @@ int main() {
                     running = false;
                 }
                 if (event.key.keysym.sym == SDLK_RETURN && (event.key.keysym.mod & KMOD_ALT)) {
-                    config.fullscreen = !config.fullscreen;
-                    SDL_SetWindowFullscreen(window, config.fullscreen ? SDL_WINDOW_FULLSCREEN : 0);
-                    config.display = SDL_GetWindowDisplayIndex(window);
+                    Uint32 flags = SDL_GetWindowFlags(window);
+                    if (flags & config.fullscreenMode) {
+                        SDL_SetWindowFullscreen(window, 0);
+                        config.display = SDL_GetWindowDisplayIndex(window);
+                    } else {
+                        SDL_SetWindowFullscreen(window, config.fullscreenMode);
+                        config.display = SDL_GetWindowDisplayIndex(window);
+                    }
                     saveConfig(config);
                 }
             }
