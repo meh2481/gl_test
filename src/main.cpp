@@ -7,6 +7,9 @@
 #include <cstring>
 #include "VulkanRenderer.h"
 
+#define VERT_SHADER_ID 17179088570012488797ULL
+#define FRAG_SHADER_ID 1358186205122297171ULL
+
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     if (value < min) return min;
     if (value > max) return max;
@@ -35,8 +38,8 @@ int main() {
 
     PakResource pakResource;
     pakResource.load("res.pak");
-    ResourceData vertShader = pakResource.getResource(1);
-    ResourceData fragShader = pakResource.getResource(2);
+    ResourceData vertShader = pakResource.getResource(VERT_SHADER_ID);
+    ResourceData fragShader = pakResource.getResource(FRAG_SHADER_ID);
 
     VulkanRenderer renderer;
     try {

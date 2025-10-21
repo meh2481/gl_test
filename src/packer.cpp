@@ -5,6 +5,8 @@
 #include <sys/stat.h>
 #include <cstring>
 #include <lz4.h>
+#include <filesystem>
+#include <functional>
 
 using namespace std;
 
@@ -45,16 +47,20 @@ void compressData(const vector<char>& input, vector<char>& output, uint32_t& com
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 4) {
-        cerr << "Usage: packer <output.pak> <vertex.spv> <fragment.spv>" << endl;
+    if (argc < 3) {
+        cerr << "Usage: packer <output.pak> <file1> <file2> ..." << endl;
         return 1;
     }
 
     string output = argv[1];
-    vector<FileInfo> files = {
-        {argv[2], 1}, // vertex
-        {argv[3], 2}  // fragment
-    };
+    vector<FileInfo> files;
+    for (int i = 2; i < argc; ++i) {
+        string filename = argv[i];
+        string basename = filesystem::path(filename).filename().string();
+        uint64_t id = hash<string>{}(basename);
+        files.push_back({filename, id});
+        cout << "Adding file: " << filename << " with ID " << id << endl;
+    }
 
     bool needRebuild = true;
     // Check if pak exists and timestamps match
@@ -62,9 +68,9 @@ int main(int argc, char* argv[]) {
     if (pakFile) {
         PakFileHeader header;
         pakFile.read((char*)&header, sizeof(header));
-        if (pakFile && memcmp(header.sig, "PAKC", 4) == 0 && header.numResources == 2) {
-            vector<ResourcePtr> ptrs(2);
-            pakFile.read((char*)ptrs.data(), sizeof(ResourcePtr) * 2);
+        if (pakFile && memcmp(header.sig, "PAKC", 4) == 0 && header.numResources == (uint32_t)files.size()) {
+            vector<ResourcePtr> ptrs(header.numResources);
+            pakFile.read((char*)ptrs.data(), sizeof(ResourcePtr) * header.numResources);
             needRebuild = false;
             for (auto& file : files) {
                 if (!loadFile(file.filename, file.data, file.mtime)) {
@@ -72,15 +78,20 @@ int main(int argc, char* argv[]) {
                     break;
                 }
                 // Find the ptr
+                bool found = false;
                 for (auto& ptr : ptrs) {
                     if (ptr.id == file.id) {
                         if (ptr.lastModified != (uint64_t)file.mtime) {
                             needRebuild = true;
                         }
+                        found = true;
                         break;
                     }
                 }
-                if (needRebuild) break;
+                if (!found || needRebuild) {
+                    needRebuild = true;
+                    break;
+                }
             }
         } else {
             needRebuild = true;
@@ -109,11 +120,11 @@ int main(int argc, char* argv[]) {
     PakFileHeader header;
     memcpy(header.sig, "PAKC", 4);
     header.version = VERSION_1_0;
-    header.numResources = 2;
+    header.numResources = files.size();
     header.pad = 0;
     out.write((char*)&header, sizeof(header));
 
-    uint64_t offset = sizeof(header) + sizeof(ResourcePtr) * 2;
+    uint64_t offset = sizeof(header) + sizeof(ResourcePtr) * files.size();
     for (auto& file : files) {
         ResourcePtr ptr = {file.id, offset, (uint64_t)file.mtime};
         out.write((char*)&ptr, sizeof(ptr));
