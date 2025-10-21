@@ -3,14 +3,17 @@
 #include <vulkan/vulkan.h>
 #include "resource.h"
 #include <vector>
+#include <map>
 
 class VulkanRenderer {
 public:
     VulkanRenderer();
     ~VulkanRenderer();
 
-    void initialize(SDL_Window* window, const ResourceData& vertShader, const ResourceData& fragShader);
+    void initialize(SDL_Window* window);
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
+    void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader);
+    void setCurrentPipeline(uint64_t id);
     void render(float time);
     void cleanup();
 
@@ -18,6 +21,10 @@ private:
     // Shader data storage
     std::vector<char> m_vertShaderData;
     std::vector<char> m_fragShaderData;
+
+    // Pipelines
+    std::map<uint64_t, VkPipeline> m_pipelines;
+    VkPipeline m_currentPipeline;
 
     // Vulkan handles and state
     VkInstance instance;
@@ -33,7 +40,6 @@ private:
     VkImageView* swapchainImageViews;
     VkRenderPass renderPass;
     VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
     VkCommandPool commandPool;
     VkCommandBuffer* commandBuffers;
     VkBuffer vertexBuffer;

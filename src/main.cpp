@@ -43,7 +43,9 @@ int main() {
 
     VulkanRenderer renderer;
     try {
-        renderer.initialize(window, vertShader, fragShader);
+        renderer.initialize(window);
+        renderer.createPipeline(0, vertShader, fragShader);
+        renderer.setCurrentPipeline(0);
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         SDL_DestroyWindow(window);
