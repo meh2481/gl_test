@@ -5,10 +5,13 @@
 #include <fstream>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include "VulkanRenderer.h"
+#include "config.h"
 
 #define VERT_SHADER_ID 17179088570012488797ULL
 #define FRAG_SHADER_ID 1358186205122297171ULL
+#define PAK_FILE "res.pak"
 
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     if (value < min) return min;
@@ -22,14 +25,16 @@ int main() {
         return 1;
     }
 
+    Config config = loadConfig();
+
     SDL_DisplayMode displayMode;
-    if (SDL_GetDesktopDisplayMode(0, &displayMode) != 0) {
+    if (SDL_GetDesktopDisplayMode(config.display, &displayMode) != 0) {
         std::cerr << "SDL_GetDesktopDisplayMode Error: " << SDL_GetError() << std::endl;
         SDL_Quit();
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("Shader Triangle", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, displayMode.w, displayMode.h, SDL_WINDOW_VULKAN | SDL_WINDOW_FULLSCREEN);
+    SDL_Window* window = SDL_CreateWindow("Shader Triangle", SDL_WINDOWPOS_CENTERED_DISPLAY(config.display), SDL_WINDOWPOS_CENTERED_DISPLAY(config.display), displayMode.w, displayMode.h, SDL_WINDOW_VULKAN | (config.fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
     if (window == nullptr) {
         std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
         SDL_Quit();
@@ -37,7 +42,7 @@ int main() {
     }
 
     PakResource pakResource;
-    pakResource.load("res.pak");
+    pakResource.load(PAK_FILE);
     ResourceData vertShader = pakResource.getResource(VERT_SHADER_ID);
     ResourceData fragShader = pakResource.getResource(FRAG_SHADER_ID);
 
@@ -60,14 +65,26 @@ int main() {
             if (event.type == SDL_QUIT) {
                 running = false;
             }
-            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
-                running = false;
+            if (event.type == SDL_KEYDOWN) {
+                if (event.key.keysym.sym == SDLK_ESCAPE) {
+                    running = false;
+                }
+                if (event.key.keysym.sym == SDLK_RETURN && (event.key.keysym.mod & KMOD_ALT)) {
+                    config.fullscreen = !config.fullscreen;
+                    SDL_SetWindowFullscreen(window, config.fullscreen ? SDL_WINDOW_FULLSCREEN : 0);
+                    config.display = SDL_GetWindowDisplayIndex(window);
+                    saveConfig(config);
+                }
             }
         }
 
         float time = SDL_GetTicks() / 1000.0f;
         renderer.render(time);
     }
+
+    // Save current display to config
+    config.display = SDL_GetWindowDisplayIndex(window);
+    saveConfig(config);
 
     renderer.cleanup();
     SDL_DestroyWindow(window);
