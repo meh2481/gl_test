@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(ShaderTriangle)
 set(CMAKE_CXX_STANDARD 17)
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug)
+endif()
 find_package(Vulkan REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(PkgConfig REQUIRED)
@@ -40,3 +43,8 @@ add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 add_executable(shader_triangle src/main.cpp src/resource.cpp src/VulkanRenderer.cpp)
 add_dependencies(shader_triangle shaders res_pak)
 target_link_libraries(shader_triangle ${SDL2_LIBRARIES} Vulkan::Vulkan ${LZ4_LIBRARIES})
+
+add_custom_target(clean-all
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}
+)

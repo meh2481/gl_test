@@ -42,16 +42,12 @@ VulkanRenderer::VulkanRenderer() :
 }
 
 VulkanRenderer::~VulkanRenderer() {
-    cleanup();
 }
 
 void VulkanRenderer::initialize(SDL_Window* window, const ResourceData& vertShader, const ResourceData& fragShader) {
     // Copy shader data
     m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
     m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
-
-    if (m_vertShaderData.empty()) throw std::runtime_error("Vertex shader data is empty");
-    if (m_fragShaderData.empty()) throw std::runtime_error("Fragment shader data is empty");
 
     createInstance(window);
     createSurface(window);
@@ -131,9 +127,6 @@ void VulkanRenderer::render(float time) {
 }
 
 void VulkanRenderer::cleanup() {
-    if (device != VK_NULL_HANDLE) {
-        vkDeviceWaitIdle(device);
-    }
 
     for (size_t i = 0; i < 2; i++) {
         if (renderFinishedSemaphores[i] != VK_NULL_HANDLE) {
@@ -282,7 +275,7 @@ bool VulkanRenderer::isDeviceSuitable(VkPhysicalDevice device) {
         vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
         swapChainAdequate = formatCount > 0 && presentModeCount > 0;
     }
-    return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader && extensionsSupported && swapChainAdequate;
+    return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && extensionsSupported && swapChainAdequate;
 }
 
 void VulkanRenderer::pickPhysicalDevice() {

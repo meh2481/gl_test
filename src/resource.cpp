@@ -88,12 +88,12 @@ ResourceData PakResource::getResource(uint64_t id) {
             if (comp->compressionType == COMPRESSION_FLAGS_UNCOMPRESSED) {
                 return ResourceData{compressedData, comp->decompressedSize};
             } else if (comp->compressionType == COMPRESSION_FLAGS_LZ4) {
-                m_decompressedData.resize(comp->decompressedSize);
-                int result = LZ4_decompress_safe(compressedData, m_decompressedData.data(), comp->compressedSize, comp->decompressedSize);
+                m_decompressedData[id].resize(comp->decompressedSize);
+                int result = LZ4_decompress_safe(compressedData, m_decompressedData[id].data(), comp->compressedSize, comp->decompressedSize);
                 if (result != (int)comp->decompressedSize) {
-                    return ResourceData{nullptr, 0}; // decompression failed
+                    return ResourceData{nullptr, 0};
                 }
-                return ResourceData{m_decompressedData.data(), comp->decompressedSize};
+                return ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize};
             }
         }
     }

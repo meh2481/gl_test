@@ -31,9 +31,17 @@ bool loadFile(const string& filename, vector<char>& data, time_t& mtime) {
 }
 
 void compressData(const vector<char>& input, vector<char>& output, uint32_t& compressionType) {
-    // Temporarily disable compression to test
-    output = input;
-    compressionType = COMPRESSION_FLAGS_UNCOMPRESSED;
+    int maxCompressedSize = LZ4_compressBound(input.size());
+    output.resize(maxCompressedSize);
+    int compressedSize = LZ4_compress_default(input.data(), output.data(), input.size(), maxCompressedSize);
+    if (compressedSize > 0 && compressedSize < (int)input.size()) {
+        output.resize(compressedSize);
+        compressionType = COMPRESSION_FLAGS_LZ4;
+    } else {
+        // Compression didn't help, store uncompressed
+        output = input;
+        compressionType = COMPRESSION_FLAGS_UNCOMPRESSED;
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -94,6 +102,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         compressData(file.data, file.compressedData, file.compressionType);
+        cout << "File " << file.filename << " original " << file.data.size() << " compressed " << file.compressedData.size() << " type " << file.compressionType << endl;
     }
 
     ofstream out(output, ios::binary);
