@@ -52,10 +52,10 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             sceneStack_.pop();
             pendingPop_ = false;
 
-            // Load the new active scene (set up its resources)
+            // Switch to the new active scene's pipeline
             if (!sceneStack_.empty()) {
                 uint64_t newActiveSceneId = sceneStack_.top();
-                luaInterface_->initScene(newActiveSceneId);
+                luaInterface_->switchToScenePipeline(newActiveSceneId);
             }
         }
     }

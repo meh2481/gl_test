@@ -2,6 +2,7 @@
 
 #include <lua.hpp>
 #include <string>
+#include <unordered_map>
 #include "resource.h"
 #include "VulkanRenderer.h"
 
@@ -21,6 +22,7 @@ public:
     void updateScene(uint64_t sceneId, float deltaTime);
     void handleKeyDown(uint64_t sceneId, int keyCode);
     void handleKeyUp(uint64_t sceneId, int keyCode);
+    void switchToScenePipeline(uint64_t sceneId);
 
 private:
     // Lua-callable functions
@@ -36,4 +38,5 @@ private:
     lua_State* luaState_;
     SceneManager* sceneManager_;
     int pipelineIndex_;
+    std::unordered_map<uint64_t, int> scenePipelines_;
 };

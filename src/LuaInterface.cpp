@@ -22,16 +22,6 @@ void LuaInterface::executeScript(const ResourceData& scriptData) {
 }
 
 void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
-    // Clear scene-specific functions from global environment to prevent cross-contamination
-    lua_pushnil(luaState_);
-    lua_setglobal(luaState_, "init");
-    lua_pushnil(luaState_);
-    lua_setglobal(luaState_, "update");
-    lua_pushnil(luaState_);
-    lua_setglobal(luaState_, "onKeyDown");
-    lua_pushnil(luaState_);
-    lua_setglobal(luaState_, "onKeyUp");
-
     // Create a table for this scene
     lua_newtable(luaState_);
 
@@ -46,67 +36,22 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_getglobal(luaState_, "math");
     lua_setfield(luaState_, -2, "math");
 
-    // Load and execute the script in the global environment first
+    // Load the script
     if (luaL_loadbuffer(luaState_, (char*)scriptData.data, scriptData.size, NULL) != LUA_OK) {
         lua_pop(luaState_, 1); // Pop the table
         assert(false);
         return;
     }
 
-    // Execute the script
+    // Set the scene table as the environment (_ENV) for the loaded script
+    lua_pushvalue(luaState_, -2); // Push the scene table
+    lua_setupvalue(luaState_, -2, 1); // Set _ENV upvalue
+
+    // Execute the script with the scene table as its environment
     if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
         lua_pop(luaState_, 1); // Pop the table
         assert(false);
         return;
-    }
-
-    // Now move the init and update functions from global to the scene table
-    lua_getglobal(luaState_, "init");
-    if (lua_isfunction(luaState_, -1)) {
-        lua_setfield(luaState_, -2, "init");
-        // Set the scene table as the _ENV upvalue for the init function
-        lua_getfield(luaState_, -1, "init");
-        lua_pushvalue(luaState_, -2); // scene table
-        lua_setupvalue(luaState_, -2, 1); // set _ENV
-        lua_pop(luaState_, 1); // pop init
-    } else {
-        lua_pop(luaState_, 1); // Pop nil
-    }
-
-    lua_getglobal(luaState_, "update");
-    if (lua_isfunction(luaState_, -1)) {
-        lua_setfield(luaState_, -2, "update");
-        // Set the scene table as the _ENV upvalue for the update function
-        lua_getfield(luaState_, -1, "update");
-        lua_pushvalue(luaState_, -2); // scene table
-        lua_setupvalue(luaState_, -2, 1); // set _ENV
-        lua_pop(luaState_, 1); // pop update
-    } else {
-        lua_pop(luaState_, 1); // Pop nil
-    }
-
-    lua_getglobal(luaState_, "onKeyDown");
-    if (lua_isfunction(luaState_, -1)) {
-        lua_setfield(luaState_, -2, "onKeyDown");
-        // Set the scene table as the _ENV upvalue for the onKeyDown function
-        lua_getfield(luaState_, -1, "onKeyDown");
-        lua_pushvalue(luaState_, -2); // scene table
-        lua_setupvalue(luaState_, -2, 1); // set _ENV
-        lua_pop(luaState_, 1); // pop onKeyDown
-    } else {
-        lua_pop(luaState_, 1); // Pop nil
-    }
-
-    lua_getglobal(luaState_, "onKeyUp");
-    if (lua_isfunction(luaState_, -1)) {
-        lua_setfield(luaState_, -2, "onKeyUp");
-        // Set the scene table as the _ENV upvalue for the onKeyUp function
-        lua_getfield(luaState_, -1, "onKeyUp");
-        lua_pushvalue(luaState_, -2); // scene table
-        lua_setupvalue(luaState_, -2, 1); // set _ENV
-        lua_pop(luaState_, 1); // pop onKeyUp
-    } else {
-        lua_pop(luaState_, 1); // Pop nil
     }
 
     // Store the table in the global registry with the scene ID as key
@@ -114,7 +59,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_pushvalue(luaState_, -2); // Push the table
     lua_settable(luaState_, LUA_REGISTRYINDEX);
 
-    // Pop the table from the stack
+    // Pop the table
     lua_pop(luaState_, 1);
 }
 
@@ -146,6 +91,9 @@ void LuaInterface::initScene(uint64_t sceneId) {
         assert(false);
         return;
     }
+
+    // Store the pipeline index for this scene (assuming init() called loadShaders once)
+    scenePipelines_[sceneId] = pipelineIndex_ - 1;
 
     // Pop the table
     lua_pop(luaState_, 1);
@@ -251,6 +199,13 @@ void LuaInterface::handleKeyUp(uint64_t sceneId, int keyCode) {
 
     // Pop the table
     lua_pop(luaState_, 1);
+}
+
+void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
+    auto it = scenePipelines_.find(sceneId);
+    if (it != scenePipelines_.end()) {
+        renderer_.setCurrentPipeline(it->second);
+    }
 }
 
 void LuaInterface::registerFunctions() {
