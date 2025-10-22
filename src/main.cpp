@@ -12,7 +12,7 @@
 #include "LuaInterface.h"
 #include "config.h"
 
-#define LUA_SCRIPT_ID (std::hash<std::string>{}("default.lua"))
+#define LUA_SCRIPT_ID 14669932163325785351ULL
 #define PAK_FILE "res.pak"
 
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {

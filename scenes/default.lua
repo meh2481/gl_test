@@ -1,2 +1,2 @@
--- Load the default shaders
-loadShaders("vertex.spv", "fragment.spv")
+-- Load the nebula shaders
+loadShaders("nebula_vertex.spv", "nebula_fragment.spv")
