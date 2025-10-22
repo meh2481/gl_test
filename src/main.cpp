@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
+#include <cassert>
 #include <lua.hpp>
 #include "VulkanRenderer.h"
 #include "LuaInterface.h"
@@ -47,20 +48,11 @@ int main() {
 
     VulkanRenderer renderer;
     LuaInterface luaInterface(pakResource, renderer);
-    try {
-        renderer.initialize(window);
+    renderer.initialize(window);
 
-        // Load scene from Lua
-        ResourceData luaScript = pakResource.getResource(LUA_SCRIPT_ID);
-        if (!luaInterface.executeScript(luaScript)) {
-            throw std::runtime_error("Failed to execute Lua script");
-        }
-    } catch (const std::exception& e) {
-        std::cerr << e.what() << std::endl;
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
+    // Load scene from Lua
+    ResourceData luaScript = pakResource.getResource(LUA_SCRIPT_ID);
+    assert(luaInterface.executeScript(luaScript));
 
     bool running = true;
     SDL_Event event;

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 #include <algorithm>
+#include <cassert>
 #include <SDL2/SDL_vulkan.h>
 
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
@@ -183,9 +184,7 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
     VkPipeline pipeline;
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create graphics pipeline!");
-    }
+    assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
 
     m_pipelines[id] = pipeline;
 
@@ -195,11 +194,8 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
 
 void VulkanRenderer::setCurrentPipeline(uint64_t id) {
     auto it = m_pipelines.find(id);
-    if (it != m_pipelines.end()) {
-        m_currentPipeline = it->second;
-    } else {
-        throw std::runtime_error("Pipeline not found");
-    }
+    assert(it != m_pipelines.end());
+    m_currentPipeline = it->second;
 }
 
 void VulkanRenderer::render(float time) {
@@ -210,8 +206,8 @@ void VulkanRenderer::render(float time) {
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         // Recreate swapchain
         return;
-    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        throw std::runtime_error("failed to acquire swapchain image!");
+    } else {
+        assert(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR);
     }
 
     vkResetFences(device, 1, &inFlightFences[currentFrame]);
@@ -234,9 +230,7 @@ void VulkanRenderer::render(float time) {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
-        throw std::runtime_error("failed to submit draw command buffer!");
-    }
+    assert(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) == VK_SUCCESS);
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -334,9 +328,7 @@ VkShaderModule VulkanRenderer::createShaderModule(const std::vector<char>& code)
     createInfo.codeSize = code.size();
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
     VkShaderModule shaderModule;
-    if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create shader module!");
-    }
+    assert(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) == VK_SUCCESS);
     return shaderModule;
 }
 
@@ -354,24 +346,18 @@ void VulkanRenderer::createInstance(SDL_Window* window) {
     createInfo.pApplicationInfo = &appInfo;
 
     unsigned int count;
-    if (!SDL_Vulkan_GetInstanceExtensions(window, &count, nullptr)) {
-        throw std::runtime_error("failed to get SDL Vulkan extensions");
-    }
+    assert(SDL_Vulkan_GetInstanceExtensions(window, &count, nullptr));
     const char** extensions = new const char*[count];
     SDL_Vulkan_GetInstanceExtensions(window, &count, extensions);
     createInfo.enabledExtensionCount = static_cast<uint32_t>(count);
     createInfo.ppEnabledExtensionNames = extensions;
 
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create instance!");
-    }
+    assert(vkCreateInstance(&createInfo, nullptr, &instance) == VK_SUCCESS);
     delete[] extensions;
 }
 
 void VulkanRenderer::createSurface(SDL_Window* window) {
-    if (!SDL_Vulkan_CreateSurface(window, instance, &surface)) {
-        throw std::runtime_error("failed to create surface!");
-    }
+    assert(SDL_Vulkan_CreateSurface(window, instance, &surface));
 }
 
 bool VulkanRenderer::checkDeviceExtensionSupport(VkPhysicalDevice device) {
@@ -412,9 +398,7 @@ bool VulkanRenderer::isDeviceSuitable(VkPhysicalDevice device) {
 void VulkanRenderer::pickPhysicalDevice() {
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
-    if (deviceCount == 0) {
-        throw std::runtime_error("failed to find GPUs with Vulkan support!");
-    }
+    assert(deviceCount != 0);
     VkPhysicalDevice* devices = new VkPhysicalDevice[deviceCount];
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
     for (uint32_t i = 0; i < deviceCount; i++) {
@@ -424,9 +408,7 @@ void VulkanRenderer::pickPhysicalDevice() {
         }
     }
     delete[] devices;
-    if (physicalDevice == VK_NULL_HANDLE) {
-        throw std::runtime_error("failed to find a suitable GPU!");
-    }
+    assert(physicalDevice != VK_NULL_HANDLE);
 }
 
 void VulkanRenderer::createLogicalDevice() {
@@ -469,9 +451,7 @@ void VulkanRenderer::createLogicalDevice() {
     const char* deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     createInfo.enabledExtensionCount = 1;
     createInfo.ppEnabledExtensionNames = deviceExtensions;
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create logical device!");
-    }
+    assert(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) == VK_SUCCESS);
     vkGetDeviceQueue(device, graphicsFamily, 0, &graphicsQueue);
     graphicsQueueFamilyIndex = graphicsFamily;
     delete[] queueFamilies;
@@ -543,9 +523,7 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
-    if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapchain) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create swap chain!");
-    }
+    assert(vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapchain) == VK_SUCCESS);
     vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr);
     swapchainImageCount = imageCount;
     swapchainImages = new VkImage[imageCount];
@@ -573,9 +551,7 @@ void VulkanRenderer::createImageViews() {
         createInfo.subresourceRange.levelCount = 1;
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &createInfo, nullptr, &swapchainImageViews[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image views!");
-        }
+        assert(vkCreateImageView(device, &createInfo, nullptr, &swapchainImageViews[i]) == VK_SUCCESS);
     }
 }
 
@@ -602,9 +578,7 @@ void VulkanRenderer::createRenderPass() {
     renderPassInfo.pAttachments = &colorAttachment;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
-    if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create render pass!");
-    }
+    assert(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) == VK_SUCCESS);
 }
 
 void VulkanRenderer::createFramebuffers() {
@@ -619,9 +593,7 @@ void VulkanRenderer::createFramebuffers() {
         framebufferInfo.width = swapchainExtent.width;
         framebufferInfo.height = swapchainExtent.height;
         framebufferInfo.layers = 1;
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapchainFramebuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create framebuffer!");
-        }
+        assert(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapchainFramebuffers[i]) == VK_SUCCESS);
     }
 }
 
@@ -634,11 +606,8 @@ void VulkanRenderer::createPipelineLayout() {
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create pipeline layout!");
-    }
+    assert(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) == VK_SUCCESS);
 }
-
 
 uint32_t VulkanRenderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memProperties;
@@ -648,7 +617,8 @@ uint32_t VulkanRenderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFla
             return i;
         }
     }
-    throw std::runtime_error("failed to find suitable memory type!");
+    assert(false && "failed to find suitable memory type!");
+    return 0; // This should never be reached
 }
 
 void VulkanRenderer::createVertexBuffer() {
@@ -663,18 +633,14 @@ void VulkanRenderer::createVertexBuffer() {
     bufferInfo.size = sizeof(vertices);
     bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create vertex buffer!");
-    }
+    assert(vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) == VK_SUCCESS);
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate vertex buffer memory!");
-    }
+    assert(vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) == VK_SUCCESS);
     vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
     void* data;
     vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
@@ -687,9 +653,7 @@ void VulkanRenderer::createCommandPool() {
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create command pool!");
-    }
+    assert(vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) == VK_SUCCESS);
 }
 
 void VulkanRenderer::createCommandBuffers() {
@@ -699,9 +663,7 @@ void VulkanRenderer::createCommandBuffers() {
     allocInfo.commandPool = commandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = (uint32_t)swapchainImageCount;
-    if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate command buffers!");
-    }
+    assert(vkAllocateCommandBuffers(device, &allocInfo, commandBuffers) == VK_SUCCESS);
 }
 
 void VulkanRenderer::createSyncObjects() {
@@ -711,20 +673,16 @@ void VulkanRenderer::createSyncObjects() {
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     for (size_t i = 0; i < 2; i++) {
-        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create synchronization objects!");
-        }
+        assert(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) == VK_SUCCESS &&
+               vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) == VK_SUCCESS &&
+               vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) == VK_SUCCESS);
     }
 }
 
 void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, float time) {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("failed to begin recording command buffer!");
-    }
+    assert(vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS);
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = renderPass;
@@ -743,7 +701,5 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
     vkCmdDraw(commandBuffer, 4, 1, 0, 0);
     vkCmdEndRenderPass(commandBuffer);
-    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to record command buffer!");
-    }
+    assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
 }
