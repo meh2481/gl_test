@@ -80,6 +80,23 @@ int main() {
                     }
                     saveConfig(config);
                 }
+#ifdef DEBUG
+                if (event.key.keysym.sym == SDLK_F5) {
+                    std::cout << "Hot-reloading resources..." << std::endl;
+                    // Rebuild shaders and pak file using make
+                    int result = system("make shaders && make res_pak");
+                    if (result == 0) {
+                        // Reload pak
+                        pakResource.load("res.pak");
+                        ResourceData newVertShader = pakResource.getResource(VERT_SHADER_ID);
+                        ResourceData newFragShader = pakResource.getResource(FRAG_SHADER_ID);
+                        renderer.setShaders(newVertShader, newFragShader);
+                        std::cout << "Resources reloaded successfully." << std::endl;
+                    } else {
+                        std::cerr << "Failed to rebuild resources." << std::endl;
+                    }
+                }
+#endif
             }
         }
 
