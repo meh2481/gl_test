@@ -11,7 +11,11 @@ public:
     ~LuaInterface();
 
     // Execute a Lua script from ResourceData
-    bool executeScript(const ResourceData& scriptData);
+    void executeScript(const ResourceData& scriptData);
+
+    // Scene management functions
+    void initScene();
+    void updateScene(float deltaTime);
 
     // Lua-callable functions
     static int loadShaders(lua_State* L);

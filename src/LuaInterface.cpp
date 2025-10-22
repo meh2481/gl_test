@@ -1,5 +1,5 @@
 #include "LuaInterface.h"
-#include <iostream>
+#include <cassert>
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer)
     : pakResource_(pakResource), renderer_(renderer), pipelineIndex_(0) {
@@ -14,18 +14,22 @@ LuaInterface::~LuaInterface() {
     }
 }
 
-bool LuaInterface::executeScript(const ResourceData& scriptData) {
-    if (luaL_loadbuffer(luaState_, (char*)scriptData.data, scriptData.size, NULL) != LUA_OK) {
-        std::cerr << "Failed to load Lua script: " << lua_tostring(luaState_, -1) << std::endl;
-        return false;
-    }
+void LuaInterface::executeScript(const ResourceData& scriptData) {
+    assert(luaL_loadbuffer(luaState_, (char*)scriptData.data, scriptData.size, NULL) == LUA_OK);
+    assert(lua_pcall(luaState_, 0, 0, 0) == LUA_OK);
+}
 
-    if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
-        std::cerr << "Failed to execute Lua script: " << lua_tostring(luaState_, -1) << std::endl;
-        return false;
-    }
+void LuaInterface::initScene() {
+    lua_getglobal(luaState_, "init");
+    assert(lua_isfunction(luaState_, -1));
+    assert(lua_pcall(luaState_, 0, 0, 0) == LUA_OK);
+}
 
-    return true;
+void LuaInterface::updateScene(float deltaTime) {
+    lua_getglobal(luaState_, "update");
+    assert(lua_isfunction(luaState_, -1));
+    lua_pushnumber(luaState_, deltaTime);
+    assert(lua_pcall(luaState_, 1, 0, 0) == LUA_OK);
 }
 
 void LuaInterface::registerFunctions() {
@@ -44,15 +48,8 @@ int LuaInterface::loadShaders(lua_State* L) {
     lua_pop(L, 1);
 
     // Check arguments
-    if (lua_gettop(L) != 2) {
-        luaL_error(L, "loadShaders expects 2 arguments: vertex shader filename and fragment shader filename");
-        return 0;
-    }
-
-    if (!lua_isstring(L, 1) || !lua_isstring(L, 2)) {
-        luaL_error(L, "loadShaders arguments must be strings");
-        return 0;
-    }
+    assert(lua_gettop(L) == 2);
+    assert(lua_isstring(L, 1) && lua_isstring(L, 2));
 
     const char* vertFile = lua_tostring(L, 1);
     const char* fragFile = lua_tostring(L, 2);
@@ -65,17 +62,12 @@ int LuaInterface::loadShaders(lua_State* L) {
     ResourceData vertShader = interface->pakResource_.getResource(vertId);
     ResourceData fragShader = interface->pakResource_.getResource(fragId);
 
-    if (vertShader.size == 0 || fragShader.size == 0) {
-        luaL_error(L, "Failed to load shader resources: %s or %s not found", vertFile, fragFile);
-        return 0;
-    }
+    assert(vertShader.size != 0 && fragShader.size != 0);
 
     // Create pipeline
     interface->renderer_.createPipeline(interface->pipelineIndex_, vertShader, fragShader);
     interface->renderer_.setCurrentPipeline(interface->pipelineIndex_);
     interface->pipelineIndex_++;
-
-    std::cout << "Loaded shaders: " << vertFile << " and " << fragFile << std::endl;
 
     return 0; // No return values
 }

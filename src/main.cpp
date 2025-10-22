@@ -22,26 +22,15 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
 }
 
 int main() {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
-        return 1;
-    }
+    assert(SDL_Init(SDL_INIT_VIDEO) == 0);
 
     Config config = loadConfig();
 
     SDL_DisplayMode displayMode;
-    if (SDL_GetDesktopDisplayMode(config.display, &displayMode) != 0) {
-        std::cerr << "SDL_GetDesktopDisplayMode Error: " << SDL_GetError() << std::endl;
-        SDL_Quit();
-        return 1;
-    }
+    assert(SDL_GetDesktopDisplayMode(config.display, &displayMode) == 0);
 
     SDL_Window* window = SDL_CreateWindow("Shader Triangle", SDL_WINDOWPOS_CENTERED_DISPLAY(config.display), SDL_WINDOWPOS_CENTERED_DISPLAY(config.display), displayMode.w, displayMode.h, SDL_WINDOW_VULKAN | config.fullscreenMode);
-    if (window == nullptr) {
-        std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
-        SDL_Quit();
-        return 1;
-    }
+    assert(window != nullptr);
 
     PakResource pakResource;
     pakResource.load(PAK_FILE);
@@ -52,11 +41,16 @@ int main() {
 
     // Load scene from Lua
     ResourceData luaScript = pakResource.getResource(LUA_SCRIPT_ID);
-    assert(luaInterface.executeScript(luaScript));
+    luaInterface.executeScript(luaScript);
+    luaInterface.initScene();
 
     bool running = true;
     SDL_Event event;
+    float lastTime = SDL_GetTicks() / 1000.0f;
     while (running) {
+        float currentTime = SDL_GetTicks()  / 1000.0f;
+        float deltaTime = (currentTime - lastTime);
+        lastTime = currentTime;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 running = false;
@@ -81,26 +75,20 @@ int main() {
                     std::cout << "Hot-reloading resources..." << std::endl;
                     // Rebuild shaders and pak file using make
                     int result = system("make shaders && make res_pak");
-                    if (result == 0) {
-                        // Reload pak
-                        pakResource.load(PAK_FILE);
-                        // Reload scene from Lua
-                        ResourceData luaScript = pakResource.getResource(LUA_SCRIPT_ID);
-                        if (luaInterface.executeScript(luaScript)) {
-                            std::cout << "Resources reloaded successfully." << std::endl;
-                        } else {
-                            std::cerr << "Failed to execute Lua script during hot-reload." << std::endl;
-                        }
-                    } else {
-                        std::cerr << "Failed to rebuild resources." << std::endl;
-                    }
+                    assert(result == 0);
+                    // Reload pak
+                    pakResource.load(PAK_FILE);
+                    // Reload scene from Lua
+                    ResourceData luaScript = pakResource.getResource(LUA_SCRIPT_ID);
+                    luaInterface.executeScript(luaScript);
+                    luaInterface.initScene();
                 }
 #endif
             }
         }
 
-        float time = SDL_GetTicks() / 1000.0f;
-        renderer.render(time);
+        luaInterface.updateScene(deltaTime);
+        renderer.render(currentTime);
     }
 
     // Save current display to config
