@@ -6,11 +6,12 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
+#include <lua.hpp>
 #include "VulkanRenderer.h"
+#include "LuaInterface.h"
 #include "config.h"
 
-#define VERT_SHADER_ID 17179088570012488797ULL
-#define FRAG_SHADER_ID 1358186205122297171ULL
+#define LUA_SCRIPT_ID (std::hash<std::string>{}("default.lua"))
 #define PAK_FILE "res.pak"
 
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
@@ -43,14 +44,17 @@ int main() {
 
     PakResource pakResource;
     pakResource.load(PAK_FILE);
-    ResourceData vertShader = pakResource.getResource(VERT_SHADER_ID);
-    ResourceData fragShader = pakResource.getResource(FRAG_SHADER_ID);
 
     VulkanRenderer renderer;
+    LuaInterface luaInterface(pakResource, renderer);
     try {
         renderer.initialize(window);
-        renderer.createPipeline(0, vertShader, fragShader);
-        renderer.setCurrentPipeline(0);
+
+        // Load scene from Lua
+        ResourceData luaScript = pakResource.getResource(LUA_SCRIPT_ID);
+        if (!luaInterface.executeScript(luaScript)) {
+            throw std::runtime_error("Failed to execute Lua script");
+        }
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         SDL_DestroyWindow(window);
@@ -87,11 +91,14 @@ int main() {
                     int result = system("make shaders && make res_pak");
                     if (result == 0) {
                         // Reload pak
-                        pakResource.load("res.pak");
-                        ResourceData newVertShader = pakResource.getResource(VERT_SHADER_ID);
-                        ResourceData newFragShader = pakResource.getResource(FRAG_SHADER_ID);
-                        renderer.setShaders(newVertShader, newFragShader);
-                        std::cout << "Resources reloaded successfully." << std::endl;
+                        pakResource.load(PAK_FILE);
+                        // Reload scene from Lua
+                        ResourceData luaScript = pakResource.getResource(LUA_SCRIPT_ID);
+                        if (luaInterface.executeScript(luaScript)) {
+                            std::cout << "Resources reloaded successfully." << std::endl;
+                        } else {
+                            std::cerr << "Failed to execute Lua script during hot-reload." << std::endl;
+                        }
                     } else {
                         std::cerr << "Failed to rebuild resources." << std::endl;
                     }
