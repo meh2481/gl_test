@@ -48,6 +48,14 @@ void compressData(const vector<char>& input, vector<char>& output, uint32_t& com
     }
 }
 
+uint32_t getFileType(const string& filename) {
+    string ext = filesystem::path(filename).extension().string();
+    if (ext == ".lua") return RESOURCE_TYPE_LUA;
+    if (ext == ".spv") return RESOURCE_TYPE_SHADER;
+    // Add more extensions as needed
+    return RESOURCE_TYPE_UNKNOWN;
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 3) {
         cerr << "Usage: packer <output.pak> <file1> <file2> ..." << endl;
@@ -130,7 +138,7 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             compressData(file.data, file.compressedData, file.compressionType);
-            cout << "File " << file.filename << " original " << file.data.size() << " compressed " << file.compressedData.size() << " type " << file.compressionType << endl;
+            cout << "File " << file.filename << " original " << file.data.size() << " compressed " << file.compressedData.size() << " compression " << file.compressionType << " resource_type " << getFileType(file.filename) << endl;
         } else {
             // Load from existing pak
             pakFile.seekg(file.offset);
@@ -160,7 +168,7 @@ int main(int argc, char* argv[]) {
     }
 
     for (auto& file : files) {
-        CompressionHeader comp = {file.compressionType, (uint32_t)file.compressedData.size(), (uint32_t)file.data.size(), RESOURCE_TYPE_SHADER};
+        CompressionHeader comp = {file.compressionType, (uint32_t)file.compressedData.size(), (uint32_t)file.data.size(), getFileType(file.filename)};
         out.write((char*)&comp, sizeof(comp));
         out.write(file.compressedData.data(), file.compressedData.size());
     }
