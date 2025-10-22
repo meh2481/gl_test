@@ -16,3 +16,10 @@ function update(deltaTime)
         menuPushed = true
     end
 end
+
+-- Handle key down events
+function onKeyDown(keyCode)
+    if keyCode == 27 then  -- SDLK_ESCAPE
+        popScene()
+    end
+end

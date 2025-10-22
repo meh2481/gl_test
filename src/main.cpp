@@ -54,9 +54,7 @@ int main() {
                 running = false;
             }
             if (event.type == SDL_KEYDOWN) {
-                if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    running = false;
-                }
+                sceneManager.handleKeyDown(event.key.keysym.sym);
                 if (event.key.keysym.sym == SDLK_RETURN && (event.key.keysym.mod & KMOD_ALT)) {
                     Uint32 flags = SDL_GetWindowFlags(window);
                     if (flags & config.fullscreenMode) {
@@ -83,6 +81,9 @@ int main() {
                     sceneManager.pushScene(LUA_SCRIPT_ID);
                 }
 #endif
+            }
+            if (event.type == SDL_KEYUP) {
+                sceneManager.handleKeyUp(event.key.keysym.sym);
             }
         }
 

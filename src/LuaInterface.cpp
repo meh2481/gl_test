@@ -22,6 +22,16 @@ void LuaInterface::executeScript(const ResourceData& scriptData) {
 }
 
 void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
+    // Clear scene-specific functions from global environment to prevent cross-contamination
+    lua_pushnil(luaState_);
+    lua_setglobal(luaState_, "init");
+    lua_pushnil(luaState_);
+    lua_setglobal(luaState_, "update");
+    lua_pushnil(luaState_);
+    lua_setglobal(luaState_, "onKeyDown");
+    lua_pushnil(luaState_);
+    lua_setglobal(luaState_, "onKeyUp");
+
     // Create a table for this scene
     lua_newtable(luaState_);
 
@@ -71,6 +81,30 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
         lua_pushvalue(luaState_, -2); // scene table
         lua_setupvalue(luaState_, -2, 1); // set _ENV
         lua_pop(luaState_, 1); // pop update
+    } else {
+        lua_pop(luaState_, 1); // Pop nil
+    }
+
+    lua_getglobal(luaState_, "onKeyDown");
+    if (lua_isfunction(luaState_, -1)) {
+        lua_setfield(luaState_, -2, "onKeyDown");
+        // Set the scene table as the _ENV upvalue for the onKeyDown function
+        lua_getfield(luaState_, -1, "onKeyDown");
+        lua_pushvalue(luaState_, -2); // scene table
+        lua_setupvalue(luaState_, -2, 1); // set _ENV
+        lua_pop(luaState_, 1); // pop onKeyDown
+    } else {
+        lua_pop(luaState_, 1); // Pop nil
+    }
+
+    lua_getglobal(luaState_, "onKeyUp");
+    if (lua_isfunction(luaState_, -1)) {
+        lua_setfield(luaState_, -2, "onKeyUp");
+        // Set the scene table as the _ENV upvalue for the onKeyUp function
+        lua_getfield(luaState_, -1, "onKeyUp");
+        lua_pushvalue(luaState_, -2); // scene table
+        lua_setupvalue(luaState_, -2, 1); // set _ENV
+        lua_pop(luaState_, 1); // pop onKeyUp
     } else {
         lua_pop(luaState_, 1); // Pop nil
     }
@@ -146,6 +180,72 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
         std::cerr << "Lua update error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
         lua_pop(luaState_, 2); // Pop error message and table
         assert(false);
+        return;
+    }
+
+    // Pop the table
+    lua_pop(luaState_, 1);
+}
+
+void LuaInterface::handleKeyDown(uint64_t sceneId, int keyCode) {
+    // Get the scene table from registry
+    lua_pushinteger(luaState_, sceneId);
+    lua_gettable(luaState_, LUA_REGISTRYINDEX);
+
+    if (!lua_istable(luaState_, -1)) {
+        lua_pop(luaState_, 1);
+        return; // Scene not found, silently ignore
+    }
+
+    // Get the onKeyDown function from the table (optional)
+    lua_getfield(luaState_, -1, "onKeyDown");
+    if (!lua_isfunction(luaState_, -1)) {
+        lua_pop(luaState_, 2); // Pop nil and table
+        return; // No onKeyDown function, silently ignore
+    }
+
+    // Push keyCode parameter
+    lua_pushinteger(luaState_, keyCode);
+
+    // Call onKeyDown(keyCode)
+    if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
+        // Get the error message
+        const char* errorMsg = lua_tostring(luaState_, -1);
+        std::cerr << "Lua onKeyDown error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        lua_pop(luaState_, 2); // Pop error message and table
+        return;
+    }
+
+    // Pop the table
+    lua_pop(luaState_, 1);
+}
+
+void LuaInterface::handleKeyUp(uint64_t sceneId, int keyCode) {
+    // Get the scene table from registry
+    lua_pushinteger(luaState_, sceneId);
+    lua_gettable(luaState_, LUA_REGISTRYINDEX);
+
+    if (!lua_istable(luaState_, -1)) {
+        lua_pop(luaState_, 1);
+        return; // Scene not found, silently ignore
+    }
+
+    // Get the onKeyUp function from the table (optional)
+    lua_getfield(luaState_, -1, "onKeyUp");
+    if (!lua_isfunction(luaState_, -1)) {
+        lua_pop(luaState_, 2); // Pop nil and table
+        return; // No onKeyUp function, silently ignore
+    }
+
+    // Push keyCode parameter
+    lua_pushinteger(luaState_, keyCode);
+
+    // Call onKeyUp(keyCode)
+    if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
+        // Get the error message
+        const char* errorMsg = lua_tostring(luaState_, -1);
+        std::cerr << "Lua onKeyUp error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        lua_pop(luaState_, 2); // Pop error message and table
         return;
     }
 

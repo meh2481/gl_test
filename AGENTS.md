@@ -7,7 +7,7 @@
 
 ## Command guidelines
 - Do not rm files or folders via the command line. Use the make commands for cleaning code or resources.
-- Do not invoke the built application directly. Use VSCode's run and debug command so that debugging can be performed by the user.
+- Do not invoke the built application directly (e.g. by calling ./shader_triangle in the console). Use VSCode's debug application command.
 
 ## Response guidelines
 - Don't pat yourself on the back for doing a good job

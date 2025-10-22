@@ -62,3 +62,17 @@ bool SceneManager::updateActiveScene(float deltaTime) {
 
     return !sceneStack_.empty();
 }
+
+void SceneManager::handleKeyDown(int keyCode) {
+    if (!sceneStack_.empty()) {
+        uint64_t activeSceneId = sceneStack_.top();
+        luaInterface_->handleKeyDown(activeSceneId, keyCode);
+    }
+}
+
+void SceneManager::handleKeyUp(int keyCode) {
+    if (!sceneStack_.empty()) {
+        uint64_t activeSceneId = sceneStack_.top();
+        luaInterface_->handleKeyUp(activeSceneId, keyCode);
+    }
+}

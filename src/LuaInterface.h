@@ -19,6 +19,8 @@ public:
     void loadScene(uint64_t sceneId, const ResourceData& scriptData);
     void initScene(uint64_t sceneId);
     void updateScene(uint64_t sceneId, float deltaTime);
+    void handleKeyDown(uint64_t sceneId, int keyCode);
+    void handleKeyUp(uint64_t sceneId, int keyCode);
 
 private:
     // Lua-callable functions
