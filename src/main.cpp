@@ -9,7 +9,7 @@
 #include <cassert>
 #include <lua.hpp>
 #include "VulkanRenderer.h"
-#include "LuaInterface.h"
+#include "SceneManager.h"
 #include "config.h"
 
 #define LUA_SCRIPT_ID 14669932163325785351ULL
@@ -36,13 +36,11 @@ int main() {
     pakResource.load(PAK_FILE);
 
     VulkanRenderer renderer;
-    LuaInterface luaInterface(pakResource, renderer);
+    SceneManager sceneManager(pakResource, renderer);
     renderer.initialize(window);
 
-    // Load scene from Lua
-    ResourceData luaScript = pakResource.getResource(LUA_SCRIPT_ID);
-    luaInterface.executeScript(luaScript);
-    luaInterface.initScene();
+    // Load initial scene
+    sceneManager.pushScene(LUA_SCRIPT_ID);
 
     bool running = true;
     SDL_Event event;
@@ -78,16 +76,19 @@ int main() {
                     assert(result == 0);
                     // Reload pak
                     pakResource.load(PAK_FILE);
-                    // Reload scene from Lua
-                    ResourceData luaScript = pakResource.getResource(LUA_SCRIPT_ID);
-                    luaInterface.executeScript(luaScript);
-                    luaInterface.initScene();
+                    // Clear current scenes and reload initial scene
+                    while (!sceneManager.isEmpty()) {
+                        sceneManager.popScene();
+                    }
+                    sceneManager.pushScene(LUA_SCRIPT_ID);
                 }
 #endif
             }
         }
 
-        luaInterface.updateScene(deltaTime);
+        if(!sceneManager.updateActiveScene(deltaTime)) {
+            running = false;
+        }
         renderer.render(currentTime);
     }
 

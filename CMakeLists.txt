@@ -31,20 +31,30 @@ add_custom_command(
     COMMAND ${GLSLC} -fshader-stage=frag ${CMAKE_SOURCE_DIR}/shaders/nebula_fragment.glsl -o nebula_fragment.spv
     DEPENDS ${CMAKE_SOURCE_DIR}/shaders/nebula_fragment.glsl
 )
-add_custom_target(shaders DEPENDS nebula_vertex.spv nebula_fragment.spv)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/menu_vertex.spv
+    COMMAND ${GLSLC} -fshader-stage=vert ${CMAKE_SOURCE_DIR}/shaders/menu_vertex.glsl -o menu_vertex.spv
+    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/menu_vertex.glsl
+)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/menu_fragment.spv
+    COMMAND ${GLSLC} -fshader-stage=frag ${CMAKE_SOURCE_DIR}/shaders/menu_fragment.glsl -o menu_fragment.spv
+    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/menu_fragment.glsl
+)
+add_custom_target(shaders DEPENDS nebula_vertex.spv nebula_fragment.spv menu_vertex.spv menu_fragment.spv)
 
 add_executable(packer src/packer.cpp src/ResourceTypes.h)
 target_link_libraries(packer ${LZ4_LIBRARIES})
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/res.pak
-    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${CMAKE_BINARY_DIR}/nebula_vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua
-    DEPENDS packer ${CMAKE_BINARY_DIR}/nebula_vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua
+    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${CMAKE_BINARY_DIR}/nebula_vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/menu_vertex.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua
+    DEPENDS packer ${CMAKE_BINARY_DIR}/nebula_vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/menu_vertex.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua
 )
 
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 
-add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/LuaInterface.cpp)
+add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/LuaInterface.cpp src/SceneManager.cpp)
 add_dependencies(shader_triangle shaders res_pak)
 target_link_libraries(shader_triangle ${SDL2_LIBRARIES} Vulkan::Vulkan ${LZ4_LIBRARIES} ${LUA_LIBRARIES})
 
