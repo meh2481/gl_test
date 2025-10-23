@@ -74,11 +74,8 @@ int main() {
                     assert(result == 0);
                     // Reload pak
                     pakResource.load(PAK_FILE);
-                    // Clear current scenes and reload initial scene
-                    while (!sceneManager.isEmpty()) {
-                        sceneManager.popScene();
-                    }
-                    sceneManager.pushScene(LUA_SCRIPT_ID);
+                    // Reload current scene with new resources
+                    sceneManager.reloadCurrentScene();
                 }
 #endif
             }

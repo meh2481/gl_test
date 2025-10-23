@@ -3,8 +3,10 @@
 #include <stack>
 #include <unordered_set>
 #include <memory>
-#include "LuaInterface.h"
 #include "resource.h"
+#include "VulkanRenderer.h"
+
+class LuaInterface;
 
 class SceneManager {
 public:
@@ -15,6 +17,8 @@ public:
     void pushScene(uint64_t sceneId);
     void popScene();
     bool isEmpty() const;
+    uint64_t getActiveSceneId() const;
+    void reloadCurrentScene();
 
     // Active scene operations
     void initActiveScene();

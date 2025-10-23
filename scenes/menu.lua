@@ -1,18 +1,20 @@
 -- Menu scene initialization
 function init()
-    -- Load menu-specific shaders
+    -- Load menu plasma background shader
     loadShaders("menu_vertex.spv", "menu_fragment.spv")
-    time = 0
+    -- Load cloud layer shader
+    loadShaders("cloud_vertex.spv", "cloud_fragment.spv")
     print("Menu scene initialized")
 end
 
 -- Menu scene update
 function update(deltaTime)
-    time = time + deltaTime
+    -- No timer logic needed
+end
 
-    -- Return to main scene after 3 seconds
-    if time > 3 then
-        print("Calling popScene()")
+-- Handle key down events
+function onKeyDown(keyCode)
+    if keyCode == 27 then  -- SDLK_ESCAPE
         popScene()
     end
 end

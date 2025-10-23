@@ -1,4 +1,5 @@
 #include "SceneManager.h"
+#include "LuaInterface.h"
 #include <cassert>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer)
@@ -22,6 +23,9 @@ void SceneManager::pushScene(uint64_t sceneId) {
 
     // Initialize the scene
     luaInterface_->initScene(sceneId);
+
+    // Set the pipelines for this scene
+    luaInterface_->switchToScenePipeline(sceneId);
 }
 
 void SceneManager::popScene() {
@@ -32,6 +36,25 @@ void SceneManager::popScene() {
 
 bool SceneManager::isEmpty() const {
     return sceneStack_.empty();
+}
+
+uint64_t SceneManager::getActiveSceneId() const {
+    if (!sceneStack_.empty()) {
+        return sceneStack_.top();
+    }
+    return 0; // Or some invalid ID
+}
+
+void SceneManager::reloadCurrentScene() {
+    if (!sceneStack_.empty()) {
+        uint64_t currentSceneId = sceneStack_.top();
+        // Remove from loaded scenes so it will reload
+        loadedScenes_.erase(currentSceneId);
+        // Reinitialize the scene
+        luaInterface_->loadScene(currentSceneId, pakResource_.getResource(currentSceneId));
+        luaInterface_->initScene(currentSceneId);
+        luaInterface_->switchToScenePipeline(currentSceneId);
+    }
 }
 
 void SceneManager::initActiveScene() {

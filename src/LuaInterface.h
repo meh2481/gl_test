@@ -3,6 +3,7 @@
 #include <lua.hpp>
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include "resource.h"
 #include "VulkanRenderer.h"
 
@@ -38,5 +39,6 @@ private:
     lua_State* luaState_;
     SceneManager* sceneManager_;
     int pipelineIndex_;
-    std::unordered_map<uint64_t, int> scenePipelines_;
-};
+    uint64_t currentSceneId_;
+    std::unordered_map<uint64_t, std::vector<int> > scenePipelines_;
+};;

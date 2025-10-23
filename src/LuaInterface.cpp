@@ -4,7 +4,7 @@
 #include <cassert>
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), pipelineIndex_(0) {
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), pipelineIndex_(0), currentSceneId_(0) {
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
     registerFunctions();
@@ -64,6 +64,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
 }
 
 void LuaInterface::initScene(uint64_t sceneId) {
+    currentSceneId_ = sceneId;
     // Get the scene table from registry
     lua_pushinteger(luaState_, sceneId);
     lua_gettable(luaState_, LUA_REGISTRYINDEX);
@@ -91,9 +92,6 @@ void LuaInterface::initScene(uint64_t sceneId) {
         assert(false);
         return;
     }
-
-    // Store the pipeline index for this scene (assuming init() called loadShaders once)
-    scenePipelines_[sceneId] = pipelineIndex_ - 1;
 
     // Pop the table
     lua_pop(luaState_, 1);
@@ -204,7 +202,7 @@ void LuaInterface::handleKeyUp(uint64_t sceneId, int keyCode) {
 void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
     auto it = scenePipelines_.find(sceneId);
     if (it != scenePipelines_.end()) {
-        renderer_.setCurrentPipeline(it->second);
+        renderer_.setPipelinesToDraw(std::vector<uint64_t>(it->second.begin(), it->second.end()));
     }
 }
 
@@ -244,7 +242,8 @@ int LuaInterface::loadShaders(lua_State* L) {
 
     // Create pipeline
     interface->renderer_.createPipeline(interface->pipelineIndex_, vertShader, fragShader);
-    interface->renderer_.setCurrentPipeline(interface->pipelineIndex_);
+    // Add to current scene's pipeline list
+    interface->scenePipelines_[interface->currentSceneId_].push_back(interface->pipelineIndex_);
     interface->pipelineIndex_++;
 
     std::cout << "Loaded shaders: " << vertFile << " and " << fragFile << std::endl;

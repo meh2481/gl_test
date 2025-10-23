@@ -16,6 +16,7 @@ public:
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader);
     void setCurrentPipeline(uint64_t id);
+    void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
     void render(float time);
     void cleanup();
 
@@ -27,6 +28,7 @@ private:
     // Pipelines
     std::map<uint64_t, VkPipeline> m_pipelines;
     VkPipeline m_currentPipeline;
+    std::vector<uint64_t> m_pipelinesToDraw;
 
     // Vulkan handles and state
     VkInstance instance;

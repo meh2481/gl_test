@@ -155,7 +155,13 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_FALSE;
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
     VkPipelineColorBlendStateCreateInfo colorBlending{};
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -196,6 +202,10 @@ void VulkanRenderer::setCurrentPipeline(uint64_t id) {
     auto it = m_pipelines.find(id);
     assert(it != m_pipelines.end());
     m_currentPipeline = it->second;
+}
+
+void VulkanRenderer::setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds) {
+    m_pipelinesToDraw = pipelineIds;
 }
 
 void VulkanRenderer::render(float time) {
@@ -693,13 +703,22 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_currentPipeline);
+
     VkBuffer vertexBuffers[] = {vertexBuffer};
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
     float pushConstants[3] = {static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), time};
-    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
-    vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+
+    // Draw all pipelines
+    for (uint64_t pipelineId : m_pipelinesToDraw) {
+        auto it = m_pipelines.find(pipelineId);
+        if (it != m_pipelines.end()) {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
+            vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
+            vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+        }
+    }
+
     vkCmdEndRenderPass(commandBuffer);
     assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
 }
