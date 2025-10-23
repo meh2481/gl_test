@@ -32,5 +32,6 @@ private:
     std::unique_ptr<LuaInterface> luaInterface_;
     std::stack<uint64_t> sceneStack_;
     std::unordered_set<uint64_t> loadedScenes_;
+    std::unordered_set<uint64_t> initializedScenes_;
     bool pendingPop_;
 };

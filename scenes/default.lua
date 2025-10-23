@@ -1,7 +1,10 @@
 -- Scene initialization function
 function init()
-    -- Load the nebula shaders
-    loadShaders("nebula_vertex.spv", "nebula_fragment.spv")
+    -- Load the nebula shaders (z-index 0)
+    loadShaders("nebula_vertex.spv", "nebula_fragment.spv", 0)
+    print("Default scene initialized")
+    time = 0
+    menuPushed = false
 end
 
 -- Scene update function called every frame

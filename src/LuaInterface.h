@@ -24,6 +24,7 @@ public:
     void handleKeyDown(uint64_t sceneId, int keyCode);
     void handleKeyUp(uint64_t sceneId, int keyCode);
     void switchToScenePipeline(uint64_t sceneId);
+    void clearScenePipelines(uint64_t sceneId);
 
 private:
     // Lua-callable functions
@@ -40,5 +41,5 @@ private:
     SceneManager* sceneManager_;
     int pipelineIndex_;
     uint64_t currentSceneId_;
-    std::unordered_map<uint64_t, std::vector<int> > scenePipelines_;
+    std::unordered_map<uint64_t, std::vector<std::pair<int, int>> > scenePipelines_; // pipelineId, zIndex
 };;

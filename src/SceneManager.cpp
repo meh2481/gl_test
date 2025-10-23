@@ -21,8 +21,11 @@ void SceneManager::pushScene(uint64_t sceneId) {
     // Push scene onto stack
     sceneStack_.push(sceneId);
 
-    // Initialize the scene
-    luaInterface_->initScene(sceneId);
+    // Initialize the scene if not already initialized
+    if (initializedScenes_.find(sceneId) == initializedScenes_.end()) {
+        luaInterface_->initScene(sceneId);
+        initializedScenes_.insert(sceneId);
+    }
 
     // Set the pipelines for this scene
     luaInterface_->switchToScenePipeline(sceneId);
@@ -48,8 +51,12 @@ uint64_t SceneManager::getActiveSceneId() const {
 void SceneManager::reloadCurrentScene() {
     if (!sceneStack_.empty()) {
         uint64_t currentSceneId = sceneStack_.top();
+        // Clear existing pipelines for this scene
+        luaInterface_->clearScenePipelines(currentSceneId);
         // Remove from loaded scenes so it will reload
         loadedScenes_.erase(currentSceneId);
+        // Mark as not initialized so it will reinitialize
+        initializedScenes_.erase(currentSceneId);
         // Reinitialize the scene
         luaInterface_->loadScene(currentSceneId, pakResource_.getResource(currentSceneId));
         luaInterface_->initScene(currentSceneId);
@@ -72,8 +79,11 @@ bool SceneManager::updateActiveScene(float deltaTime) {
 
         // Pop the scene after Lua execution is complete
         if (pendingPop_) {
+            uint64_t poppedSceneId = sceneStack_.top();
             sceneStack_.pop();
             pendingPop_ = false;
+            // Mark as not initialized so it can be reinitialized if pushed again
+            initializedScenes_.erase(poppedSceneId);
 
             // Switch to the new active scene's pipeline
             if (!sceneStack_.empty()) {
