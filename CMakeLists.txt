@@ -22,9 +22,9 @@ endif()
 
 # Compile shaders
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/nebula_vertex.spv
-    COMMAND ${GLSLC} -fshader-stage=vert ${CMAKE_SOURCE_DIR}/shaders/nebula_vertex.glsl -o nebula_vertex.spv
-    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/nebula_vertex.glsl
+    OUTPUT ${CMAKE_BINARY_DIR}/vertex.spv
+    COMMAND ${GLSLC} -fshader-stage=vert ${CMAKE_SOURCE_DIR}/shaders/vertex.glsl -o vertex.spv
+    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/vertex.glsl
 )
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/nebula_fragment.spv
@@ -32,34 +32,24 @@ add_custom_command(
     DEPENDS ${CMAKE_SOURCE_DIR}/shaders/nebula_fragment.glsl
 )
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/menu_vertex.spv
-    COMMAND ${GLSLC} -fshader-stage=vert ${CMAKE_SOURCE_DIR}/shaders/menu_vertex.glsl -o menu_vertex.spv
-    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/menu_vertex.glsl
-)
-add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/menu_fragment.spv
     COMMAND ${GLSLC} -fshader-stage=frag ${CMAKE_SOURCE_DIR}/shaders/menu_fragment.glsl -o menu_fragment.spv
     DEPENDS ${CMAKE_SOURCE_DIR}/shaders/menu_fragment.glsl
-)
-add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/cloud_vertex.spv
-    COMMAND ${GLSLC} -fshader-stage=vert ${CMAKE_SOURCE_DIR}/shaders/cloud_vertex.glsl -o cloud_vertex.spv
-    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/cloud_vertex.glsl
 )
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/cloud_fragment.spv
     COMMAND ${GLSLC} -fshader-stage=frag ${CMAKE_SOURCE_DIR}/shaders/cloud_fragment.glsl -o cloud_fragment.spv
     DEPENDS ${CMAKE_SOURCE_DIR}/shaders/cloud_fragment.glsl
 )
-add_custom_target(shaders DEPENDS nebula_vertex.spv nebula_fragment.spv menu_vertex.spv menu_fragment.spv cloud_vertex.spv cloud_fragment.spv)
+add_custom_target(shaders DEPENDS vertex.spv nebula_fragment.spv menu_fragment.spv cloud_fragment.spv)
 
 add_executable(packer src/packer.cpp src/ResourceTypes.h)
 target_link_libraries(packer ${LZ4_LIBRARIES})
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/res.pak
-    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${CMAKE_BINARY_DIR}/nebula_vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/menu_vertex.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/cloud_vertex.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua
-    DEPENDS packer ${CMAKE_BINARY_DIR}/nebula_vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/menu_vertex.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/cloud_vertex.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua
+    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua
+    DEPENDS packer ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua
 )
 
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)

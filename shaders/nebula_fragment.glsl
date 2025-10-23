@@ -3,7 +3,7 @@ layout(push_constant) uniform PushConstants {
     vec2 iResolution;
     float iTime;
 } pc;
-layout (location = 0) in vec2 uv;
+layout (location = 0) in vec2 fragTexCoord;
 layout (location = 0) out vec4 FragColor;
 
 // otaviogood's spiral noise
@@ -56,7 +56,7 @@ float fbm(vec2 p) {
 }
 
 void main() {
-    vec2 fragCoord = uv * pc.iResolution;
+    vec2 fragCoord = fragTexCoord * pc.iResolution;
     vec2 uv = fragCoord.xy / pc.iResolution.xy;
     uv = uv * 2.0 - 1.0;
     uv.x *= pc.iResolution.x / pc.iResolution.y;
