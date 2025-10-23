@@ -37,6 +37,27 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_getglobal(luaState_, "math");
     lua_setfield(luaState_, -2, "math");
 
+    // Copy SDL keycode constants
+    const char* sdlKeycodes[] = {
+        "SDLK_ESCAPE", "SDLK_RETURN", "SDLK_BACKSPACE", "SDLK_TAB", "SDLK_SPACE", "SDLK_DELETE",
+        "SDLK_F1", "SDLK_F2", "SDLK_F3", "SDLK_F4", "SDLK_F5", "SDLK_F6",
+        "SDLK_F7", "SDLK_F8", "SDLK_F9", "SDLK_F10", "SDLK_F11", "SDLK_F12",
+        "SDLK_UP", "SDLK_DOWN", "SDLK_RIGHT", "SDLK_LEFT",
+        "SDLK_LSHIFT", "SDLK_RSHIFT", "SDLK_LCTRL", "SDLK_RCTRL", "SDLK_LALT", "SDLK_RALT",
+        "SDLK_HOME", "SDLK_END", "SDLK_PAGEUP", "SDLK_PAGEDOWN", "SDLK_INSERT",
+        "SDLK_KP0", "SDLK_KP1", "SDLK_KP2", "SDLK_KP3", "SDLK_KP4", "SDLK_KP5", "SDLK_KP6", "SDLK_KP7", "SDLK_KP8", "SDLK_KP9",
+        "SDLK_KP_PERIOD", "SDLK_KP_DIVIDE", "SDLK_KP_MULTIPLY", "SDLK_KP_MINUS", "SDLK_KP_PLUS", "SDLK_KP_ENTER", "SDLK_KP_EQUALS",
+        "SDLK_0", "SDLK_1", "SDLK_2", "SDLK_3", "SDLK_4", "SDLK_5", "SDLK_6", "SDLK_7", "SDLK_8", "SDLK_9",
+        "SDLK_a", "SDLK_b", "SDLK_c", "SDLK_d", "SDLK_e", "SDLK_f", "SDLK_g", "SDLK_h", "SDLK_i", "SDLK_j",
+        "SDLK_k", "SDLK_l", "SDLK_m", "SDLK_n", "SDLK_o", "SDLK_p", "SDLK_q", "SDLK_r", "SDLK_s", "SDLK_t",
+        "SDLK_u", "SDLK_v", "SDLK_w", "SDLK_x", "SDLK_y", "SDLK_z",
+        nullptr
+    };
+    for (const char** keycode = sdlKeycodes; *keycode; ++keycode) {
+        lua_getglobal(luaState_, *keycode);
+        lua_setfield(luaState_, -2, *keycode);
+    }
+
     // Load the script
     if (luaL_loadbuffer(luaState_, (char*)scriptData.data, scriptData.size, NULL) != LUA_OK) {
         lua_pop(luaState_, 1); // Pop the table
@@ -205,17 +226,17 @@ void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
     if (it != scenePipelines_.end()) {
         // Sort pipelines by z-index (lower z-index drawn first)
         std::vector<std::pair<int, int>> sortedPipelines = it->second;
-        std::sort(sortedPipelines.begin(), sortedPipelines.end(), 
+        std::sort(sortedPipelines.begin(), sortedPipelines.end(),
                   [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
                       return a.second < b.second; // Sort by z-index ascending
                   });
-        
+
         // Extract just the pipeline IDs in sorted order
         std::vector<uint64_t> pipelineIds;
         for (const auto& pair : sortedPipelines) {
             pipelineIds.push_back(pair.first);
         }
-        
+
         renderer_.setPipelinesToDraw(pipelineIds);
     }
 }
@@ -233,6 +254,111 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "loadShaders", loadShaders);
     lua_register(luaState_, "pushScene", pushScene);
     lua_register(luaState_, "popScene", popScene);
+
+    // Register SDL keycode constants
+    // Special keys
+    lua_pushinteger(luaState_, 27);
+    lua_setglobal(luaState_, "SDLK_ESCAPE");
+    lua_pushinteger(luaState_, 13);
+    lua_setglobal(luaState_, "SDLK_RETURN");
+    lua_pushinteger(luaState_, 8);
+    lua_setglobal(luaState_, "SDLK_BACKSPACE");
+    lua_pushinteger(luaState_, 9);
+    lua_setglobal(luaState_, "SDLK_TAB");
+    lua_pushinteger(luaState_, 32);
+    lua_setglobal(luaState_, "SDLK_SPACE");
+    lua_pushinteger(luaState_, 127);
+    lua_setglobal(luaState_, "SDLK_DELETE");
+
+    // Function keys
+    for (int i = 1; i <= 12; ++i) {
+        lua_pushinteger(luaState_, 282 + (i - 1));
+        lua_setglobal(luaState_, ("SDLK_F" + std::to_string(i)).c_str());
+    }
+
+    // Arrow keys
+    lua_pushinteger(luaState_, 273);
+    lua_setglobal(luaState_, "SDLK_UP");
+    lua_pushinteger(luaState_, 274);
+    lua_setglobal(luaState_, "SDLK_DOWN");
+    lua_pushinteger(luaState_, 275);
+    lua_setglobal(luaState_, "SDLK_RIGHT");
+    lua_pushinteger(luaState_, 276);
+    lua_setglobal(luaState_, "SDLK_LEFT");
+
+    // Modifier keys
+    lua_pushinteger(luaState_, 304);
+    lua_setglobal(luaState_, "SDLK_LSHIFT");
+    lua_pushinteger(luaState_, 303);
+    lua_setglobal(luaState_, "SDLK_RSHIFT");
+    lua_pushinteger(luaState_, 306);
+    lua_setglobal(luaState_, "SDLK_LCTRL");
+    lua_pushinteger(luaState_, 305);
+    lua_setglobal(luaState_, "SDLK_RCTRL");
+    lua_pushinteger(luaState_, 308);
+    lua_setglobal(luaState_, "SDLK_LALT");
+    lua_pushinteger(luaState_, 307);
+    lua_setglobal(luaState_, "SDLK_RALT");
+
+    // Other special keys
+    lua_pushinteger(luaState_, 278);
+    lua_setglobal(luaState_, "SDLK_HOME");
+    lua_pushinteger(luaState_, 279);
+    lua_setglobal(luaState_, "SDLK_END");
+    lua_pushinteger(luaState_, 280);
+    lua_setglobal(luaState_, "SDLK_PAGEUP");
+    lua_pushinteger(luaState_, 281);
+    lua_setglobal(luaState_, "SDLK_PAGEDOWN");
+    lua_pushinteger(luaState_, 277);
+    lua_setglobal(luaState_, "SDLK_INSERT");
+
+    // Numpad keys
+    lua_pushinteger(luaState_, 256);
+    lua_setglobal(luaState_, "SDLK_KP0");
+    lua_pushinteger(luaState_, 257);
+    lua_setglobal(luaState_, "SDLK_KP1");
+    lua_pushinteger(luaState_, 258);
+    lua_setglobal(luaState_, "SDLK_KP2");
+    lua_pushinteger(luaState_, 259);
+    lua_setglobal(luaState_, "SDLK_KP3");
+    lua_pushinteger(luaState_, 260);
+    lua_setglobal(luaState_, "SDLK_KP4");
+    lua_pushinteger(luaState_, 261);
+    lua_setglobal(luaState_, "SDLK_KP5");
+    lua_pushinteger(luaState_, 262);
+    lua_setglobal(luaState_, "SDLK_KP6");
+    lua_pushinteger(luaState_, 263);
+    lua_setglobal(luaState_, "SDLK_KP7");
+    lua_pushinteger(luaState_, 264);
+    lua_setglobal(luaState_, "SDLK_KP8");
+    lua_pushinteger(luaState_, 265);
+    lua_setglobal(luaState_, "SDLK_KP9");
+    lua_pushinteger(luaState_, 266);
+    lua_setglobal(luaState_, "SDLK_KP_PERIOD");
+    lua_pushinteger(luaState_, 267);
+    lua_setglobal(luaState_, "SDLK_KP_DIVIDE");
+    lua_pushinteger(luaState_, 268);
+    lua_setglobal(luaState_, "SDLK_KP_MULTIPLY");
+    lua_pushinteger(luaState_, 269);
+    lua_setglobal(luaState_, "SDLK_KP_MINUS");
+    lua_pushinteger(luaState_, 270);
+    lua_setglobal(luaState_, "SDLK_KP_PLUS");
+    lua_pushinteger(luaState_, 271);
+    lua_setglobal(luaState_, "SDLK_KP_ENTER");
+    lua_pushinteger(luaState_, 272);
+    lua_setglobal(luaState_, "SDLK_KP_EQUALS");
+
+    // Number keys
+    for (int i = 0; i <= 9; ++i) {
+        lua_pushinteger(luaState_, 48 + i);
+        lua_setglobal(luaState_, ("SDLK_" + std::to_string(i)).c_str());
+    }
+
+    // Letter keys
+    for (char c = 'a'; c <= 'z'; ++c) {
+        lua_pushinteger(luaState_, 97 + (c - 'a'));
+        lua_setglobal(luaState_, ("SDLK_" + std::string(1, c)).c_str());
+    }
 }
 
 int LuaInterface::loadShaders(lua_State* L) {
@@ -264,7 +390,7 @@ int LuaInterface::loadShaders(lua_State* L) {
             break;
         }
     }
-    
+
     if (alreadyLoaded) {
         std::cout << "Shader with z-index " << zIndex << " already loaded for scene, skipping: " << vertFile << " and " << fragFile << std::endl;
         return 0; // No return values

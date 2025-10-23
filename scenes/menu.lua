@@ -15,7 +15,7 @@ end
 
 -- Handle key down events
 function onKeyDown(keyCode)
-    if keyCode == 27 then  -- SDLK_ESCAPE
+    if keyCode == SDLK_ESCAPE then
         popScene()
     end
 end

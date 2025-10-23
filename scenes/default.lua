@@ -14,10 +14,10 @@ end
 
 -- Handle key down events
 function onKeyDown(keyCode)
-    if keyCode == 27 then  -- SDLK_ESCAPE
+    if keyCode == SDLK_ESCAPE then
         popScene()
     end
-    if keyCode == 13 then  -- SDLK_RETURN
+    if keyCode == SDLK_RETURN then
         pushScene("menu.lua")
     end
 end
