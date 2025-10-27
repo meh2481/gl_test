@@ -1,6 +1,6 @@
 # Shader Triangle
 
-A C++ application that opens a fullscreen window using SDL2 and renders a colored triangle using an OpenGL shader.
+A C++ application using Vulkan rendering with Lua scripting and Box2D physics integration. Features scene management, physics simulation, and debug visualization.
 
 ## Features
 
@@ -57,7 +57,7 @@ The application will open in fullscreen mode displaying a colored triangle (red,
 - **ESC**: Close the current scene/exit application
 - **ENTER**: Open the menu scene
 - **P**: Open the physics demo scene  
-- **SPACE** (in physics demo): Apply upward force to the ball
+- **SPACE** (in physics demo): Apply upward impulse to the ball
 - **R** (in physics demo): Reset physics objects to initial positions
 - **ALT+ENTER**: Toggle fullscreen/windowed mode
 - **F5** (debug mode): Hot-reload shaders and scenes
