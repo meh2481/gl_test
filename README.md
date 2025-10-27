@@ -2,18 +2,28 @@
 
 A C++ application that opens a fullscreen window using SDL2 and renders a colored triangle using an OpenGL shader.
 
+## Features
+
+- Vulkan-based rendering
+- Scene management with Lua scripting
+- Box2D physics engine with Lua bindings
+- Physics debug visualization
+- Hot-reloading of shaders and scenes (F5 in debug mode)
+
 ## Dependencies
 
 - SDL2
-- OpenGL
-- GLEW
+- Vulkan
+- Box2D
+- Lua 5.4
+- LZ4
 - CMake
 
 Install on Ubuntu/Debian:
 
 ```
 sudo apt-get update
-sudo apt-get install cmake libsdl2-dev libglew-dev libgl1-mesa-dev
+sudo apt-get install cmake libsdl2-dev vulkan-tools libvulkan-dev glslc liblz4-dev lua5.4 liblua5.4-dev libbox2d-dev
 ```
 
 ## Building
@@ -40,4 +50,24 @@ sudo apt-get install cmake libsdl2-dev libglew-dev libgl1-mesa-dev
 ./shader_triangle
 ```
 
-The application will open in fullscreen mode displaying a colored triangle (red, green, blue vertices). Press ESC or close the window to exit.
+The application will open in fullscreen mode displaying a colored triangle (red, green, blue vertices). 
+
+### Controls
+
+- **ESC**: Close the current scene/exit application
+- **ENTER**: Open the menu scene
+- **P**: Open the physics demo scene  
+- **SPACE** (in physics demo): Apply upward force to the ball
+- **R** (in physics demo): Reset physics objects to initial positions
+- **ALT+ENTER**: Toggle fullscreen/windowed mode
+- **F5** (debug mode): Hot-reload shaders and scenes
+
+## Physics Demo
+
+The physics demo scene demonstrates Box2D integration:
+- Dynamic boxes that fall and collide
+- A dynamic circle (ball) that bounces
+- Static ground platform
+- Debug visualization of physics shapes
+
+Press 'P' from the main scene to try it out!
