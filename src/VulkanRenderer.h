@@ -14,9 +14,10 @@ public:
 
     void initialize(SDL_Window* window);
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
-    void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader);
+    void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
     void setCurrentPipeline(uint64_t id);
     void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
+    void setDebugDrawData(const std::vector<float>& vertexData);
     void render(float time);
     void cleanup();
 
@@ -27,6 +28,7 @@ private:
 
     // Pipelines
     std::map<uint64_t, VkPipeline> m_pipelines;
+    std::map<uint64_t, bool> m_debugPipelines;  // Track which pipelines are for debug drawing
     VkPipeline m_currentPipeline;
     std::vector<uint64_t> m_pipelinesToDraw;
 
@@ -48,6 +50,10 @@ private:
     VkCommandBuffer* commandBuffers;
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
+    VkBuffer debugVertexBuffer;
+    VkDeviceMemory debugVertexBufferMemory;
+    size_t debugVertexBufferSize;
+    uint32_t debugVertexCount;
     VkSemaphore imageAvailableSemaphores[2];
     VkSemaphore renderFinishedSemaphores[2];
     VkFence inFlightFences[2];
@@ -67,6 +73,8 @@ private:
     void createGraphicsPipeline();
     void createFramebuffers();
     void createVertexBuffer();
+    void createDebugVertexBuffer();
+    void updateDebugVertexBuffer(const std::vector<float>& vertexData);
     void createCommandPool();
     void createCommandBuffers();
     void createSyncObjects();

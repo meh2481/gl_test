@@ -76,6 +76,26 @@ bool SceneManager::updateActiveScene(float deltaTime) {
     if (!sceneStack_.empty()) {
         uint64_t activeSceneId = sceneStack_.top();
         luaInterface_->updateScene(activeSceneId, deltaTime);
+        
+        // Update debug draw data if physics debug drawing is enabled
+        Box2DPhysics& physics = luaInterface_->getPhysics();
+        if (physics.isDebugDrawEnabled()) {
+            const std::vector<DebugVertex>& debugVerts = physics.getDebugVertices();
+            std::vector<float> vertexData;
+            vertexData.reserve(debugVerts.size() * 6);
+            for (const auto& v : debugVerts) {
+                vertexData.push_back(v.x);
+                vertexData.push_back(v.y);
+                vertexData.push_back(v.r);
+                vertexData.push_back(v.g);
+                vertexData.push_back(v.b);
+                vertexData.push_back(v.a);
+            }
+            renderer_.setDebugDrawData(vertexData);
+        } else {
+            // Clear debug draw data
+            renderer_.setDebugDrawData({});
+        }
 
         // Pop the scene after Lua execution is complete
         if (pendingPop_) {

@@ -440,8 +440,11 @@ int LuaInterface::loadShaders(lua_State* L) {
 
     assert(vertShader.size != 0 && fragShader.size != 0);
 
+    // Check if this is a debug shader
+    bool isDebugPipeline = (std::string(vertFile) == "debug_vertex.spv");
+
     // Create pipeline
-    interface->renderer_.createPipeline(interface->pipelineIndex_, vertShader, fragShader);
+    interface->renderer_.createPipeline(interface->pipelineIndex_, vertShader, fragShader, isDebugPipeline);
     // Add to current scene's pipeline list with z-index
     scenePipelines.emplace_back(interface->pipelineIndex_, zIndex);
     interface->pipelineIndex_++;
