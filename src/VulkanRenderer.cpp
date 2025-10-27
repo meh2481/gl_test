@@ -30,6 +30,10 @@ VulkanRenderer::VulkanRenderer() :
     commandBuffers(nullptr),
     vertexBuffer(VK_NULL_HANDLE),
     vertexBufferMemory(VK_NULL_HANDLE),
+    debugVertexBuffer(VK_NULL_HANDLE),
+    debugVertexBufferMemory(VK_NULL_HANDLE),
+    debugVertexBufferSize(0),
+    debugVertexCount(0),
     currentFrame(0),
     graphicsQueueFamilyIndex(0),
     swapchainFramebuffers(nullptr)
@@ -56,6 +60,7 @@ void VulkanRenderer::initialize(SDL_Window* window) {
     createPipelineLayout();
     createFramebuffers();
     createVertexBuffer();
+    createDebugVertexBuffer();
     createCommandPool();
     createCommandBuffers();
     createSyncObjects();
@@ -69,7 +74,7 @@ void VulkanRenderer::setShaders(const ResourceData& vertShader, const ResourceDa
     // Note: Command buffers may need to be re-recorded if pipeline changes, but for simplicity, assume it's ok
 }
 
-void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader) {
+void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline) {
     // Copy shader data
     std::vector<char> vertData(vertShader.data, vertShader.data + vertShader.size);
     std::vector<char> fragData(fragShader.data, fragShader.data + fragShader.size);
@@ -96,18 +101,37 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
 
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(float) * 4;
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
+    
     VkVertexInputAttributeDescription attributeDescriptions[2]{};
-    attributeDescriptions[0].binding = 0;
-    attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-    attributeDescriptions[0].offset = 0;
-    attributeDescriptions[1].binding = 0;
-    attributeDescriptions[1].location = 1;
-    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-    attributeDescriptions[1].offset = sizeof(float) * 2;
+    
+    if (isDebugPipeline) {
+        // Debug pipeline: position (vec2) + color (vec4) = 6 floats
+        bindingDescription.stride = sizeof(float) * 6;
+        
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;  // position
+        attributeDescriptions[0].offset = 0;
+        
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;  // color
+        attributeDescriptions[1].offset = sizeof(float) * 2;
+    } else {
+        // Regular pipeline: position (vec2) + texcoord (vec2) = 4 floats
+        bindingDescription.stride = sizeof(float) * 4;
+        
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;  // position
+        attributeDescriptions[0].offset = 0;
+        
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;  // texcoord
+        attributeDescriptions[1].offset = sizeof(float) * 2;
+    }
 
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
@@ -116,7 +140,7 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+    inputAssembly.topology = isDebugPipeline ? VK_PRIMITIVE_TOPOLOGY_LINE_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
     VkViewport viewport{};
@@ -193,6 +217,7 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
 
     m_pipelines[id] = pipeline;
+    m_debugPipelines[id] = isDebugPipeline;
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
@@ -280,6 +305,13 @@ void VulkanRenderer::cleanup() {
     }
     if (vertexBufferMemory != VK_NULL_HANDLE) {
         vkFreeMemory(device, vertexBufferMemory, nullptr);
+    }
+
+    if (debugVertexBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, debugVertexBuffer, nullptr);
+    }
+    if (debugVertexBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, debugVertexBufferMemory, nullptr);
     }
 
     if (swapchainFramebuffers != nullptr) {
@@ -658,6 +690,81 @@ void VulkanRenderer::createVertexBuffer() {
     vkUnmapMemory(device, vertexBufferMemory);
 }
 
+
+void VulkanRenderer::createDebugVertexBuffer() {
+    // Create a buffer large enough for debug drawing (allocate 64KB initially)
+    debugVertexBufferSize = 65536;
+    
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = debugVertexBufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    assert(vkCreateBuffer(device, &bufferInfo, nullptr, &debugVertexBuffer) == VK_SUCCESS);
+    
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, debugVertexBuffer, &memRequirements);
+    
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, 
+                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    assert(vkAllocateMemory(device, &allocInfo, nullptr, &debugVertexBufferMemory) == VK_SUCCESS);
+    vkBindBufferMemory(device, debugVertexBuffer, debugVertexBufferMemory, 0);
+}
+
+void VulkanRenderer::updateDebugVertexBuffer(const std::vector<float>& vertexData) {
+    if (vertexData.empty()) {
+        debugVertexCount = 0;
+        return;
+    }
+    
+    size_t dataSize = vertexData.size() * sizeof(float);
+    
+    // Reallocate if needed
+    if (dataSize > debugVertexBufferSize) {
+        if (debugVertexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, debugVertexBuffer, nullptr);
+        }
+        if (debugVertexBufferMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, debugVertexBufferMemory, nullptr);
+        }
+        
+        debugVertexBufferSize = dataSize * 2;
+        
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = debugVertexBufferSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        assert(vkCreateBuffer(device, &bufferInfo, nullptr, &debugVertexBuffer) == VK_SUCCESS);
+        
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device, debugVertexBuffer, &memRequirements);
+        
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, 
+                                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        assert(vkAllocateMemory(device, &allocInfo, nullptr, &debugVertexBufferMemory) == VK_SUCCESS);
+        vkBindBufferMemory(device, debugVertexBuffer, debugVertexBufferMemory, 0);
+    }
+    
+    // Copy data to buffer
+    void* data;
+    vkMapMemory(device, debugVertexBufferMemory, 0, dataSize, 0, &data);
+    memcpy(data, vertexData.data(), dataSize);
+    vkUnmapMemory(device, debugVertexBufferMemory);
+    
+    // Update vertex count (6 floats per vertex: x, y, r, g, b, a)
+    debugVertexCount = vertexData.size() / 6;
+}
+
+void VulkanRenderer::setDebugDrawData(const std::vector<float>& vertexData) {
+    updateDebugVertexBuffer(vertexData);
+}
 void VulkanRenderer::createCommandPool() {
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -704,18 +811,33 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     renderPassInfo.pClearValues = &clearColor;
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    VkBuffer vertexBuffers[] = {vertexBuffer};
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
     float pushConstants[3] = {static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), time};
 
     // Draw all pipelines
     for (uint64_t pipelineId : m_pipelinesToDraw) {
         auto it = m_pipelines.find(pipelineId);
         if (it != m_pipelines.end()) {
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
-            vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
-            vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+            // Check if this is a debug pipeline
+            bool isDebug = m_debugPipelines[pipelineId];
+            
+            if (isDebug) {
+                // Bind debug vertex buffer
+                if (debugVertexCount > 0) {
+                    VkBuffer debugBuffers[] = {debugVertexBuffer};
+                    VkDeviceSize offsets[] = {0};
+                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);
+                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
+                    vkCmdDraw(commandBuffer, debugVertexCount, 1, 0, 0);
+                }
+            } else {
+                // Bind regular vertex buffer
+                VkBuffer vertexBuffers[] = {vertexBuffer};
+                VkDeviceSize offsets[] = {0};
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
+                vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
+                vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+            }
         }
     }
 
