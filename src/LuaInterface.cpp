@@ -8,6 +8,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, S
     : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), pipelineIndex_(0), currentSceneId_(0) {
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
+    physics_ = std::make_unique<Box2DPhysics>();
     registerFunctions();
 }
 
@@ -27,7 +28,13 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_newtable(luaState_);
 
     // Copy global functions and tables into the scene table
-    const char* globalFunctions[] = {"loadShaders", "pushScene", "popScene", "print", nullptr};
+    const char* globalFunctions[] = {"loadShaders", "pushScene", "popScene", "print", 
+                                     "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
+                                     "b2AddBoxFixture", "b2AddCircleFixture", "b2SetBodyPosition",
+                                     "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
+                                     "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
+                                     "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
+                                     nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
         lua_setfield(luaState_, -2, *func);
@@ -359,6 +366,33 @@ void LuaInterface::registerFunctions() {
         lua_pushinteger(luaState_, 97 + (c - 'a'));
         lua_setglobal(luaState_, ("SDLK_" + std::string(1, c)).c_str());
     }
+    
+    // Register Box2D functions
+    lua_register(luaState_, "b2SetGravity", b2SetGravity);
+    lua_register(luaState_, "b2Step", b2Step);
+    lua_register(luaState_, "b2CreateBody", b2CreateBody);
+    lua_register(luaState_, "b2DestroyBody", b2DestroyBody);
+    lua_register(luaState_, "b2AddBoxFixture", b2AddBoxFixture);
+    lua_register(luaState_, "b2AddCircleFixture", b2AddCircleFixture);
+    lua_register(luaState_, "b2SetBodyPosition", b2SetBodyPosition);
+    lua_register(luaState_, "b2SetBodyAngle", b2SetBodyAngle);
+    lua_register(luaState_, "b2SetBodyLinearVelocity", b2SetBodyLinearVelocity);
+    lua_register(luaState_, "b2SetBodyAngularVelocity", b2SetBodyAngularVelocity);
+    lua_register(luaState_, "b2ApplyForce", b2ApplyForce);
+    lua_register(luaState_, "b2ApplyTorque", b2ApplyTorque);
+    lua_register(luaState_, "b2GetBodyPosition", b2GetBodyPosition);
+    lua_register(luaState_, "b2GetBodyAngle", b2GetBodyAngle);
+    lua_register(luaState_, "b2GetBodyLinearVelocity", b2GetBodyLinearVelocity);
+    lua_register(luaState_, "b2GetBodyAngularVelocity", b2GetBodyAngularVelocity);
+    lua_register(luaState_, "b2EnableDebugDraw", b2EnableDebugDraw);
+    
+    // Register Box2D body type constants
+    lua_pushinteger(luaState_, 0);
+    lua_setglobal(luaState_, "B2_STATIC_BODY");
+    lua_pushinteger(luaState_, 1);
+    lua_setglobal(luaState_, "B2_KINEMATIC_BODY");
+    lua_pushinteger(luaState_, 2);
+    lua_setglobal(luaState_, "B2_DYNAMIC_BODY");
 }
 
 int LuaInterface::loadShaders(lua_State* L) {
@@ -453,4 +487,315 @@ int LuaInterface::popScene(lua_State* L) {
     interface->sceneManager_->popScene();
 
     return 0; // No return values
+}
+// Box2D Lua bindings
+int LuaInterface::b2SetGravity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2));
+    
+    float x = lua_tonumber(L, 1);
+    float y = lua_tonumber(L, 2);
+    
+    interface->physics_->setGravity(x, y);
+    return 0;
+}
+
+int LuaInterface::b2Step(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) >= 1);
+    assert(lua_isnumber(L, 1));
+    
+    float timeStep = lua_tonumber(L, 1);
+    int32 velocityIterations = 8;
+    int32 positionIterations = 3;
+    
+    if (lua_gettop(L) >= 2) {
+        assert(lua_isnumber(L, 2));
+        velocityIterations = lua_tointeger(L, 2);
+    }
+    if (lua_gettop(L) >= 3) {
+        assert(lua_isnumber(L, 3));
+        positionIterations = lua_tointeger(L, 3);
+    }
+    
+    interface->physics_->step(timeStep, velocityIterations, positionIterations);
+    return 0;
+}
+
+int LuaInterface::b2CreateBody(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) >= 3);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3));
+    
+    int bodyType = lua_tointeger(L, 1);
+    float x = lua_tonumber(L, 2);
+    float y = lua_tonumber(L, 3);
+    float angle = 0.0f;
+    
+    if (lua_gettop(L) >= 4) {
+        assert(lua_isnumber(L, 4));
+        angle = lua_tonumber(L, 4);
+    }
+    
+    int bodyId = interface->physics_->createBody(bodyType, x, y, angle);
+    lua_pushinteger(L, bodyId);
+    return 1;
+}
+
+int LuaInterface::b2DestroyBody(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+    
+    int bodyId = lua_tointeger(L, 1);
+    interface->physics_->destroyBody(bodyId);
+    return 0;
+}
+
+int LuaInterface::b2AddBoxFixture(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) >= 3);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float halfWidth = lua_tonumber(L, 2);
+    float halfHeight = lua_tonumber(L, 3);
+    float density = 1.0f;
+    float friction = 0.3f;
+    float restitution = 0.0f;
+    
+    if (lua_gettop(L) >= 4) {
+        assert(lua_isnumber(L, 4));
+        density = lua_tonumber(L, 4);
+    }
+    if (lua_gettop(L) >= 5) {
+        assert(lua_isnumber(L, 5));
+        friction = lua_tonumber(L, 5);
+    }
+    if (lua_gettop(L) >= 6) {
+        assert(lua_isnumber(L, 6));
+        restitution = lua_tonumber(L, 6);
+    }
+    
+    interface->physics_->addBoxFixture(bodyId, halfWidth, halfHeight, density, friction, restitution);
+    return 0;
+}
+
+int LuaInterface::b2AddCircleFixture(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) >= 2);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float radius = lua_tonumber(L, 2);
+    float density = 1.0f;
+    float friction = 0.3f;
+    float restitution = 0.0f;
+    
+    if (lua_gettop(L) >= 3) {
+        assert(lua_isnumber(L, 3));
+        density = lua_tonumber(L, 3);
+    }
+    if (lua_gettop(L) >= 4) {
+        assert(lua_isnumber(L, 4));
+        friction = lua_tonumber(L, 4);
+    }
+    if (lua_gettop(L) >= 5) {
+        assert(lua_isnumber(L, 5));
+        restitution = lua_tonumber(L, 5);
+    }
+    
+    interface->physics_->addCircleFixture(bodyId, radius, density, friction, restitution);
+    return 0;
+}
+
+int LuaInterface::b2SetBodyPosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 3);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float x = lua_tonumber(L, 2);
+    float y = lua_tonumber(L, 3);
+    
+    interface->physics_->setBodyPosition(bodyId, x, y);
+    return 0;
+}
+
+int LuaInterface::b2SetBodyAngle(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float angle = lua_tonumber(L, 2);
+    
+    interface->physics_->setBodyAngle(bodyId, angle);
+    return 0;
+}
+
+int LuaInterface::b2SetBodyLinearVelocity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 3);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float vx = lua_tonumber(L, 2);
+    float vy = lua_tonumber(L, 3);
+    
+    interface->physics_->setBodyLinearVelocity(bodyId, vx, vy);
+    return 0;
+}
+
+int LuaInterface::b2SetBodyAngularVelocity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float omega = lua_tonumber(L, 2);
+    
+    interface->physics_->setBodyAngularVelocity(bodyId, omega);
+    return 0;
+}
+
+int LuaInterface::b2ApplyForce(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 5);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3) && lua_isnumber(L, 4) && lua_isnumber(L, 5));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float fx = lua_tonumber(L, 2);
+    float fy = lua_tonumber(L, 3);
+    float px = lua_tonumber(L, 4);
+    float py = lua_tonumber(L, 5);
+    
+    interface->physics_->applyForce(bodyId, fx, fy, px, py);
+    return 0;
+}
+
+int LuaInterface::b2ApplyTorque(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float torque = lua_tonumber(L, 2);
+    
+    interface->physics_->applyTorque(bodyId, torque);
+    return 0;
+}
+
+int LuaInterface::b2GetBodyPosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float x = interface->physics_->getBodyPositionX(bodyId);
+    float y = interface->physics_->getBodyPositionY(bodyId);
+    
+    lua_pushnumber(L, x);
+    lua_pushnumber(L, y);
+    return 2;
+}
+
+int LuaInterface::b2GetBodyAngle(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float angle = interface->physics_->getBodyAngle(bodyId);
+    
+    lua_pushnumber(L, angle);
+    return 1;
+}
+
+int LuaInterface::b2GetBodyLinearVelocity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float vx = interface->physics_->getBodyLinearVelocityX(bodyId);
+    float vy = interface->physics_->getBodyLinearVelocityY(bodyId);
+    
+    lua_pushnumber(L, vx);
+    lua_pushnumber(L, vy);
+    return 2;
+}
+
+int LuaInterface::b2GetBodyAngularVelocity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+    
+    int bodyId = lua_tointeger(L, 1);
+    float omega = interface->physics_->getBodyAngularVelocity(bodyId);
+    
+    lua_pushnumber(L, omega);
+    return 1;
+}
+
+int LuaInterface::b2EnableDebugDraw(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    
+    assert(lua_gettop(L) == 1);
+    assert(lua_isboolean(L, 1));
+    
+    bool enable = lua_toboolean(L, 1);
+    interface->physics_->enableDebugDraw(enable);
+    return 0;
 }

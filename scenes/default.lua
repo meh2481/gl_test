@@ -20,4 +20,7 @@ function onKeyDown(keyCode)
     if keyCode == SDLK_RETURN then
         pushScene("menu.lua")
     end
+    if keyCode == SDLK_p then
+        pushScene("physics.lua")
+    end
 end
