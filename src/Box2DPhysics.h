@@ -2,32 +2,11 @@
 
 #include <box2d/box2d.h>
 #include <vector>
-#include <memory>
-#include <cstdint>
+#include <unordered_map>
 
 struct DebugVertex {
     float x, y;
     float r, g, b, a;
-};
-
-class Box2DDebugDraw : public b2Draw {
-public:
-    Box2DDebugDraw();
-    
-    void DrawPolygon(const b2Vec2* vertices, int32_t vertexCount, const b2Color& color) override;
-    void DrawSolidPolygon(const b2Vec2* vertices, int32_t vertexCount, const b2Color& color) override;
-    void DrawCircle(const b2Vec2& center, float radius, const b2Color& color) override;
-    void DrawSolidCircle(const b2Vec2& center, float radius, const b2Vec2& axis, const b2Color& color) override;
-    void DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color) override;
-    void DrawTransform(const b2Transform& xf) override;
-    void DrawPoint(const b2Vec2& p, float size, const b2Color& color) override;
-    
-    void Clear();
-    const std::vector<DebugVertex>& GetVertices() const { return vertices_; }
-    
-private:
-    std::vector<DebugVertex> vertices_;
-    void AddVertex(const b2Vec2& pos, const b2Color& color);
 };
 
 class Box2DPhysics {
@@ -37,7 +16,7 @@ public:
     
     // World management
     void setGravity(float x, float y);
-    void step(float timeStep, int32_t velocityIterations = 8, int32_t positionIterations = 3);
+    void step(float timeStep, int subStepCount = 4);
     
     // Body management
     int createBody(int bodyType, float x, float y, float angle = 0.0f);
@@ -57,7 +36,7 @@ public:
     float getBodyLinearVelocityY(int bodyId);
     float getBodyAngularVelocity(int bodyId);
     
-    // Fixture management
+    // Shape management
     void addBoxFixture(int bodyId, float halfWidth, float halfHeight, float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);
     void addCircleFixture(int bodyId, float radius, float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);
     
@@ -67,10 +46,20 @@ public:
     const std::vector<DebugVertex>& getDebugVertices();
     
 private:
-    std::unique_ptr<b2World> world_;
-    std::vector<b2Body*> bodies_;
-    std::unique_ptr<Box2DDebugDraw> debugDraw_;
-    bool debugDrawEnabled_;
+    // Debug draw callbacks
+    static void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context);
+    static void DrawSolidPolygon(b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color, void* context);
+    static void DrawCircle(b2Vec2 center, float radius, b2HexColor color, void* context);
+    static void DrawSolidCircle(b2Transform transform, float radius, b2HexColor color, void* context);
+    static void DrawSegment(b2Vec2 p1, b2Vec2 p2, b2HexColor color, void* context);
+    static void DrawTransform(b2Transform transform, void* context);
+    static void DrawPoint(b2Vec2 p, float size, b2HexColor color, void* context);
     
-    b2Body* getBody(int bodyId);
+    void addVertex(float x, float y, b2HexColor color);
+    
+    b2WorldId worldId_;
+    std::unordered_map<int, b2BodyId> bodies_;
+    int nextBodyId_;
+    bool debugDrawEnabled_;
+    std::vector<DebugVertex> debugVertices_;
 };

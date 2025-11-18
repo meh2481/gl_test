@@ -37,8 +37,8 @@ function init()
 end
 
 function update(deltaTime)
-    -- Step the physics simulation
-    b2Step(deltaTime, 8, 3)
+    -- Step the physics simulation (Box2D 3.x uses subStepCount instead of velocity/position iterations)
+    b2Step(deltaTime, 4)
 end
 
 function onKeyDown(keyCode)

@@ -3,138 +3,63 @@
 #include <cmath>
 #include <iostream>
 
-// Box2DDebugDraw implementation
-Box2DDebugDraw::Box2DDebugDraw() {
-    SetFlags(b2Draw::e_shapeBit | b2Draw::e_jointBit);
+// Helper function to convert b2HexColor to RGBA floats
+static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, float& a) {
+    r = ((hexColor >> 16) & 0xFF) / 255.0f;
+    g = ((hexColor >> 8) & 0xFF) / 255.0f;
+    b = (hexColor & 0xFF) / 255.0f;
+    a = ((hexColor >> 24) & 0xFF) / 255.0f;
 }
 
-void Box2DDebugDraw::Clear() {
-    vertices_.clear();
-}
-
-void Box2DDebugDraw::AddVertex(const b2Vec2& pos, const b2Color& color) {
-    DebugVertex v;
-    v.x = pos.x;
-    v.y = pos.y;
-    v.r = color.r;
-    v.g = color.g;
-    v.b = color.b;
-    v.a = color.a;
-    vertices_.push_back(v);
-}
-
-void Box2DDebugDraw::DrawPolygon(const b2Vec2* vertices, int32_t vertexCount, const b2Color& color) {
-    for (int32_t i = 0; i < vertexCount; ++i) {
-        AddVertex(vertices[i], color);
-        AddVertex(vertices[(i + 1) % vertexCount], color);
-    }
-}
-
-void Box2DDebugDraw::DrawSolidPolygon(const b2Vec2* vertices, int32_t vertexCount, const b2Color& color) {
-    b2Color fillColor(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, 0.5f);
-    
-    // Draw filled triangles
-    for (int32_t i = 1; i < vertexCount - 1; ++i) {
-        AddVertex(vertices[0], fillColor);
-        AddVertex(vertices[i], fillColor);
-        AddVertex(vertices[i + 1], fillColor);
-    }
-    
-    // Draw outline
-    DrawPolygon(vertices, vertexCount, color);
-}
-
-void Box2DDebugDraw::DrawCircle(const b2Vec2& center, float radius, const b2Color& color) {
-    const int segments = 16;
-    for (int i = 0; i < segments; ++i) {
-        float angle1 = (float)i / segments * 2.0f * M_PI;
-        float angle2 = (float)(i + 1) / segments * 2.0f * M_PI;
-        b2Vec2 p1(center.x + radius * cosf(angle1), center.y + radius * sinf(angle1));
-        b2Vec2 p2(center.x + radius * cosf(angle2), center.y + radius * sinf(angle2));
-        AddVertex(p1, color);
-        AddVertex(p2, color);
-    }
-}
-
-void Box2DDebugDraw::DrawSolidCircle(const b2Vec2& center, float radius, const b2Vec2& axis, const b2Color& color) {
-    b2Color fillColor(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, 0.5f);
-    
-    const int segments = 16;
-    // Draw filled triangles
-    for (int i = 0; i < segments; ++i) {
-        float angle1 = (float)i / segments * 2.0f * M_PI;
-        float angle2 = (float)(i + 1) / segments * 2.0f * M_PI;
-        b2Vec2 p1(center.x + radius * cosf(angle1), center.y + radius * sinf(angle1));
-        b2Vec2 p2(center.x + radius * cosf(angle2), center.y + radius * sinf(angle2));
-        AddVertex(center, fillColor);
-        AddVertex(p1, fillColor);
-        AddVertex(p2, fillColor);
-    }
-    
-    // Draw outline
-    DrawCircle(center, radius, color);
-    
-    // Draw axis line
-    b2Vec2 p(center.x + radius * axis.x, center.y + radius * axis.y);
-    DrawSegment(center, p, color);
-}
-
-void Box2DDebugDraw::DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color) {
-    AddVertex(p1, color);
-    AddVertex(p2, color);
-}
-
-void Box2DDebugDraw::DrawTransform(const b2Transform& xf) {
-    const float axisScale = 0.4f;
-    b2Vec2 p1 = xf.p;
-    
-    b2Vec2 p2;
-    p2.x = p1.x + axisScale * xf.q.c;
-    p2.y = p1.y + axisScale * xf.q.s;
-    DrawSegment(p1, p2, b2Color(1, 0, 0));
-    
-    p2.x = p1.x - axisScale * xf.q.s;
-    p2.y = p1.y + axisScale * xf.q.c;
-    DrawSegment(p1, p2, b2Color(0, 1, 0));
-}
-
-void Box2DDebugDraw::DrawPoint(const b2Vec2& p, float size, const b2Color& color) {
-    // Draw a small cross
-    float halfSize = size * 0.5f;
-    AddVertex(b2Vec2(p.x - halfSize, p.y), color);
-    AddVertex(b2Vec2(p.x + halfSize, p.y), color);
-    AddVertex(b2Vec2(p.x, p.y - halfSize), color);
-    AddVertex(b2Vec2(p.x, p.y + halfSize), color);
-}
-
-// Box2DPhysics implementation
-Box2DPhysics::Box2DPhysics() : debugDrawEnabled_(false) {
-    b2Vec2 gravity(0.0f, -10.0f);
-    world_ = std::make_unique<b2World>(gravity);
-    debugDraw_ = std::make_unique<Box2DDebugDraw>();
-    world_->SetDebugDraw(debugDraw_.get());
+Box2DPhysics::Box2DPhysics() : nextBodyId_(0), debugDrawEnabled_(false) {
+    b2WorldDef worldDef = b2DefaultWorldDef();
+    worldDef.gravity = (b2Vec2){0.0f, -10.0f};
+    worldId_ = b2CreateWorld(&worldDef);
+    assert(b2World_IsValid(worldId_));
 }
 
 Box2DPhysics::~Box2DPhysics() {
-    // Bodies are destroyed when the world is destroyed
-    bodies_.clear();
+    if (b2World_IsValid(worldId_)) {
+        b2DestroyWorld(worldId_);
+    }
 }
 
 void Box2DPhysics::setGravity(float x, float y) {
-    world_->SetGravity(b2Vec2(x, y));
+    b2World_SetGravity(worldId_, (b2Vec2){x, y});
 }
 
-void Box2DPhysics::step(float timeStep, int32_t velocityIterations, int32_t positionIterations) {
-    world_->Step(timeStep, velocityIterations, positionIterations);
+void Box2DPhysics::step(float timeStep, int subStepCount) {
+    b2World_Step(worldId_, timeStep, subStepCount);
     
     if (debugDrawEnabled_) {
-        debugDraw_->Clear();
-        world_->DebugDraw();
+        debugVertices_.clear();
+        
+        b2DebugDraw debugDraw = {0};
+        debugDraw.DrawPolygonFcn = DrawPolygon;
+        debugDraw.DrawSolidPolygonFcn = DrawSolidPolygon;
+        debugDraw.DrawCircleFcn = DrawCircle;
+        debugDraw.DrawSolidCircleFcn = DrawSolidCircle;
+        debugDraw.DrawSegmentFcn = DrawSegment;
+        debugDraw.DrawTransformFcn = DrawTransform;
+        debugDraw.DrawPointFcn = DrawPoint;
+        debugDraw.context = this;
+        debugDraw.drawShapes = true;
+        debugDraw.drawJoints = true;
+        debugDraw.drawBounds = false;
+        debugDraw.drawMass = false;
+        debugDraw.drawContacts = false;
+        debugDraw.drawGraphColors = false;
+        debugDraw.drawContactNormals = false;
+        debugDraw.drawContactImpulses = false;
+        debugDraw.drawFrictionImpulses = false;
+        debugDraw.useDrawingBounds = false;
+        
+        b2World_Draw(worldId_, &debugDraw);
     }
 }
 
 int Box2DPhysics::createBody(int bodyType, float x, float y, float angle) {
-    b2BodyDef bodyDef;
+    b2BodyDef bodyDef = b2DefaultBodyDef();
     
     if (bodyType == 0) {
         bodyDef.type = b2_staticBody;
@@ -144,133 +69,144 @@ int Box2DPhysics::createBody(int bodyType, float x, float y, float angle) {
         bodyDef.type = b2_dynamicBody;
     }
     
-    bodyDef.position.Set(x, y);
-    bodyDef.angle = angle;
+    bodyDef.position = (b2Vec2){x, y};
+    bodyDef.rotation = b2MakeRot(angle);
     
-    b2Body* body = world_->CreateBody(&bodyDef);
-    assert(body != nullptr);
+    b2BodyId bodyId = b2CreateBody(worldId_, &bodyDef);
+    assert(b2Body_IsValid(bodyId));
     
-    bodies_.push_back(body);
-    return bodies_.size() - 1;
+    int internalId = nextBodyId_++;
+    bodies_[internalId] = bodyId;
+    return internalId;
 }
 
 void Box2DPhysics::destroyBody(int bodyId) {
-    b2Body* body = getBody(bodyId);
-    if (body) {
-        world_->DestroyBody(body);
-        bodies_[bodyId] = nullptr;
+    auto it = bodies_.find(bodyId);
+    if (it != bodies_.end()) {
+        b2DestroyBody(it->second);
+        bodies_.erase(it);
     }
-}
-
-b2Body* Box2DPhysics::getBody(int bodyId) {
-    if (bodyId < 0 || bodyId >= (int)bodies_.size()) {
-        return nullptr;
-    }
-    return bodies_[bodyId];
 }
 
 void Box2DPhysics::setBodyPosition(int bodyId, float x, float y) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    body->SetTransform(b2Vec2(x, y), body->GetAngle());
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Rot rotation = b2Body_GetRotation(it->second);
+    b2Body_SetTransform(it->second, (b2Vec2){x, y}, rotation);
 }
 
 void Box2DPhysics::setBodyAngle(int bodyId, float angle) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    body->SetTransform(body->GetPosition(), angle);
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Vec2 position = b2Body_GetPosition(it->second);
+    b2Body_SetTransform(it->second, position, b2MakeRot(angle));
 }
 
 void Box2DPhysics::setBodyLinearVelocity(int bodyId, float vx, float vy) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    body->SetLinearVelocity(b2Vec2(vx, vy));
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Body_SetLinearVelocity(it->second, (b2Vec2){vx, vy});
 }
 
 void Box2DPhysics::setBodyAngularVelocity(int bodyId, float omega) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    body->SetAngularVelocity(omega);
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Body_SetAngularVelocity(it->second, omega);
 }
 
 void Box2DPhysics::applyForce(int bodyId, float fx, float fy, float px, float py) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    body->ApplyForce(b2Vec2(fx, fy), b2Vec2(px, py), true);
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Body_ApplyForce(it->second, (b2Vec2){fx, fy}, (b2Vec2){px, py}, true);
 }
 
 void Box2DPhysics::applyTorque(int bodyId, float torque) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    body->ApplyTorque(torque, true);
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Body_ApplyTorque(it->second, torque, true);
 }
 
 float Box2DPhysics::getBodyPositionX(int bodyId) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    return body->GetPosition().x;
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Vec2 position = b2Body_GetPosition(it->second);
+    return position.x;
 }
 
 float Box2DPhysics::getBodyPositionY(int bodyId) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    return body->GetPosition().y;
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Vec2 position = b2Body_GetPosition(it->second);
+    return position.y;
 }
 
 float Box2DPhysics::getBodyAngle(int bodyId) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    return body->GetAngle();
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Rot rotation = b2Body_GetRotation(it->second);
+    return b2Rot_GetAngle(rotation);
 }
 
 float Box2DPhysics::getBodyLinearVelocityX(int bodyId) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    return body->GetLinearVelocity().x;
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Vec2 velocity = b2Body_GetLinearVelocity(it->second);
+    return velocity.x;
 }
 
 float Box2DPhysics::getBodyLinearVelocityY(int bodyId) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    return body->GetLinearVelocity().y;
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    b2Vec2 velocity = b2Body_GetLinearVelocity(it->second);
+    return velocity.y;
 }
 
 float Box2DPhysics::getBodyAngularVelocity(int bodyId) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
-    return body->GetAngularVelocity();
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    
+    return b2Body_GetAngularVelocity(it->second);
 }
 
 void Box2DPhysics::addBoxFixture(int bodyId, float halfWidth, float halfHeight, float density, float friction, float restitution) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
     
-    b2PolygonShape box;
-    box.SetAsBox(halfWidth, halfHeight);
+    b2Polygon box = b2MakeBox(halfWidth, halfHeight);
     
-    b2FixtureDef fixtureDef;
-    fixtureDef.shape = &box;
-    fixtureDef.density = density;
-    fixtureDef.friction = friction;
-    fixtureDef.restitution = restitution;
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.density = density;
+    shapeDef.material.friction = friction;
+    shapeDef.material.restitution = restitution;
     
-    body->CreateFixture(&fixtureDef);
+    b2CreatePolygonShape(it->second, &shapeDef, &box);
 }
 
 void Box2DPhysics::addCircleFixture(int bodyId, float radius, float density, float friction, float restitution) {
-    b2Body* body = getBody(bodyId);
-    assert(body != nullptr);
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
     
-    b2CircleShape circle;
-    circle.m_radius = radius;
+    b2Circle circle;
+    circle.center = (b2Vec2){0.0f, 0.0f};
+    circle.radius = radius;
     
-    b2FixtureDef fixtureDef;
-    fixtureDef.shape = &circle;
-    fixtureDef.density = density;
-    fixtureDef.friction = friction;
-    fixtureDef.restitution = restitution;
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.density = density;
+    shapeDef.material.friction = friction;
+    shapeDef.material.restitution = restitution;
     
-    body->CreateFixture(&fixtureDef);
+    b2CreateCircleShape(it->second, &shapeDef, &circle);
 }
 
 void Box2DPhysics::enableDebugDraw(bool enable) {
@@ -278,5 +214,136 @@ void Box2DPhysics::enableDebugDraw(bool enable) {
 }
 
 const std::vector<DebugVertex>& Box2DPhysics::getDebugVertices() {
-    return debugDraw_->GetVertices();
+    return debugVertices_;
+}
+
+void Box2DPhysics::addVertex(float x, float y, b2HexColor hexColor) {
+    DebugVertex v;
+    v.x = x;
+    v.y = y;
+    hexColorToRGBA(hexColor, v.r, v.g, v.b, v.a);
+    debugVertices_.push_back(v);
+}
+
+void Box2DPhysics::DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context) {
+    Box2DPhysics* physics = static_cast<Box2DPhysics*>(context);
+    
+    for (int i = 0; i < vertexCount; ++i) {
+        physics->addVertex(vertices[i].x, vertices[i].y, color);
+        physics->addVertex(vertices[(i + 1) % vertexCount].x, vertices[(i + 1) % vertexCount].y, color);
+    }
+}
+
+void Box2DPhysics::DrawSolidPolygon(b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color, void* context) {
+    Box2DPhysics* physics = static_cast<Box2DPhysics*>(context);
+    
+    // Draw filled triangles
+    b2HexColor fillColor = static_cast<b2HexColor>((color & 0x00FFFFFF) | 0x80000000); // Make semi-transparent
+    for (int i = 1; i < vertexCount - 1; ++i) {
+        b2Vec2 v0 = b2TransformPoint(transform, vertices[0]);
+        b2Vec2 v1 = b2TransformPoint(transform, vertices[i]);
+        b2Vec2 v2 = b2TransformPoint(transform, vertices[i + 1]);
+        
+        physics->addVertex(v0.x, v0.y, fillColor);
+        physics->addVertex(v1.x, v1.y, fillColor);
+        physics->addVertex(v2.x, v2.y, fillColor);
+    }
+    
+    // Draw outline
+    for (int i = 0; i < vertexCount; ++i) {
+        b2Vec2 v1 = b2TransformPoint(transform, vertices[i]);
+        b2Vec2 v2 = b2TransformPoint(transform, vertices[(i + 1) % vertexCount]);
+        physics->addVertex(v1.x, v1.y, color);
+        physics->addVertex(v2.x, v2.y, color);
+    }
+    
+    (void)radius; // Unused
+}
+
+void Box2DPhysics::DrawCircle(b2Vec2 center, float radius, b2HexColor color, void* context) {
+    Box2DPhysics* physics = static_cast<Box2DPhysics*>(context);
+    
+    const int segments = 16;
+    for (int i = 0; i < segments; ++i) {
+        float angle1 = (float)i / segments * 2.0f * M_PI;
+        float angle2 = (float)(i + 1) / segments * 2.0f * M_PI;
+        
+        b2Vec2 p1 = {center.x + radius * cosf(angle1), center.y + radius * sinf(angle1)};
+        b2Vec2 p2 = {center.x + radius * cosf(angle2), center.y + radius * sinf(angle2)};
+        
+        physics->addVertex(p1.x, p1.y, color);
+        physics->addVertex(p2.x, p2.y, color);
+    }
+}
+
+void Box2DPhysics::DrawSolidCircle(b2Transform transform, float radius, b2HexColor color, void* context) {
+    Box2DPhysics* physics = static_cast<Box2DPhysics*>(context);
+    
+    b2Vec2 center = transform.p;
+    
+    // Draw filled triangles
+    b2HexColor fillColor = static_cast<b2HexColor>((color & 0x00FFFFFF) | 0x80000000); // Make semi-transparent
+    const int segments = 16;
+    for (int i = 0; i < segments; ++i) {
+        float angle1 = (float)i / segments * 2.0f * M_PI;
+        float angle2 = (float)(i + 1) / segments * 2.0f * M_PI;
+        
+        b2Vec2 p1 = {center.x + radius * cosf(angle1), center.y + radius * sinf(angle1)};
+        b2Vec2 p2 = {center.x + radius * cosf(angle2), center.y + radius * sinf(angle2)};
+        
+        physics->addVertex(center.x, center.y, fillColor);
+        physics->addVertex(p1.x, p1.y, fillColor);
+        physics->addVertex(p2.x, p2.y, fillColor);
+    }
+    
+    // Draw outline
+    for (int i = 0; i < segments; ++i) {
+        float angle1 = (float)i / segments * 2.0f * M_PI;
+        float angle2 = (float)(i + 1) / segments * 2.0f * M_PI;
+        
+        b2Vec2 p1 = {center.x + radius * cosf(angle1), center.y + radius * sinf(angle1)};
+        b2Vec2 p2 = {center.x + radius * cosf(angle2), center.y + radius * sinf(angle2)};
+        
+        physics->addVertex(p1.x, p1.y, color);
+        physics->addVertex(p2.x, p2.y, color);
+    }
+    
+    // Draw axis line
+    b2Vec2 axis = b2RotateVector(transform.q, (b2Vec2){radius, 0.0f});
+    physics->addVertex(center.x, center.y, color);
+    physics->addVertex(center.x + axis.x, center.y + axis.y, color);
+}
+
+void Box2DPhysics::DrawSegment(b2Vec2 p1, b2Vec2 p2, b2HexColor color, void* context) {
+    Box2DPhysics* physics = static_cast<Box2DPhysics*>(context);
+    physics->addVertex(p1.x, p1.y, color);
+    physics->addVertex(p2.x, p2.y, color);
+}
+
+void Box2DPhysics::DrawTransform(b2Transform xf, void* context) {
+    Box2DPhysics* physics = static_cast<Box2DPhysics*>(context);
+    const float axisScale = 0.4f;
+    
+    b2Vec2 p1 = xf.p;
+    
+    // X-axis (red)
+    b2Vec2 p2 = b2TransformPoint(xf, (b2Vec2){axisScale, 0.0f});
+    physics->addVertex(p1.x, p1.y, static_cast<b2HexColor>(0xFFFF0000));
+    physics->addVertex(p2.x, p2.y, static_cast<b2HexColor>(0xFFFF0000));
+    
+    // Y-axis (green)
+    p2 = b2TransformPoint(xf, (b2Vec2){0.0f, axisScale});
+    physics->addVertex(p1.x, p1.y, static_cast<b2HexColor>(0xFF00FF00));
+    physics->addVertex(p2.x, p2.y, static_cast<b2HexColor>(0xFF00FF00));
+}
+
+void Box2DPhysics::DrawPoint(b2Vec2 p, float size, b2HexColor color, void* context) {
+    Box2DPhysics* physics = static_cast<Box2DPhysics*>(context);
+    float halfSize = size * 0.5f;
+    
+    // Draw a small cross
+    physics->addVertex(p.x - halfSize, p.y, color);
+    physics->addVertex(p.x + halfSize, p.y, color);
+    physics->addVertex(p.x, p.y - halfSize, color);
+    physics->addVertex(p.x, p.y + halfSize, color);
 }

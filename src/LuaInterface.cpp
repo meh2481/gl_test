@@ -516,19 +516,14 @@ int LuaInterface::b2Step(lua_State* L) {
     assert(lua_isnumber(L, 1));
     
     float timeStep = lua_tonumber(L, 1);
-    int32_t velocityIterations = 8;
-    int32_t positionIterations = 3;
+    int subStepCount = 4;  // Box2D 3.x uses subStepCount instead of velocity/position iterations
     
     if (lua_gettop(L) >= 2) {
         assert(lua_isnumber(L, 2));
-        velocityIterations = lua_tointeger(L, 2);
-    }
-    if (lua_gettop(L) >= 3) {
-        assert(lua_isnumber(L, 3));
-        positionIterations = lua_tointeger(L, 3);
+        subStepCount = lua_tointeger(L, 2);
     }
     
-    interface->physics_->step(timeStep, velocityIterations, positionIterations);
+    interface->physics_->step(timeStep, subStepCount);
     return 0;
 }
 
