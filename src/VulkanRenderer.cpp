@@ -1,4 +1,6 @@
 #include "VulkanRenderer.h"
+#include "ResourceTypes.h"
+#include "SceneLayer.h"
 #include <iostream>
 #include <cstring>
 #include <algorithm>
@@ -1127,13 +1129,15 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     float pushConstants[3] = {static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), time};
-    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
 
     // Draw all pipelines
     for (uint64_t pipelineId : m_pipelinesToDraw) {
         bool isDebug = m_debugPipelines.count(pipelineId) > 0 && m_debugPipelines[pipelineId];
+        bool isTextured = m_texturedPipelines.count(pipelineId) > 0 && m_texturedPipelines[pipelineId];
 
         if (isDebug) {
+            vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
+            
             // Draw triangles first
             if (debugTriangleVertexCount > 0 && m_debugTrianglePipeline != VK_NULL_HANDLE) {
                 VkBuffer debugBuffers[] = {debugTriangleVertexBuffer};
@@ -1150,9 +1154,34 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_debugLinePipeline);
                 vkCmdDraw(commandBuffer, debugVertexCount, 1, 0, 0);
             }
+        } else if (isTextured) {
+            // Draw textured sprites in batches, one per texture
+            auto it = m_pipelines.find(pipelineId);
+            if (it != m_pipelines.end() && !m_spriteBatches.empty()) {
+                vkCmdPushConstants(commandBuffer, m_texturedPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
+                
+                VkBuffer vertexBuffers[] = {spriteVertexBuffer};
+                VkDeviceSize offsets[] = {0};
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                vkCmdBindIndexBuffer(commandBuffer, spriteIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
+                
+                // Draw each batch with its corresponding texture
+                for (const auto& batch : m_spriteBatches) {
+                    auto descIt = m_texturedDescriptorSets.find(batch.textureId);
+                    if (descIt != m_texturedDescriptorSets.end()) {
+                        VkDescriptorSet descriptorSet = descIt->second;
+                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+                                              m_texturedPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+                        vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+                    }
+                }
+            }
         } else {
             auto it = m_pipelines.find(pipelineId);
             if (it != m_pipelines.end()) {
+                vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
+                
                 // Bind regular vertex buffer
                 VkBuffer vertexBuffers[] = {vertexBuffer};
                 VkDeviceSize offsets[] = {0};
@@ -1215,26 +1244,359 @@ void VulkanRenderer::createTexturedDescriptorPool() {
     assert(vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_texturedDescriptorPool) == VK_SUCCESS);
 }
 
+void VulkanRenderer::loadTexture(uint64_t textureId, const ResourceData& imageData) {
+    // Parse ImageHeader to get format, width, height
+    assert(imageData.size >= sizeof(ImageHeader));
+    const ImageHeader* header = (const ImageHeader*)imageData.data;
+    uint32_t width = header->width;
+    uint32_t height = header->height;
+    uint16_t format = header->format;
+    
+    const char* compressedData = imageData.data + sizeof(ImageHeader);
+    size_t compressedSize = imageData.size - sizeof(ImageHeader);
+    
+    // Map our format to Vulkan format
+    VkFormat vkFormat;
+    if (format == IMAGE_FORMAT_BC1_DXT1) {
+        vkFormat = VK_FORMAT_BC1_RGB_UNORM_BLOCK;
+    } else if (format == IMAGE_FORMAT_BC3_DXT5) {
+        vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
+    } else {
+        assert(false && "Unsupported image format");
+        return;
+    }
+    
+    createTextureImage(textureId, compressedData, width, height, vkFormat, compressedSize);
+    createTextureSampler(textureId);
+    createTexturedDescriptorSet(textureId);
+}
+
+void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader) {
+    m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
+    m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
+    
+    VkShaderModule vertShaderModule = createShaderModule(m_vertShaderData);
+    VkShaderModule fragShaderModule = createShaderModule(m_fragShaderData);
+    
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertShaderStageInfo.module = vertShaderModule;
+    vertShaderStageInfo.pName = "main";
+    
+    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragShaderStageInfo.module = fragShaderModule;
+    fragShaderStageInfo.pName = "main";
+    
+    VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+    
+    // Vertex input for sprites: position (vec2) + texCoord (vec2)
+    VkVertexInputBindingDescription bindingDescription{};
+    bindingDescription.binding = 0;
+    bindingDescription.stride = sizeof(float) * 4; // 2 floats for position + 2 for texcoord
+    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    
+    VkVertexInputAttributeDescription attributeDescriptions[2]{};
+    attributeDescriptions[0].binding = 0;
+    attributeDescriptions[0].location = 0;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;  // position
+    attributeDescriptions[0].offset = 0;
+    
+    attributeDescriptions[1].binding = 0;
+    attributeDescriptions[1].location = 1;
+    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;  // texcoord
+    attributeDescriptions[1].offset = sizeof(float) * 2;
+    
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputInfo.vertexAttributeDescriptionCount = 2;
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
+    
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+    
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float)swapchainExtent.width;
+    viewport.height = (float)swapchainExtent.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = swapchainExtent;
+    
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1;
+    viewportState.pScissors = &scissor;
+    
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_FALSE;
+    
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    
+    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &colorBlendAttachment;
+    
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = shaderStages;
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.layout = m_texturedPipelineLayout;
+    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.subpass = 0;
+    
+    VkPipeline pipeline;
+    assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
+    
+    m_pipelines[id] = pipeline;
+    m_texturedPipelines[id] = true;
+    
+    vkDestroyShaderModule(device, fragShaderModule, nullptr);
+    vkDestroyShaderModule(device, vertShaderModule, nullptr);
+}
+
+void VulkanRenderer::createTextureImage(uint64_t textureId, const void* imageData, uint32_t width, uint32_t height, VkFormat format, size_t dataSize) {
+    // Create staging buffer
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = dataSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    
+    assert(vkCreateBuffer(device, &bufferInfo, nullptr, &stagingBuffer) == VK_SUCCESS);
+    
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, stagingBuffer, &memRequirements);
+    
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    
+    assert(vkAllocateMemory(device, &allocInfo, nullptr, &stagingBufferMemory) == VK_SUCCESS);
+    vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
+    
+    // Copy image data to staging buffer
+    void* data;
+    vkMapMemory(device, stagingBufferMemory, 0, dataSize, 0, &data);
+    memcpy(data, imageData, dataSize);
+    vkUnmapMemory(device, stagingBufferMemory);
+    
+    // Create image
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = width;
+    imageInfo.extent.height = height;
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.format = format;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.flags = 0;
+    
+    TextureData tex;
+    assert(vkCreateImage(device, &imageInfo, nullptr, &tex.image) == VK_SUCCESS);
+    
+    VkMemoryRequirements imgMemRequirements;
+    vkGetImageMemoryRequirements(device, tex.image, &imgMemRequirements);
+    
+    VkMemoryAllocateInfo imgAllocInfo{};
+    imgAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    imgAllocInfo.allocationSize = imgMemRequirements.size;
+    imgAllocInfo.memoryTypeIndex = findMemoryType(imgMemRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    
+    assert(vkAllocateMemory(device, &imgAllocInfo, nullptr, &tex.memory) == VK_SUCCESS);
+    vkBindImageMemory(device, tex.image, tex.memory, 0);
+    
+    // Transition image layout and copy from staging buffer
+    VkCommandBuffer commandBuffer;
+    VkCommandBufferAllocateInfo cmdAllocInfo{};
+    cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmdAllocInfo.commandPool = commandPool;
+    cmdAllocInfo.commandBufferCount = 1;
+    
+    vkAllocateCommandBuffers(device, &cmdAllocInfo, &commandBuffer);
+    
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    
+    // Transition to transfer dst
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = tex.image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    
+    vkCmdPipelineBarrier(commandBuffer,
+                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        0,
+                        0, nullptr,
+                        0, nullptr,
+                        1, &barrier);
+    
+    // Copy buffer to image
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {width, height, 1};
+    
+    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, tex.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    
+    // Transition to shader read
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    
+    vkCmdPipelineBarrier(commandBuffer,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0,
+                        0, nullptr,
+                        0, nullptr,
+                        1, &barrier);
+    
+    vkEndCommandBuffer(commandBuffer);
+    
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+    
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+    
+    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
+    
+    // Create image view
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = tex.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = format;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+    
+    assert(vkCreateImageView(device, &viewInfo, nullptr, &tex.imageView) == VK_SUCCESS);
+    
+    m_textures[textureId] = tex;
+}
+
+void VulkanRenderer::createTextureSampler(uint64_t textureId) {
+    auto it = m_textures.find(textureId);
+    assert(it != m_textures.end());
+    
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.anisotropyEnable = VK_FALSE;
+    samplerInfo.maxAnisotropy = 1.0f;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.mipLodBias = 0.0f;
+    samplerInfo.minLod = 0.0f;
+    samplerInfo.maxLod = 0.0f;
+    
+    assert(vkCreateSampler(device, &samplerInfo, nullptr, &it->second.sampler) == VK_SUCCESS);
+}
+
 void VulkanRenderer::createTexturedDescriptorSet(uint64_t textureId) {
-    // Allocate descriptor set for this texture
+    auto it = m_textures.find(textureId);
+    assert(it != m_textures.end());
+    
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = m_texturedDescriptorPool;
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &m_texturedDescriptorSetLayout;
-
+    
     VkDescriptorSet descriptorSet;
     assert(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) == VK_SUCCESS);
-
-    // Update descriptor set with texture
-    auto it = m_textures.find(textureId);
-    assert(it != m_textures.end());
-
+    
     VkDescriptorImageInfo imageInfo{};
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     imageInfo.imageView = it->second.imageView;
     imageInfo.sampler = it->second.sampler;
-
+    
     VkWriteDescriptorSet descriptorWrite{};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrite.dstSet = descriptorSet;
@@ -1243,34 +1605,47 @@ void VulkanRenderer::createTexturedDescriptorSet(uint64_t textureId) {
     descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptorWrite.descriptorCount = 1;
     descriptorWrite.pImageInfo = &imageInfo;
-
+    
     vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
-
+    
     m_texturedDescriptorSets[textureId] = descriptorSet;
 }
 
-void VulkanRenderer::loadTexture(uint64_t textureId, const ResourceData& imageData) {
-    // TODO: Implement full DXT/BC texture loading
-    // This is a placeholder that needs to:
-    // 1. Parse ImageHeader to get format, width, height
-    // 2. Create VkImage with appropriate BC1/BC3 format
-    // 3. Copy DXT compressed data directly to image
-    // 4. Create image view
-    // 5. Create sampler
-    // 6. Create descriptor set
+void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
+    m_spriteBatches.clear();
     
-    // For now, just store placeholder data
-    TextureData tex;
-    tex.image = VK_NULL_HANDLE;
-    tex.memory = VK_NULL_HANDLE;
-    tex.imageView = VK_NULL_HANDLE;
-    tex.sampler = VK_NULL_HANDLE;
-    m_textures[textureId] = tex;
-}
-
-void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader) {
-    // TODO: Implement textured pipeline creation
-    // Similar to createPipeline() but using m_texturedPipelineLayout
-    // and proper vertex input for sprites (position + UV coordinates)
-    m_texturedPipelines[id] = true;
+    // Combine all vertices and indices from all batches
+    std::vector<float> allVertexData;
+    std::vector<uint16_t> allIndices;
+    uint32_t baseVertex = 0;
+    
+    for (const auto& batch : batches) {
+        if (batch.vertices.empty() || batch.indices.empty()) {
+            continue;
+        }
+        
+        BatchDrawData drawData;
+        drawData.textureId = batch.textureId;
+        drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
+        drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        
+        // Add vertex data
+        for (const auto& v : batch.vertices) {
+            allVertexData.push_back(v.x);
+            allVertexData.push_back(v.y);
+            allVertexData.push_back(v.u);
+            allVertexData.push_back(v.v);
+        }
+        
+        // Add indices with offset
+        for (uint16_t idx : batch.indices) {
+            allIndices.push_back(idx + baseVertex);
+        }
+        
+        baseVertex += static_cast<uint32_t>(batch.vertices.size());
+        m_spriteBatches.push_back(drawData);
+    }
+    
+    // Upload to GPU
+    updateSpriteVertexBuffer(allVertexData, allIndices);
 }

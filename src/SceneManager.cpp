@@ -1,5 +1,6 @@
 #include "SceneManager.h"
 #include "LuaInterface.h"
+#include "SceneLayer.h"
 #include <cassert>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer)
@@ -79,8 +80,29 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         uint64_t activeSceneId = sceneStack_.top();
         luaInterface_->updateScene(activeSceneId, deltaTime);
 
-        // Update debug draw data if physics debug drawing is enabled
+        // Update scene layer transforms from physics bodies
         Box2DPhysics& physics = luaInterface_->getPhysics();
+        SceneLayerManager& layerManager = luaInterface_->getSceneLayerManager();
+        
+        // Update each layer's transform based on its attached physics body
+        for (const auto& layerPair : layerManager.getLayers()) {
+            const SceneLayer& layer = layerPair.second;
+            if (layer.physicsBodyId >= 0) {
+                float bodyX = physics.getBodyPositionX(layer.physicsBodyId);
+                float bodyY = physics.getBodyPositionY(layer.physicsBodyId);
+                float bodyAngle = physics.getBodyAngle(layer.physicsBodyId);
+                layerManager.updateLayerTransform(layerPair.first, bodyX, bodyY, bodyAngle);
+            }
+        }
+        
+        // Generate sprite batches grouped by texture
+        std::vector<SpriteBatch> spriteBatches;
+        layerManager.updateLayerVertices(spriteBatches);
+        
+        // Send batches to renderer
+        renderer_.setSpriteBatches(spriteBatches);
+
+        // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {
             const std::vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
             std::vector<float> lineVertexData;

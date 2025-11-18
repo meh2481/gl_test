@@ -10,6 +10,13 @@ struct SpriteVertex {
     float u, v;        // Texture coordinates
 };
 
+// Sprite batch for a single texture
+struct SpriteBatch {
+    uint64_t textureId;
+    std::vector<SpriteVertex> vertices;
+    std::vector<uint16_t> indices;
+};
+
 // Scene layer that can be attached to a physics body
 struct SceneLayer {
     uint64_t textureId;      // Resource ID of the texture
@@ -44,12 +51,8 @@ public:
     const std::unordered_map<int, SceneLayer>& getLayers() const { return layers_; }
     
     // Generate vertex data for all layers based on physics body positions
-    // bodyPositionsX/Y are parallel arrays indexed by bodyId
-    // bodyAngles is indexed by bodyId
-    void updateLayerVertices(
-        std::vector<SpriteVertex>& vertices,
-        std::vector<uint16_t>& indices
-    );
+    // Groups sprites by texture for efficient batch rendering
+    void updateLayerVertices(std::vector<SpriteBatch>& batches);
     
     // Update a single layer's transform based on physics body
     void updateLayerTransform(int layerId, float bodyX, float bodyY, float bodyAngle);
