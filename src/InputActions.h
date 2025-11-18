@@ -13,6 +13,7 @@ enum Action {
     ACTION_HOTRELOAD,
     ACTION_APPLY_FORCE,
     ACTION_RESET_PHYSICS,
+    ACTION_TOGGLE_DEBUG_DRAW,
     ACTION_COUNT  // Always keep last
 };
 
@@ -83,6 +84,7 @@ public:
         bind(SDLK_p, ACTION_PHYSICS_DEMO);
         bind(SDLK_SPACE, ACTION_APPLY_FORCE);
         bind(SDLK_r, ACTION_RESET_PHYSICS);
+        bind(SDLK_d, ACTION_TOGGLE_DEBUG_DRAW);
         // ALT+ENTER is handled separately via modifier check
         // F5 is handled separately in main.cpp for debug builds
     }

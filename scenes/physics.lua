@@ -1,6 +1,7 @@
 -- Physics demo scene
 bodies = {}
 layers = {}
+debugDrawEnabled = true
 
 function init()
     -- Load the nebula background shader (z-index 0)
@@ -113,5 +114,10 @@ function onAction(action)
                 b2SetBodyAwake(bodyId, true)
             end
         end
+    end
+    if action == ACTION_TOGGLE_DEBUG_DRAW then
+        print("Toggling debug draw")
+        debugDrawEnabled = not debugDrawEnabled
+        b2EnableDebugDraw(debugDrawEnabled)
     end
 end
