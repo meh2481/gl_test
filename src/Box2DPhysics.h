@@ -3,6 +3,7 @@
 #include <box2d/box2d.h>
 #include <vector>
 #include <unordered_map>
+#include <SDL2/SDL.h>
 
 struct DebugVertex {
     float x, y;
@@ -17,6 +18,11 @@ public:
     // World management
     void setGravity(float x, float y);
     void step(float timeStep, int subStepCount = 4);
+    
+    // Async physics stepping
+    void stepAsync(float timeStep, int subStepCount = 4);
+    bool isStepComplete();
+    void waitForStepComplete();
 
     // Body management
     int createBody(int bodyType, float x, float y, float angle = 0.0f);
@@ -59,6 +65,15 @@ private:
 
     void addLineVertex(float x, float y, b2HexColor color);
     void addTriangleVertex(float x, float y, b2HexColor color);
+    
+    // Thread function for async physics step
+    static int physicsStepThread(void* data);
+    
+    struct StepData {
+        Box2DPhysics* physics;
+        float timeStep;
+        int subStepCount;
+    };
 
     b2WorldId worldId_;
     std::unordered_map<int, b2BodyId> bodies_;
@@ -66,4 +81,9 @@ private:
     bool debugDrawEnabled_;
     std::vector<DebugVertex> debugLineVertices_;
     std::vector<DebugVertex> debugTriangleVertices_;
+    
+    // Threading support
+    SDL_mutex* physicsMutex_;
+    SDL_atomic_t stepInProgress_;
+    SDL_Thread* stepThread_;
 };

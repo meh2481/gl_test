@@ -11,16 +11,27 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
     a = ((hexColor >> 24) & 0xFF) / 255.0f;
 }
 
-Box2DPhysics::Box2DPhysics() : nextBodyId_(0), debugDrawEnabled_(false) {
+Box2DPhysics::Box2DPhysics() : nextBodyId_(0), debugDrawEnabled_(false), stepThread_(nullptr) {
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldId_ = b2CreateWorld(&worldDef);
     assert(b2World_IsValid(worldId_));
+    
+    physicsMutex_ = SDL_CreateMutex();
+    assert(physicsMutex_ != nullptr);
+    SDL_AtomicSet(&stepInProgress_, 0);
 }
 
 Box2DPhysics::~Box2DPhysics() {
+    // Wait for any in-progress step to complete
+    waitForStepComplete();
+    
     if (b2World_IsValid(worldId_)) {
         b2DestroyWorld(worldId_);
+    }
+    
+    if (physicsMutex_) {
+        SDL_DestroyMutex(physicsMutex_);
     }
 }
 
@@ -29,6 +40,8 @@ void Box2DPhysics::setGravity(float x, float y) {
 }
 
 void Box2DPhysics::step(float timeStep, int subStepCount) {
+    SDL_LockMutex(physicsMutex_);
+    
     b2World_Step(worldId_, timeStep, subStepCount);
 
     if (debugDrawEnabled_) {
@@ -57,9 +70,44 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
 
         b2World_Draw(worldId_, &debugDraw);
     }
+    
+    SDL_UnlockMutex(physicsMutex_);
+}
+
+int Box2DPhysics::physicsStepThread(void* data) {
+    StepData* stepData = (StepData*)data;
+    stepData->physics->step(stepData->timeStep, stepData->subStepCount);
+    SDL_AtomicSet(&stepData->physics->stepInProgress_, 0);
+    delete stepData;
+    return 0;
+}
+
+void Box2DPhysics::stepAsync(float timeStep, int subStepCount) {
+    // Don't start a new step if one is in progress
+    if (SDL_AtomicGet(&stepInProgress_) != 0) {
+        return;
+    }
+    
+    SDL_AtomicSet(&stepInProgress_, 1);
+    StepData* data = new StepData{this, timeStep, subStepCount};
+    stepThread_ = SDL_CreateThread(physicsStepThread, "PhysicsStep", data);
+    assert(stepThread_ != nullptr);
+    SDL_DetachThread(stepThread_);
+}
+
+bool Box2DPhysics::isStepComplete() {
+    return SDL_AtomicGet(&stepInProgress_) == 0;
+}
+
+void Box2DPhysics::waitForStepComplete() {
+    while (SDL_AtomicGet(&stepInProgress_) != 0) {
+        SDL_Delay(1);
+    }
 }
 
 int Box2DPhysics::createBody(int bodyType, float x, float y, float angle) {
+    SDL_LockMutex(physicsMutex_);
+    
     b2BodyDef bodyDef = b2DefaultBodyDef();
 
     if (bodyType == 0) {
@@ -78,15 +126,21 @@ int Box2DPhysics::createBody(int bodyType, float x, float y, float angle) {
 
     int internalId = nextBodyId_++;
     bodies_[internalId] = bodyId;
+    
+    SDL_UnlockMutex(physicsMutex_);
     return internalId;
 }
 
 void Box2DPhysics::destroyBody(int bodyId) {
+    SDL_LockMutex(physicsMutex_);
+    
     auto it = bodies_.find(bodyId);
     if (it != bodies_.end()) {
         b2DestroyBody(it->second);
         bodies_.erase(it);
     }
+    
+    SDL_UnlockMutex(physicsMutex_);
 }
 
 void Box2DPhysics::setBodyPosition(int bodyId, float x, float y) {

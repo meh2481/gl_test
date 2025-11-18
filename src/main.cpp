@@ -22,6 +22,45 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     return value;
 }
 
+#ifdef DEBUG
+// Structure to pass data to the hot-reload thread
+struct HotReloadData {
+    SDL_mutex* mutex;
+    SDL_atomic_t reloadComplete;
+    SDL_atomic_t reloadSuccess;
+    SDL_atomic_t reloadRequested;
+};
+
+// Thread function for hot-reloading resources
+static int hotReloadThread(void* data) {
+    HotReloadData* reloadData = (HotReloadData*)data;
+    
+    while (true) {
+        // Wait for reload request
+        while (SDL_AtomicGet(&reloadData->reloadRequested) == 0) {
+            SDL_Delay(100);
+        }
+        
+        // Lock mutex to prevent concurrent reloads
+        SDL_LockMutex(reloadData->mutex);
+        
+        std::cout << "Hot-reloading resources in background thread..." << std::endl;
+        
+        // Rebuild shaders and pak file using make
+        int result = system("make shaders && make res_pak");
+        
+        // Store result
+        SDL_AtomicSet(&reloadData->reloadSuccess, (result == 0) ? 1 : 0);
+        SDL_AtomicSet(&reloadData->reloadComplete, 1);
+        SDL_AtomicSet(&reloadData->reloadRequested, 0);
+        
+        SDL_UnlockMutex(reloadData->mutex);
+    }
+    
+    return 0;
+}
+#endif
+
 int main() {
     assert(SDL_Init(SDL_INIT_VIDEO) == 0);
 
@@ -50,6 +89,19 @@ int main() {
 
     // Load initial scene
     sceneManager.pushScene(LUA_SCRIPT_ID);
+
+#ifdef DEBUG
+    // Initialize hot-reload thread
+    HotReloadData reloadData;
+    reloadData.mutex = SDL_CreateMutex();
+    assert(reloadData.mutex != nullptr);
+    SDL_AtomicSet(&reloadData.reloadComplete, 0);
+    SDL_AtomicSet(&reloadData.reloadSuccess, 0);
+    SDL_AtomicSet(&reloadData.reloadRequested, 0);
+    
+    SDL_Thread* reloadThread = SDL_CreateThread(hotReloadThread, "HotReload", &reloadData);
+    assert(reloadThread != nullptr);
+#endif
 
     bool running = true;
     SDL_Event event;
@@ -84,14 +136,12 @@ int main() {
 #ifdef DEBUG
                 // Handle special case: F5 for hot reload
                 if (event.key.keysym.sym == SDLK_F5) {
-                    std::cout << "Hot-reloading resources..." << std::endl;
-                    // Rebuild shaders and pak file using make
-                    int result = system("make shaders && make res_pak");
-                    assert(result == 0);
-                    // Reload pak
-                    pakResource.load(PAK_FILE);
-                    // Reload current scene with new resources
-                    sceneManager.reloadCurrentScene();
+                    // Check if reload thread is ready
+                    if (SDL_AtomicGet(&reloadData.reloadRequested) == 0) {
+                        std::cout << "Requesting hot-reload..." << std::endl;
+                        SDL_AtomicSet(&reloadData.reloadComplete, 0);
+                        SDL_AtomicSet(&reloadData.reloadRequested, 1);
+                    }
                 }
 #endif
             }
@@ -100,6 +150,23 @@ int main() {
         if(!sceneManager.updateActiveScene(deltaTime)) {
             running = false;
         }
+        
+#ifdef DEBUG
+        // Check if hot-reload completed
+        if (SDL_AtomicGet(&reloadData.reloadComplete) == 1) {
+            if (SDL_AtomicGet(&reloadData.reloadSuccess) == 1) {
+                std::cout << "Hot-reload complete, applying changes..." << std::endl;
+                // Reload pak
+                pakResource.load(PAK_FILE);
+                // Reload current scene with new resources
+                sceneManager.reloadCurrentScene();
+            } else {
+                std::cout << "Hot-reload failed!" << std::endl;
+            }
+            SDL_AtomicSet(&reloadData.reloadComplete, 0);
+        }
+#endif
+        
         renderer.render(currentTime);
     }
 
@@ -110,6 +177,15 @@ int main() {
     keybindings.serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
     
     saveConfig(config);
+
+#ifdef DEBUG
+    // Cleanup hot-reload thread
+    // Note: We can't cleanly stop the thread since it's in an infinite loop
+    // In a production app, we'd use a flag to signal thread exit
+    // For debug builds this is acceptable as the process is exiting anyway
+    SDL_DetachThread(reloadThread);
+    SDL_DestroyMutex(reloadData.mutex);
+#endif
 
     renderer.cleanup();
     SDL_DestroyWindow(window);

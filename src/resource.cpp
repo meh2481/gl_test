@@ -1,6 +1,7 @@
 #include "resource.h"
 #include "ResourceTypes.h"
 #include <cstring>
+#include <cassert>
 #include <lz4.h>
 
 #ifdef _WIN32
@@ -19,6 +20,8 @@ PakResource::PakResource() : m_pakData{nullptr, 0}
 , m_fd(-1)
 #endif
 {
+    m_mutex = SDL_CreateMutex();
+    assert(m_mutex != nullptr);
 }
 
 PakResource::~PakResource() {
@@ -31,6 +34,9 @@ PakResource::~PakResource() {
         munmap(m_pakData.data, m_pakData.size);
         if (m_fd != -1) close(m_fd);
 #endif
+    }
+    if (m_mutex) {
+        SDL_DestroyMutex(m_mutex);
     }
 }
 
@@ -77,25 +83,76 @@ bool PakResource::load(const char* filename) {
 }
 
 ResourceData PakResource::getResource(uint64_t id) {
-    if (!m_pakData.data) return ResourceData{nullptr, 0};
+    SDL_LockMutex(m_mutex);
+    
+    if (!m_pakData.data) {
+        SDL_UnlockMutex(m_mutex);
+        return ResourceData{nullptr, 0};
+    }
+    
     PakFileHeader* header = (PakFileHeader*)m_pakData.data;
-    if (memcmp(header->sig, "PAKC", 4) != 0) return ResourceData{nullptr, 0};
+    if (memcmp(header->sig, "PAKC", 4) != 0) {
+        SDL_UnlockMutex(m_mutex);
+        return ResourceData{nullptr, 0};
+    }
+    
     ResourcePtr* ptrs = (ResourcePtr*)(m_pakData.data + sizeof(PakFileHeader));
     for (uint32_t i = 0; i < header->numResources; i++) {
         if (ptrs[i].id == id) {
             CompressionHeader* comp = (CompressionHeader*)(m_pakData.data + ptrs[i].offset);
             char* compressedData = (char*)(comp + 1);
             if (comp->compressionType == COMPRESSION_FLAGS_UNCOMPRESSED) {
-                return ResourceData{compressedData, comp->decompressedSize};
+                ResourceData result = ResourceData{compressedData, comp->decompressedSize};
+                SDL_UnlockMutex(m_mutex);
+                return result;
             } else if (comp->compressionType == COMPRESSION_FLAGS_LZ4) {
-                m_decompressedData[id].resize(comp->decompressedSize);
-                int result = LZ4_decompress_safe(compressedData, m_decompressedData[id].data(), comp->compressedSize, comp->decompressedSize);
-                if (result != (int)comp->decompressedSize) {
-                    return ResourceData{nullptr, 0};
+                // Check if already decompressed
+                if (m_decompressedData.find(id) == m_decompressedData.end()) {
+                    m_decompressedData[id].resize(comp->decompressedSize);
+                    int result = LZ4_decompress_safe(compressedData, m_decompressedData[id].data(), comp->compressedSize, comp->decompressedSize);
+                    if (result != (int)comp->decompressedSize) {
+                        SDL_UnlockMutex(m_mutex);
+                        return ResourceData{nullptr, 0};
+                    }
                 }
-                return ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize};
+                ResourceData result = ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize};
+                SDL_UnlockMutex(m_mutex);
+                return result;
             }
         }
     }
+    
+    SDL_UnlockMutex(m_mutex);
     return ResourceData{nullptr, 0};
+}
+
+// Structure for async preload thread
+struct PreloadData {
+    PakResource* resource;
+    uint64_t id;
+};
+
+static int preloadThread(void* data) {
+    PreloadData* preloadData = (PreloadData*)data;
+    // Just call getResource which will decompress if needed
+    preloadData->resource->getResource(preloadData->id);
+    delete preloadData;
+    return 0;
+}
+
+void PakResource::preloadResourceAsync(uint64_t id) {
+    PreloadData* data = new PreloadData{this, id};
+    SDL_Thread* thread = SDL_CreateThread(preloadThread, "ResourcePreload", data);
+    if (thread) {
+        SDL_DetachThread(thread);
+    } else {
+        delete data;
+    }
+}
+
+bool PakResource::isResourceReady(uint64_t id) {
+    SDL_LockMutex(m_mutex);
+    bool ready = m_decompressedData.find(id) != m_decompressedData.end();
+    SDL_UnlockMutex(m_mutex);
+    return ready;
 }
