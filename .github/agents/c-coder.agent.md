@@ -10,4 +10,5 @@ description: Fix dumb things that dumb coders often do
 - Never use C++ exceptions or try-catch blocks. Use C-style assertions instead.
 - Use assertions liberally, where it makes sense to do so.
 - Never use STL vector or linked lists. Use C-style arrays instead.
-- Don't generate markdown documentation for changes.
+- Don't generate markdown documentation for changes. Do not update README.md or any other documentation files with changes.
+- Do not add any _codeql* files or folders to the repository.
