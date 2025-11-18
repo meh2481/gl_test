@@ -44,6 +44,10 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_getglobal(luaState_, "math");
     lua_setfield(luaState_, -2, "math");
 
+    // Copy table library
+    lua_getglobal(luaState_, "table");
+    lua_setfield(luaState_, -2, "table");
+
     // Copy SDL keycode constants
     const char* sdlKeycodes[] = {
         "SDLK_ESCAPE", "SDLK_RETURN", "SDLK_BACKSPACE", "SDLK_TAB", "SDLK_SPACE", "SDLK_DELETE",
@@ -63,6 +67,16 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     for (const char** keycode = sdlKeycodes; *keycode; ++keycode) {
         lua_getglobal(luaState_, *keycode);
         lua_setfield(luaState_, -2, *keycode);
+    }
+
+    // Copy Box2D constants
+    const char* box2dConstants[] = {
+        "B2_STATIC_BODY", "B2_KINEMATIC_BODY", "B2_DYNAMIC_BODY",
+        nullptr
+    };
+    for (const char** constant = box2dConstants; *constant; ++constant) {
+        lua_getglobal(luaState_, *constant);
+        lua_setfield(luaState_, -2, *constant);
     }
 
     // Load the script
