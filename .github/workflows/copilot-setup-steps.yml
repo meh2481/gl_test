@@ -34,6 +34,6 @@ jobs:
           cd box2d
           git checkout v3.1.1
           mkdir build && cd build
-          cmake -DBOX2D_BUILD_EXAMPLES=OFF -DBOX2D_BUILD_DOCS=OFF -DGLFW_BUILD_WAYLAND=OFF ..
-          make -j$(nproc)
+          cmake -DBOX2D_SAMPLES=OFF -DBOX2D_DOCS=OFF -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=OFF
+          cmake --build .
           sudo make install
