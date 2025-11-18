@@ -18,6 +18,8 @@ public:
     void setCurrentPipeline(uint64_t id);
     void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
     void setDebugDrawData(const std::vector<float>& vertexData);
+    void setDebugLineDrawData(const std::vector<float>& vertexData);
+    void setDebugTriangleDrawData(const std::vector<float>& vertexData);
     void render(float time);
     void cleanup();
 
@@ -29,6 +31,8 @@ private:
     // Pipelines
     std::map<uint64_t, VkPipeline> m_pipelines;
     std::map<uint64_t, bool> m_debugPipelines;  // Track which pipelines are for debug drawing
+    VkPipeline m_debugLinePipeline;
+    VkPipeline m_debugTrianglePipeline;
     VkPipeline m_currentPipeline;
     std::vector<uint64_t> m_pipelinesToDraw;
 
@@ -54,6 +58,10 @@ private:
     VkDeviceMemory debugVertexBufferMemory;
     size_t debugVertexBufferSize;
     uint32_t debugVertexCount;
+    VkBuffer debugTriangleVertexBuffer;
+    VkDeviceMemory debugTriangleVertexBufferMemory;
+    size_t debugTriangleVertexBufferSize;
+    uint32_t debugTriangleVertexCount;
     VkSemaphore imageAvailableSemaphores[2];
     VkSemaphore renderFinishedSemaphores[2];
     VkFence inFlightFences[2];
@@ -75,6 +83,8 @@ private:
     void createVertexBuffer();
     void createDebugVertexBuffer();
     void updateDebugVertexBuffer(const std::vector<float>& vertexData);
+    void createDebugTriangleVertexBuffer();
+    void updateDebugTriangleVertexBuffer(const std::vector<float>& vertexData);
     void createCommandPool();
     void createCommandBuffers();
     void createSyncObjects();

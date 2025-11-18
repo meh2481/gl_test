@@ -26,6 +26,8 @@ VulkanRenderer::VulkanRenderer() :
     renderPass(VK_NULL_HANDLE),
     pipelineLayout(VK_NULL_HANDLE),
     m_currentPipeline(VK_NULL_HANDLE),
+    m_debugLinePipeline(VK_NULL_HANDLE),
+    m_debugTrianglePipeline(VK_NULL_HANDLE),
     commandPool(VK_NULL_HANDLE),
     commandBuffers(nullptr),
     vertexBuffer(VK_NULL_HANDLE),
@@ -34,6 +36,10 @@ VulkanRenderer::VulkanRenderer() :
     debugVertexBufferMemory(VK_NULL_HANDLE),
     debugVertexBufferSize(0),
     debugVertexCount(0),
+    debugTriangleVertexBuffer(VK_NULL_HANDLE),
+    debugTriangleVertexBufferMemory(VK_NULL_HANDLE),
+    debugTriangleVertexBufferSize(0),
+    debugTriangleVertexCount(0),
     currentFrame(0),
     graphicsQueueFamilyIndex(0),
     swapchainFramebuffers(nullptr)
@@ -61,6 +67,7 @@ void VulkanRenderer::initialize(SDL_Window* window) {
     createFramebuffers();
     createVertexBuffer();
     createDebugVertexBuffer();
+    createDebugTriangleVertexBuffer();
     createCommandPool();
     createCommandBuffers();
     createSyncObjects();
@@ -69,6 +76,14 @@ void VulkanRenderer::initialize(SDL_Window* window) {
 void VulkanRenderer::setShaders(const ResourceData& vertShader, const ResourceData& fragShader) {
     vkDeviceWaitIdle(device);
     vkDestroyPipeline(device, m_pipelines[0], nullptr);
+    if (m_debugLinePipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, m_debugLinePipeline, nullptr);
+        m_debugLinePipeline = VK_NULL_HANDLE;
+    }
+    if (m_debugTrianglePipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, m_debugTrianglePipeline, nullptr);
+        m_debugTrianglePipeline = VK_NULL_HANDLE;
+    }
     createPipeline(0, vertShader, fragShader);
     setCurrentPipeline(0);
     // Note: Command buffers may need to be re-recorded if pipeline changes, but for simplicity, assume it's ok
@@ -102,18 +117,18 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    
+
     VkVertexInputAttributeDescription attributeDescriptions[2]{};
-    
+
     if (isDebugPipeline) {
         // Debug pipeline: position (vec2) + color (vec4) = 6 floats
         bindingDescription.stride = sizeof(float) * 6;
-        
+
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
         attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;  // position
         attributeDescriptions[0].offset = 0;
-        
+
         attributeDescriptions[1].binding = 0;
         attributeDescriptions[1].location = 1;
         attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;  // color
@@ -121,12 +136,12 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     } else {
         // Regular pipeline: position (vec2) + texcoord (vec2) = 4 floats
         bindingDescription.stride = sizeof(float) * 4;
-        
+
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
         attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;  // position
         attributeDescriptions[0].offset = 0;
-        
+
         attributeDescriptions[1].binding = 0;
         attributeDescriptions[1].location = 1;
         attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;  // texcoord
@@ -213,11 +228,23 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-    VkPipeline pipeline;
-    assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
+    if (isDebugPipeline) {
+        // Create line pipeline
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugLinePipeline) == VK_SUCCESS);
 
-    m_pipelines[id] = pipeline;
-    m_debugPipelines[id] = isDebugPipeline;
+        // Create triangle pipeline
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugTrianglePipeline) == VK_SUCCESS);
+
+        m_debugPipelines[id] = true;
+    } else {
+        VkPipeline pipeline;
+        assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
+
+        m_pipelines[id] = pipeline;
+        m_debugPipelines[id] = false;
+    }
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
@@ -314,6 +341,13 @@ void VulkanRenderer::cleanup() {
         vkFreeMemory(device, debugVertexBufferMemory, nullptr);
     }
 
+    if (debugTriangleVertexBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, debugTriangleVertexBuffer, nullptr);
+    }
+    if (debugTriangleVertexBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, debugTriangleVertexBufferMemory, nullptr);
+    }
+
     if (swapchainFramebuffers != nullptr) {
         for (size_t i = 0; i < swapchainImageCount; i++) {
             if (swapchainFramebuffers[i] != VK_NULL_HANDLE) {
@@ -329,6 +363,13 @@ void VulkanRenderer::cleanup() {
         }
     }
     m_pipelines.clear();
+
+    if (m_debugLinePipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, m_debugLinePipeline, nullptr);
+    }
+    if (m_debugTrianglePipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, m_debugTrianglePipeline, nullptr);
+    }
 
     if (pipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -742,21 +783,21 @@ void VulkanRenderer::createVertexBuffer() {
 void VulkanRenderer::createDebugVertexBuffer() {
     // Create a buffer large enough for debug drawing (allocate 64KB initially)
     debugVertexBufferSize = 65536;
-    
+
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = debugVertexBufferSize;
     bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     assert(vkCreateBuffer(device, &bufferInfo, nullptr, &debugVertexBuffer) == VK_SUCCESS);
-    
+
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(device, debugVertexBuffer, &memRequirements);
-    
+
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, 
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
                                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     assert(vkAllocateMemory(device, &allocInfo, nullptr, &debugVertexBufferMemory) == VK_SUCCESS);
     vkBindBufferMemory(device, debugVertexBuffer, debugVertexBufferMemory, 0);
@@ -767,9 +808,9 @@ void VulkanRenderer::updateDebugVertexBuffer(const std::vector<float>& vertexDat
         debugVertexCount = 0;
         return;
     }
-    
+
     size_t dataSize = vertexData.size() * sizeof(float);
-    
+
     // Reallocate if needed
     if (dataSize > debugVertexBufferSize) {
         if (debugVertexBuffer != VK_NULL_HANDLE) {
@@ -778,39 +819,118 @@ void VulkanRenderer::updateDebugVertexBuffer(const std::vector<float>& vertexDat
         if (debugVertexBufferMemory != VK_NULL_HANDLE) {
             vkFreeMemory(device, debugVertexBufferMemory, nullptr);
         }
-        
+
         debugVertexBufferSize = dataSize * 2;
-        
+
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.size = debugVertexBufferSize;
         bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         assert(vkCreateBuffer(device, &bufferInfo, nullptr, &debugVertexBuffer) == VK_SUCCESS);
-        
+
         VkMemoryRequirements memRequirements;
         vkGetBufferMemoryRequirements(device, debugVertexBuffer, &memRequirements);
-        
+
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, 
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
                                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         assert(vkAllocateMemory(device, &allocInfo, nullptr, &debugVertexBufferMemory) == VK_SUCCESS);
         vkBindBufferMemory(device, debugVertexBuffer, debugVertexBufferMemory, 0);
     }
-    
+
     // Copy data to buffer
     void* data;
     vkMapMemory(device, debugVertexBufferMemory, 0, dataSize, 0, &data);
     memcpy(data, vertexData.data(), dataSize);
     vkUnmapMemory(device, debugVertexBufferMemory);
-    
+
     // Update vertex count (6 floats per vertex: x, y, r, g, b, a)
     debugVertexCount = vertexData.size() / 6;
 }
 
+void VulkanRenderer::createDebugTriangleVertexBuffer() {
+    // Create a buffer large enough for debug drawing (allocate 64KB initially)
+    debugTriangleVertexBufferSize = 65536;
+
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = debugTriangleVertexBufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    assert(vkCreateBuffer(device, &bufferInfo, nullptr, &debugTriangleVertexBuffer) == VK_SUCCESS);
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, debugTriangleVertexBuffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    assert(vkAllocateMemory(device, &allocInfo, nullptr, &debugTriangleVertexBufferMemory) == VK_SUCCESS);
+    vkBindBufferMemory(device, debugTriangleVertexBuffer, debugTriangleVertexBufferMemory, 0);
+}
+
+void VulkanRenderer::updateDebugTriangleVertexBuffer(const std::vector<float>& vertexData) {
+    if (vertexData.empty()) {
+        debugTriangleVertexCount = 0;
+        return;
+    }
+
+    size_t dataSize = vertexData.size() * sizeof(float);
+
+    // Reallocate if needed
+    if (dataSize > debugTriangleVertexBufferSize) {
+        if (debugTriangleVertexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, debugTriangleVertexBuffer, nullptr);
+        }
+        if (debugTriangleVertexBufferMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, debugTriangleVertexBufferMemory, nullptr);
+        }
+
+        debugTriangleVertexBufferSize = dataSize * 2;
+
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = debugTriangleVertexBufferSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        assert(vkCreateBuffer(device, &bufferInfo, nullptr, &debugTriangleVertexBuffer) == VK_SUCCESS);
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device, debugTriangleVertexBuffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        assert(vkAllocateMemory(device, &allocInfo, nullptr, &debugTriangleVertexBufferMemory) == VK_SUCCESS);
+        vkBindBufferMemory(device, debugTriangleVertexBuffer, debugTriangleVertexBufferMemory, 0);
+    }
+
+    // Copy data to buffer
+    void* data;
+    vkMapMemory(device, debugTriangleVertexBufferMemory, 0, dataSize, 0, &data);
+    memcpy(data, vertexData.data(), dataSize);
+    vkUnmapMemory(device, debugTriangleVertexBufferMemory);
+
+    // Update vertex count (6 floats per vertex: x, y, r, g, b, a)
+    debugTriangleVertexCount = vertexData.size() / 6;
+}
+
+void VulkanRenderer::setDebugTriangleDrawData(const std::vector<float>& vertexData) {
+    updateDebugTriangleVertexBuffer(vertexData);
+}
+
 void VulkanRenderer::setDebugDrawData(const std::vector<float>& vertexData) {
+    updateDebugVertexBuffer(vertexData);
+}
+
+void VulkanRenderer::setDebugLineDrawData(const std::vector<float>& vertexData) {
     updateDebugVertexBuffer(vertexData);
 }
 void VulkanRenderer::createCommandPool() {
@@ -863,21 +983,28 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 
     // Draw all pipelines
     for (uint64_t pipelineId : m_pipelinesToDraw) {
-        auto it = m_pipelines.find(pipelineId);
-        if (it != m_pipelines.end()) {
-            // Check if this is a debug pipeline
-            bool isDebug = m_debugPipelines[pipelineId];
-            
-            if (isDebug) {
-                // Bind debug vertex buffer
-                if (debugVertexCount > 0) {
-                    VkBuffer debugBuffers[] = {debugVertexBuffer};
-                    VkDeviceSize offsets[] = {0};
-                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);
-                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
-                    vkCmdDraw(commandBuffer, debugVertexCount, 1, 0, 0);
-                }
-            } else {
+        bool isDebug = m_debugPipelines.count(pipelineId) > 0 && m_debugPipelines[pipelineId];
+
+        if (isDebug) {
+            // Draw triangles first
+            if (debugTriangleVertexCount > 0 && m_debugTrianglePipeline != VK_NULL_HANDLE) {
+                VkBuffer debugBuffers[] = {debugTriangleVertexBuffer};
+                VkDeviceSize offsets[] = {0};
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_debugTrianglePipeline);
+                vkCmdDraw(commandBuffer, debugTriangleVertexCount, 1, 0, 0);
+            }
+            // Then draw lines
+            if (debugVertexCount > 0 && m_debugLinePipeline != VK_NULL_HANDLE) {
+                VkBuffer debugBuffers[] = {debugVertexBuffer};
+                VkDeviceSize offsets[] = {0};
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_debugLinePipeline);
+                vkCmdDraw(commandBuffer, debugVertexCount, 1, 0, 0);
+            }
+        } else {
+            auto it = m_pipelines.find(pipelineId);
+            if (it != m_pipelines.end()) {
                 // Bind regular vertex buffer
                 VkBuffer vertexBuffers[] = {vertexBuffer};
                 VkDeviceSize offsets[] = {0};

@@ -13,11 +13,11 @@ class Box2DPhysics {
 public:
     Box2DPhysics();
     ~Box2DPhysics();
-    
+
     // World management
     void setGravity(float x, float y);
     void step(float timeStep, int subStepCount = 4);
-    
+
     // Body management
     int createBody(int bodyType, float x, float y, float angle = 0.0f);
     void destroyBody(int bodyId);
@@ -27,7 +27,7 @@ public:
     void setBodyAngularVelocity(int bodyId, float omega);
     void applyForce(int bodyId, float fx, float fy, float px, float py);
     void applyTorque(int bodyId, float torque);
-    
+
     // Body queries
     float getBodyPositionX(int bodyId);
     float getBodyPositionY(int bodyId);
@@ -35,16 +35,17 @@ public:
     float getBodyLinearVelocityX(int bodyId);
     float getBodyLinearVelocityY(int bodyId);
     float getBodyAngularVelocity(int bodyId);
-    
+
     // Shape management
     void addBoxFixture(int bodyId, float halfWidth, float halfHeight, float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);
     void addCircleFixture(int bodyId, float radius, float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);
-    
+
     // Debug drawing
     void enableDebugDraw(bool enable);
     bool isDebugDrawEnabled() const { return debugDrawEnabled_; }
-    const std::vector<DebugVertex>& getDebugVertices();
-    
+    const std::vector<DebugVertex>& getDebugLineVertices();
+    const std::vector<DebugVertex>& getDebugTriangleVertices();
+
 private:
     // Debug draw callbacks
     static void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context);
@@ -54,12 +55,14 @@ private:
     static void DrawSegment(b2Vec2 p1, b2Vec2 p2, b2HexColor color, void* context);
     static void DrawTransform(b2Transform transform, void* context);
     static void DrawPoint(b2Vec2 p, float size, b2HexColor color, void* context);
-    
-    void addVertex(float x, float y, b2HexColor color);
-    
+
+    void addLineVertex(float x, float y, b2HexColor color);
+    void addTriangleVertex(float x, float y, b2HexColor color);
+
     b2WorldId worldId_;
     std::unordered_map<int, b2BodyId> bodies_;
     int nextBodyId_;
     bool debugDrawEnabled_;
-    std::vector<DebugVertex> debugVertices_;
+    std::vector<DebugVertex> debugLineVertices_;
+    std::vector<DebugVertex> debugTriangleVertices_;
 };

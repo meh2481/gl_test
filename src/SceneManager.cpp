@@ -76,25 +76,39 @@ bool SceneManager::updateActiveScene(float deltaTime) {
     if (!sceneStack_.empty()) {
         uint64_t activeSceneId = sceneStack_.top();
         luaInterface_->updateScene(activeSceneId, deltaTime);
-        
+
         // Update debug draw data if physics debug drawing is enabled
         Box2DPhysics& physics = luaInterface_->getPhysics();
         if (physics.isDebugDrawEnabled()) {
-            const std::vector<DebugVertex>& debugVerts = physics.getDebugVertices();
-            std::vector<float> vertexData;
-            vertexData.reserve(debugVerts.size() * 6);
-            for (const auto& v : debugVerts) {
-                vertexData.push_back(v.x);
-                vertexData.push_back(v.y);
-                vertexData.push_back(v.r);
-                vertexData.push_back(v.g);
-                vertexData.push_back(v.b);
-                vertexData.push_back(v.a);
+            const std::vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
+            std::vector<float> lineVertexData;
+            lineVertexData.reserve(debugLineVerts.size() * 6);
+            for (const auto& v : debugLineVerts) {
+                lineVertexData.push_back(v.x);
+                lineVertexData.push_back(v.y);
+                lineVertexData.push_back(v.r);
+                lineVertexData.push_back(v.g);
+                lineVertexData.push_back(v.b);
+                lineVertexData.push_back(v.a);
             }
-            renderer_.setDebugDrawData(vertexData);
+            renderer_.setDebugLineDrawData(lineVertexData);
+
+            const std::vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
+            std::vector<float> triangleVertexData;
+            triangleVertexData.reserve(debugTriangleVerts.size() * 6);
+            for (const auto& v : debugTriangleVerts) {
+                triangleVertexData.push_back(v.x);
+                triangleVertexData.push_back(v.y);
+                triangleVertexData.push_back(v.r);
+                triangleVertexData.push_back(v.g);
+                triangleVertexData.push_back(v.b);
+                triangleVertexData.push_back(v.a);
+            }
+            renderer_.setDebugTriangleDrawData(triangleVertexData);
         } else {
             // Clear debug draw data
-            renderer_.setDebugDrawData({});
+            renderer_.setDebugLineDrawData({});
+            renderer_.setDebugTriangleDrawData({});
         }
 
         // Pop the scene after Lua execution is complete
