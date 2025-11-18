@@ -3,6 +3,7 @@
 #include <box2d/box2d.h>
 #include <vector>
 #include <memory>
+#include <cstdint>
 
 struct DebugVertex {
     float x, y;
@@ -13,8 +14,8 @@ class Box2DDebugDraw : public b2Draw {
 public:
     Box2DDebugDraw();
     
-    void DrawPolygon(const b2Vec2* vertices, int32 vertexCount, const b2Color& color) override;
-    void DrawSolidPolygon(const b2Vec2* vertices, int32 vertexCount, const b2Color& color) override;
+    void DrawPolygon(const b2Vec2* vertices, int32_t vertexCount, const b2Color& color) override;
+    void DrawSolidPolygon(const b2Vec2* vertices, int32_t vertexCount, const b2Color& color) override;
     void DrawCircle(const b2Vec2& center, float radius, const b2Color& color) override;
     void DrawSolidCircle(const b2Vec2& center, float radius, const b2Vec2& axis, const b2Color& color) override;
     void DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color) override;
@@ -36,7 +37,7 @@ public:
     
     // World management
     void setGravity(float x, float y);
-    void step(float timeStep, int32 velocityIterations = 8, int32 positionIterations = 3);
+    void step(float timeStep, int32_t velocityIterations = 8, int32_t positionIterations = 3);
     
     // Body management
     int createBody(int bodyType, float x, float y, float angle = 0.0f);

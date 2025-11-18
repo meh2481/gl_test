@@ -23,18 +23,18 @@ void Box2DDebugDraw::AddVertex(const b2Vec2& pos, const b2Color& color) {
     vertices_.push_back(v);
 }
 
-void Box2DDebugDraw::DrawPolygon(const b2Vec2* vertices, int32 vertexCount, const b2Color& color) {
-    for (int32 i = 0; i < vertexCount; ++i) {
+void Box2DDebugDraw::DrawPolygon(const b2Vec2* vertices, int32_t vertexCount, const b2Color& color) {
+    for (int32_t i = 0; i < vertexCount; ++i) {
         AddVertex(vertices[i], color);
         AddVertex(vertices[(i + 1) % vertexCount], color);
     }
 }
 
-void Box2DDebugDraw::DrawSolidPolygon(const b2Vec2* vertices, int32 vertexCount, const b2Color& color) {
+void Box2DDebugDraw::DrawSolidPolygon(const b2Vec2* vertices, int32_t vertexCount, const b2Color& color) {
     b2Color fillColor(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, 0.5f);
     
     // Draw filled triangles
-    for (int32 i = 1; i < vertexCount - 1; ++i) {
+    for (int32_t i = 1; i < vertexCount - 1; ++i) {
         AddVertex(vertices[0], fillColor);
         AddVertex(vertices[i], fillColor);
         AddVertex(vertices[i + 1], fillColor);
@@ -124,7 +124,7 @@ void Box2DPhysics::setGravity(float x, float y) {
     world_->SetGravity(b2Vec2(x, y));
 }
 
-void Box2DPhysics::step(float timeStep, int32 velocityIterations, int32 positionIterations) {
+void Box2DPhysics::step(float timeStep, int32_t velocityIterations, int32_t positionIterations) {
     world_->Step(timeStep, velocityIterations, positionIterations);
     
     if (debugDrawEnabled_) {

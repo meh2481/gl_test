@@ -516,8 +516,8 @@ int LuaInterface::b2Step(lua_State* L) {
     assert(lua_isnumber(L, 1));
     
     float timeStep = lua_tonumber(L, 1);
-    int32 velocityIterations = 8;
-    int32 positionIterations = 3;
+    int32_t velocityIterations = 8;
+    int32_t positionIterations = 3;
     
     if (lua_gettop(L) >= 2) {
         assert(lua_isnumber(L, 2));
