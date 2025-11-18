@@ -62,9 +62,9 @@ int main() {
                 sceneManager.handleKeyDown(event.key.keysym.sym);
                 
                 // Then, handle actions bound to this key
-                const std::vector<Action>& actions = keybindings.getActionsForKey(event.key.keysym.sym);
-                for (size_t i = 0; i < actions.size(); ++i) {
-                    sceneManager.handleAction(actions[i]);
+                const ActionList& actionList = keybindings.getActionsForKey(event.key.keysym.sym);
+                for (int i = 0; i < actionList.count; ++i) {
+                    sceneManager.handleAction(actionList.actions[i]);
                 }
                 
                 // Handle special case: ALT+ENTER for fullscreen toggle
