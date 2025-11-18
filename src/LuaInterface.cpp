@@ -32,7 +32,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
                                      "b2AddBoxFixture", "b2AddCircleFixture", "b2SetBodyPosition",
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
-                                     "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
+                                     "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
@@ -466,6 +466,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2SetBodyAngle", b2SetBodyAngle);
     lua_register(luaState_, "b2SetBodyLinearVelocity", b2SetBodyLinearVelocity);
     lua_register(luaState_, "b2SetBodyAngularVelocity", b2SetBodyAngularVelocity);
+    lua_register(luaState_, "b2SetBodyAwake", b2SetBodyAwake);
     lua_register(luaState_, "b2ApplyForce", b2ApplyForce);
     lua_register(luaState_, "b2ApplyTorque", b2ApplyTorque);
     lua_register(luaState_, "b2GetBodyPosition", b2GetBodyPosition);
@@ -789,6 +790,21 @@ int LuaInterface::b2SetBodyAngularVelocity(lua_State* L) {
     float omega = lua_tonumber(L, 2);
 
     interface->physics_->setBodyAngularVelocity(bodyId, omega);
+    return 0;
+}
+
+int LuaInterface::b2SetBodyAwake(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1) && lua_isboolean(L, 2));
+
+    int bodyId = lua_tointeger(L, 1);
+    bool awake = lua_toboolean(L, 2);
+
+    interface->physics_->setBodyAwake(bodyId, awake);
     return 0;
 }
 

@@ -79,12 +79,14 @@ function onAction(action)
                 b2SetBodyAngle(bodyId, 0)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
+                b2SetBodyAwake(bodyId, true)
             else
                 -- Circle
                 b2SetBodyPosition(bodyId, 0, 0.8)
                 b2SetBodyAngle(bodyId, 0)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
+                b2SetBodyAwake(bodyId, true)
             end
         end
     end

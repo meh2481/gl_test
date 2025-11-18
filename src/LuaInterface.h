@@ -52,6 +52,7 @@ private:
     static int b2SetBodyAngle(lua_State* L);
     static int b2SetBodyLinearVelocity(lua_State* L);
     static int b2SetBodyAngularVelocity(lua_State* L);
+    static int b2SetBodyAwake(lua_State* L);
     static int b2ApplyForce(lua_State* L);
     static int b2ApplyTorque(lua_State* L);
     static int b2GetBodyPosition(lua_State* L);

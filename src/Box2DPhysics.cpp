@@ -119,6 +119,13 @@ void Box2DPhysics::setBodyAngularVelocity(int bodyId, float omega) {
     b2Body_SetAngularVelocity(it->second, omega);
 }
 
+void Box2DPhysics::setBodyAwake(int bodyId, bool awake) {
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+
+    b2Body_SetAwake(it->second, awake);
+}
+
 void Box2DPhysics::applyForce(int bodyId, float fx, float fy, float px, float py) {
     auto it = bodies_.find(bodyId);
     assert(it != bodies_.end());
