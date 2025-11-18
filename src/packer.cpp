@@ -7,6 +7,9 @@
 #include <lz4.h>
 #include <filesystem>
 #include <functional>
+#include <png.h>
+#include <squish.h>
+#include <cassert>
 
 using namespace std;
 
@@ -52,8 +55,134 @@ uint32_t getFileType(const string& filename) {
     string ext = filesystem::path(filename).extension().string();
     if (ext == ".lua") return RESOURCE_TYPE_LUA;
     if (ext == ".spv") return RESOURCE_TYPE_SHADER;
+    if (ext == ".png") return RESOURCE_TYPE_IMAGE;
     // Add more extensions as needed
     return RESOURCE_TYPE_UNKNOWN;
+}
+
+// Load PNG image and convert to RGBA
+bool loadPNG(const string& filename, vector<uint8_t>& rgba, uint32_t& width, uint32_t& height, bool& hasAlpha) {
+    FILE* fp = fopen(filename.c_str(), "rb");
+    if (!fp) return false;
+    
+    png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (!png) {
+        fclose(fp);
+        return false;
+    }
+    
+    png_infop info = png_create_info_struct(png);
+    if (!info) {
+        png_destroy_read_struct(&png, nullptr, nullptr);
+        fclose(fp);
+        return false;
+    }
+    
+    if (setjmp(png_jmpbuf(png))) {
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(fp);
+        return false;
+    }
+    
+    png_init_io(png, fp);
+    png_read_info(png, info);
+    
+    width = png_get_image_width(png, info);
+    height = png_get_image_height(png, info);
+    png_byte color_type = png_get_color_type(png, info);
+    png_byte bit_depth = png_get_bit_depth(png, info);
+    
+    // Convert to RGBA format
+    if (bit_depth == 16)
+        png_set_strip_16(png);
+    
+    if (color_type == PNG_COLOR_TYPE_PALETTE)
+        png_set_palette_to_rgb(png);
+    
+    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
+        png_set_expand_gray_1_2_4_to_8(png);
+    
+    if (png_get_valid(png, info, PNG_INFO_tRNS))
+        png_set_tRNS_to_alpha(png);
+    
+    // Convert grayscale to RGB
+    if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+        png_set_gray_to_rgb(png);
+    
+    // Add alpha channel if it doesn't exist
+    if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_PALETTE)
+        png_set_filler(png, 0xFF, PNG_FILLER_AFTER);
+    
+    png_read_update_info(png, info);
+    
+    // Determine if the image has meaningful alpha
+    hasAlpha = (color_type & PNG_COLOR_MASK_ALPHA) != 0;
+    
+    // Allocate memory for image data
+    rgba.resize(width * height * 4);
+    
+    vector<png_bytep> row_pointers(height);
+    for (uint32_t y = 0; y < height; y++) {
+        row_pointers[y] = rgba.data() + y * width * 4;
+    }
+    
+    png_read_image(png, row_pointers.data());
+    png_read_end(png, nullptr);
+    
+    png_destroy_read_struct(&png, &info, nullptr);
+    fclose(fp);
+    
+    return true;
+}
+
+// Compress image data using DXT/BC compression
+void compressImage(const vector<uint8_t>& rgba, vector<char>& compressed, uint32_t width, uint32_t height, bool hasAlpha, uint16_t& format) {
+    // Choose compression format based on alpha channel
+    int flags;
+    if (hasAlpha) {
+        flags = squish::kDxt5;  // BC3/DXT5 for RGBA
+        format = IMAGE_FORMAT_BC3_DXT5;
+    } else {
+        flags = squish::kDxt1;  // BC1/DXT1 for RGB
+        format = IMAGE_FORMAT_BC1_DXT1;
+    }
+    
+    // Calculate storage requirements
+    int storageSize = squish::GetStorageRequirements(width, height, flags);
+    compressed.resize(storageSize);
+    
+    // Compress the image
+    squish::CompressImage(rgba.data(), width, height, compressed.data(), flags);
+}
+
+// Process PNG file: load, compress, and prepend ImageHeader
+bool processPNGFile(const string& filename, vector<char>& output) {
+    vector<uint8_t> rgba;
+    uint32_t width, height;
+    bool hasAlpha;
+    
+    if (!loadPNG(filename, rgba, width, height, hasAlpha)) {
+        return false;
+    }
+    
+    // Compress the image data
+    vector<char> compressedImage;
+    uint16_t format;
+    compressImage(rgba, compressedImage, width, height, hasAlpha, format);
+    
+    // Create ImageHeader
+    ImageHeader header;
+    header.format = format;
+    header.width = width;
+    header.height = height;
+    header.pad = 0;
+    
+    // Combine header and compressed data
+    output.resize(sizeof(ImageHeader) + compressedImage.size());
+    memcpy(output.data(), &header, sizeof(ImageHeader));
+    memcpy(output.data() + sizeof(ImageHeader), compressedImage.data(), compressedImage.size());
+    
+    return true;
 }
 
 int main(int argc, char* argv[]) {
@@ -133,12 +262,31 @@ int main(int argc, char* argv[]) {
     cout << "Building pak file" << endl;
     for (auto& file : files) {
         if (file.changed) {
-            if (!loadFile(file.filename, file.data, file.mtime)) {
-                cerr << "Failed to load " << file.filename << endl;
-                return 1;
+            uint32_t fileType = getFileType(file.filename);
+            
+            // Special handling for PNG images
+            if (fileType == RESOURCE_TYPE_IMAGE) {
+                if (!processPNGFile(file.filename, file.data)) {
+                    cerr << "Failed to process PNG file " << file.filename << endl;
+                    return 1;
+                }
+                // Get modification time
+                struct stat st;
+                if (stat(file.filename.c_str(), &st) == 0) {
+                    file.mtime = st.st_mtime;
+                }
+                // PNG data is already compressed with DXT, apply LZ4 on top
+                compressData(file.data, file.compressedData, file.compressionType);
+                cout << "File " << file.filename << " original " << file.data.size() << " compressed " << file.compressedData.size() << " compression " << file.compressionType << " resource_type " << fileType << endl;
+            } else {
+                // Standard file processing
+                if (!loadFile(file.filename, file.data, file.mtime)) {
+                    cerr << "Failed to load " << file.filename << endl;
+                    return 1;
+                }
+                compressData(file.data, file.compressedData, file.compressionType);
+                cout << "File " << file.filename << " original " << file.data.size() << " compressed " << file.compressedData.size() << " compression " << file.compressionType << " resource_type " << fileType << endl;
             }
-            compressData(file.data, file.compressedData, file.compressionType);
-            cout << "File " << file.filename << " original " << file.data.size() << " compressed " << file.compressedData.size() << " compression " << file.compressionType << " resource_type " << getFileType(file.filename) << endl;
         } else {
             // Load from existing pak
             pakFile.seekg(file.offset);

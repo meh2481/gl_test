@@ -83,12 +83,18 @@ typedef struct //Structure for image indices into the atlas AtlasHeader
 
 typedef struct //Structure for (non-atlased) image data
 {
-    uint16_t bpp;           //bytes per pixel
+    uint16_t format;        //Image format (see IMAGE_FORMAT_* constants below)
     uint16_t width;         //Width of image
     uint16_t height;        //Height of image
     uint16_t pad;
                            //Followed by image data
 } ImageHeader;
+
+// Image format constants for ImageHeader.format
+#define IMAGE_FORMAT_RAW_RGBA       0   // Uncompressed RGBA (4 bytes per pixel)
+#define IMAGE_FORMAT_RAW_RGB        1   // Uncompressed RGB (3 bytes per pixel)
+#define IMAGE_FORMAT_BC1_DXT1       2   // BC1/DXT1 compression (RGB, no alpha, 0.5 bytes per pixel)
+#define IMAGE_FORMAT_BC3_DXT5       3   // BC3/DXT5 compression (RGBA with alpha, 1 byte per pixel)
 
 
 //--------------------------------------------------------------
