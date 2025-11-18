@@ -9,6 +9,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, S
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
     physics_ = std::make_unique<Box2DPhysics>();
+    layerManager_ = std::make_unique<SceneLayerManager>();
     registerFunctions();
 }
 
@@ -474,6 +475,13 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2GetBodyLinearVelocity", b2GetBodyLinearVelocity);
     lua_register(luaState_, "b2GetBodyAngularVelocity", b2GetBodyAngularVelocity);
     lua_register(luaState_, "b2EnableDebugDraw", b2EnableDebugDraw);
+    
+    // Register scene layer functions
+    lua_register(luaState_, "createLayer", createLayer);
+    lua_register(luaState_, "destroyLayer", destroyLayer);
+    lua_register(luaState_, "attachLayerToBody", attachLayerToBody);
+    lua_register(luaState_, "detachLayer", detachLayer);
+    lua_register(luaState_, "setLayerEnabled", setLayerEnabled);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -915,5 +923,89 @@ int LuaInterface::b2EnableDebugDraw(lua_State* L) {
 
     bool enable = lua_toboolean(L, 1);
     interface->physics_->enableDebugDraw(enable);
+    return 0;
+}
+
+// Scene layer Lua binding implementations
+
+int LuaInterface::createLayer(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: textureFilename (string), width (number), height (number)
+    assert(lua_gettop(L) == 3);
+    assert(lua_isstring(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    const char* filename = lua_tostring(L, 1);
+    float width = (float)lua_tonumber(L, 2);
+    float height = (float)lua_tonumber(L, 3);
+
+    // Hash the filename to get texture ID (same as packer)
+    uint64_t textureId = std::hash<std::string>{}(filename);
+
+    int layerId = interface->layerManager_->createLayer(textureId, width, height);
+    lua_pushinteger(L, layerId);
+    return 1;
+}
+
+int LuaInterface::destroyLayer(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isinteger(L, 1));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    interface->layerManager_->destroyLayer(layerId);
+    return 0;
+}
+
+int LuaInterface::attachLayerToBody(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), bodyId (integer)
+    assert(lua_gettop(L) == 2);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isinteger(L, 2));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    int bodyId = (int)lua_tointeger(L, 2);
+
+    interface->layerManager_->attachLayerToBody(layerId, bodyId);
+    return 0;
+}
+
+int LuaInterface::detachLayer(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isinteger(L, 1));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    interface->layerManager_->detachLayer(layerId);
+    return 0;
+}
+
+int LuaInterface::setLayerEnabled(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isboolean(L, 2));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    bool enabled = lua_toboolean(L, 2);
+
+    interface->layerManager_->setLayerEnabled(layerId, enabled);
     return 0;
 }

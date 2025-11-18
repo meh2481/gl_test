@@ -8,6 +8,7 @@
 #include "resource.h"
 #include "VulkanRenderer.h"
 #include "Box2DPhysics.h"
+#include "SceneLayer.h"
 #include "InputActions.h"
 
 class SceneManager;
@@ -33,6 +34,9 @@ public:
 
     // Physics access
     Box2DPhysics& getPhysics() { return *physics_; }
+    
+    // Scene layer access
+    SceneLayerManager& getSceneLayerManager() { return *layerManager_; }
 
 private:
     // Lua-callable functions
@@ -60,6 +64,13 @@ private:
     static int b2GetBodyLinearVelocity(lua_State* L);
     static int b2GetBodyAngularVelocity(lua_State* L);
     static int b2EnableDebugDraw(lua_State* L);
+    
+    // Scene layer Lua bindings
+    static int createLayer(lua_State* L);
+    static int destroyLayer(lua_State* L);
+    static int attachLayerToBody(lua_State* L);
+    static int detachLayer(lua_State* L);
+    static int setLayerEnabled(lua_State* L);
 
     void registerFunctions();
 
@@ -71,4 +82,5 @@ private:
     uint64_t currentSceneId_;
     std::unordered_map<uint64_t, std::vector<std::pair<int, int>> > scenePipelines_; // pipelineId, zIndex
     std::unique_ptr<Box2DPhysics> physics_;
-};;
+    std::unique_ptr<SceneLayerManager> layerManager_;
+};
