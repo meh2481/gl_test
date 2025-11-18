@@ -61,7 +61,7 @@ uint32_t getFileType(const string& filename) {
 }
 
 // Load PNG image and convert to RGBA
-bool loadPNG(const string& filename, vector<uint8_t>& rgba, uint32_t& width, uint32_t& height, bool& hasAlpha) {
+bool loadPNG(const string& filename, vector<uint8_t>& imageData, uint32_t& width, uint32_t& height, bool& hasAlpha) {
     FILE* fp = fopen(filename.c_str(), "rb");
     if (!fp) return false;
     
@@ -92,38 +92,45 @@ bool loadPNG(const string& filename, vector<uint8_t>& rgba, uint32_t& width, uin
     png_byte color_type = png_get_color_type(png, info);
     png_byte bit_depth = png_get_bit_depth(png, info);
     
-    // Convert to RGBA format
+    // Error out if image is paletted or grayscale
+    if (color_type == PNG_COLOR_TYPE_PALETTE) {
+        cerr << "Error: Paletted PNG images are not supported: " << filename << endl;
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(fp);
+        return false;
+    }
+    
+    if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA) {
+        cerr << "Error: Grayscale PNG images are not supported: " << filename << endl;
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(fp);
+        return false;
+    }
+    
+    // Only support RGB and RGBA
+    if (color_type != PNG_COLOR_TYPE_RGB && color_type != PNG_COLOR_TYPE_RGBA) {
+        cerr << "Error: Unsupported PNG color type: " << filename << endl;
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(fp);
+        return false;
+    }
+    
+    // Strip 16-bit to 8-bit
     if (bit_depth == 16)
         png_set_strip_16(png);
     
-    if (color_type == PNG_COLOR_TYPE_PALETTE)
-        png_set_palette_to_rgb(png);
-    
-    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
-        png_set_expand_gray_1_2_4_to_8(png);
-    
-    if (png_get_valid(png, info, PNG_INFO_tRNS))
-        png_set_tRNS_to_alpha(png);
-    
-    // Convert grayscale to RGB
-    if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
-        png_set_gray_to_rgb(png);
-    
-    // Add alpha channel if it doesn't exist
-    if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_PALETTE)
-        png_set_filler(png, 0xFF, PNG_FILLER_AFTER);
-    
     png_read_update_info(png, info);
     
-    // Determine if the image has meaningful alpha
-    hasAlpha = (color_type & PNG_COLOR_MASK_ALPHA) != 0;
+    // Determine if the image has alpha
+    hasAlpha = (color_type == PNG_COLOR_TYPE_RGBA);
     
     // Allocate memory for image data
-    rgba.resize(width * height * 4);
+    int bytesPerPixel = hasAlpha ? 4 : 3;
+    imageData.resize(width * height * bytesPerPixel);
     
     vector<png_bytep> row_pointers(height);
     for (uint32_t y = 0; y < height; y++) {
-        row_pointers[y] = rgba.data() + y * width * 4;
+        row_pointers[y] = imageData.data() + y * width * bytesPerPixel;
     }
     
     png_read_image(png, row_pointers.data());
@@ -136,9 +143,10 @@ bool loadPNG(const string& filename, vector<uint8_t>& rgba, uint32_t& width, uin
 }
 
 // Compress image data using DXT/BC compression
-void compressImage(const vector<uint8_t>& rgba, vector<char>& compressed, uint32_t width, uint32_t height, bool hasAlpha, uint16_t& format) {
+void compressImage(const vector<uint8_t>& imageData, vector<char>& compressed, uint32_t width, uint32_t height, bool hasAlpha, uint16_t& format) {
     assert(width > 0 && height > 0);
-    assert(rgba.size() == width * height * 4);
+    int bytesPerPixel = hasAlpha ? 4 : 3;
+    assert(imageData.size() == width * height * bytesPerPixel);
     
     // Choose compression format based on alpha channel
     int flags;
@@ -155,27 +163,41 @@ void compressImage(const vector<uint8_t>& rgba, vector<char>& compressed, uint32
     assert(storageSize > 0);
     compressed.resize(storageSize);
     
-    // Compress the image
-    squish::CompressImage(rgba.data(), width, height, compressed.data(), flags);
+    // For RGB images, we need to convert to RGBA for squish
+    if (!hasAlpha) {
+        // Create temporary RGBA buffer with full alpha
+        vector<uint8_t> rgbaData(width * height * 4);
+        for (uint32_t i = 0; i < width * height; i++) {
+            rgbaData[i * 4 + 0] = imageData[i * 3 + 0];  // R
+            rgbaData[i * 4 + 1] = imageData[i * 3 + 1];  // G
+            rgbaData[i * 4 + 2] = imageData[i * 3 + 2];  // B
+            rgbaData[i * 4 + 3] = 255;                   // A (fully opaque)
+        }
+        squish::CompressImage(rgbaData.data(), width, height, compressed.data(), flags);
+    } else {
+        // Compress RGBA directly
+        squish::CompressImage(imageData.data(), width, height, compressed.data(), flags);
+    }
 }
 
 // Process PNG file: load, compress, and prepend ImageHeader
 bool processPNGFile(const string& filename, vector<char>& output) {
-    vector<uint8_t> rgba;
+    vector<uint8_t> imageData;
     uint32_t width, height;
     bool hasAlpha;
     
-    if (!loadPNG(filename, rgba, width, height, hasAlpha)) {
+    if (!loadPNG(filename, imageData, width, height, hasAlpha)) {
         return false;
     }
     
     assert(width > 0 && height > 0);
-    assert(rgba.size() == width * height * 4);
+    int bytesPerPixel = hasAlpha ? 4 : 3;
+    assert(imageData.size() == width * height * bytesPerPixel);
     
     // Compress the image data
     vector<char> compressedImage;
     uint16_t format;
-    compressImage(rgba, compressedImage, width, height, hasAlpha, format);
+    compressImage(imageData, compressedImage, width, height, hasAlpha, format);
     
     assert(compressedImage.size() > 0);
     
