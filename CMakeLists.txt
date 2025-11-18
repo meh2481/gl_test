@@ -13,11 +13,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(LZ4 REQUIRED liblz4)
 pkg_check_modules(LUA REQUIRED lua)
 include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LZ4_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS})
-
-# Use Box2D 3.1.0 from /tmp/box2d-install
-list(APPEND CMAKE_PREFIX_PATH "/tmp/box2d-install")
 find_package(box2d CONFIG REQUIRED)
-include_directories(${box2d_INCLUDE_DIRS})
 
 # Find glslc for shader compilation
 find_program(GLSLC glslc)

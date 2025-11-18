@@ -14,19 +14,10 @@ A C++ application using Vulkan rendering with Lua scripting and Box2D physics in
 
 - SDL2
 - Vulkan
-- Box2D 3.1.0 (built from source)
+- Box2D 3.1.0
 - Lua 5.4
 - LZ4
 - CMake
-
-Install on Ubuntu/Debian:
-
-```
-sudo apt-get update
-sudo apt-get install cmake libsdl2-dev vulkan-tools libvulkan-dev glslc liblz4-dev lua5.4 liblua5.4-dev
-```
-
-**Note**: Box2D 3.1.0 is built from source and included in the project. The system package `libbox2d-dev` provides version 2.x which has a completely different API.
 
 ## Building
 
@@ -52,24 +43,19 @@ sudo apt-get install cmake libsdl2-dev vulkan-tools libvulkan-dev glslc liblz4-d
 ./shader_triangle
 ```
 
-The application will open in fullscreen mode displaying a colored triangle (red, green, blue vertices). 
+The application will open in fullscreen mode displaying procedural shader effects.
 
 ### Controls
 
-- **ESC**: Close the current scene/exit application
-- **ENTER**: Open the menu scene
-- **P**: Open the physics demo scene  
-- **SPACE** (in physics demo): Apply upward impulse to the ball
-- **R** (in physics demo): Reset physics objects to initial positions
+- **ESC**: Exit the application or pop the current scene
+- **ENTER**: Push the menu scene (from default scene)
 - **ALT+ENTER**: Toggle fullscreen/windowed mode
-- **F5** (debug mode): Hot-reload shaders and scenes
+- **F5** (Debug builds only): Hot-reload shaders and Lua scripts
 
-## Physics Demo
+### Features
 
-The physics demo scene demonstrates Box2D integration:
-- Dynamic boxes that fall and collide
-- A dynamic circle (ball) that bounces
-- Static ground platform
-- Debug visualization of physics shapes
-
-Press 'P' from the main scene to try it out!
+- **Lua-based scene management**: Scenes are defined in Lua scripts (`scenes/*.lua`) with support for scene stacking
+- **Multiple shader effects**: Includes nebula, plasma, and cloud procedural shaders
+- **Resource packing**: Assets are compressed into a `.pak` file using LZ4 compression
+- **Configuration persistence**: Display and fullscreen settings are saved between sessions
+- **Hot-reloading**: In debug builds, press F5 to reload shaders and scripts without restarting

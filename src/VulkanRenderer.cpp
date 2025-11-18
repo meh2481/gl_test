@@ -419,38 +419,86 @@ bool VulkanRenderer::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     return found;
 }
 
-bool VulkanRenderer::isDeviceSuitable(VkPhysicalDevice device) {
-    VkPhysicalDeviceProperties deviceProperties;
-    vkGetPhysicalDeviceProperties(device, &deviceProperties);
-    VkPhysicalDeviceFeatures deviceFeatures;
-    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-    bool extensionsSupported = checkDeviceExtensionSupport(device);
-    bool swapChainAdequate = false;
-    if (extensionsSupported) {
-        // check swapchain support
-        uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
-        uint32_t presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
-        swapChainAdequate = formatCount > 0 && presentModeCount > 0;
-    }
-    return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && extensionsSupported && swapChainAdequate;
+bool VulkanRenderer::isDeviceSuitable(VkPhysicalDevice device)
+{
+    VkPhysicalDeviceProperties props{};
+    vkGetPhysicalDeviceProperties(device, &props);
+
+    VkPhysicalDeviceFeatures features{};
+    vkGetPhysicalDeviceFeatures(device, &features);
+
+    // Required extensions
+    if (!checkDeviceExtensionSupport(device))
+        return false;
+
+    // Swapchain support (very cheap check)
+    uint32_t formatCount = 0;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+
+    uint32_t presentModeCount = 0;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+
+    if (formatCount == 0 || presentModeCount == 0)
+        return false;
+
+    // You can add more checks here (queue families, etc.) if needed
+    return true;
 }
 
-void VulkanRenderer::pickPhysicalDevice() {
+// Simple scoring: higher = better
+int VulkanRenderer::rateDevice(VkPhysicalDevice device)
+{
+    if (!isDeviceSuitable(device))
+        return -1;
+
+    VkPhysicalDeviceProperties props{};
+    vkGetPhysicalDeviceProperties(device, &props);
+
+    switch (props.deviceType)
+    {
+        case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:      return 10000;  // strongly prefer
+        case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:    return 5000;
+        case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:       return 1000;
+        case VK_PHYSICAL_DEVICE_TYPE_CPU:               return 500;
+        default:                                        return 100;
+    }
+}
+
+void VulkanRenderer::pickPhysicalDevice()
+{
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
-    assert(deviceCount != 0);
+    assert(deviceCount > 0 && "No Vulkan devices found!");
+
     VkPhysicalDevice* devices = new VkPhysicalDevice[deviceCount];
+    assert(devices != nullptr);
+
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
-    for (uint32_t i = 0; i < deviceCount; i++) {
-        if (isDeviceSuitable(devices[i])) {
-            physicalDevice = devices[i];
-            break;
+
+    VkPhysicalDevice bestDevice = VK_NULL_HANDLE;
+    int bestScore = -1;
+
+    for (uint32_t i = 0; i < deviceCount; ++i)
+    {
+        int score = rateDevice(devices[i]);
+        if (score > bestScore)
+        {
+            bestScore = score;
+            bestDevice = devices[i];
         }
     }
+
     delete[] devices;
-    assert(physicalDevice != VK_NULL_HANDLE);
+
+    assert(bestDevice != VK_NULL_HANDLE && "No suitable Vulkan device found!");
+
+    #ifdef DEBUG
+        VkPhysicalDeviceProperties props{};
+        vkGetPhysicalDeviceProperties(bestDevice, &props);
+        std::cout<< "Vulkan device selected: " << props.deviceName << std::endl;
+    #endif
+
+    physicalDevice = bestDevice;
 }
 
 void VulkanRenderer::createLogicalDevice() {
