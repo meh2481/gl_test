@@ -10,6 +10,8 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, S
     luaL_openlibs(luaState_);
     physics_ = std::make_unique<Box2DPhysics>();
     layerManager_ = std::make_unique<SceneLayerManager>();
+    audioManager_ = std::make_unique<AudioManager>();
+    audioManager_->initialize();
     registerFunctions();
 }
 
@@ -38,6 +40,11 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled",
+                                     "audioLoadBuffer", "audioCreateSource", "audioPlaySource", "audioStopSource",
+                                     "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
+                                     "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
+                                     "audioReleaseSource", "audioSetListenerPosition", "audioSetListenerVelocity",
+                                     "audioSetListenerOrientation", "audioSetGlobalVolume", "audioSetGlobalEffect",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -90,6 +97,16 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
         nullptr
     };
     for (const char** constant = actionConstants; *constant; ++constant) {
+        lua_getglobal(luaState_, *constant);
+        lua_setfield(luaState_, -2, *constant);
+    }
+    
+    // Copy Audio effect constants
+    const char* audioConstants[] = {
+        "AUDIO_EFFECT_NONE", "AUDIO_EFFECT_LOWPASS", "AUDIO_EFFECT_REVERB",
+        nullptr
+    };
+    for (const char** constant = audioConstants; *constant; ++constant) {
         lua_getglobal(luaState_, *constant);
         lua_setfield(luaState_, -2, *constant);
     }
@@ -493,6 +510,24 @@ void LuaInterface::registerFunctions() {
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
     lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
+    
+    // Register audio functions
+    lua_register(luaState_, "audioLoadBuffer", audioLoadBuffer);
+    lua_register(luaState_, "audioCreateSource", audioCreateSource);
+    lua_register(luaState_, "audioPlaySource", audioPlaySource);
+    lua_register(luaState_, "audioStopSource", audioStopSource);
+    lua_register(luaState_, "audioPauseSource", audioPauseSource);
+    lua_register(luaState_, "audioSetSourcePosition", audioSetSourcePosition);
+    lua_register(luaState_, "audioSetSourceVelocity", audioSetSourceVelocity);
+    lua_register(luaState_, "audioSetSourceVolume", audioSetSourceVolume);
+    lua_register(luaState_, "audioSetSourcePitch", audioSetSourcePitch);
+    lua_register(luaState_, "audioSetSourceLooping", audioSetSourceLooping);
+    lua_register(luaState_, "audioReleaseSource", audioReleaseSource);
+    lua_register(luaState_, "audioSetListenerPosition", audioSetListenerPosition);
+    lua_register(luaState_, "audioSetListenerVelocity", audioSetListenerVelocity);
+    lua_register(luaState_, "audioSetListenerOrientation", audioSetListenerOrientation);
+    lua_register(luaState_, "audioSetGlobalVolume", audioSetGlobalVolume);
+    lua_register(luaState_, "audioSetGlobalEffect", audioSetGlobalEffect);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -519,6 +554,14 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_RESET_PHYSICS");
     lua_pushinteger(luaState_, ACTION_TOGGLE_DEBUG_DRAW);
     lua_setglobal(luaState_, "ACTION_TOGGLE_DEBUG_DRAW");
+    
+    // Register Audio effect constants
+    lua_pushinteger(luaState_, AUDIO_EFFECT_NONE);
+    lua_setglobal(luaState_, "AUDIO_EFFECT_NONE");
+    lua_pushinteger(luaState_, AUDIO_EFFECT_LOWPASS);
+    lua_setglobal(luaState_, "AUDIO_EFFECT_LOWPASS");
+    lua_pushinteger(luaState_, AUDIO_EFFECT_REVERB);
+    lua_setglobal(luaState_, "AUDIO_EFFECT_REVERB");
 }
 
 int LuaInterface::loadShaders(lua_State* L) {
@@ -1079,3 +1122,307 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
 
     return 0;
 }
+
+// Audio Lua bindings
+
+int LuaInterface::audioLoadBuffer(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: data (string/userdata), sampleRate (number), channels (number), bitsPerSample (number)
+    assert(lua_gettop(L) == 4);
+    assert(lua_isstring(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+
+    size_t dataSize;
+    const char* data = lua_tolstring(L, 1, &dataSize);
+    int sampleRate = lua_tointeger(L, 2);
+    int channels = lua_tointeger(L, 3);
+    int bitsPerSample = lua_tointeger(L, 4);
+
+    int bufferId = interface->audioManager_->loadAudioBufferFromMemory(data, dataSize, sampleRate, channels, bitsPerSample);
+    
+    lua_pushinteger(L, bufferId);
+    return 1; // Return buffer ID
+}
+
+int LuaInterface::audioCreateSource(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: bufferId (number), looping (boolean, optional), volume (number, optional)
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 1 && numArgs <= 3);
+    assert(lua_isnumber(L, 1));
+
+    int bufferId = lua_tointeger(L, 1);
+    bool looping = false;
+    float volume = 1.0f;
+
+    if (numArgs >= 2) {
+        assert(lua_isboolean(L, 2));
+        looping = lua_toboolean(L, 2);
+    }
+    if (numArgs >= 3) {
+        assert(lua_isnumber(L, 3));
+        volume = lua_tonumber(L, 3);
+    }
+
+    int sourceId = interface->audioManager_->createAudioSource(bufferId, looping, volume);
+    
+    lua_pushinteger(L, sourceId);
+    return 1; // Return source ID
+}
+
+int LuaInterface::audioPlaySource(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int sourceId = lua_tointeger(L, 1);
+    interface->audioManager_->playSource(sourceId);
+    
+    return 0;
+}
+
+int LuaInterface::audioStopSource(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int sourceId = lua_tointeger(L, 1);
+    interface->audioManager_->stopSource(sourceId);
+    
+    return 0;
+}
+
+int LuaInterface::audioPauseSource(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int sourceId = lua_tointeger(L, 1);
+    interface->audioManager_->pauseSource(sourceId);
+    
+    return 0;
+}
+
+int LuaInterface::audioSetSourcePosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 4);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+
+    int sourceId = lua_tointeger(L, 1);
+    float x = lua_tonumber(L, 2);
+    float y = lua_tonumber(L, 3);
+    float z = lua_tonumber(L, 4);
+    
+    interface->audioManager_->setSourcePosition(sourceId, x, y, z);
+    
+    return 0;
+}
+
+int LuaInterface::audioSetSourceVelocity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 4);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+
+    int sourceId = lua_tointeger(L, 1);
+    float vx = lua_tonumber(L, 2);
+    float vy = lua_tonumber(L, 3);
+    float vz = lua_tonumber(L, 4);
+    
+    interface->audioManager_->setSourceVelocity(sourceId, vx, vy, vz);
+    
+    return 0;
+}
+
+int LuaInterface::audioSetSourceVolume(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int sourceId = lua_tointeger(L, 1);
+    float volume = lua_tonumber(L, 2);
+    
+    interface->audioManager_->setSourceVolume(sourceId, volume);
+    
+    return 0;
+}
+
+int LuaInterface::audioSetSourcePitch(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int sourceId = lua_tointeger(L, 1);
+    float pitch = lua_tonumber(L, 2);
+    
+    interface->audioManager_->setSourcePitch(sourceId, pitch);
+    
+    return 0;
+}
+
+int LuaInterface::audioSetSourceLooping(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isboolean(L, 2));
+
+    int sourceId = lua_tointeger(L, 1);
+    bool looping = lua_toboolean(L, 2);
+    
+    interface->audioManager_->setSourceLooping(sourceId, looping);
+    
+    return 0;
+}
+
+int LuaInterface::audioReleaseSource(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int sourceId = lua_tointeger(L, 1);
+    interface->audioManager_->releaseSource(sourceId);
+    
+    return 0;
+}
+
+int LuaInterface::audioSetListenerPosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 3);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    float x = lua_tonumber(L, 1);
+    float y = lua_tonumber(L, 2);
+    float z = lua_tonumber(L, 3);
+    
+    interface->audioManager_->setListenerPosition(x, y, z);
+    
+    return 0;
+}
+
+int LuaInterface::audioSetListenerVelocity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 3);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    float vx = lua_tonumber(L, 1);
+    float vy = lua_tonumber(L, 2);
+    float vz = lua_tonumber(L, 3);
+    
+    interface->audioManager_->setListenerVelocity(vx, vy, vz);
+    
+    return 0;
+}
+
+int LuaInterface::audioSetListenerOrientation(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 6);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+    assert(lua_isnumber(L, 5));
+    assert(lua_isnumber(L, 6));
+
+    float atX = lua_tonumber(L, 1);
+    float atY = lua_tonumber(L, 2);
+    float atZ = lua_tonumber(L, 3);
+    float upX = lua_tonumber(L, 4);
+    float upY = lua_tonumber(L, 5);
+    float upZ = lua_tonumber(L, 6);
+    
+    interface->audioManager_->setListenerOrientation(atX, atY, atZ, upX, upY, upZ);
+    
+    return 0;
+}
+
+int LuaInterface::audioSetGlobalVolume(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    float volume = lua_tonumber(L, 1);
+    interface->audioManager_->setGlobalVolume(volume);
+    
+    return 0;
+}
+
+int LuaInterface::audioSetGlobalEffect(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 1 && numArgs <= 2);
+    assert(lua_isnumber(L, 1));
+
+    int effect = lua_tointeger(L, 1);
+    float intensity = 1.0f;
+
+    if (numArgs >= 2) {
+        assert(lua_isnumber(L, 2));
+        intensity = lua_tonumber(L, 2);
+    }
+
+    interface->audioManager_->setGlobalEffect((AudioEffect)effect, intensity);
+    
+    return 0;
+}
+

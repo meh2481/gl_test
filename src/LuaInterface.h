@@ -10,6 +10,7 @@
 #include "Box2DPhysics.h"
 #include "SceneLayer.h"
 #include "InputActions.h"
+#include "AudioManager.h"
 
 class SceneManager;
 
@@ -37,6 +38,9 @@ public:
     
     // Scene layer access
     SceneLayerManager& getSceneLayerManager() { return *layerManager_; }
+    
+    // Audio access
+    AudioManager& getAudioManager() { return *audioManager_; }
 
 private:
     // Lua-callable functions
@@ -75,6 +79,24 @@ private:
     // Texture loading
     static int loadTexture(lua_State* L);
     static int loadTexturedShaders(lua_State* L);
+    
+    // Audio Lua bindings
+    static int audioLoadBuffer(lua_State* L);
+    static int audioCreateSource(lua_State* L);
+    static int audioPlaySource(lua_State* L);
+    static int audioStopSource(lua_State* L);
+    static int audioPauseSource(lua_State* L);
+    static int audioSetSourcePosition(lua_State* L);
+    static int audioSetSourceVelocity(lua_State* L);
+    static int audioSetSourceVolume(lua_State* L);
+    static int audioSetSourcePitch(lua_State* L);
+    static int audioSetSourceLooping(lua_State* L);
+    static int audioReleaseSource(lua_State* L);
+    static int audioSetListenerPosition(lua_State* L);
+    static int audioSetListenerVelocity(lua_State* L);
+    static int audioSetListenerOrientation(lua_State* L);
+    static int audioSetGlobalVolume(lua_State* L);
+    static int audioSetGlobalEffect(lua_State* L);
 
     void registerFunctions();
 
@@ -87,4 +109,5 @@ private:
     std::unordered_map<uint64_t, std::vector<std::pair<int, int>> > scenePipelines_; // pipelineId, zIndex
     std::unique_ptr<Box2DPhysics> physics_;
     std::unique_ptr<SceneLayerManager> layerManager_;
+    std::unique_ptr<AudioManager> audioManager_;
 };
