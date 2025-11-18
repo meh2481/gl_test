@@ -9,6 +9,10 @@ A C++ application using Vulkan rendering with Lua scripting and Box2D physics in
 - Box2D physics engine with Lua bindings
 - Physics debug visualization
 - Hot-reloading of shaders and scenes (F5 in debug mode)
+- Multithreading support with SDL threading
+  - Async hot-reload (non-blocking shader compilation)
+  - Async resource loading and decompression
+  - Async physics simulation support
 
 ## Dependencies
 
