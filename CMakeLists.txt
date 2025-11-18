@@ -12,7 +12,9 @@ find_package(SDL2 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LZ4 REQUIRED liblz4)
 pkg_check_modules(LUA REQUIRED lua)
-include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LZ4_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS})
+pkg_check_modules(PNG REQUIRED libpng)
+pkg_check_modules(SQUISH REQUIRED libsquish)
+include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LZ4_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS} ${PNG_INCLUDE_DIRS} ${SQUISH_INCLUDE_DIRS})
 find_package(box2d CONFIG REQUIRED)
 
 # Find glslc for shader compilation
@@ -55,7 +57,7 @@ add_custom_command(
 add_custom_target(shaders DEPENDS vertex.spv nebula_fragment.spv menu_fragment.spv cloud_fragment.spv debug_vertex.spv debug_fragment.spv)
 
 add_executable(packer src/packer.cpp src/ResourceTypes.h)
-target_link_libraries(packer ${LZ4_LIBRARIES} png squish)
+target_link_libraries(packer ${LZ4_LIBRARIES} ${PNG_LIBRARIES} squish)
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/res.pak
