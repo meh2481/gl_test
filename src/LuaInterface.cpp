@@ -25,6 +25,7 @@ void LuaInterface::executeScript(const ResourceData& scriptData) {
 }
 
 void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
+    std::cout << "Loading scene " << sceneId << " with script size " << scriptData.size << std::endl;
     // Create a table for this scene
     lua_newtable(luaState_);
 
@@ -95,6 +96,8 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
 
     // Load the script
     if (luaL_loadbuffer(luaState_, (char*)scriptData.data, scriptData.size, NULL) != LUA_OK) {
+        const char* errorMsg = lua_tostring(luaState_, -1);
+        std::cerr << "Lua load error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
         lua_pop(luaState_, 1); // Pop the table
         assert(false);
         return;
@@ -106,6 +109,8 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
 
     // Execute the script with the scene table as its environment
     if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
+        const char* errorMsg = lua_tostring(luaState_, -1);
+        std::cerr << "Lua exec error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
         lua_pop(luaState_, 1); // Pop the table
         assert(false);
         return;
@@ -477,14 +482,14 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2GetBodyLinearVelocity", b2GetBodyLinearVelocity);
     lua_register(luaState_, "b2GetBodyAngularVelocity", b2GetBodyAngularVelocity);
     lua_register(luaState_, "b2EnableDebugDraw", b2EnableDebugDraw);
-    
+
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
     lua_register(luaState_, "destroyLayer", destroyLayer);
     lua_register(luaState_, "attachLayerToBody", attachLayerToBody);
     lua_register(luaState_, "detachLayer", detachLayer);
     lua_register(luaState_, "setLayerEnabled", setLayerEnabled);
-    
+
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
     lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
@@ -1026,17 +1031,17 @@ int LuaInterface::loadTexture(lua_State* L) {
     assert(lua_isstring(L, 1));
 
     const char* filename = lua_tostring(L, 1);
-    
+
     // Hash the filename to get texture ID (same as packer)
     uint64_t textureId = std::hash<std::string>{}(filename);
-    
+
     // Load the texture from the pak file
     ResourceData imageData = interface->pakResource_.getResource(textureId);
     assert(imageData.data != nullptr && "Texture not found in pak file");
-    
+
     // Load the texture into the renderer
     interface->renderer_.loadTexture(textureId, imageData);
-    
+
     return 0;
 }
 

@@ -82,20 +82,42 @@ bool PakResource::load(const char* filename) {
     return true;
 }
 
+bool PakResource::reload(const char* filename) {
+    // Unmap current
+    if (m_pakData.data) {
+#ifdef _WIN32
+        UnmapViewOfFile(m_pakData.data);
+        if (m_hMapping) CloseHandle(m_hMapping);
+        if (m_hFile != INVALID_HANDLE_VALUE) CloseHandle(m_hFile);
+        m_hFile = INVALID_HANDLE_VALUE;
+        m_hMapping = NULL;
+#else
+        munmap(m_pakData.data, m_pakData.size);
+        if (m_fd != -1) close(m_fd);
+        m_fd = -1;
+#endif
+        m_pakData = {nullptr, 0};
+    }
+    // Clear decompressed cache
+    m_decompressedData.clear();
+    // Load again
+    return load(filename);
+}
+
 ResourceData PakResource::getResource(uint64_t id) {
     SDL_LockMutex(m_mutex);
-    
+
     if (!m_pakData.data) {
         SDL_UnlockMutex(m_mutex);
         return ResourceData{nullptr, 0};
     }
-    
+
     PakFileHeader* header = (PakFileHeader*)m_pakData.data;
     if (memcmp(header->sig, "PAKC", 4) != 0) {
         SDL_UnlockMutex(m_mutex);
         return ResourceData{nullptr, 0};
     }
-    
+
     ResourcePtr* ptrs = (ResourcePtr*)(m_pakData.data + sizeof(PakFileHeader));
     for (uint32_t i = 0; i < header->numResources; i++) {
         if (ptrs[i].id == id) {
@@ -121,7 +143,7 @@ ResourceData PakResource::getResource(uint64_t id) {
             }
         }
     }
-    
+
     SDL_UnlockMutex(m_mutex);
     return ResourceData{nullptr, 0};
 }

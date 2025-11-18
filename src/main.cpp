@@ -36,29 +36,29 @@ struct HotReloadData {
 // The thread waits for reload requests and rebuilds shaders/resources asynchronously
 static int hotReloadThread(void* data) {
     HotReloadData* reloadData = (HotReloadData*)data;
-    
+
     while (true) {
         // Wait for reload request
         while (SDL_AtomicGet(&reloadData->reloadRequested) == 0) {
             SDL_Delay(100);
         }
-        
+
         // Lock mutex to prevent concurrent reloads
         SDL_LockMutex(reloadData->mutex);
-        
+
         std::cout << "Hot-reloading resources in background thread..." << std::endl;
-        
+
         // Rebuild shaders and pak file using make
         int result = system("make shaders && make res_pak");
-        
+
         // Store result
         SDL_AtomicSet(&reloadData->reloadSuccess, (result == 0) ? 1 : 0);
         SDL_AtomicSet(&reloadData->reloadComplete, 1);
         SDL_AtomicSet(&reloadData->reloadRequested, 0);
-        
+
         SDL_UnlockMutex(reloadData->mutex);
     }
-    
+
     return 0;
 }
 #endif
@@ -83,7 +83,7 @@ int main() {
 
     // Initialize keybinding manager
     KeybindingManager keybindings;
-    
+
     // Load keybindings from config if available
     if (config.keybindings[0] != '\0') {
         keybindings.deserializeBindings(config.keybindings);
@@ -100,7 +100,7 @@ int main() {
     SDL_AtomicSet(&reloadData.reloadComplete, 0);
     SDL_AtomicSet(&reloadData.reloadSuccess, 0);
     SDL_AtomicSet(&reloadData.reloadRequested, 0);
-    
+
     SDL_Thread* reloadThread = SDL_CreateThread(hotReloadThread, "HotReload", &reloadData);
     assert(reloadThread != nullptr);
 #endif
@@ -122,7 +122,7 @@ int main() {
                 for (int i = 0; i < actionList.count; ++i) {
                     sceneManager.handleAction(actionList.actions[i]);
                 }
-                
+
                 // Handle special case: ALT+ENTER for fullscreen toggle
                 if (event.key.keysym.sym == SDLK_RETURN && (event.key.keysym.mod & KMOD_ALT)) {
                     Uint32 flags = SDL_GetWindowFlags(window);
@@ -152,14 +152,14 @@ int main() {
         if(!sceneManager.updateActiveScene(deltaTime)) {
             running = false;
         }
-        
+
 #ifdef DEBUG
         // Check if hot-reload completed
         if (SDL_AtomicGet(&reloadData.reloadComplete) == 1) {
             if (SDL_AtomicGet(&reloadData.reloadSuccess) == 1) {
                 std::cout << "Hot-reload complete, applying changes..." << std::endl;
                 // Reload pak
-                pakResource.load(PAK_FILE);
+                pakResource.reload(PAK_FILE);
                 // Reload current scene with new resources
                 sceneManager.reloadCurrentScene();
             } else {
@@ -168,16 +168,16 @@ int main() {
             SDL_AtomicSet(&reloadData.reloadComplete, 0);
         }
 #endif
-        
+
         renderer.render(currentTime);
     }
 
     // Save current display to config
     config.display = SDL_GetWindowDisplayIndex(window);
-    
+
     // Save keybindings to config
     keybindings.serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
-    
+
     saveConfig(config);
 
 #ifdef DEBUG
