@@ -96,13 +96,32 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             const std::vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
             std::vector<float> triangleVertexData;
             triangleVertexData.reserve(debugTriangleVerts.size() * 6);
-            for (const auto& v : debugTriangleVerts) {
-                triangleVertexData.push_back(v.x);
-                triangleVertexData.push_back(v.y);
-                triangleVertexData.push_back(v.r);
-                triangleVertexData.push_back(v.g);
-                triangleVertexData.push_back(v.b);
-                triangleVertexData.push_back(v.a);
+            for (size_t i = 0; i < debugTriangleVerts.size(); i += 3) {
+                // Reverse winding order: v0, v2, v1 instead of v0, v1, v2
+                const auto& v0 = debugTriangleVerts[i];
+                const auto& v1 = debugTriangleVerts[i + 1];
+                const auto& v2 = debugTriangleVerts[i + 2];
+                // Push v0
+                triangleVertexData.push_back(v0.x);
+                triangleVertexData.push_back(v0.y);
+                triangleVertexData.push_back(v0.r);
+                triangleVertexData.push_back(v0.g);
+                triangleVertexData.push_back(v0.b);
+                triangleVertexData.push_back(v0.a);
+                // Push v2
+                triangleVertexData.push_back(v2.x);
+                triangleVertexData.push_back(v2.y);
+                triangleVertexData.push_back(v2.r);
+                triangleVertexData.push_back(v2.g);
+                triangleVertexData.push_back(v2.b);
+                triangleVertexData.push_back(v2.a);
+                // Push v1
+                triangleVertexData.push_back(v1.x);
+                triangleVertexData.push_back(v1.y);
+                triangleVertexData.push_back(v1.r);
+                triangleVertexData.push_back(v1.g);
+                triangleVertexData.push_back(v1.b);
+                triangleVertexData.push_back(v1.a);
             }
             renderer_.setDebugTriangleDrawData(triangleVertexData);
         } else {
