@@ -137,6 +137,9 @@ bool loadPNG(const string& filename, vector<uint8_t>& rgba, uint32_t& width, uin
 
 // Compress image data using DXT/BC compression
 void compressImage(const vector<uint8_t>& rgba, vector<char>& compressed, uint32_t width, uint32_t height, bool hasAlpha, uint16_t& format) {
+    assert(width > 0 && height > 0);
+    assert(rgba.size() == width * height * 4);
+    
     // Choose compression format based on alpha channel
     int flags;
     if (hasAlpha) {
@@ -149,6 +152,7 @@ void compressImage(const vector<uint8_t>& rgba, vector<char>& compressed, uint32
     
     // Calculate storage requirements
     int storageSize = squish::GetStorageRequirements(width, height, flags);
+    assert(storageSize > 0);
     compressed.resize(storageSize);
     
     // Compress the image
@@ -165,10 +169,15 @@ bool processPNGFile(const string& filename, vector<char>& output) {
         return false;
     }
     
+    assert(width > 0 && height > 0);
+    assert(rgba.size() == width * height * 4);
+    
     // Compress the image data
     vector<char> compressedImage;
     uint16_t format;
     compressImage(rgba, compressedImage, width, height, hasAlpha, format);
+    
+    assert(compressedImage.size() > 0);
     
     // Create ImageHeader
     ImageHeader header;
