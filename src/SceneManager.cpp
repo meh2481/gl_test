@@ -79,8 +79,39 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         uint64_t activeSceneId = sceneStack_.top();
         luaInterface_->updateScene(activeSceneId, deltaTime);
 
-        // Update debug draw data if physics debug drawing is enabled
+        // Update scene layer transforms from physics bodies
         Box2DPhysics& physics = luaInterface_->getPhysics();
+        SceneLayerManager& layerManager = luaInterface_->getSceneLayerManager();
+        
+        // Update each layer's transform based on its attached physics body
+        for (const auto& layerPair : layerManager.getLayers()) {
+            const SceneLayer& layer = layerPair.second;
+            if (layer.physicsBodyId >= 0) {
+                float bodyX = physics.getBodyPositionX(layer.physicsBodyId);
+                float bodyY = physics.getBodyPositionY(layer.physicsBodyId);
+                float bodyAngle = physics.getBodyAngle(layer.physicsBodyId);
+                layerManager.updateLayerTransform(layerPair.first, bodyX, bodyY, bodyAngle);
+            }
+        }
+        
+        // Generate sprite vertex data from layers
+        std::vector<SpriteVertex> spriteVertices;
+        std::vector<uint16_t> spriteIndices;
+        layerManager.updateLayerVertices(spriteVertices, spriteIndices);
+        
+        // Convert sprite vertices to float array for renderer
+        std::vector<float> spriteVertexData;
+        spriteVertexData.reserve(spriteVertices.size() * 4); // x, y, u, v per vertex
+        for (const auto& v : spriteVertices) {
+            spriteVertexData.push_back(v.x);
+            spriteVertexData.push_back(v.y);
+            spriteVertexData.push_back(v.u);
+            spriteVertexData.push_back(v.v);
+        }
+        
+        renderer_.setSpriteDrawData(spriteVertexData, spriteIndices);
+
+        // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {
             const std::vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
             std::vector<float> lineVertexData;

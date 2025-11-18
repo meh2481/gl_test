@@ -29,12 +29,14 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_newtable(luaState_);
 
     // Copy global functions and tables into the scene table
-    const char* globalFunctions[] = {"loadShaders", "pushScene", "popScene", "print",
+    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexture",
+                                     "pushScene", "popScene", "print",
                                      "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
                                      "b2AddBoxFixture", "b2AddCircleFixture", "b2SetBodyPosition",
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
+                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -482,6 +484,10 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "attachLayerToBody", attachLayerToBody);
     lua_register(luaState_, "detachLayer", detachLayer);
     lua_register(luaState_, "setLayerEnabled", setLayerEnabled);
+    
+    // Register texture loading functions
+    lua_register(luaState_, "loadTexture", loadTexture);
+    lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -1007,5 +1013,62 @@ int LuaInterface::setLayerEnabled(lua_State* L) {
     bool enabled = lua_toboolean(L, 2);
 
     interface->layerManager_->setLayerEnabled(layerId, enabled);
+    return 0;
+}
+
+int LuaInterface::loadTexture(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Argument: textureFilename (string)
+    assert(lua_gettop(L) == 1);
+    assert(lua_isstring(L, 1));
+
+    const char* filename = lua_tostring(L, 1);
+    
+    // Hash the filename to get texture ID (same as packer)
+    uint64_t textureId = std::hash<std::string>{}(filename);
+    
+    // Load the texture from the pak file
+    ResourceData imageData = interface->pakResource_.getResource(textureId);
+    assert(imageData.data != nullptr && "Texture not found in pak file");
+    
+    // Load the texture into the renderer
+    interface->renderer_.loadTexture(textureId, imageData);
+    
+    return 0;
+}
+
+int LuaInterface::loadTexturedShaders(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer)
+    assert(lua_gettop(L) == 3);
+    assert(lua_isstring(L, 1));
+    assert(lua_isstring(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    const char* vertShaderName = lua_tostring(L, 1);
+    const char* fragShaderName = lua_tostring(L, 2);
+    int zIndex = (int)lua_tointeger(L, 3);
+
+    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
+    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+
+    ResourceData vertShader = interface->pakResource_.getResource(vertId);
+    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+
+    assert(vertShader.data != nullptr);
+    assert(fragShader.data != nullptr);
+
+    int pipelineId = interface->pipelineIndex_++;
+    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+
+    // Create textured pipeline
+    interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader);
+
     return 0;
 }

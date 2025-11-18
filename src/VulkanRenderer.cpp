@@ -1128,13 +1128,15 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     float pushConstants[3] = {static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), time};
-    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
 
     // Draw all pipelines
     for (uint64_t pipelineId : m_pipelinesToDraw) {
         bool isDebug = m_debugPipelines.count(pipelineId) > 0 && m_debugPipelines[pipelineId];
+        bool isTextured = m_texturedPipelines.count(pipelineId) > 0 && m_texturedPipelines[pipelineId];
 
         if (isDebug) {
+            vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
+            
             // Draw triangles first
             if (debugTriangleVertexCount > 0 && m_debugTrianglePipeline != VK_NULL_HANDLE) {
                 VkBuffer debugBuffers[] = {debugTriangleVertexBuffer};
@@ -1151,9 +1153,34 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_debugLinePipeline);
                 vkCmdDraw(commandBuffer, debugVertexCount, 1, 0, 0);
             }
+        } else if (isTextured) {
+            // Draw textured sprites (currently we don't have a way to specify which texture per pipeline)
+            // For now, just draw all sprites with the first available texture
+            // This will need to be improved to support multiple textures
+            auto it = m_pipelines.find(pipelineId);
+            if (it != m_pipelines.end() && spriteIndexCount > 0) {
+                vkCmdPushConstants(commandBuffer, m_texturedPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
+                
+                VkBuffer vertexBuffers[] = {spriteVertexBuffer};
+                VkDeviceSize offsets[] = {0};
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                vkCmdBindIndexBuffer(commandBuffer, spriteIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
+                
+                // Bind the first available descriptor set (TODO: make this more flexible)
+                if (!m_texturedDescriptorSets.empty()) {
+                    VkDescriptorSet descriptorSet = m_texturedDescriptorSets.begin()->second;
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+                                          m_texturedPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+                }
+                
+                vkCmdDrawIndexed(commandBuffer, spriteIndexCount, 1, 0, 0, 0);
+            }
         } else {
             auto it = m_pipelines.find(pipelineId);
             if (it != m_pipelines.end()) {
+                vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
+                
                 // Bind regular vertex buffer
                 VkBuffer vertexBuffers[] = {vertexBuffer};
                 VkDeviceSize offsets[] = {0};

@@ -1,12 +1,20 @@
 -- Physics demo scene
 bodies = {}
+layers = {}
 
 function init()
     -- Load the nebula background shader (z-index 0)
     loadShaders("vertex.spv", "nebula_fragment.spv", 0)
-
-    -- Load debug drawing shader (z-index 1, drawn on top)
-    loadShaders("debug_vertex.spv", "debug_fragment.spv", 1)
+    
+    -- Load sprite shaders for textured objects (z-index 1, before debug draw)
+    loadTexturedShaders("sprite_vertex.spv", "sprite_fragment.spv", 1)
+    
+    -- Load debug drawing shader (z-index 2, drawn on top)
+    loadShaders("debug_vertex.spv", "debug_fragment.spv", 2)
+    
+    -- Load textures
+    loadTexture("rock.png")
+    loadTexture("metalwall.png")
 
     -- Enable Box2D debug drawing
     b2EnableDebugDraw(true)
@@ -19,19 +27,29 @@ function init()
     b2AddBoxFixture(groundId, 1.5, 0.1, 1.0, 0.3, 0.0)
     table.insert(bodies, groundId)
 
-    -- Create some dynamic boxes
+    -- Create some dynamic boxes with metalwall.png sprites
     for i = 1, 5 do
         local x = -0.5 + (i - 1) * 0.25
         local y = 0.5
         local bodyId = b2CreateBody(B2_DYNAMIC_BODY, x, y, 0)
         b2AddBoxFixture(bodyId, 0.1, 0.1, 1.0, 0.3, 0.3)
         table.insert(bodies, bodyId)
+        
+        -- Attach a sprite layer to this body
+        local layerId = createLayer("metalwall.png", 0.2, 0.2)
+        attachLayerToBody(layerId, bodyId)
+        table.insert(layers, layerId)
     end
 
-    -- Create a dynamic circle
+    -- Create a dynamic circle with rock.png sprite
     local circleId = b2CreateBody(B2_DYNAMIC_BODY, 0, 0.8, 0)
     b2AddCircleFixture(circleId, 0.15, 1.0, 0.3, 0.5)
     table.insert(bodies, circleId)
+    
+    -- Attach a sprite layer to the circle
+    local layerId = createLayer("rock.png", 0.3, 0.3)
+    attachLayerToBody(layerId, circleId)
+    table.insert(layers, layerId)
 
     print("Physics demo scene initialized")
 end
@@ -42,6 +60,12 @@ function update(deltaTime)
 end
 
 function cleanup()
+    -- Destroy all scene layers
+    for i, layerId in ipairs(layers) do
+        destroyLayer(layerId)
+    end
+    layers = {}
+    
     -- Destroy all physics bodies
     for i, bodyId in ipairs(bodies) do
         b2DestroyBody(bodyId)
