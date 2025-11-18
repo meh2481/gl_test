@@ -1,5 +1,6 @@
 #include "SceneManager.h"
 #include "LuaInterface.h"
+#include "SceneLayer.h"
 #include <cassert>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer)
@@ -94,22 +95,12 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             }
         }
         
-        // Generate sprite vertex data from layers
-        std::vector<SpriteVertex> spriteVertices;
-        std::vector<uint16_t> spriteIndices;
-        layerManager.updateLayerVertices(spriteVertices, spriteIndices);
+        // Generate sprite batches grouped by texture
+        std::vector<SpriteBatch> spriteBatches;
+        layerManager.updateLayerVertices(spriteBatches);
         
-        // Convert sprite vertices to float array for renderer
-        std::vector<float> spriteVertexData;
-        spriteVertexData.reserve(spriteVertices.size() * 4); // x, y, u, v per vertex
-        for (const auto& v : spriteVertices) {
-            spriteVertexData.push_back(v.x);
-            spriteVertexData.push_back(v.y);
-            spriteVertexData.push_back(v.u);
-            spriteVertexData.push_back(v.v);
-        }
-        
-        renderer_.setSpriteDrawData(spriteVertexData, spriteIndices);
+        // Send batches to renderer
+        renderer_.setSpriteBatches(spriteBatches);
 
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {

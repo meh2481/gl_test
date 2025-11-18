@@ -71,14 +71,11 @@ void SceneLayerManager::updateLayerTransform(int layerId, float bodyX, float bod
     }
 }
 
-void SceneLayerManager::updateLayerVertices(
-    std::vector<SpriteVertex>& vertices,
-    std::vector<uint16_t>& indices
-) {
-    vertices.clear();
-    indices.clear();
+void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
+    batches.clear();
     
-    uint16_t vertexIndex = 0;
+    // Group layers by texture ID
+    std::unordered_map<uint64_t, SpriteBatch*> batchMap;
     
     for (const auto& pair : layers_) {
         const SceneLayer& layer = pair.second;
@@ -86,6 +83,18 @@ void SceneLayerManager::updateLayerVertices(
         // Skip disabled layers or layers not attached to a body
         if (!layer.enabled || layer.physicsBodyId < 0) {
             continue;
+        }
+        
+        // Find or create batch for this texture
+        SpriteBatch* batch = nullptr;
+        auto batchIt = batchMap.find(layer.textureId);
+        if (batchIt == batchMap.end()) {
+            batches.push_back(SpriteBatch());
+            batch = &batches.back();
+            batch->textureId = layer.textureId;
+            batchMap[layer.textureId] = batch;
+        } else {
+            batch = batchIt->second;
         }
         
         float centerX = layer.cachedX;
@@ -117,6 +126,8 @@ void SceneLayerManager::updateLayerVertices(
         float cosA = std::cos(angle);
         float sinA = std::sin(angle);
         
+        uint16_t baseIndex = static_cast<uint16_t>(batch->vertices.size());
+        
         for (int i = 0; i < 4; i++) {
             // Apply offset
             float lx = localVerts[i][0] + layer.offsetX;
@@ -133,18 +144,16 @@ void SceneLayerManager::updateLayerVertices(
             vert.u = uvs[i][0];
             vert.v = uvs[i][1];
             
-            vertices.push_back(vert);
+            batch->vertices.push_back(vert);
         }
         
         // Create indices for two triangles (quad)
-        indices.push_back(vertexIndex + 0);
-        indices.push_back(vertexIndex + 1);
-        indices.push_back(vertexIndex + 2);
+        batch->indices.push_back(baseIndex + 0);
+        batch->indices.push_back(baseIndex + 1);
+        batch->indices.push_back(baseIndex + 2);
         
-        indices.push_back(vertexIndex + 2);
-        indices.push_back(vertexIndex + 3);
-        indices.push_back(vertexIndex + 0);
-        
-        vertexIndex += 4;
+        batch->indices.push_back(baseIndex + 2);
+        batch->indices.push_back(baseIndex + 3);
+        batch->indices.push_back(baseIndex + 0);
     }
 }

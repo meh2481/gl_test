@@ -7,6 +7,9 @@
 #include <vector>
 #include <map>
 
+// Forward declarations
+struct SpriteBatch;
+
 class VulkanRenderer {
 public:
     VulkanRenderer();
@@ -22,6 +25,7 @@ public:
     void setDebugLineDrawData(const std::vector<float>& vertexData);
     void setDebugTriangleDrawData(const std::vector<float>& vertexData);
     void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
+    void setSpriteBatches(const std::vector<SpriteBatch>& batches);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void render(float time);
     void cleanup();
@@ -75,6 +79,14 @@ private:
     VkDeviceMemory spriteIndexBufferMemory;
     size_t spriteIndexBufferSize;
     uint32_t spriteIndexCount;
+    
+    // Sprite batch data
+    struct BatchDrawData {
+        uint64_t textureId;
+        uint32_t indexCount;
+        uint32_t firstIndex;
+    };
+    std::vector<BatchDrawData> m_spriteBatches;
     
     // Texture support
     struct TextureData {

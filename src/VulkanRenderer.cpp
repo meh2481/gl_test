@@ -1,5 +1,6 @@
 #include "VulkanRenderer.h"
 #include "ResourceTypes.h"
+#include "SceneLayer.h"
 #include <iostream>
 #include <cstring>
 #include <algorithm>
@@ -1154,11 +1155,9 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 vkCmdDraw(commandBuffer, debugVertexCount, 1, 0, 0);
             }
         } else if (isTextured) {
-            // Draw textured sprites (currently we don't have a way to specify which texture per pipeline)
-            // For now, just draw all sprites with the first available texture
-            // This will need to be improved to support multiple textures
+            // Draw textured sprites in batches, one per texture
             auto it = m_pipelines.find(pipelineId);
-            if (it != m_pipelines.end() && spriteIndexCount > 0) {
+            if (it != m_pipelines.end() && !m_spriteBatches.empty()) {
                 vkCmdPushConstants(commandBuffer, m_texturedPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
                 
                 VkBuffer vertexBuffers[] = {spriteVertexBuffer};
@@ -1167,14 +1166,16 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 vkCmdBindIndexBuffer(commandBuffer, spriteIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
                 
-                // Bind the first available descriptor set (TODO: make this more flexible)
-                if (!m_texturedDescriptorSets.empty()) {
-                    VkDescriptorSet descriptorSet = m_texturedDescriptorSets.begin()->second;
-                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
-                                          m_texturedPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+                // Draw each batch with its corresponding texture
+                for (const auto& batch : m_spriteBatches) {
+                    auto descIt = m_texturedDescriptorSets.find(batch.textureId);
+                    if (descIt != m_texturedDescriptorSets.end()) {
+                        VkDescriptorSet descriptorSet = descIt->second;
+                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+                                              m_texturedPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+                        vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+                    }
                 }
-                
-                vkCmdDrawIndexed(commandBuffer, spriteIndexCount, 1, 0, 0, 0);
             }
         } else {
             auto it = m_pipelines.find(pipelineId);
@@ -1608,4 +1609,43 @@ void VulkanRenderer::createTexturedDescriptorSet(uint64_t textureId) {
     vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
     
     m_texturedDescriptorSets[textureId] = descriptorSet;
+}
+
+void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
+    m_spriteBatches.clear();
+    
+    // Combine all vertices and indices from all batches
+    std::vector<float> allVertexData;
+    std::vector<uint16_t> allIndices;
+    uint32_t baseVertex = 0;
+    
+    for (const auto& batch : batches) {
+        if (batch.vertices.empty() || batch.indices.empty()) {
+            continue;
+        }
+        
+        BatchDrawData drawData;
+        drawData.textureId = batch.textureId;
+        drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
+        drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        
+        // Add vertex data
+        for (const auto& v : batch.vertices) {
+            allVertexData.push_back(v.x);
+            allVertexData.push_back(v.y);
+            allVertexData.push_back(v.u);
+            allVertexData.push_back(v.v);
+        }
+        
+        // Add indices with offset
+        for (uint16_t idx : batch.indices) {
+            allIndices.push_back(idx + baseVertex);
+        }
+        
+        baseVertex += static_cast<uint32_t>(batch.vertices.size());
+        m_spriteBatches.push_back(drawData);
+    }
+    
+    // Upload to GPU
+    updateSpriteVertexBuffer(allVertexData, allIndices);
 }
