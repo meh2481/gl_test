@@ -28,12 +28,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Install box2d v3 from source
+      - name: Install box2d v3 from source, without examples
         run: |
           git clone https://github.com/erincatto/box2d.git
           cd box2d
           git checkout v3.1.1
           mkdir build && cd build
-          cmake ..
+          cmake .. -DBOX2D_BUILD_EXAMPLES=OFF
           make -j$(nproc)
           sudo make install
