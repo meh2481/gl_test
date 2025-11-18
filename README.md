@@ -14,7 +14,7 @@ A C++ application using Vulkan rendering with Lua scripting and Box2D physics in
 
 - SDL2
 - Vulkan
-- Box2D
+- Box2D 3.1.0 (built from source)
 - Lua 5.4
 - LZ4
 - CMake
@@ -23,8 +23,10 @@ Install on Ubuntu/Debian:
 
 ```
 sudo apt-get update
-sudo apt-get install cmake libsdl2-dev vulkan-tools libvulkan-dev glslc liblz4-dev lua5.4 liblua5.4-dev libbox2d-dev
+sudo apt-get install cmake libsdl2-dev vulkan-tools libvulkan-dev glslc liblz4-dev lua5.4 liblua5.4-dev
 ```
+
+**Note**: Box2D 3.1.0 is built from source and included in the project. The system package `libbox2d-dev` provides version 2.x which has a completely different API.
 
 ## Building
 
