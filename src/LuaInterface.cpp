@@ -79,6 +79,17 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
         lua_setfield(luaState_, -2, *constant);
     }
 
+    // Copy Action constants
+    const char* actionConstants[] = {
+        "ACTION_EXIT", "ACTION_MENU", "ACTION_PHYSICS_DEMO", "ACTION_TOGGLE_FULLSCREEN",
+        "ACTION_HOTRELOAD", "ACTION_APPLY_FORCE", "ACTION_RESET_PHYSICS",
+        nullptr
+    };
+    for (const char** constant = actionConstants; *constant; ++constant) {
+        lua_getglobal(luaState_, *constant);
+        lua_setfield(luaState_, -2, *constant);
+    }
+
     // Load the script
     if (luaL_loadbuffer(luaState_, (char*)scriptData.data, scriptData.size, NULL) != LUA_OK) {
         lua_pop(luaState_, 1); // Pop the table
@@ -234,6 +245,39 @@ void LuaInterface::handleKeyUp(uint64_t sceneId, int keyCode) {
         // Get the error message
         const char* errorMsg = lua_tostring(luaState_, -1);
         std::cerr << "Lua onKeyUp error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        lua_pop(luaState_, 2); // Pop error message and table
+        return;
+    }
+
+    // Pop the table
+    lua_pop(luaState_, 1);
+}
+
+void LuaInterface::handleAction(uint64_t sceneId, Action action) {
+    // Get the scene table from registry
+    lua_pushinteger(luaState_, sceneId);
+    lua_gettable(luaState_, LUA_REGISTRYINDEX);
+
+    if (!lua_istable(luaState_, -1)) {
+        lua_pop(luaState_, 1);
+        return; // Scene not found, silently ignore
+    }
+
+    // Get the onAction function from the table (optional)
+    lua_getfield(luaState_, -1, "onAction");
+    if (!lua_isfunction(luaState_, -1)) {
+        lua_pop(luaState_, 2); // Pop nil and table
+        return; // No onAction function, silently ignore
+    }
+
+    // Push action parameter
+    lua_pushinteger(luaState_, action);
+
+    // Call onAction(action)
+    if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
+        // Get the error message
+        const char* errorMsg = lua_tostring(luaState_, -1);
+        std::cerr << "Lua onAction error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
         lua_pop(luaState_, 2); // Pop error message and table
         return;
     }
@@ -437,6 +481,22 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "B2_KINEMATIC_BODY");
     lua_pushinteger(luaState_, 2);
     lua_setglobal(luaState_, "B2_DYNAMIC_BODY");
+
+    // Register Action constants
+    lua_pushinteger(luaState_, ACTION_EXIT);
+    lua_setglobal(luaState_, "ACTION_EXIT");
+    lua_pushinteger(luaState_, ACTION_MENU);
+    lua_setglobal(luaState_, "ACTION_MENU");
+    lua_pushinteger(luaState_, ACTION_PHYSICS_DEMO);
+    lua_setglobal(luaState_, "ACTION_PHYSICS_DEMO");
+    lua_pushinteger(luaState_, ACTION_TOGGLE_FULLSCREEN);
+    lua_setglobal(luaState_, "ACTION_TOGGLE_FULLSCREEN");
+    lua_pushinteger(luaState_, ACTION_HOTRELOAD);
+    lua_setglobal(luaState_, "ACTION_HOTRELOAD");
+    lua_pushinteger(luaState_, ACTION_APPLY_FORCE);
+    lua_setglobal(luaState_, "ACTION_APPLY_FORCE");
+    lua_pushinteger(luaState_, ACTION_RESET_PHYSICS);
+    lua_setglobal(luaState_, "ACTION_RESET_PHYSICS");
 }
 
 int LuaInterface::loadShaders(lua_State* L) {

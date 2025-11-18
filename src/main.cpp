@@ -11,6 +11,7 @@
 #include "VulkanRenderer.h"
 #include "SceneManager.h"
 #include "config.h"
+#include "InputActions.h"
 
 #define LUA_SCRIPT_ID 14669932163325785351ULL
 #define PAK_FILE "res.pak"
@@ -39,6 +40,9 @@ int main() {
     SceneManager sceneManager(pakResource, renderer);
     renderer.initialize(window);
 
+    // Initialize keybinding manager
+    KeybindingManager keybindings;
+
     // Load initial scene
     sceneManager.pushScene(LUA_SCRIPT_ID);
 
@@ -54,7 +58,16 @@ int main() {
                 running = false;
             }
             if (event.type == SDL_KEYDOWN) {
+                // First, pass the raw keycode to the scene (for backwards compatibility)
                 sceneManager.handleKeyDown(event.key.keysym.sym);
+                
+                // Then, handle actions bound to this key
+                const std::vector<Action>& actions = keybindings.getActionsForKey(event.key.keysym.sym);
+                for (size_t i = 0; i < actions.size(); ++i) {
+                    sceneManager.handleAction(actions[i]);
+                }
+                
+                // Handle special case: ALT+ENTER for fullscreen toggle
                 if (event.key.keysym.sym == SDLK_RETURN && (event.key.keysym.mod & KMOD_ALT)) {
                     Uint32 flags = SDL_GetWindowFlags(window);
                     if (flags & config.fullscreenMode) {
@@ -67,6 +80,7 @@ int main() {
                     saveConfig(config);
                 }
 #ifdef DEBUG
+                // Handle special case: F5 for hot reload
                 if (event.key.keysym.sym == SDLK_F5) {
                     std::cout << "Hot-reloading resources..." << std::endl;
                     // Rebuild shaders and pak file using make

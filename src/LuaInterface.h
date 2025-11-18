@@ -8,6 +8,7 @@
 #include "resource.h"
 #include "VulkanRenderer.h"
 #include "Box2DPhysics.h"
+#include "InputActions.h"
 
 class SceneManager;
 
@@ -25,6 +26,7 @@ public:
     void updateScene(uint64_t sceneId, float deltaTime);
     void handleKeyDown(uint64_t sceneId, int keyCode);
     void handleKeyUp(uint64_t sceneId, int keyCode);
+    void handleAction(uint64_t sceneId, Action action);
     void cleanupScene(uint64_t sceneId);
     void switchToScenePipeline(uint64_t sceneId);
     void clearScenePipelines(uint64_t sceneId);

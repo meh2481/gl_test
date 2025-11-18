@@ -5,6 +5,7 @@
 #include <memory>
 #include "resource.h"
 #include "VulkanRenderer.h"
+#include "InputActions.h"
 
 class LuaInterface;
 
@@ -25,6 +26,7 @@ public:
     bool updateActiveScene(float deltaTime);
     void handleKeyDown(int keyCode);
     void handleKeyUp(int keyCode);
+    void handleAction(Action action);
 
 private:
     PakResource& pakResource_;

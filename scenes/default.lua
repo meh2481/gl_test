@@ -12,7 +12,7 @@ function update(deltaTime)
     -- No timer logic needed
 end
 
--- Handle key down events
+-- Handle key down events (backwards compatibility)
 function onKeyDown(keyCode)
     if keyCode == SDLK_ESCAPE then
         popScene()
@@ -21,6 +21,19 @@ function onKeyDown(keyCode)
         pushScene("menu.lua")
     end
     if keyCode == SDLK_p then
+        pushScene("physics.lua")
+    end
+end
+
+-- Handle actions (new action-based system)
+function onAction(action)
+    if action == ACTION_EXIT then
+        popScene()
+    end
+    if action == ACTION_MENU then
+        pushScene("menu.lua")
+    end
+    if action == ACTION_PHYSICS_DEMO then
         pushScene("physics.lua")
     end
 end

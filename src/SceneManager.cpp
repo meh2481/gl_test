@@ -166,3 +166,10 @@ void SceneManager::handleKeyUp(int keyCode) {
         luaInterface_->handleKeyUp(activeSceneId, keyCode);
     }
 }
+
+void SceneManager::handleAction(Action action) {
+    if (!sceneStack_.empty()) {
+        uint64_t activeSceneId = sceneStack_.top();
+        luaInterface_->handleAction(activeSceneId, action);
+    }
+}
