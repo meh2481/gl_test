@@ -58,10 +58,7 @@ int main() {
                 running = false;
             }
             if (event.type == SDL_KEYDOWN) {
-                // First, pass the raw keycode to the scene (for backwards compatibility)
-                sceneManager.handleKeyDown(event.key.keysym.sym);
-                
-                // Then, handle actions bound to this key
+                // Handle actions bound to this key
                 const ActionList& actionList = keybindings.getActionsForKey(event.key.keysym.sym);
                 for (int i = 0; i < actionList.count; ++i) {
                     sceneManager.handleAction(actionList.actions[i]);
@@ -92,9 +89,6 @@ int main() {
                     sceneManager.reloadCurrentScene();
                 }
 #endif
-            }
-            if (event.type == SDL_KEYUP) {
-                sceneManager.handleKeyUp(event.key.keysym.sym);
             }
         }
 

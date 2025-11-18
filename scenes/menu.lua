@@ -13,14 +13,7 @@ function update(deltaTime)
     -- No timer logic needed
 end
 
--- Handle key down events (backwards compatibility)
-function onKeyDown(keyCode)
-    if keyCode == SDLK_ESCAPE then
-        popScene()
-    end
-end
-
--- Handle actions (new action-based system)
+-- Handle actions
 function onAction(action)
     if action == ACTION_EXIT then
         popScene()

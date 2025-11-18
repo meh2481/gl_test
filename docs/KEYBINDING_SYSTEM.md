@@ -2,7 +2,7 @@
 
 ## Overview
 
-The application uses an action-based keybinding system that allows many-to-many mapping between keys and actions. This provides flexibility in configuration and maintains backwards compatibility with the original key-based system.
+The application uses an action-based keybinding system that allows many-to-many mapping between keys and actions. This provides flexibility in configuration through a clean abstraction layer.
 
 ## Architecture
 
@@ -53,14 +53,6 @@ function onAction(action)
 end
 ```
 
-## Backwards Compatibility
-
-The system maintains full backwards compatibility with the original key-based handlers:
-
-1. Raw key codes are still passed to `onKeyDown(keyCode)` and `onKeyUp(keyCode)`
-2. Scenes can implement either or both callback types
-3. Existing scenes continue to work without modification
-
 ## Usage Example
 
 ### Adding a New Action
@@ -101,16 +93,15 @@ Limits:
 
 These limits can be increased if needed by modifying the constants in `InputActions.h`.
 
-### Action-First vs Key-First
+### Action System Flow
 
-The system prioritizes actions over raw keys:
+The system processes input through actions:
 
 1. Key press is detected
-2. Raw key event is sent to Lua (backwards compatibility)
-3. Actions bound to the key are resolved
-4. Each action is dispatched to Lua
+2. Actions bound to the key are resolved
+3. Each action is dispatched to Lua via `onAction(action)`
 
-This allows scenes to respond to either individual keys or higher-level actions.
+This provides a clean separation between input hardware and game logic.
 
 ## Future Enhancements
 

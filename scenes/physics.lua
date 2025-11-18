@@ -52,45 +52,7 @@ function cleanup()
     print("Physics demo scene cleaned up")
 end
 
--- Handle key down events (backwards compatibility)
-function onKeyDown(keyCode)
-    if keyCode == SDLK_ESCAPE then
-        popScene()
-    end
-    if keyCode == SDLK_SPACE then
-        -- Apply impulse to the circle
-        if #bodies > 0 then
-            local circleId = bodies[#bodies]
-            local x, y = b2GetBodyPosition(circleId)
-            b2ApplyForce(circleId, 0, 500, x, y)
-        end
-    end
-    if keyCode == SDLK_r then
-        -- Reset all bodies
-        for i, bodyId in ipairs(bodies) do
-            if i == 1 then
-                -- Ground - keep it in place
-                b2SetBodyPosition(bodyId, 0, -0.8)
-                b2SetBodyAngle(bodyId, 0)
-            elseif i <= 6 then
-                -- Boxes
-                local x = -0.5 + (i - 2) * 0.25
-                b2SetBodyPosition(bodyId, x, 0.5)
-                b2SetBodyAngle(bodyId, 0)
-                b2SetBodyLinearVelocity(bodyId, 0, 0)
-                b2SetBodyAngularVelocity(bodyId, 0)
-            else
-                -- Circle
-                b2SetBodyPosition(bodyId, 0, 0.8)
-                b2SetBodyAngle(bodyId, 0)
-                b2SetBodyLinearVelocity(bodyId, 0, 0)
-                b2SetBodyAngularVelocity(bodyId, 0)
-            end
-        end
-    end
-end
-
--- Handle actions (new action-based system)
+-- Handle actions
 function onAction(action)
     if action == ACTION_EXIT then
         popScene()
