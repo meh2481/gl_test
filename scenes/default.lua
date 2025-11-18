@@ -23,4 +23,7 @@ function onAction(action)
     if action == ACTION_PHYSICS_DEMO then
         pushScene("physics.lua")
     end
+    if action == ACTION_AUDIO_TEST then
+        pushScene("audio_test.lua")
+    end
 end

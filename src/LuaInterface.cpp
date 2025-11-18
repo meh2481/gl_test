@@ -92,7 +92,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
 
     // Copy Action constants
     const char* actionConstants[] = {
-        "ACTION_EXIT", "ACTION_MENU", "ACTION_PHYSICS_DEMO", "ACTION_TOGGLE_FULLSCREEN",
+        "ACTION_EXIT", "ACTION_MENU", "ACTION_PHYSICS_DEMO", "ACTION_AUDIO_TEST", "ACTION_TOGGLE_FULLSCREEN",
         "ACTION_HOTRELOAD", "ACTION_APPLY_FORCE", "ACTION_RESET_PHYSICS", "ACTION_TOGGLE_DEBUG_DRAW",
         nullptr
     };
@@ -544,6 +544,8 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_MENU");
     lua_pushinteger(luaState_, ACTION_PHYSICS_DEMO);
     lua_setglobal(luaState_, "ACTION_PHYSICS_DEMO");
+    lua_pushinteger(luaState_, ACTION_AUDIO_TEST);
+    lua_setglobal(luaState_, "ACTION_AUDIO_TEST");
     lua_pushinteger(luaState_, ACTION_TOGGLE_FULLSCREEN);
     lua_setglobal(luaState_, "ACTION_TOGGLE_FULLSCREEN");
     lua_pushinteger(luaState_, ACTION_HOTRELOAD);
