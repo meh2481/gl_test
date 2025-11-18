@@ -49,24 +49,23 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
         debugTriangleVertices_.clear();
 
         b2DebugDraw debugDraw = {0};
-        debugDraw.DrawPolygonFcn = DrawPolygon;
-        debugDraw.DrawSolidPolygonFcn = DrawSolidPolygon;
-        debugDraw.DrawCircleFcn = DrawCircle;
-        debugDraw.DrawSolidCircleFcn = DrawSolidCircle;
-        debugDraw.DrawSegmentFcn = DrawSegment;
-        debugDraw.DrawTransformFcn = DrawTransform;
-        debugDraw.DrawPointFcn = DrawPoint;
+        debugDraw.DrawPolygon = DrawPolygon;
+        debugDraw.DrawSolidPolygon = DrawSolidPolygon;
+        debugDraw.DrawCircle = DrawCircle;
+        debugDraw.DrawSolidCircle = DrawSolidCircle;
+        debugDraw.DrawSegment = DrawSegment;
+        debugDraw.DrawTransform = DrawTransform;
+        debugDraw.DrawPoint = DrawPoint;
         debugDraw.context = this;
         debugDraw.drawShapes = true;
         debugDraw.drawJoints = true;
-        debugDraw.drawBounds = false;
+        debugDraw.useDrawingBounds = false;
         debugDraw.drawMass = false;
         debugDraw.drawContacts = false;
         debugDraw.drawGraphColors = false;
         debugDraw.drawContactNormals = false;
         debugDraw.drawContactImpulses = false;
         debugDraw.drawFrictionImpulses = false;
-        debugDraw.useDrawingBounds = false;
 
         b2World_Draw(worldId_, &debugDraw);
     }
@@ -249,8 +248,8 @@ void Box2DPhysics::addBoxFixture(int bodyId, float halfWidth, float halfHeight, 
 
     b2ShapeDef shapeDef = b2DefaultShapeDef();
     shapeDef.density = density;
-    shapeDef.material.friction = friction;
-    shapeDef.material.restitution = restitution;
+    shapeDef.friction = friction;
+    shapeDef.restitution = restitution;
 
     b2CreatePolygonShape(it->second, &shapeDef, &box);
 }
@@ -265,8 +264,8 @@ void Box2DPhysics::addCircleFixture(int bodyId, float radius, float density, flo
 
     b2ShapeDef shapeDef = b2DefaultShapeDef();
     shapeDef.density = density;
-    shapeDef.material.friction = friction;
-    shapeDef.material.restitution = restitution;
+    shapeDef.friction = friction;
+    shapeDef.restitution = restitution;
 
     b2CreateCircleShape(it->second, &shapeDef, &circle);
 }
