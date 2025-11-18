@@ -15,11 +15,14 @@ public:
     void initialize(SDL_Window* window);
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
+    void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader);
     void setCurrentPipeline(uint64_t id);
     void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
     void setDebugDrawData(const std::vector<float>& vertexData);
     void setDebugLineDrawData(const std::vector<float>& vertexData);
     void setDebugTriangleDrawData(const std::vector<float>& vertexData);
+    void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
+    void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void render(float time);
     void cleanup();
 
@@ -62,6 +65,31 @@ private:
     VkDeviceMemory debugTriangleVertexBufferMemory;
     size_t debugTriangleVertexBufferSize;
     uint32_t debugTriangleVertexCount;
+    
+    // Sprite rendering
+    VkBuffer spriteVertexBuffer;
+    VkDeviceMemory spriteVertexBufferMemory;
+    size_t spriteVertexBufferSize;
+    uint32_t spriteVertexCount;
+    VkBuffer spriteIndexBuffer;
+    VkDeviceMemory spriteIndexBufferMemory;
+    size_t spriteIndexBufferSize;
+    uint32_t spriteIndexCount;
+    
+    // Texture support
+    struct TextureData {
+        VkImage image;
+        VkDeviceMemory memory;
+        VkImageView imageView;
+        VkSampler sampler;
+    };
+    std::map<uint64_t, TextureData> m_textures;
+    VkDescriptorSetLayout m_texturedDescriptorSetLayout;
+    VkDescriptorPool m_texturedDescriptorPool;
+    std::map<uint64_t, VkDescriptorSet> m_texturedDescriptorSets;
+    VkPipelineLayout m_texturedPipelineLayout;
+    std::map<uint64_t, bool> m_texturedPipelines;  // Track which pipelines are textured
+    
     VkSemaphore imageAvailableSemaphores[2];
     VkSemaphore renderFinishedSemaphores[2];
     VkFence inFlightFences[2];
@@ -85,6 +113,8 @@ private:
     void updateDebugVertexBuffer(const std::vector<float>& vertexData);
     void createDebugTriangleVertexBuffer();
     void updateDebugTriangleVertexBuffer(const std::vector<float>& vertexData);
+    void createSpriteVertexBuffer();
+    void updateSpriteVertexBuffer(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
     void createCommandPool();
     void createCommandBuffers();
     void createSyncObjects();
@@ -97,4 +127,10 @@ private:
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, SDL_Window* window);
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, float time);
+    void createTextureImage(uint64_t textureId, const void* imageData, uint32_t width, uint32_t height, VkFormat format, size_t dataSize);
+    void createTextureSampler(uint64_t textureId);
+    void createTexturedDescriptorSetLayout();
+    void createTexturedDescriptorPool();
+    void createTexturedDescriptorSet(uint64_t textureId);
+    void createTexturedPipelineLayout();
 };
