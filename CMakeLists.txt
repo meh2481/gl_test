@@ -11,10 +11,10 @@ find_package(Vulkan REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LZ4 REQUIRED liblz4)
-pkg_check_modules(LUA REQUIRED lua)
+find_package(Lua REQUIRED)
 pkg_check_modules(PNG REQUIRED libpng)
 pkg_check_modules(SQUISH REQUIRED libsquish)
-include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LZ4_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS} ${PNG_INCLUDE_DIRS} ${SQUISH_INCLUDE_DIRS})
+include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LZ4_INCLUDE_DIRS} ${LUA_INCLUDE_DIR} ${PNG_INCLUDE_DIRS} ${SQUISH_INCLUDE_DIRS})
 find_package(box2d CONFIG REQUIRED)
 
 # Find glslc for shader compilation
