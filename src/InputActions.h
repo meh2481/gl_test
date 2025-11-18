@@ -125,6 +125,82 @@ public:
         return actions.contains(action);
     }
 
+    // Clear all bindings
+    void clearAllBindings() {
+        keyToActions_.clear();
+        actionToKeys_.clear();
+    }
+
+    // Get all bindings as a string for serialization
+    // Format: "key1:action1,action2;key2:action3"
+    void serializeBindings(char* buffer, int bufferSize) const {
+        int offset = 0;
+        bool firstKey = true;
+        
+        for (const auto& pair : keyToActions_) {
+            if (pair.second.count == 0) continue;
+            
+            if (!firstKey && offset < bufferSize - 1) {
+                buffer[offset++] = ';';
+            }
+            firstKey = false;
+            
+            // Write key code
+            offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d:", pair.first);
+            
+            // Write actions
+            for (int i = 0; i < pair.second.count; ++i) {
+                if (i > 0 && offset < bufferSize - 1) {
+                    buffer[offset++] = ',';
+                }
+                offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d", pair.second.actions[i]);
+            }
+        }
+        
+        if (offset < bufferSize) {
+            buffer[offset] = '\0';
+        }
+    }
+
+    // Load bindings from a string
+    // Format: "key1:action1,action2;key2:action3"
+    void deserializeBindings(const char* data) {
+        if (!data || *data == '\0') return;
+        
+        clearAllBindings();
+        
+        // Parse the string
+        const char* ptr = data;
+        while (*ptr) {
+            // Parse key code
+            int key = 0;
+            while (*ptr >= '0' && *ptr <= '9') {
+                key = key * 10 + (*ptr - '0');
+                ++ptr;
+            }
+            
+            if (*ptr != ':') break;
+            ++ptr;
+            
+            // Parse actions
+            while (*ptr && *ptr != ';') {
+                int action = 0;
+                while (*ptr >= '0' && *ptr <= '9') {
+                    action = action * 10 + (*ptr - '0');
+                    ++ptr;
+                }
+                
+                if (action < ACTION_COUNT) {
+                    bind(key, static_cast<Action>(action));
+                }
+                
+                if (*ptr == ',') ++ptr;
+            }
+            
+            if (*ptr == ';') ++ptr;
+        }
+    }
+
 private:
     std::unordered_map<int, ActionList> keyToActions_;
     std::unordered_map<Action, KeyList> actionToKeys_;

@@ -22,6 +22,8 @@ Config loadConfig() {
                         config.display = SDL_atoi(line + 8);
                     } else if (SDL_strncmp(line, "fullscreen=", 11) == 0) {
                         config.fullscreenMode = SDL_atoi(line + 11);
+                    } else if (SDL_strncmp(line, "keybindings=", 12) == 0) {
+                        SDL_strlcpy(config.keybindings, line + 12, MAX_KEYBINDING_STRING);
                     }
                     len = 0;
                 } else {
@@ -35,6 +37,8 @@ Config loadConfig() {
                     config.display = SDL_atoi(line + 8);
                 } else if (SDL_strncmp(line, "fullscreen=", 11) == 0) {
                     config.fullscreenMode = SDL_atoi(line + 11);
+                } else if (SDL_strncmp(line, "keybindings=", 12) == 0) {
+                    SDL_strlcpy(config.keybindings, line + 12, MAX_KEYBINDING_STRING);
                 }
             }
             SDL_RWclose(file);
@@ -51,11 +55,15 @@ void saveConfig(const Config& config) {
         SDL_snprintf(configFile, sizeof(configFile), "%sconfig.txt", prefPath);
         SDL_RWops* file = SDL_RWFromFile(configFile, "w");
         if (file) {
-            char line[256];
+            char line[MAX_KEYBINDING_STRING + 64];
             SDL_snprintf(line, sizeof(line), "display=%d\n", config.display);
             SDL_RWwrite(file, line, 1, SDL_strlen(line));
             SDL_snprintf(line, sizeof(line), "fullscreen=%d\n", config.fullscreenMode);
             SDL_RWwrite(file, line, 1, SDL_strlen(line));
+            if (config.keybindings[0] != '\0') {
+                SDL_snprintf(line, sizeof(line), "keybindings=%s\n", config.keybindings);
+                SDL_RWwrite(file, line, 1, SDL_strlen(line));
+            }
             SDL_RWclose(file);
         }
         SDL_free(prefPath);

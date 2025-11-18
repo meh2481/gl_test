@@ -42,6 +42,11 @@ int main() {
 
     // Initialize keybinding manager
     KeybindingManager keybindings;
+    
+    // Load keybindings from config if available
+    if (config.keybindings[0] != '\0') {
+        keybindings.deserializeBindings(config.keybindings);
+    }
 
     // Load initial scene
     sceneManager.pushScene(LUA_SCRIPT_ID);
@@ -100,6 +105,10 @@ int main() {
 
     // Save current display to config
     config.display = SDL_GetWindowDisplayIndex(window);
+    
+    // Save keybindings to config
+    keybindings.serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
+    
     saveConfig(config);
 
     renderer.cleanup();
