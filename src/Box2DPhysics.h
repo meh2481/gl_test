@@ -19,7 +19,8 @@ public:
     void setGravity(float x, float y);
     void step(float timeStep, int subStepCount = 4);
     
-    // Async physics stepping
+    // Async physics stepping - runs physics simulation on a background thread
+    // Use stepAsync() to start stepping, isStepComplete() to check, waitForStepComplete() to block
     void stepAsync(float timeStep, int subStepCount = 4);
     bool isStepComplete();
     void waitForStepComplete();

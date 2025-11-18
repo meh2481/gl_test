@@ -32,6 +32,8 @@ struct HotReloadData {
 };
 
 // Thread function for hot-reloading resources
+// This allows F5 hot-reload to happen in the background without blocking the main thread
+// The thread waits for reload requests and rebuilds shaders/resources asynchronously
 static int hotReloadThread(void* data) {
     HotReloadData* reloadData = (HotReloadData*)data;
     
