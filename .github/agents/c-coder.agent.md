@@ -12,3 +12,4 @@ description: Fix dumb things that dumb coders often do
 - Never use STL vector or linked lists. Use C-style arrays instead.
 - Don't generate markdown documentation for changes. Do not update README.md or any other documentation files with changes.
 - Do not add any _codeql* files or folders to the repository.
+- Use Box2D version 3. The Box2D version in apt is 2, which is ancient.
