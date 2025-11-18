@@ -251,6 +251,7 @@ void saveConfig(const Config& config) {
         SDL_snprintf(configFile, sizeof(configFile), "%sconfig.ini", prefPath);
         
         ConfigManager manager;
+        manager.load(configFile);  // Load existing config (or initialize path if file doesn't exist)
         manager.setInt("Display", "display", config.display);
         manager.setInt("Display", "fullscreen", config.fullscreenMode);
         if (config.keybindings[0] != '\0') {
