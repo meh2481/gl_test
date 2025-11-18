@@ -40,6 +40,17 @@ VulkanRenderer::VulkanRenderer() :
     debugTriangleVertexBufferMemory(VK_NULL_HANDLE),
     debugTriangleVertexBufferSize(0),
     debugTriangleVertexCount(0),
+    spriteVertexBuffer(VK_NULL_HANDLE),
+    spriteVertexBufferMemory(VK_NULL_HANDLE),
+    spriteVertexBufferSize(0),
+    spriteVertexCount(0),
+    spriteIndexBuffer(VK_NULL_HANDLE),
+    spriteIndexBufferMemory(VK_NULL_HANDLE),
+    spriteIndexBufferSize(0),
+    spriteIndexCount(0),
+    m_texturedDescriptorSetLayout(VK_NULL_HANDLE),
+    m_texturedDescriptorPool(VK_NULL_HANDLE),
+    m_texturedPipelineLayout(VK_NULL_HANDLE),
     currentFrame(0),
     graphicsQueueFamilyIndex(0),
     swapchainFramebuffers(nullptr)
@@ -64,10 +75,14 @@ void VulkanRenderer::initialize(SDL_Window* window) {
     createImageViews();
     createRenderPass();
     createPipelineLayout();
+    createTexturedDescriptorSetLayout();
+    createTexturedPipelineLayout();
+    createTexturedDescriptorPool();
     createFramebuffers();
     createVertexBuffer();
     createDebugVertexBuffer();
     createDebugTriangleVertexBuffer();
+    createSpriteVertexBuffer();
     createCommandPool();
     createCommandBuffers();
     createSyncObjects();
@@ -933,6 +948,138 @@ void VulkanRenderer::setDebugDrawData(const std::vector<float>& vertexData) {
 void VulkanRenderer::setDebugLineDrawData(const std::vector<float>& vertexData) {
     updateDebugVertexBuffer(vertexData);
 }
+
+void VulkanRenderer::createSpriteVertexBuffer() {
+    // Start with a reasonable size
+    spriteVertexBufferSize = 4096;  // 4KB initial size
+    spriteIndexBufferSize = 2048;   // 2KB initial size for indices
+
+    // Create vertex buffer
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = spriteVertexBufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    assert(vkCreateBuffer(device, &bufferInfo, nullptr, &spriteVertexBuffer) == VK_SUCCESS);
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, spriteVertexBuffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    assert(vkAllocateMemory(device, &allocInfo, nullptr, &spriteVertexBufferMemory) == VK_SUCCESS);
+    vkBindBufferMemory(device, spriteVertexBuffer, spriteVertexBufferMemory, 0);
+
+    // Create index buffer
+    bufferInfo.size = spriteIndexBufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    assert(vkCreateBuffer(device, &bufferInfo, nullptr, &spriteIndexBuffer) == VK_SUCCESS);
+
+    vkGetBufferMemoryRequirements(device, spriteIndexBuffer, &memRequirements);
+
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    assert(vkAllocateMemory(device, &allocInfo, nullptr, &spriteIndexBufferMemory) == VK_SUCCESS);
+    vkBindBufferMemory(device, spriteIndexBuffer, spriteIndexBufferMemory, 0);
+
+    spriteVertexCount = 0;
+    spriteIndexCount = 0;
+}
+
+void VulkanRenderer::updateSpriteVertexBuffer(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices) {
+    if (vertexData.empty() || indices.empty()) {
+        spriteVertexCount = 0;
+        spriteIndexCount = 0;
+        return;
+    }
+
+    size_t vertexDataSize = vertexData.size() * sizeof(float);
+    size_t indexDataSize = indices.size() * sizeof(uint16_t);
+
+    // Reallocate vertex buffer if needed
+    if (vertexDataSize > spriteVertexBufferSize) {
+        if (spriteVertexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, spriteVertexBuffer, nullptr);
+        }
+        if (spriteVertexBufferMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, spriteVertexBufferMemory, nullptr);
+        }
+
+        spriteVertexBufferSize = vertexDataSize * 2;
+
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = spriteVertexBufferSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        assert(vkCreateBuffer(device, &bufferInfo, nullptr, &spriteVertexBuffer) == VK_SUCCESS);
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device, spriteVertexBuffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        assert(vkAllocateMemory(device, &allocInfo, nullptr, &spriteVertexBufferMemory) == VK_SUCCESS);
+        vkBindBufferMemory(device, spriteVertexBuffer, spriteVertexBufferMemory, 0);
+    }
+
+    // Reallocate index buffer if needed
+    if (indexDataSize > spriteIndexBufferSize) {
+        if (spriteIndexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, spriteIndexBuffer, nullptr);
+        }
+        if (spriteIndexBufferMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, spriteIndexBufferMemory, nullptr);
+        }
+
+        spriteIndexBufferSize = indexDataSize * 2;
+
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = spriteIndexBufferSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        assert(vkCreateBuffer(device, &bufferInfo, nullptr, &spriteIndexBuffer) == VK_SUCCESS);
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device, spriteIndexBuffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        assert(vkAllocateMemory(device, &allocInfo, nullptr, &spriteIndexBufferMemory) == VK_SUCCESS);
+        vkBindBufferMemory(device, spriteIndexBuffer, spriteIndexBufferMemory, 0);
+    }
+
+    // Copy vertex data
+    void* data;
+    vkMapMemory(device, spriteVertexBufferMemory, 0, vertexDataSize, 0, &data);
+    memcpy(data, vertexData.data(), vertexDataSize);
+    vkUnmapMemory(device, spriteVertexBufferMemory);
+
+    // Copy index data
+    vkMapMemory(device, spriteIndexBufferMemory, 0, indexDataSize, 0, &data);
+    memcpy(data, indices.data(), indexDataSize);
+    vkUnmapMemory(device, spriteIndexBufferMemory);
+
+    // Update counts (4 floats per vertex: x, y, u, v)
+    spriteVertexCount = vertexData.size() / 4;
+    spriteIndexCount = indices.size();
+}
+
+void VulkanRenderer::setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices) {
+    updateSpriteVertexBuffer(vertexData, indices);
+}
+
 void VulkanRenderer::createCommandPool() {
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1018,4 +1165,112 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 
     vkCmdEndRenderPass(commandBuffer);
     assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
+}
+void VulkanRenderer::createTexturedDescriptorSetLayout() {
+    // Descriptor set layout for texture sampling
+    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+    samplerLayoutBinding.binding = 0;
+    samplerLayoutBinding.descriptorCount = 1;
+    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerLayoutBinding.pImmutableSamplers = nullptr;
+    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &samplerLayoutBinding;
+
+    assert(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_texturedDescriptorSetLayout) == VK_SUCCESS);
+}
+
+void VulkanRenderer::createTexturedPipelineLayout() {
+    // Push constants for time, width, height
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(float) * 3;
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &m_texturedDescriptorSetLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+    assert(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_texturedPipelineLayout) == VK_SUCCESS);
+}
+
+void VulkanRenderer::createTexturedDescriptorPool() {
+    // Create descriptor pool for texture descriptors
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSize.descriptorCount = 100;  // Support up to 100 textures
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = 100;
+
+    assert(vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_texturedDescriptorPool) == VK_SUCCESS);
+}
+
+void VulkanRenderer::createTexturedDescriptorSet(uint64_t textureId) {
+    // Allocate descriptor set for this texture
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_texturedDescriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_texturedDescriptorSetLayout;
+
+    VkDescriptorSet descriptorSet;
+    assert(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) == VK_SUCCESS);
+
+    // Update descriptor set with texture
+    auto it = m_textures.find(textureId);
+    assert(it != m_textures.end());
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = it->second.imageView;
+    imageInfo.sampler = it->second.sampler;
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = descriptorSet;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+
+    m_texturedDescriptorSets[textureId] = descriptorSet;
+}
+
+void VulkanRenderer::loadTexture(uint64_t textureId, const ResourceData& imageData) {
+    // TODO: Implement full DXT/BC texture loading
+    // This is a placeholder that needs to:
+    // 1. Parse ImageHeader to get format, width, height
+    // 2. Create VkImage with appropriate BC1/BC3 format
+    // 3. Copy DXT compressed data directly to image
+    // 4. Create image view
+    // 5. Create sampler
+    // 6. Create descriptor set
+    
+    // For now, just store placeholder data
+    TextureData tex;
+    tex.image = VK_NULL_HANDLE;
+    tex.memory = VK_NULL_HANDLE;
+    tex.imageView = VK_NULL_HANDLE;
+    tex.sampler = VK_NULL_HANDLE;
+    m_textures[textureId] = tex;
+}
+
+void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader) {
+    // TODO: Implement textured pipeline creation
+    // Similar to createPipeline() but using m_texturedPipelineLayout
+    // and proper vertex input for sprites (position + UV coordinates)
+    m_texturedPipelines[id] = true;
 }
