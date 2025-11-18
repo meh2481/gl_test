@@ -49,11 +49,15 @@ The application will open in fullscreen mode displaying procedural shader effect
 
 - **ESC**: Exit the application or pop the current scene
 - **ENTER**: Push the menu scene (from default scene)
+- **P**: Push the physics demo scene
+- **SPACE** (Physics scene): Apply force to objects
+- **R** (Physics scene): Reset physics simulation
 - **ALT+ENTER**: Toggle fullscreen/windowed mode
 - **F5** (Debug builds only): Hot-reload shaders and Lua scripts
 
 ### Features
 
+- **Action-based keybinding system**: Flexible many-to-many mapping between keys and actions (see [docs/KEYBINDING_SYSTEM.md](docs/KEYBINDING_SYSTEM.md))
 - **Lua-based scene management**: Scenes are defined in Lua scripts (`scenes/*.lua`) with support for scene stacking
 - **Multiple shader effects**: Includes nebula, plasma, and cloud procedural shaders
 - **Resource packing**: Assets are compressed into a `.pak` file using LZ4 compression
