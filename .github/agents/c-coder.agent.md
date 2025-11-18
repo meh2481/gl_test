@@ -13,3 +13,4 @@ description: Fix dumb things that dumb coders often do
 - Don't generate markdown documentation for changes. Do not update README.md or any other documentation files with changes.
 - Do not add any _codeql* files or folders to the repository.
 - Use Box2D version 3. The Box2D version in apt is 2, which is ancient.
+- Do not run CodeQL or other security analysis tools.
