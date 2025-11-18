@@ -37,6 +37,10 @@ install_manifest.txt
 .DS_Store
 Thumbs.db
 
+# CodeQL directories
 _codeql_build_dir/
 _codeql_detected_source_root/
 _codeql_detected_source_root
+
+# Resource files
+res/
