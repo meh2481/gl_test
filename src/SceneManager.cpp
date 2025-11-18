@@ -51,6 +51,8 @@ uint64_t SceneManager::getActiveSceneId() const {
 void SceneManager::reloadCurrentScene() {
     if (!sceneStack_.empty()) {
         uint64_t currentSceneId = sceneStack_.top();
+        // Cleanup the scene before reloading
+        luaInterface_->cleanupScene(currentSceneId);
         // Clear existing pipelines for this scene
         luaInterface_->clearScenePipelines(currentSceneId);
         // Remove from loaded scenes so it will reload
@@ -133,6 +135,8 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         // Pop the scene after Lua execution is complete
         if (pendingPop_) {
             uint64_t poppedSceneId = sceneStack_.top();
+            // Cleanup the scene before popping
+            luaInterface_->cleanupScene(poppedSceneId);
             sceneStack_.pop();
             pendingPop_ = false;
             // Mark as not initialized so it can be reinitialized if pushed again

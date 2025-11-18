@@ -25,6 +25,7 @@ public:
     void updateScene(uint64_t sceneId, float deltaTime);
     void handleKeyDown(uint64_t sceneId, int keyCode);
     void handleKeyUp(uint64_t sceneId, int keyCode);
+    void cleanupScene(uint64_t sceneId);
     void switchToScenePipeline(uint64_t sceneId);
     void clearScenePipelines(uint64_t sceneId);
 
@@ -37,7 +38,7 @@ private:
     static int pushScene(lua_State* L);
     static int popScene(lua_State* L);
     static int isKeyPressed(lua_State* L);
-    
+
     // Box2D Lua bindings
     static int b2SetGravity(lua_State* L);
     static int b2Step(lua_State* L);
