@@ -67,7 +67,7 @@ add_custom_command(
 )
 add_custom_target(shaders DEPENDS vertex.spv nebula_fragment.spv menu_fragment.spv cloud_fragment.spv debug_vertex.spv debug_fragment.spv sprite_vertex.spv sprite_fragment.spv)
 
-add_executable(packer src/packer.cpp src/ResourceTypes.h)
+add_executable(packer tools/packer.cpp src/ResourceTypes.h)
 target_link_libraries(packer ${LZ4_LIBRARIES} ${PNG_LIBRARIES} squish)
 
 add_custom_command(
