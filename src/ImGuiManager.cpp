@@ -55,7 +55,6 @@ void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysica
     init_info.Queue = graphicsQueue;
     init_info.PipelineCache = VK_NULL_HANDLE;
     init_info.DescriptorPool = imguiPool_;
-    init_info.RenderPass = renderPass;
     init_info.Subpass = 0;
     init_info.MinImageCount = imageCount;
     init_info.ImageCount = imageCount;
@@ -63,7 +62,7 @@ void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysica
     init_info.Allocator = nullptr;
     init_info.CheckVkResultFn = check_vk_result;
 
-    ImGui_ImplVulkan_Init(&init_info);
+    ImGui_ImplVulkan_Init(&init_info, renderPass);
 
     // Upload fonts (required for ImGui to work)
     // Create temporary command pool and buffer
