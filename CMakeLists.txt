@@ -19,6 +19,20 @@ pkg_check_modules(OPUSFILE REQUIRED opusfile)
 include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LZ4_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS} ${PNG_INCLUDE_DIRS} ${SQUISH_INCLUDE_DIRS} ${OPENAL_INCLUDE_DIRS} ${OPUSFILE_INCLUDE_DIRS})
 find_package(box2d CONFIG REQUIRED)
 
+# ImGui setup for debug builds only
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
+    include_directories(${IMGUI_DIR} ${IMGUI_DIR}/backends)
+    set(IMGUI_SOURCES
+        ${IMGUI_DIR}/imgui.cpp
+        ${IMGUI_DIR}/imgui_draw.cpp
+        ${IMGUI_DIR}/imgui_tables.cpp
+        ${IMGUI_DIR}/imgui_widgets.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
+    )
+endif()
+
 # Find glslc for shader compilation
 find_program(GLSLC glslc)
 if(NOT GLSLC)
@@ -79,7 +93,11 @@ add_custom_command(
 
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 
-add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp src/ImGuiManager.cpp ${IMGUI_SOURCES})
+else()
+    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp)
+endif()
 add_dependencies(shader_triangle shaders res_pak)
 target_link_libraries(shader_triangle ${SDL2_LIBRARIES} Vulkan::Vulkan ${LZ4_LIBRARIES} ${LUA_LIBRARIES} box2d::box2d ${OPENAL_LIBRARIES} ${OPUSFILE_LIBRARIES})
 

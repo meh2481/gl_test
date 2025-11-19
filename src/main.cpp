@@ -13,6 +13,11 @@
 #include "config.h"
 #include "InputActions.h"
 
+#ifdef DEBUG
+#include "ImGuiManager.h"
+#include "ConsoleBuffer.h"
+#endif
+
 #define LUA_SCRIPT_ID 14669932163325785351ULL
 #define PAK_FILE "res.pak"
 
@@ -30,6 +35,16 @@ struct HotReloadData {
     SDL_atomic_t reloadSuccess;
     SDL_atomic_t reloadRequested;
 };
+
+// Global ImGuiManager pointer for callback
+static ImGuiManager* g_imguiManager = nullptr;
+
+// Callback for rendering ImGui
+static void renderImGuiCallback(VkCommandBuffer commandBuffer) {
+    if (g_imguiManager) {
+        g_imguiManager->render(commandBuffer);
+    }
+}
 
 // Thread function for hot-reloading resources
 // This allows F5 hot-reload to happen in the background without blocking the main thread
@@ -93,6 +108,22 @@ int main() {
     sceneManager.pushScene(LUA_SCRIPT_ID);
 
 #ifdef DEBUG
+    // Setup console capture for std::cout
+    std::streambuf* coutBuf = std::cout.rdbuf();
+    ConsoleCapture consoleCapture(std::cout, coutBuf);
+    std::cout.rdbuf(&consoleCapture);
+
+    // Initialize ImGui
+    ImGuiManager imguiManager;
+    g_imguiManager = &imguiManager;
+    imguiManager.initialize(window, renderer.getInstance(), renderer.getPhysicalDevice(),
+                           renderer.getDevice(), renderer.getGraphicsQueueFamilyIndex(),
+                           renderer.getGraphicsQueue(), renderer.getRenderPass(),
+                           renderer.getSwapchainImageCount());
+    
+    // Set ImGui render callback in renderer
+    renderer.setImGuiRenderCallback(renderImGuiCallback);
+
     // Initialize hot-reload thread
     HotReloadData reloadData;
     reloadData.mutex = SDL_CreateMutex();
@@ -113,6 +144,10 @@ int main() {
         float deltaTime = (currentTime - lastTime);
         lastTime = currentTime;
         while (SDL_PollEvent(&event)) {
+#ifdef DEBUG
+            // Process event for ImGui first
+            imguiManager.processEvent(&event);
+#endif
             if (event.type == SDL_QUIT) {
                 running = false;
             }
@@ -169,6 +204,14 @@ int main() {
         }
 #endif
 
+#ifdef DEBUG
+        // Start ImGui frame
+        imguiManager.newFrame();
+        
+        // Show console window
+        imguiManager.showConsoleWindow();
+#endif
+
         renderer.render(currentTime);
     }
 
@@ -181,6 +224,10 @@ int main() {
     saveConfig(config);
 
 #ifdef DEBUG
+    // Cleanup ImGui
+    g_imguiManager = nullptr;
+    imguiManager.cleanup();
+    
     // Cleanup hot-reload thread
     // Note: We can't cleanly stop the thread since it's in an infinite loop
     // In a production app, we'd use a flag to signal thread exit

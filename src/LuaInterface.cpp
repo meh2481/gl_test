@@ -294,6 +294,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "loadShaders", loadShaders);
     lua_register(luaState_, "pushScene", pushScene);
     lua_register(luaState_, "popScene", popScene);
+    lua_register(luaState_, "print", luaPrint);  // Override default print
 
     // Register SDL keycode constants
     // Special keys
@@ -545,6 +546,28 @@ int LuaInterface::loadShaders(lua_State* L) {
     std::cout << "Loaded shaders: " << vertFile << " and " << fragFile << " (z-index: " << zIndex << ")" << std::endl;
 
     return 0; // No return values
+}
+
+int LuaInterface::luaPrint(lua_State* L) {
+    int n = lua_gettop(L);  // Number of arguments
+    std::string output;
+    
+    // Convert all arguments to strings and concatenate them
+    for (int i = 1; i <= n; i++) {
+        const char* s = lua_tostring(L, i);
+        if (s == nullptr) {
+            return luaL_error(L, "'tostring' must return a string to 'print'");
+        }
+        if (i > 1) {
+            output += "\t";  // Add tab separator between arguments
+        }
+        output += s;
+    }
+    
+    // Output to std::cout (which will be captured by ConsoleCapture in debug builds)
+    std::cout << output << std::endl;
+    
+    return 0;
 }
 
 int LuaInterface::pushScene(lua_State* L) {

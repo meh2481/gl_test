@@ -46,6 +46,7 @@ private:
     static int pushScene(lua_State* L);
     static int popScene(lua_State* L);
     static int isKeyPressed(lua_State* L);
+    static int luaPrint(lua_State* L);  // Custom print for console capture
 
     // Box2D Lua bindings
     static int b2SetGravity(lua_State* L);

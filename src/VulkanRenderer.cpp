@@ -56,6 +56,9 @@ VulkanRenderer::VulkanRenderer() :
     currentFrame(0),
     graphicsQueueFamilyIndex(0),
     swapchainFramebuffers(nullptr)
+#ifdef DEBUG
+    , imguiRenderCallback_(nullptr)
+#endif
 {
     // Initialize semaphores and fences to VK_NULL_HANDLE
     for (int i = 0; i < 2; ++i) {
@@ -1191,6 +1194,13 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             }
         }
     }
+
+#ifdef DEBUG
+    // Render ImGui on top of everything
+    if (imguiRenderCallback_) {
+        imguiRenderCallback_(commandBuffer);
+    }
+#endif
 
     vkCmdEndRenderPass(commandBuffer);
     assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);

@@ -30,6 +30,21 @@ public:
     void render(float time);
     void cleanup();
 
+#ifdef DEBUG
+    // ImGui integration - getters for Vulkan handles
+    VkInstance getInstance() const { return instance; }
+    VkPhysicalDevice getPhysicalDevice() const { return physicalDevice; }
+    VkDevice getDevice() const { return device; }
+    uint32_t getGraphicsQueueFamilyIndex() const { return graphicsQueueFamilyIndex; }
+    VkQueue getGraphicsQueue() const { return graphicsQueue; }
+    VkRenderPass getRenderPass() const { return renderPass; }
+    uint32_t getSwapchainImageCount() const { return swapchainImageCount; }
+    VkCommandBuffer getCurrentCommandBuffer() const { return commandBuffers[currentFrame]; }
+    
+    // Set ImGui render callback
+    void setImGuiRenderCallback(void (*callback)(VkCommandBuffer)) { imguiRenderCallback_ = callback; }
+#endif
+
 private:
     // Shader data storage
     std::vector<char> m_vertShaderData;
@@ -108,6 +123,11 @@ private:
     size_t currentFrame;
     uint32_t graphicsQueueFamilyIndex;
     VkFramebuffer* swapchainFramebuffers;
+
+#ifdef DEBUG
+    // ImGui render callback
+    void (*imguiRenderCallback_)(VkCommandBuffer);
+#endif
 
     // Helper functions
     void createInstance(SDL_Window* window);
