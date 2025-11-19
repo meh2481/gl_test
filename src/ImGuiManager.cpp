@@ -44,10 +44,8 @@ void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysica
     VkResult result = vkCreateDescriptorPool(device, &pool_info, nullptr, &imguiPool_);
     assert(result == VK_SUCCESS);
 
-    // Setup Platform/Renderer backends
-    ImGui_ImplSDL2_InitForVulkan(window);
-
     ImGui_ImplVulkan_InitInfo init_info = {};
+    init_info.ApiVersion = VK_API_VERSION_1_0;
     init_info.Instance = instance;
     init_info.PhysicalDevice = physicalDevice;
     init_info.Device = device;
@@ -55,57 +53,15 @@ void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysica
     init_info.Queue = graphicsQueue;
     init_info.PipelineCache = VK_NULL_HANDLE;
     init_info.DescriptorPool = imguiPool_;
-    init_info.Subpass = 0;
+    init_info.PipelineInfoMain.RenderPass = renderPass;
+    init_info.PipelineInfoMain.Subpass = 0;
     init_info.MinImageCount = imageCount;
     init_info.ImageCount = imageCount;
-    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     init_info.Allocator = nullptr;
     init_info.CheckVkResultFn = check_vk_result;
 
-    ImGui_ImplVulkan_Init(&init_info, renderPass);
-
-    // Upload fonts (required for ImGui to work)
-    // Create temporary command pool and buffer
-    VkCommandPool command_pool;
-    VkCommandPoolCreateInfo pool_create_info = {};
-    pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    pool_create_info.queueFamilyIndex = queueFamily;
-    result = vkCreateCommandPool(device, &pool_create_info, nullptr, &command_pool);
-    assert(result == VK_SUCCESS);
-
-    VkCommandBuffer command_buffer;
-    VkCommandBufferAllocateInfo alloc_info = {};
-    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    alloc_info.commandPool = command_pool;
-    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    alloc_info.commandBufferCount = 1;
-    result = vkAllocateCommandBuffers(device, &alloc_info, &command_buffer);
-    assert(result == VK_SUCCESS);
-
-    VkCommandBufferBeginInfo begin_info = {};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    result = vkBeginCommandBuffer(command_buffer, &begin_info);
-    assert(result == VK_SUCCESS);
-
-    ImGui_ImplVulkan_CreateFontsTexture();
-
-    result = vkEndCommandBuffer(command_buffer);
-    assert(result == VK_SUCCESS);
-
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer;
-    result = vkQueueSubmit(graphicsQueue, 1, &submit_info, VK_NULL_HANDLE);
-    assert(result == VK_SUCCESS);
-
-    result = vkQueueWaitIdle(graphicsQueue);
-    assert(result == VK_SUCCESS);
-
-    ImGui_ImplVulkan_DestroyFontsTexture();
-    vkDestroyCommandPool(device, command_pool, nullptr);
+    ImGui_ImplVulkan_Init(&init_info);
 
     initialized_ = true;
 }
@@ -116,7 +72,6 @@ void ImGuiManager::cleanup() {
     }
 
     ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 
     if (imguiPool_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
@@ -127,13 +82,13 @@ void ImGuiManager::cleanup() {
     initialized_ = false;
 }
 
-void ImGuiManager::newFrame() {
+void ImGuiManager::newFrame(int width, int height) {
     if (!initialized_) {
         return;
     }
 
+    ImGui::GetIO().DisplaySize = ImVec2(width, height);
     ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 }
 
@@ -151,7 +106,7 @@ void ImGuiManager::processEvent(SDL_Event* event) {
         return;
     }
 
-    ImGui_ImplSDL2_ProcessEvent(event);
+    // No platform backend, so no event processing
 }
 
 void ImGuiManager::showConsoleWindow() {

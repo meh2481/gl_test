@@ -27,7 +27,7 @@ jobs:
       - name: Install required libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
+          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev libimgui-dev
 
       - name: Install Vulkan SDK
         uses: humbletim/install-vulkan-sdk@v1.2
@@ -45,4 +45,4 @@ jobs:
       - name: Cleanup Box2D folder
         run: |
           git rm --cached -r box2d
-          rm -rf box2d
+          rm -rf box2d 2>/dev/null || true

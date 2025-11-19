@@ -4,9 +4,8 @@
 
 #include <SDL2/SDL.h>
 #include <vulkan/vulkan.h>
-#include <imgui/imgui.h>
-#include <imgui/backends/imgui_impl_sdl2.h>
-#include <imgui/backends/imgui_impl_vulkan.h>
+#include <imgui.h>
+#include <imgui_impl_vulkan.h>
 
 // Forward declaration
 class VulkanRenderer;
@@ -25,7 +24,7 @@ public:
     void cleanup();
 
     // Start a new frame
-    void newFrame();
+    void newFrame(int width, int height);
 
     // Render ImGui
     void render(VkCommandBuffer commandBuffer);

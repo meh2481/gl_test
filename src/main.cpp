@@ -120,7 +120,7 @@ int main() {
                            renderer.getDevice(), renderer.getGraphicsQueueFamilyIndex(),
                            renderer.getGraphicsQueue(), renderer.getRenderPass(),
                            renderer.getSwapchainImageCount());
-    
+
     // Set ImGui render callback in renderer
     renderer.setImGuiRenderCallback(renderImGuiCallback);
 
@@ -206,8 +206,10 @@ int main() {
 
 #ifdef DEBUG
         // Start ImGui frame
-        imguiManager.newFrame();
-        
+        int width, height;
+        SDL_GetWindowSize(window, &width, &height);
+        imguiManager.newFrame(width, height);
+
         // Show console window
         imguiManager.showConsoleWindow();
 #endif
@@ -227,7 +229,7 @@ int main() {
     // Cleanup ImGui
     g_imguiManager = nullptr;
     imguiManager.cleanup();
-    
+
     // Cleanup hot-reload thread
     // Note: We can't cleanly stop the thread since it's in an infinite loop
     // In a production app, we'd use a flag to signal thread exit
