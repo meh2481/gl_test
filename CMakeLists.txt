@@ -21,10 +21,16 @@ find_package(box2d CONFIG REQUIRED)
 
 # ImGui setup for debug builds only
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    # Use system imgui package
-    find_package(imgui REQUIRED)
-    include_directories(${imgui_INCLUDE_DIRS})
-    set(IMGUI_LIBRARIES imgui::imgui)
+    # Try CMake config first (for Arch imgui-full), then pkg-config (for Ubuntu libimgui-dev)
+    find_package(imgui QUIET)
+    if(imgui_FOUND)
+        include_directories(${imgui_INCLUDE_DIRS})
+        set(IMGUI_LIBRARIES imgui::imgui)
+    else()
+        pkg_check_modules(IMGUI REQUIRED imgui)
+        include_directories(${IMGUI_INCLUDE_DIRS})
+        set(IMGUI_LIBRARIES ${IMGUI_LIBRARIES})
+    endif()
 endif()
 
 # Find glslc for shader compilation
