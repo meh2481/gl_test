@@ -35,26 +35,10 @@ jobs:
           cmake --build .
           sudo make install
 
-      - name: Checkout code
-        uses: actions/checkout@v5
-
       - name: Install required libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev
-
-      - name: Install Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@v1.2
-        with:
-          quiet: true
-          cache: true
-
-      - name: Build the project
-        run: |
-          mkdir -p build
-          cd build
-          cmake ..
-          make
+          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev
 
       - name: Cleanup Box2D folder
         run: |

@@ -1,0 +1,48 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install box2d v3 from source, without examples
+        run: |
+          git clone https://github.com/erincatto/box2d.git
+          cd box2d
+          git checkout v3.1.1
+          mkdir build && cd build
+          cmake -DBOX2D_SAMPLES=OFF -DBOX2D_DOCS=OFF -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=OFF ..
+          cmake --build .
+          sudo make install
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install required libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev
+
+      - name: Install Vulkan SDK
+        uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          quiet: true
+          cache: true
+
+      - name: Build the project
+        run: |
+          mkdir -p build
+          cd build
+          cmake ..
+          make
+
+      - name: Cleanup Box2D folder
+        run: |
+          git rm --cached -r box2d
+          rm -rf box2d
