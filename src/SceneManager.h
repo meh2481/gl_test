@@ -24,8 +24,6 @@ public:
     // Active scene operations
     void initActiveScene();
     bool updateActiveScene(float deltaTime);
-    void handleKeyDown(int keyCode);
-    void handleKeyUp(int keyCode);
     void handleAction(Action action);
 
 private:

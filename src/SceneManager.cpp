@@ -83,7 +83,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         // Update scene layer transforms from physics bodies
         Box2DPhysics& physics = luaInterface_->getPhysics();
         SceneLayerManager& layerManager = luaInterface_->getSceneLayerManager();
-        
+
         // Update each layer's transform based on its attached physics body
         for (const auto& layerPair : layerManager.getLayers()) {
             const SceneLayer& layer = layerPair.second;
@@ -94,11 +94,11 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                 layerManager.updateLayerTransform(layerPair.first, bodyX, bodyY, bodyAngle);
             }
         }
-        
+
         // Generate sprite batches grouped by texture
         std::vector<SpriteBatch> spriteBatches;
         layerManager.updateLayerVertices(spriteBatches);
-        
+
         // Send batches to renderer
         renderer_.setSpriteBatches(spriteBatches);
 
@@ -173,20 +173,6 @@ bool SceneManager::updateActiveScene(float deltaTime) {
     }
 
     return !sceneStack_.empty();
-}
-
-void SceneManager::handleKeyDown(int keyCode) {
-    if (!sceneStack_.empty()) {
-        uint64_t activeSceneId = sceneStack_.top();
-        luaInterface_->handleKeyDown(activeSceneId, keyCode);
-    }
-}
-
-void SceneManager::handleKeyUp(int keyCode) {
-    if (!sceneStack_.empty()) {
-        uint64_t activeSceneId = sceneStack_.top();
-        luaInterface_->handleKeyUp(activeSceneId, keyCode);
-    }
 }
 
 void SceneManager::handleAction(Action action) {

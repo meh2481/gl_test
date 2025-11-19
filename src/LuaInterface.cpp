@@ -59,27 +59,6 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_getglobal(luaState_, "table");
     lua_setfield(luaState_, -2, "table");
 
-    // Copy SDL keycode constants
-    const char* sdlKeycodes[] = {
-        "SDLK_ESCAPE", "SDLK_RETURN", "SDLK_BACKSPACE", "SDLK_TAB", "SDLK_SPACE", "SDLK_DELETE",
-        "SDLK_F1", "SDLK_F2", "SDLK_F3", "SDLK_F4", "SDLK_F5", "SDLK_F6",
-        "SDLK_F7", "SDLK_F8", "SDLK_F9", "SDLK_F10", "SDLK_F11", "SDLK_F12",
-        "SDLK_UP", "SDLK_DOWN", "SDLK_RIGHT", "SDLK_LEFT",
-        "SDLK_LSHIFT", "SDLK_RSHIFT", "SDLK_LCTRL", "SDLK_RCTRL", "SDLK_LALT", "SDLK_RALT",
-        "SDLK_HOME", "SDLK_END", "SDLK_PAGEUP", "SDLK_PAGEDOWN", "SDLK_INSERT",
-        "SDLK_KP0", "SDLK_KP1", "SDLK_KP2", "SDLK_KP3", "SDLK_KP4", "SDLK_KP5", "SDLK_KP6", "SDLK_KP7", "SDLK_KP8", "SDLK_KP9",
-        "SDLK_KP_PERIOD", "SDLK_KP_DIVIDE", "SDLK_KP_MULTIPLY", "SDLK_KP_MINUS", "SDLK_KP_PLUS", "SDLK_KP_ENTER", "SDLK_KP_EQUALS",
-        "SDLK_0", "SDLK_1", "SDLK_2", "SDLK_3", "SDLK_4", "SDLK_5", "SDLK_6", "SDLK_7", "SDLK_8", "SDLK_9",
-        "SDLK_a", "SDLK_b", "SDLK_c", "SDLK_d", "SDLK_e", "SDLK_f", "SDLK_g", "SDLK_h", "SDLK_i", "SDLK_j",
-        "SDLK_k", "SDLK_l", "SDLK_m", "SDLK_n", "SDLK_o", "SDLK_p", "SDLK_q", "SDLK_r", "SDLK_s", "SDLK_t",
-        "SDLK_u", "SDLK_v", "SDLK_w", "SDLK_x", "SDLK_y", "SDLK_z",
-        nullptr
-    };
-    for (const char** keycode = sdlKeycodes; *keycode; ++keycode) {
-        lua_getglobal(luaState_, *keycode);
-        lua_setfield(luaState_, -2, *keycode);
-    }
-
     // Copy Box2D constants
     const char* box2dConstants[] = {
         "B2_STATIC_BODY", "B2_KINEMATIC_BODY", "B2_DYNAMIC_BODY",
@@ -100,7 +79,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
         lua_getglobal(luaState_, *constant);
         lua_setfield(luaState_, -2, *constant);
     }
-    
+
     // Copy Audio effect constants
     const char* audioConstants[] = {
         "AUDIO_EFFECT_NONE", "AUDIO_EFFECT_LOWPASS", "AUDIO_EFFECT_REVERB",
@@ -205,72 +184,6 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
         std::cerr << "Lua update error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
         lua_pop(luaState_, 2); // Pop error message and table
         assert(false);
-        return;
-    }
-
-    // Pop the table
-    lua_pop(luaState_, 1);
-}
-
-void LuaInterface::handleKeyDown(uint64_t sceneId, int keyCode) {
-    // Get the scene table from registry
-    lua_pushinteger(luaState_, sceneId);
-    lua_gettable(luaState_, LUA_REGISTRYINDEX);
-
-    if (!lua_istable(luaState_, -1)) {
-        lua_pop(luaState_, 1);
-        return; // Scene not found, silently ignore
-    }
-
-    // Get the onKeyDown function from the table (optional)
-    lua_getfield(luaState_, -1, "onKeyDown");
-    if (!lua_isfunction(luaState_, -1)) {
-        lua_pop(luaState_, 2); // Pop nil and table
-        return; // No onKeyDown function, silently ignore
-    }
-
-    // Push keyCode parameter
-    lua_pushinteger(luaState_, keyCode);
-
-    // Call onKeyDown(keyCode)
-    if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
-        // Get the error message
-        const char* errorMsg = lua_tostring(luaState_, -1);
-        std::cerr << "Lua onKeyDown error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
-        lua_pop(luaState_, 2); // Pop error message and table
-        return;
-    }
-
-    // Pop the table
-    lua_pop(luaState_, 1);
-}
-
-void LuaInterface::handleKeyUp(uint64_t sceneId, int keyCode) {
-    // Get the scene table from registry
-    lua_pushinteger(luaState_, sceneId);
-    lua_gettable(luaState_, LUA_REGISTRYINDEX);
-
-    if (!lua_istable(luaState_, -1)) {
-        lua_pop(luaState_, 1);
-        return; // Scene not found, silently ignore
-    }
-
-    // Get the onKeyUp function from the table (optional)
-    lua_getfield(luaState_, -1, "onKeyUp");
-    if (!lua_isfunction(luaState_, -1)) {
-        lua_pop(luaState_, 2); // Pop nil and table
-        return; // No onKeyUp function, silently ignore
-    }
-
-    // Push keyCode parameter
-    lua_pushinteger(luaState_, keyCode);
-
-    // Call onKeyUp(keyCode)
-    if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
-        // Get the error message
-        const char* errorMsg = lua_tostring(luaState_, -1);
-        std::cerr << "Lua onKeyUp error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
-        lua_pop(luaState_, 2); // Pop error message and table
         return;
     }
 
@@ -510,7 +423,7 @@ void LuaInterface::registerFunctions() {
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
     lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
-    
+
     // Register audio functions
     lua_register(luaState_, "audioLoadBuffer", audioLoadBuffer);
     lua_register(luaState_, "audioCreateSource", audioCreateSource);
@@ -556,7 +469,7 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_RESET_PHYSICS");
     lua_pushinteger(luaState_, ACTION_TOGGLE_DEBUG_DRAW);
     lua_setglobal(luaState_, "ACTION_TOGGLE_DEBUG_DRAW");
-    
+
     // Register Audio effect constants
     lua_pushinteger(luaState_, AUDIO_EFFECT_NONE);
     lua_setglobal(luaState_, "AUDIO_EFFECT_NONE");
@@ -1146,7 +1059,7 @@ int LuaInterface::audioLoadBuffer(lua_State* L) {
     int bitsPerSample = lua_tointeger(L, 4);
 
     int bufferId = interface->audioManager_->loadAudioBufferFromMemory(data, dataSize, sampleRate, channels, bitsPerSample);
-    
+
     lua_pushinteger(L, bufferId);
     return 1; // Return buffer ID
 }
@@ -1175,7 +1088,7 @@ int LuaInterface::audioCreateSource(lua_State* L) {
     }
 
     int sourceId = interface->audioManager_->createAudioSource(bufferId, looping, volume);
-    
+
     lua_pushinteger(L, sourceId);
     return 1; // Return source ID
 }
@@ -1190,7 +1103,7 @@ int LuaInterface::audioPlaySource(lua_State* L) {
 
     int sourceId = lua_tointeger(L, 1);
     interface->audioManager_->playSource(sourceId);
-    
+
     return 0;
 }
 
@@ -1204,7 +1117,7 @@ int LuaInterface::audioStopSource(lua_State* L) {
 
     int sourceId = lua_tointeger(L, 1);
     interface->audioManager_->stopSource(sourceId);
-    
+
     return 0;
 }
 
@@ -1218,7 +1131,7 @@ int LuaInterface::audioPauseSource(lua_State* L) {
 
     int sourceId = lua_tointeger(L, 1);
     interface->audioManager_->pauseSource(sourceId);
-    
+
     return 0;
 }
 
@@ -1237,9 +1150,9 @@ int LuaInterface::audioSetSourcePosition(lua_State* L) {
     float x = lua_tonumber(L, 2);
     float y = lua_tonumber(L, 3);
     float z = lua_tonumber(L, 4);
-    
+
     interface->audioManager_->setSourcePosition(sourceId, x, y, z);
-    
+
     return 0;
 }
 
@@ -1258,9 +1171,9 @@ int LuaInterface::audioSetSourceVelocity(lua_State* L) {
     float vx = lua_tonumber(L, 2);
     float vy = lua_tonumber(L, 3);
     float vz = lua_tonumber(L, 4);
-    
+
     interface->audioManager_->setSourceVelocity(sourceId, vx, vy, vz);
-    
+
     return 0;
 }
 
@@ -1275,9 +1188,9 @@ int LuaInterface::audioSetSourceVolume(lua_State* L) {
 
     int sourceId = lua_tointeger(L, 1);
     float volume = lua_tonumber(L, 2);
-    
+
     interface->audioManager_->setSourceVolume(sourceId, volume);
-    
+
     return 0;
 }
 
@@ -1292,9 +1205,9 @@ int LuaInterface::audioSetSourcePitch(lua_State* L) {
 
     int sourceId = lua_tointeger(L, 1);
     float pitch = lua_tonumber(L, 2);
-    
+
     interface->audioManager_->setSourcePitch(sourceId, pitch);
-    
+
     return 0;
 }
 
@@ -1309,9 +1222,9 @@ int LuaInterface::audioSetSourceLooping(lua_State* L) {
 
     int sourceId = lua_tointeger(L, 1);
     bool looping = lua_toboolean(L, 2);
-    
+
     interface->audioManager_->setSourceLooping(sourceId, looping);
-    
+
     return 0;
 }
 
@@ -1325,7 +1238,7 @@ int LuaInterface::audioReleaseSource(lua_State* L) {
 
     int sourceId = lua_tointeger(L, 1);
     interface->audioManager_->releaseSource(sourceId);
-    
+
     return 0;
 }
 
@@ -1342,9 +1255,9 @@ int LuaInterface::audioSetListenerPosition(lua_State* L) {
     float x = lua_tonumber(L, 1);
     float y = lua_tonumber(L, 2);
     float z = lua_tonumber(L, 3);
-    
+
     interface->audioManager_->setListenerPosition(x, y, z);
-    
+
     return 0;
 }
 
@@ -1361,9 +1274,9 @@ int LuaInterface::audioSetListenerVelocity(lua_State* L) {
     float vx = lua_tonumber(L, 1);
     float vy = lua_tonumber(L, 2);
     float vz = lua_tonumber(L, 3);
-    
+
     interface->audioManager_->setListenerVelocity(vx, vy, vz);
-    
+
     return 0;
 }
 
@@ -1386,9 +1299,9 @@ int LuaInterface::audioSetListenerOrientation(lua_State* L) {
     float upX = lua_tonumber(L, 4);
     float upY = lua_tonumber(L, 5);
     float upZ = lua_tonumber(L, 6);
-    
+
     interface->audioManager_->setListenerOrientation(atX, atY, atZ, upX, upY, upZ);
-    
+
     return 0;
 }
 
@@ -1402,7 +1315,7 @@ int LuaInterface::audioSetGlobalVolume(lua_State* L) {
 
     float volume = lua_tonumber(L, 1);
     interface->audioManager_->setGlobalVolume(volume);
-    
+
     return 0;
 }
 
@@ -1424,7 +1337,7 @@ int LuaInterface::audioSetGlobalEffect(lua_State* L) {
     }
 
     interface->audioManager_->setGlobalEffect((AudioEffect)effect, intensity);
-    
+
     return 0;
 }
 

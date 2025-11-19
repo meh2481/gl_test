@@ -26,8 +26,6 @@ public:
     void loadScene(uint64_t sceneId, const ResourceData& scriptData);
     void initScene(uint64_t sceneId);
     void updateScene(uint64_t sceneId, float deltaTime);
-    void handleKeyDown(uint64_t sceneId, int keyCode);
-    void handleKeyUp(uint64_t sceneId, int keyCode);
     void handleAction(uint64_t sceneId, Action action);
     void cleanupScene(uint64_t sceneId);
     void switchToScenePipeline(uint64_t sceneId);
@@ -35,10 +33,10 @@ public:
 
     // Physics access
     Box2DPhysics& getPhysics() { return *physics_; }
-    
+
     // Scene layer access
     SceneLayerManager& getSceneLayerManager() { return *layerManager_; }
-    
+
     // Audio access
     AudioManager& getAudioManager() { return *audioManager_; }
 
@@ -68,18 +66,18 @@ private:
     static int b2GetBodyLinearVelocity(lua_State* L);
     static int b2GetBodyAngularVelocity(lua_State* L);
     static int b2EnableDebugDraw(lua_State* L);
-    
+
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);
     static int destroyLayer(lua_State* L);
     static int attachLayerToBody(lua_State* L);
     static int detachLayer(lua_State* L);
     static int setLayerEnabled(lua_State* L);
-    
+
     // Texture loading
     static int loadTexture(lua_State* L);
     static int loadTexturedShaders(lua_State* L);
-    
+
     // Audio Lua bindings
     static int audioLoadBuffer(lua_State* L);
     static int audioCreateSource(lua_State* L);
