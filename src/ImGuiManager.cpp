@@ -9,7 +9,7 @@ static void check_vk_result(VkResult err) {
     assert(err == VK_SUCCESS);
 }
 
-ImGuiManager::ImGuiManager() : initialized_(false), imguiPool_(VK_NULL_HANDLE) {
+ImGuiManager::ImGuiManager() : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE) {
 }
 
 ImGuiManager::~ImGuiManager() {
@@ -21,6 +21,7 @@ ImGuiManager::~ImGuiManager() {
 void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysicalDevice physicalDevice,
                               VkDevice device, uint32_t queueFamily, VkQueue graphicsQueue,
                               VkRenderPass renderPass, uint32_t imageCount) {
+    device_ = device;
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -118,6 +119,11 @@ void ImGuiManager::cleanup() {
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
+
+    if (imguiPool_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device_, imguiPool_, nullptr);
+        imguiPool_ = VK_NULL_HANDLE;
+    }
 
     initialized_ = false;
 }

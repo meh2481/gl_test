@@ -38,6 +38,7 @@ public:
 
 private:
     bool initialized_;
+    VkDevice device_;
     VkDescriptorPool imguiPool_;
 };
 
