@@ -25,14 +25,14 @@ enum Action {
 struct ActionList {
     Action actions[MAX_BINDINGS_PER_KEY];
     int count;
-    
+
     ActionList() : count(0) {}
-    
+
     void add(Action action) {
         assert(count < MAX_BINDINGS_PER_KEY);
         actions[count++] = action;
     }
-    
+
     void remove(Action action) {
         for (int i = 0; i < count; ++i) {
             if (actions[i] == action) {
@@ -42,7 +42,7 @@ struct ActionList {
             }
         }
     }
-    
+
     bool contains(Action action) const {
         for (int i = 0; i < count; ++i) {
             if (actions[i] == action) {
@@ -56,14 +56,14 @@ struct ActionList {
 struct KeyList {
     int keys[MAX_BINDINGS_PER_ACTION];
     int count;
-    
+
     KeyList() : count(0) {}
-    
+
     void add(int key) {
         assert(count < MAX_BINDINGS_PER_ACTION);
         keys[count++] = key;
     }
-    
+
     void remove(int key) {
         for (int i = 0; i < count; ++i) {
             if (keys[i] == key) {
@@ -140,18 +140,18 @@ public:
     void serializeBindings(char* buffer, int bufferSize) const {
         int offset = 0;
         bool firstKey = true;
-        
+
         for (const auto& pair : keyToActions_) {
             if (pair.second.count == 0) continue;
-            
+
             if (!firstKey && offset < bufferSize - 1) {
                 buffer[offset++] = ';';
             }
             firstKey = false;
-            
+
             // Write key code
             offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d:", pair.first);
-            
+
             // Write actions
             for (int i = 0; i < pair.second.count; ++i) {
                 if (i > 0 && offset < bufferSize - 1) {
@@ -160,7 +160,7 @@ public:
                 offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d", pair.second.actions[i]);
             }
         }
-        
+
         if (offset < bufferSize) {
             buffer[offset] = '\0';
         }
@@ -170,9 +170,9 @@ public:
     // Format: "key1:action1,action2;key2:action3"
     void deserializeBindings(const char* data) {
         if (!data || *data == '\0') return;
-        
+
         clearAllBindings();
-        
+
         // Parse the string
         const char* ptr = data;
         while (*ptr) {
@@ -182,10 +182,10 @@ public:
                 key = key * 10 + (*ptr - '0');
                 ++ptr;
             }
-            
+
             if (*ptr != ':') break;
             ++ptr;
-            
+
             // Parse actions
             while (*ptr && *ptr != ';') {
                 int action = 0;
@@ -193,14 +193,14 @@ public:
                     action = action * 10 + (*ptr - '0');
                     ++ptr;
                 }
-                
+
                 if (action < ACTION_COUNT) {
                     bind(key, static_cast<Action>(action));
                 }
-                
+
                 if (*ptr == ',') ++ptr;
             }
-            
+
             if (*ptr == ';') ++ptr;
         }
     }
