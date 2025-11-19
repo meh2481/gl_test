@@ -35,11 +35,34 @@ jobs:
           cmake --build .
           sudo make install
 
+      - name: Build and install ImGui with Vulkan backend
+        run: |
+          git clone https://github.com/ocornut/imgui.git
+          cd imgui
+          git checkout v1.92.4
+          g++ -fPIC -I. -c imgui.cpp -o imgui.o
+          g++ -fPIC -I. -c imgui_demo.cpp -o imgui_demo.o
+          g++ -fPIC -I. -c imgui_draw.cpp -o imgui_draw.o
+          g++ -fPIC -I. -c imgui_tables.cpp -o imgui_tables.o
+          g++ -fPIC -I. -c imgui_widgets.cpp -o imgui_widgets.o
+          g++ -fPIC -I. -c misc/cpp/imgui_stdlib.cpp -o imgui_stdlib.o
+          g++ -fPIC -I. -c backends/imgui_impl_vulkan.cpp -o imgui_impl_vulkan.o
+          g++ -shared -o libimgui.so *.o
+          sudo cp libimgui.so /usr/lib/
+          sudo cp *.h /usr/include/
+          sudo cp backends/imgui_impl_vulkan.h /usr/include/
+          sudo cp misc/cpp/imgui_stdlib.h /usr/include/
+          cd ..
+          rm -rf imgui
+
       - name: Install required libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev libimgui-dev
+          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
 
-      - name: Cleanup Box2D folder
+      - name: Cleanup Box2D/imgui folders
         run: |
-          rm -rf box2d
+          git rm --cached -r box2d || true
+          rm -rf box2d 2>/dev/null || true
+          git rm --cached -r imgui || true
+          rm -rf imgui 2>/dev/null || true

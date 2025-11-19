@@ -21,15 +21,21 @@ find_package(box2d CONFIG REQUIRED)
 
 # ImGui setup for debug builds only
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    # Try CMake config first (for Arch imgui-full), then pkg-config (for Ubuntu libimgui-dev)
+    # Try CMake config first (for Arch imgui-full), then pkg-config (for Ubuntu libimgui-dev), then manual for CI
     find_package(imgui QUIET)
     if(imgui_FOUND)
         include_directories(${imgui_INCLUDE_DIRS})
         set(IMGUI_LIBRARIES imgui::imgui)
     else()
-        pkg_check_modules(IMGUI REQUIRED imgui)
-        include_directories(${IMGUI_INCLUDE_DIRS})
-        set(IMGUI_LIBRARIES ${IMGUI_LIBRARIES})
+        pkg_check_modules(IMGUI QUIET imgui)
+        if(IMGUI_FOUND)
+            include_directories(${IMGUI_INCLUDE_DIRS})
+            set(IMGUI_LIBRARIES ${IMGUI_LIBRARIES})
+        else()
+            # Manual setup for CI where ImGui is built manually
+            include_directories(/usr/include)
+            set(IMGUI_LIBRARIES imgui)
+        endif()
     endif()
 endif()
 
