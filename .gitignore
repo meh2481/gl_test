@@ -44,3 +44,6 @@ _codeql_detected_source_root
 
 # Resource files
 res/
+
+# Build files
+box2d/

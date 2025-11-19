@@ -4,6 +4,28 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
+#include <AL/efx.h>
+
+// EFX constants (in case not defined)
+#ifndef AL_EFFECT_LOWPASS
+#define AL_EFFECT_LOWPASS 0x0001
+#endif
+#ifndef AL_EFFECT_REVERB
+#define AL_EFFECT_REVERB 0x0004
+#endif
+#ifndef AL_LOWPASS_GAIN
+#define AL_LOWPASS_GAIN 0x0001
+#endif
+#ifndef AL_LOWPASS_GAINHF
+#define AL_LOWPASS_GAINHF 0x0002
+#endif
+#ifndef AL_REVERB_GAIN
+#define AL_REVERB_GAIN 0x0001
+#endif
+#ifndef AL_REVERB_DECAY_TIME
+#define AL_REVERB_DECAY_TIME 0x0004
+#endif
+
 
 // EFX function pointers (if available)
 static LPALGENEFFECTS alGenEffects = nullptr;
@@ -21,11 +43,11 @@ static LPALDELETEAUXILIARYEFFECTSLOTS alDeleteAuxiliaryEffectSlots = nullptr;
 static LPALISAUXILIARYEFFECTSLOT alIsAuxiliaryEffectSlot = nullptr;
 static LPALAUXILIARYEFFECTSLOTI alAuxiliaryEffectSloti = nullptr;
 
-AudioManager::AudioManager() 
-    : device(nullptr), context(nullptr), bufferCount(0), 
+AudioManager::AudioManager()
+    : device(nullptr), context(nullptr), bufferCount(0),
       efxSupported(false), effectSlot(0), effect(0),
       currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f) {
-    
+
     // Initialize arrays
     for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
         sources[i].active = false;
@@ -142,10 +164,10 @@ void AudioManager::initializeEFX() {
     if (alGenEffects && alGenAuxiliaryEffectSlots) {
         // Create effect slot
         alGenAuxiliaryEffectSlots(1, &effectSlot);
-        
+
         // Create effect
         alGenEffects(1, &effect);
-        
+
         // Check for errors
         ALenum error = alGetError();
         if (error == AL_NO_ERROR) {

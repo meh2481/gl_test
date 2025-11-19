@@ -5,6 +5,7 @@
 #include <AL/alc.h>
 #include <cstdint>
 #include <cassert>
+#include <cstddef>
 
 // Maximum number of simultaneous audio sources
 #define MAX_AUDIO_SOURCES 64
