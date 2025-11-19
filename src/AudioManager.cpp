@@ -1,10 +1,12 @@
 #include "AudioManager.h"
 #include <iostream>
 #include <cstring>
+#include <vector>
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
 #include <AL/efx.h>
+#include <opusfile.h>
 
 // EFX constants (in case not defined)
 #ifndef AL_EFFECT_LOWPASS
@@ -243,6 +245,62 @@ int AudioManager::loadAudioBufferFromMemory(const void* data, size_t size, int s
     bufferCount++;
 
     return slot;
+}
+
+int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
+    // Open OPUS file from memory
+    int error = 0;
+    OggOpusFile* opusFile = op_open_memory((const unsigned char*)data, size, &error);
+    
+    if (!opusFile || error != 0) {
+        std::cerr << "Failed to open OPUS data from memory, error code: " << error << std::endl;
+        return -1;
+    }
+
+    // Get audio info
+    const OpusHead* head = op_head(opusFile, -1);
+    if (!head) {
+        std::cerr << "Failed to get OPUS header" << std::endl;
+        op_free(opusFile);
+        return -1;
+    }
+
+    int channels = head->channel_count;
+    int sampleRate = 48000; // OPUS always decodes to 48kHz
+    
+    // Read all audio data
+    std::vector<opus_int16> pcmData;
+    const int bufferSize = 5760 * channels; // Max frame size for 120ms at 48kHz
+    opus_int16 buffer[bufferSize];
+    
+    int samplesRead;
+    while ((samplesRead = op_read(opusFile, buffer, bufferSize, nullptr)) > 0) {
+        pcmData.insert(pcmData.end(), buffer, buffer + samplesRead * channels);
+    }
+    
+    if (samplesRead < 0) {
+        std::cerr << "Error reading OPUS data: " << samplesRead << std::endl;
+        op_free(opusFile);
+        return -1;
+    }
+    
+    op_free(opusFile);
+    
+    if (pcmData.empty()) {
+        std::cerr << "No audio data decoded from OPUS" << std::endl;
+        return -1;
+    }
+
+    // Load the PCM data into OpenAL buffer
+    int bufferId = loadAudioBufferFromMemory(pcmData.data(), pcmData.size() * sizeof(opus_int16), 
+                                             sampleRate, channels, 16);
+    
+    if (bufferId >= 0) {
+        std::cout << "Successfully loaded OPUS audio: " << pcmData.size() / channels 
+                  << " samples, " << channels << " channel(s)" << std::endl;
+    }
+    
+    return bufferId;
 }
 
 int AudioManager::loadAudioBuffer(const char* filename) {

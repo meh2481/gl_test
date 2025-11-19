@@ -40,7 +40,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled",
-                                     "audioLoadBuffer", "audioCreateSource", "audioPlaySource", "audioStopSource",
+                                     "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
                                      "audioReleaseSource", "audioSetListenerPosition", "audioSetListenerVelocity",
@@ -426,6 +426,7 @@ void LuaInterface::registerFunctions() {
 
     // Register audio functions
     lua_register(luaState_, "audioLoadBuffer", audioLoadBuffer);
+    lua_register(luaState_, "audioLoadOpus", audioLoadOpus);
     lua_register(luaState_, "audioCreateSource", audioCreateSource);
     lua_register(luaState_, "audioPlaySource", audioPlaySource);
     lua_register(luaState_, "audioStopSource", audioStopSource);
@@ -1059,6 +1060,35 @@ int LuaInterface::audioLoadBuffer(lua_State* L) {
     int bitsPerSample = lua_tointeger(L, 4);
 
     int bufferId = interface->audioManager_->loadAudioBufferFromMemory(data, dataSize, sampleRate, channels, bitsPerSample);
+
+    lua_pushinteger(L, bufferId);
+    return 1; // Return buffer ID
+}
+
+int LuaInterface::audioLoadOpus(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Argument: resource name (string)
+    assert(lua_gettop(L) == 1);
+    assert(lua_isstring(L, 1));
+
+    const char* resourceName = lua_tostring(L, 1);
+    
+    // Hash the resource name to get its ID
+    uint64_t resourceId = std::hash<std::string>{}(resourceName);
+    
+    // Load resource from pak
+    ResourceData resourceData = interface->pakResource_.getResource(resourceId);
+    if (!resourceData.data || resourceData.size == 0) {
+        std::cerr << "Failed to load OPUS resource: " << resourceName << std::endl;
+        lua_pushinteger(L, -1);
+        return 1;
+    }
+
+    // Decode OPUS and load into audio buffer
+    int bufferId = interface->audioManager_->loadOpusAudioFromMemory(resourceData.data, resourceData.size);
 
     lua_pushinteger(L, bufferId);
     return 1; // Return buffer ID

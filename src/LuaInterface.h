@@ -80,6 +80,7 @@ private:
 
     // Audio Lua bindings
     static int audioLoadBuffer(lua_State* L);
+    static int audioLoadOpus(lua_State* L);  // Load OPUS audio from resource
     static int audioCreateSource(lua_State* L);
     static int audioPlaySource(lua_State* L);
     static int audioStopSource(lua_State* L);
