@@ -25,9 +25,6 @@ jobs:
     # You can define any steps you want, and they will run before the agent starts.
     # If you do not check out your code, Copilot will do this for you.
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
       - name: Install box2d v3 from source, without examples
         run: |
           git clone https://github.com/erincatto/box2d.git
@@ -38,10 +35,13 @@ jobs:
           cmake --build .
           sudo make install
 
+      - name: Checkout code
+        uses: actions/checkout@v5
+
       - name: Install required libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev libsdl2-dev liblz4-dev liblua5.3-dev libpng-dev libsquish-dev vulkan-tools glslang-tools libopenal-dev
+          sudo apt-get install -y libvulkan-dev libsdl2-dev liblz4-dev liblua5.3-dev libpng-dev libsquish-dev libopenal-dev
 
       - name: Install Vulkan SDK
         uses: humbletim/install-vulkan-sdk@v1.2
