@@ -42,5 +42,4 @@ jobs:
 
       - name: Cleanup Box2D folder
         run: |
-          git rm --cached -r box2d
           rm -rf box2d
