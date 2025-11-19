@@ -56,6 +56,7 @@ uint32_t getFileType(const string& filename) {
     if (ext == ".lua") return RESOURCE_TYPE_LUA;
     if (ext == ".spv") return RESOURCE_TYPE_SHADER;
     if (ext == ".png") return RESOURCE_TYPE_IMAGE;
+    if (ext == ".opus") return RESOURCE_TYPE_SOUND;
     // Add more extensions as needed
     return RESOURCE_TYPE_UNKNOWN;
 }
