@@ -25,6 +25,11 @@ jobs:
     # You can define any steps you want, and they will run before the agent starts.
     # If you do not check out your code, Copilot will do this for you.
     steps:
+      - name: Install required libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
+
       - name: Install box2d v3 from source, without examples
         run: |
           git clone https://github.com/erincatto/box2d.git
@@ -54,11 +59,6 @@ jobs:
           sudo cp misc/cpp/imgui_stdlib.h /usr/include/
           cd ..
           rm -rf imgui
-
-      - name: Install required libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
 
       - name: Cleanup Box2D/imgui folders
         run: |

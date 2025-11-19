@@ -11,6 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Install required libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
+
       - name: Install box2d v3 from source, without examples
         run: |
           git clone https://github.com/erincatto/box2d.git
@@ -43,11 +48,6 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v5
-
-      - name: Install required libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
 
       - name: Install Vulkan SDK
         uses: humbletim/install-vulkan-sdk@v1.2
