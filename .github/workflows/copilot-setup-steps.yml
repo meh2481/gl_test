@@ -34,8 +34,6 @@ jobs:
           cmake -DBOX2D_SAMPLES=OFF -DBOX2D_DOCS=OFF -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=OFF ..
           cmake --build .
           sudo make install
-          cd ../..
-          rm -rf box2d/
 
       - name: Checkout code
         uses: actions/checkout@v5
@@ -57,3 +55,8 @@ jobs:
           cd build
           cmake ..
           make
+
+      - name: Cleanup Box2D folder
+        run: |
+          git rm --cached -r box2d
+          rm -rf box2d
