@@ -44,7 +44,7 @@ public:
 
     // Initialize the audio system
     void initialize();
-    
+
     // Cleanup the audio system
     void cleanup();
 

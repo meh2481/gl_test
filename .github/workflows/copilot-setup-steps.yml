@@ -41,7 +41,7 @@ jobs:
       - name: Install required libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev libsdl2-dev liblz4-dev liblua5.3-dev libpng-dev libsquish-dev vulkan-tools glslang-tools
+          sudo apt-get install -y libvulkan-dev libsdl2-dev liblz4-dev liblua5.3-dev libpng-dev libsquish-dev vulkan-tools glslang-tools libopenal-dev
 
       - name: Install Vulkan SDK
         uses: humbletim/install-vulkan-sdk@v1.2
