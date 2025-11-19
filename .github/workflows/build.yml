@@ -27,7 +27,20 @@ jobs:
       - name: Install required libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev libimgui-dev
+          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
+
+      - name: Build and install ImGui with Vulkan backend
+        run: |
+          git clone https://github.com/ocornut/imgui.git
+          cd imgui
+          git checkout v1.92.4
+          mkdir build
+          cd build
+          cmake .. -DIMGUI_BUILD_VULKAN_BINDING=ON -DCMAKE_INSTALL_PREFIX=/usr
+          make
+          sudo make install
+          cd ../..
+          rm -rf imgui
 
       - name: Install Vulkan SDK
         uses: humbletim/install-vulkan-sdk@v1.2
@@ -42,7 +55,9 @@ jobs:
           cmake ..
           make
 
-      - name: Cleanup Box2D folder
+      - name: Cleanup Box2D/imgui folders
         run: |
-          git rm --cached -r box2d
+          git rm --cached -r box2d || true
           rm -rf box2d 2>/dev/null || true
+          git rm --cached -r imgui || true
+          rm -rf imgui 2>/dev/null || true
