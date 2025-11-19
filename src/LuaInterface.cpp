@@ -40,10 +40,10 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled",
-                                     "audioLoadBuffer", "audioCreateSource", "audioPlaySource", "audioStopSource",
+                                     "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
-                                     "audioReleaseSource", "audioSetListenerPosition", "audioSetListenerVelocity",
+                                     "audioReleaseSource", "audioIsSourcePlaying", "audioSetListenerPosition", "audioSetListenerVelocity",
                                      "audioSetListenerOrientation", "audioSetGlobalVolume", "audioSetGlobalEffect",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
@@ -58,6 +58,10 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     // Copy table library
     lua_getglobal(luaState_, "table");
     lua_setfield(luaState_, -2, "table");
+
+    // Copy string library
+    lua_getglobal(luaState_, "string");
+    lua_setfield(luaState_, -2, "string");
 
     // Copy Box2D constants
     const char* box2dConstants[] = {
@@ -186,6 +190,9 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
         assert(false);
         return;
     }
+
+    // Update audio manager (cleanup finished sources)
+    audioManager_->update();
 
     // Pop the table
     lua_pop(luaState_, 1);
@@ -426,6 +433,7 @@ void LuaInterface::registerFunctions() {
 
     // Register audio functions
     lua_register(luaState_, "audioLoadBuffer", audioLoadBuffer);
+    lua_register(luaState_, "audioLoadOpus", audioLoadOpus);
     lua_register(luaState_, "audioCreateSource", audioCreateSource);
     lua_register(luaState_, "audioPlaySource", audioPlaySource);
     lua_register(luaState_, "audioStopSource", audioStopSource);
@@ -436,6 +444,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "audioSetSourcePitch", audioSetSourcePitch);
     lua_register(luaState_, "audioSetSourceLooping", audioSetSourceLooping);
     lua_register(luaState_, "audioReleaseSource", audioReleaseSource);
+    lua_register(luaState_, "audioIsSourcePlaying", audioIsSourcePlaying);
     lua_register(luaState_, "audioSetListenerPosition", audioSetListenerPosition);
     lua_register(luaState_, "audioSetListenerVelocity", audioSetListenerVelocity);
     lua_register(luaState_, "audioSetListenerOrientation", audioSetListenerOrientation);
@@ -1064,6 +1073,35 @@ int LuaInterface::audioLoadBuffer(lua_State* L) {
     return 1; // Return buffer ID
 }
 
+int LuaInterface::audioLoadOpus(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Argument: resource name (string)
+    assert(lua_gettop(L) == 1);
+    assert(lua_isstring(L, 1));
+
+    const char* resourceName = lua_tostring(L, 1);
+
+    // Hash the resource name to get its ID
+    uint64_t resourceId = std::hash<std::string>{}(resourceName);
+
+    // Load resource from pak
+    ResourceData resourceData = interface->pakResource_.getResource(resourceId);
+    if (!resourceData.data || resourceData.size == 0) {
+        std::cerr << "Failed to load OPUS resource: " << resourceName << std::endl;
+        lua_pushinteger(L, -1);
+        return 1;
+    }
+
+    // Decode OPUS and load into audio buffer
+    int bufferId = interface->audioManager_->loadOpusAudioFromMemory(resourceData.data, resourceData.size);
+
+    lua_pushinteger(L, bufferId);
+    return 1; // Return buffer ID
+}
+
 int LuaInterface::audioCreateSource(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -1240,6 +1278,21 @@ int LuaInterface::audioReleaseSource(lua_State* L) {
     interface->audioManager_->releaseSource(sourceId);
 
     return 0;
+}
+
+int LuaInterface::audioIsSourcePlaying(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int sourceId = lua_tointeger(L, 1);
+    bool playing = interface->audioManager_->isSourcePlaying(sourceId);
+
+    lua_pushboolean(L, playing);
+    return 1;
 }
 
 int LuaInterface::audioSetListenerPosition(lua_State* L) {

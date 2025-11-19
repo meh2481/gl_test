@@ -56,6 +56,10 @@ public:
     // Returns buffer ID on success, -1 on failure
     int loadAudioBufferFromMemory(const void* data, size_t size, int sampleRate, int channels, int bitsPerSample);
 
+    // Load OPUS audio from memory into buffer slot
+    // Returns buffer ID on success, -1 on failure
+    int loadOpusAudioFromMemory(const void* data, size_t size);
+
     // Create an audio source
     // Returns source ID on success, -1 on failure
     int createAudioSource(int bufferId, bool looping = false, float volume = 1.0f);
@@ -86,6 +90,9 @@ public:
 
     // Release an audio source
     void releaseSource(int sourceId);
+
+    // Check if a source is currently playing
+    bool isSourcePlaying(int sourceId);
 
     // Set listener position in 3D space
     void setListenerPosition(float x, float y, float z);

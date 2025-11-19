@@ -1,10 +1,12 @@
 #include "AudioManager.h"
 #include <iostream>
 #include <cstring>
+#include <vector>
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
 #include <AL/efx.h>
+#include <opusfile.h>
 
 // EFX constants (in case not defined)
 #ifndef AL_EFFECT_LOWPASS
@@ -245,6 +247,62 @@ int AudioManager::loadAudioBufferFromMemory(const void* data, size_t size, int s
     return slot;
 }
 
+int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
+    // Open OPUS file from memory
+    int error = 0;
+    OggOpusFile* opusFile = op_open_memory((const unsigned char*)data, size, &error);
+
+    if (!opusFile || error != 0) {
+        std::cerr << "Failed to open OPUS data from memory, error code: " << error << std::endl;
+        return -1;
+    }
+
+    // Get audio info
+    const OpusHead* head = op_head(opusFile, -1);
+    if (!head) {
+        std::cerr << "Failed to get OPUS header" << std::endl;
+        op_free(opusFile);
+        return -1;
+    }
+
+    int channels = head->channel_count;
+    int sampleRate = 48000; // OPUS always decodes to 48kHz
+
+    // Read all audio data
+    std::vector<opus_int16> pcmData;
+    const int bufferSize = 5760 * channels; // Max frame size for 120ms at 48kHz
+    opus_int16 buffer[bufferSize];
+
+    int samplesRead;
+    while ((samplesRead = op_read(opusFile, buffer, bufferSize, nullptr)) > 0) {
+        pcmData.insert(pcmData.end(), buffer, buffer + samplesRead * channels);
+    }
+
+    if (samplesRead < 0) {
+        std::cerr << "Error reading OPUS data: " << samplesRead << std::endl;
+        op_free(opusFile);
+        return -1;
+    }
+
+    op_free(opusFile);
+
+    if (pcmData.empty()) {
+        std::cerr << "No audio data decoded from OPUS" << std::endl;
+        return -1;
+    }
+
+    // Load the PCM data into OpenAL buffer
+    int bufferId = loadAudioBufferFromMemory(pcmData.data(), pcmData.size() * sizeof(opus_int16),
+                                             sampleRate, channels, 16);
+
+    if (bufferId >= 0) {
+        std::cout << "Successfully loaded OPUS audio: " << pcmData.size() / channels
+                  << " samples, " << channels << " channel(s)" << std::endl;
+    }
+
+    return bufferId;
+}
+
 int AudioManager::loadAudioBuffer(const char* filename) {
     // TODO: Implement file loading
     // For now, this is a placeholder
@@ -368,8 +426,10 @@ void AudioManager::setSourceLooping(int sourceId, bool looping) {
 }
 
 void AudioManager::releaseSource(int sourceId) {
-    if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
-        std::cerr << "Invalid source ID: " << sourceId << std::endl;
+    if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES) {
+        return;
+    }
+    if (!sources[sourceId].active) {
         return;
     }
 
@@ -377,6 +437,16 @@ void AudioManager::releaseSource(int sourceId) {
     alDeleteSources(1, &sources[sourceId].source);
     sources[sourceId].active = false;
     sources[sourceId].source = 0;
+}
+
+bool AudioManager::isSourcePlaying(int sourceId) {
+    if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
+        return false;
+    }
+
+    ALint state;
+    alGetSourcei(sources[sourceId].source, AL_SOURCE_STATE, &state);
+    return state == AL_PLAYING;
 }
 
 void AudioManager::setListenerPosition(float x, float y, float z) {
@@ -448,6 +518,10 @@ void AudioManager::applyEffect() {
 }
 
 void AudioManager::update() {
-    // Update logic (e.g., cleanup finished sources)
-    // For now, this is a placeholder for future enhancements
+    // Cleanup finished non-looping sources
+    for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+        if (sources[i].active && !sources[i].looping && !isSourcePlaying(i)) {
+            releaseSource(i);
+        }
+    }
 }
