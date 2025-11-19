@@ -30,6 +30,7 @@ A C++ application using Vulkan rendering with Lua scripting and Box2D physics in
 - libpng
 - libsquish
 - CMake
+- ImGui (libimgui-dev) - Debug builds only
 
 ## Building
 
@@ -73,6 +74,7 @@ The application will open in fullscreen mode displaying procedural shader effect
 
 ### Features
 
+- **Debug Console** (Debug builds only): In-application console window displays all C++ (std::cout) and Lua (print) output with scrollable history and clear button
 - **Action-based keybinding system**: Flexible many-to-many mapping between keys and actions (see [docs/KEYBINDING_SYSTEM.md](docs/KEYBINDING_SYSTEM.md))
 - **Lua-based scene management**: Scenes are defined in Lua scripts (`scenes/*.lua`) with support for scene stacking
 - **Multiple shader effects**: Includes nebula, plasma, and cloud procedural shaders
