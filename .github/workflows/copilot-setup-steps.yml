@@ -34,7 +34,8 @@ jobs:
           cmake -DBOX2D_SAMPLES=OFF -DBOX2D_DOCS=OFF -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=OFF ..
           cmake --build .
           sudo make install
-        working-directory: box2dlib
+          cd ../..
+          rm -rf box2d/
 
       - name: Checkout code
         uses: actions/checkout@v5
