@@ -10,6 +10,7 @@
 #include <png.h>
 #include <squish.h>
 #include <cassert>
+#include <opusfile.h>
 
 using namespace std;
 
@@ -56,6 +57,7 @@ uint32_t getFileType(const string& filename) {
     if (ext == ".lua") return RESOURCE_TYPE_LUA;
     if (ext == ".spv") return RESOURCE_TYPE_SHADER;
     if (ext == ".png") return RESOURCE_TYPE_IMAGE;
+    if (ext == ".opus") return RESOURCE_TYPE_SOUND;
     // Add more extensions as needed
     return RESOURCE_TYPE_UNKNOWN;
 }
@@ -216,6 +218,71 @@ bool processPNGFile(const string& filename, vector<char>& output) {
     return true;
 }
 
+// Process OPUS file: load, decode to PCM, and store as raw audio
+bool processOPUSFile(const string& filename, vector<char>& output) {
+    int error = 0;
+    OggOpusFile* opusFile = op_open_file(filename.c_str(), &error);
+    if (!opusFile) {
+        cerr << "Failed to open OPUS file " << filename << " (error: " << error << ")" << endl;
+        return false;
+    }
+    
+    // Get channel count
+    int channels = op_channel_count(opusFile, -1);
+    if (channels <= 0 || channels > 2) {
+        cerr << "Unsupported channel count in OPUS file: " << channels << endl;
+        op_free(opusFile);
+        return false;
+    }
+    
+    // Get total PCM length
+    ogg_int64_t totalSamples = op_pcm_total(opusFile, -1);
+    if (totalSamples < 0) {
+        cerr << "Failed to get PCM length from OPUS file" << endl;
+        op_free(opusFile);
+        return false;
+    }
+    
+    // Allocate buffer for decoded PCM data (16-bit samples)
+    size_t totalSize = totalSamples * channels * sizeof(int16_t);
+    vector<int16_t> pcmData(totalSamples * channels);
+    
+    // Decode the entire file
+    size_t samplesRead = 0;
+    while (samplesRead < (size_t)totalSamples) {
+        int samplesToRead = totalSamples - samplesRead;
+        if (samplesToRead > 5760) samplesToRead = 5760; // opus recommends reading in chunks
+        
+        int ret = op_read(opusFile, pcmData.data() + samplesRead * channels, samplesToRead * channels, nullptr);
+        if (ret < 0) {
+            cerr << "Error decoding OPUS file: " << ret << endl;
+            op_free(opusFile);
+            return false;
+        }
+        if (ret == 0) break; // End of file
+        samplesRead += ret;
+    }
+    
+    op_free(opusFile);
+    
+    // OPUS always decodes to 48kHz
+    int sampleRate = 48000;
+    int bitsPerSample = 16;
+    
+    // Create output with raw PCM data
+    // We'll store: sampleRate(4) + channels(4) + bitsPerSample(4) + PCM data
+    output.resize(12 + samplesRead * channels * sizeof(int16_t));
+    memcpy(output.data(), &sampleRate, 4);
+    memcpy(output.data() + 4, &channels, 4);
+    memcpy(output.data() + 8, &bitsPerSample, 4);
+    memcpy(output.data() + 12, pcmData.data(), samplesRead * channels * sizeof(int16_t));
+    
+    cout << "Decoded OPUS: " << samplesRead << " samples, " << channels << " channels, " 
+         << sampleRate << " Hz, " << bitsPerSample << " bits" << endl;
+    
+    return true;
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 3) {
         cerr << "Usage: packer <output.pak> <file1> <file2> ..." << endl;
@@ -307,6 +374,20 @@ int main(int argc, char* argv[]) {
                     file.mtime = st.st_mtime;
                 }
                 // PNG data is already compressed with DXT, apply LZ4 on top
+                compressData(file.data, file.compressedData, file.compressionType);
+                cout << "File " << file.filename << " original " << file.data.size() << " compressed " << file.compressedData.size() << " compression " << file.compressionType << " resource_type " << fileType << endl;
+            } else if (fileType == RESOURCE_TYPE_SOUND) {
+                // Special handling for OPUS audio files
+                if (!processOPUSFile(file.filename, file.data)) {
+                    cerr << "Failed to process OPUS file " << file.filename << endl;
+                    return 1;
+                }
+                // Get modification time
+                struct stat st;
+                if (stat(file.filename.c_str(), &st) == 0) {
+                    file.mtime = st.st_mtime;
+                }
+                // OPUS data is decoded to PCM, apply LZ4 compression
                 compressData(file.data, file.compressedData, file.compressionType);
                 cout << "File " << file.filename << " original " << file.data.size() << " compressed " << file.compressedData.size() << " compression " << file.compressionType << " resource_type " << fileType << endl;
             } else {

@@ -15,7 +15,8 @@ pkg_check_modules(LUA REQUIRED lua5.4)
 pkg_check_modules(PNG REQUIRED libpng)
 pkg_check_modules(SQUISH REQUIRED libsquish)
 pkg_check_modules(OPENAL REQUIRED openal)
-include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LZ4_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS} ${PNG_INCLUDE_DIRS} ${SQUISH_INCLUDE_DIRS} ${OPENAL_INCLUDE_DIRS})
+pkg_check_modules(OPUSFILE REQUIRED opusfile)
+include_directories(${SDL2_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LZ4_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS} ${PNG_INCLUDE_DIRS} ${SQUISH_INCLUDE_DIRS} ${OPENAL_INCLUDE_DIRS} ${OPUSFILE_INCLUDE_DIRS})
 find_package(box2d CONFIG REQUIRED)
 
 # Find glslc for shader compilation
@@ -68,12 +69,12 @@ add_custom_command(
 add_custom_target(shaders DEPENDS vertex.spv nebula_fragment.spv menu_fragment.spv cloud_fragment.spv debug_vertex.spv debug_fragment.spv sprite_vertex.spv sprite_fragment.spv)
 
 add_executable(packer tools/packer.cpp src/ResourceTypes.h)
-target_link_libraries(packer ${LZ4_LIBRARIES} ${PNG_LIBRARIES} squish)
+target_link_libraries(packer ${LZ4_LIBRARIES} ${PNG_LIBRARIES} squish ${OPUSFILE_LIBRARIES})
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/res.pak
-    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_BINARY_DIR}/debug_vertex.spv ${CMAKE_BINARY_DIR}/debug_fragment.spv ${CMAKE_BINARY_DIR}/sprite_vertex.spv ${CMAKE_BINARY_DIR}/sprite_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua ${CMAKE_SOURCE_DIR}/scenes/physics.lua ${CMAKE_SOURCE_DIR}/scenes/audio_test.lua ${CMAKE_SOURCE_DIR}/res/metalwall.png ${CMAKE_SOURCE_DIR}/res/rock.png
-    DEPENDS packer ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_BINARY_DIR}/debug_vertex.spv ${CMAKE_BINARY_DIR}/debug_fragment.spv ${CMAKE_BINARY_DIR}/sprite_vertex.spv ${CMAKE_BINARY_DIR}/sprite_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua ${CMAKE_SOURCE_DIR}/scenes/physics.lua ${CMAKE_SOURCE_DIR}/scenes/audio_test.lua ${CMAKE_SOURCE_DIR}/res/metalwall.png ${CMAKE_SOURCE_DIR}/res/rock.png
+    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_BINARY_DIR}/debug_vertex.spv ${CMAKE_BINARY_DIR}/debug_fragment.spv ${CMAKE_BINARY_DIR}/sprite_vertex.spv ${CMAKE_BINARY_DIR}/sprite_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua ${CMAKE_SOURCE_DIR}/scenes/physics.lua ${CMAKE_SOURCE_DIR}/scenes/audio_test.lua ${CMAKE_SOURCE_DIR}/res/metalwall.png ${CMAKE_SOURCE_DIR}/res/rock.png ${CMAKE_SOURCE_DIR}/res/sfx.opus
+    DEPENDS packer ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_BINARY_DIR}/debug_vertex.spv ${CMAKE_BINARY_DIR}/debug_fragment.spv ${CMAKE_BINARY_DIR}/sprite_vertex.spv ${CMAKE_BINARY_DIR}/sprite_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua ${CMAKE_SOURCE_DIR}/scenes/physics.lua ${CMAKE_SOURCE_DIR}/scenes/audio_test.lua ${CMAKE_SOURCE_DIR}/res/metalwall.png ${CMAKE_SOURCE_DIR}/res/rock.png ${CMAKE_SOURCE_DIR}/res/sfx.opus
 )
 
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
