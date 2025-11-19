@@ -31,7 +31,7 @@ function init()
     -- Load OPUS audio from pak resource
     print("Loading OPUS audio from resource...")
     audioBuffer = audioLoadOpus("sfx.opus")
-    
+
     if audioBuffer >= 0 then
         print("Successfully loaded OPUS audio buffer with ID: " .. audioBuffer)
     else

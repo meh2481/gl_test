@@ -91,6 +91,9 @@ public:
     // Release an audio source
     void releaseSource(int sourceId);
 
+    // Check if a source is currently playing
+    bool isSourcePlaying(int sourceId);
+
     // Set listener position in 3D space
     void setListenerPosition(float x, float y, float z);
 

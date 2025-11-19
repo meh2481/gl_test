@@ -91,6 +91,7 @@ private:
     static int audioSetSourcePitch(lua_State* L);
     static int audioSetSourceLooping(lua_State* L);
     static int audioReleaseSource(lua_State* L);
+    static int audioIsSourcePlaying(lua_State* L);
     static int audioSetListenerPosition(lua_State* L);
     static int audioSetListenerVelocity(lua_State* L);
     static int audioSetListenerOrientation(lua_State* L);
