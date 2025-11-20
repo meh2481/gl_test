@@ -32,7 +32,8 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_newtable(luaState_);
 
     // Copy global functions and tables into the scene table
-    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexture",
+    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadPhongShaders", "loadTexture",
+                                     "setLightPosition", "setLightParameters",
                                      "pushScene", "popScene", "print",
                                      "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
                                      "b2AddBoxFixture", "b2AddCircleFixture", "b2SetBodyPosition",
@@ -432,6 +433,9 @@ void LuaInterface::registerFunctions() {
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
     lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
+    lua_register(luaState_, "loadPhongShaders", loadPhongShaders);
+    lua_register(luaState_, "setLightPosition", setLightPosition);
+    lua_register(luaState_, "setLightParameters", setLightParameters);
 
     // Register audio functions
     lua_register(luaState_, "audioLoadBuffer", audioLoadBuffer);
@@ -1072,6 +1076,107 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
 
     // Create textured pipeline
     interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader);
+
+    return 0;
+}
+
+int LuaInterface::loadPhongShaders(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), 
+    //            baseTexture (string), normalTexture (string)
+    assert(lua_gettop(L) == 5);
+    assert(lua_isstring(L, 1));
+    assert(lua_isstring(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isstring(L, 4));
+    assert(lua_isstring(L, 5));
+
+    const char* vertShaderName = lua_tostring(L, 1);
+    const char* fragShaderName = lua_tostring(L, 2);
+    int zIndex = (int)lua_tointeger(L, 3);
+    const char* baseTextureName = lua_tostring(L, 4);
+    const char* normalTextureName = lua_tostring(L, 5);
+
+    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
+    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+    uint64_t baseTextureId = std::hash<std::string>{}(baseTextureName);
+    uint64_t normalTextureId = std::hash<std::string>{}(normalTextureName);
+
+    ResourceData vertShader = interface->pakResource_.getResource(vertId);
+    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+
+    assert(vertShader.data != nullptr);
+    assert(fragShader.data != nullptr);
+
+    // Load both textures
+    ResourceData baseImageData = interface->pakResource_.getResource(baseTextureId);
+    ResourceData normalImageData = interface->pakResource_.getResource(normalTextureId);
+    assert(baseImageData.data != nullptr && "Base texture not found in pak file");
+    assert(normalImageData.data != nullptr && "Normal texture not found in pak file");
+
+    interface->renderer_.loadTexture(baseTextureId, baseImageData);
+    interface->renderer_.loadTexture(normalTextureId, normalImageData);
+
+    int pipelineId = interface->pipelineIndex_++;
+    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+
+    // Create Phong pipeline
+    interface->renderer_.createPhongPipeline(pipelineId, vertShader, fragShader);
+    
+    // Create descriptor set with both textures
+    interface->renderer_.createPhongDescriptorSet(baseTextureId, normalTextureId);
+
+    return 0;
+}
+
+int LuaInterface::setLightPosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: x (number), y (number), z (number)
+    assert(lua_gettop(L) == 3);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    float x = (float)lua_tonumber(L, 1);
+    float y = (float)lua_tonumber(L, 2);
+    float z = (float)lua_tonumber(L, 3);
+
+    // Get current lighting parameters and update just position
+    interface->renderer_.setLightParameters(x, y, z, 0.3f, 0.7f, 0.5f, 32.0f);
+
+    return 0;
+}
+
+int LuaInterface::setLightParameters(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: x (number), y (number), z (number), ambient (number), diffuse (number), specular (number), shininess (number)
+    assert(lua_gettop(L) == 7);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+    assert(lua_isnumber(L, 5));
+    assert(lua_isnumber(L, 6));
+    assert(lua_isnumber(L, 7));
+
+    float x = (float)lua_tonumber(L, 1);
+    float y = (float)lua_tonumber(L, 2);
+    float z = (float)lua_tonumber(L, 3);
+    float ambient = (float)lua_tonumber(L, 4);
+    float diffuse = (float)lua_tonumber(L, 5);
+    float specular = (float)lua_tonumber(L, 6);
+    float shininess = (float)lua_tonumber(L, 7);
+
+    interface->renderer_.setLightParameters(x, y, z, ambient, diffuse, specular, shininess);
 
     return 0;
 }

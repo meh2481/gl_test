@@ -7,15 +7,21 @@ function init()
     -- Load the nebula background shader (z-index 0)
     loadShaders("vertex.spv", "nebula_fragment.spv", 0)
 
-    -- Load sprite shaders for textured objects (z-index 1, before debug draw)
-    loadTexturedShaders("sprite_vertex.spv", "sprite_fragment.spv", 1)
+    -- Load Phong shaders for physics objects with normal maps (z-index 1, before debug draw)
+    loadPhongShaders("phong_vertex.spv", "phong_fragment.spv", 1, "metalwall.png", "metalwall.norm.png")
+    
+    -- Set up lighting for the scene
+    -- Light position (x, y, z), ambient, diffuse, specular, shininess
+    setLightParameters(0.5, 0.5, 1.0, 0.3, 0.7, 0.8, 32.0)
 
     -- Load debug drawing shader (z-index 2, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 2)
 
     -- Load textures
     loadTexture("rock.png")
+    loadTexture("rock.norm.png")
     loadTexture("metalwall.png")
+    loadTexture("metalwall.norm.png")
 
     -- Enable Box2D debug drawing
     b2EnableDebugDraw(true)
@@ -52,7 +58,7 @@ function init()
     attachLayerToBody(layerId, circleId)
     table.insert(layers, layerId)
 
-    print("Physics demo scene initialized")
+    print("Physics demo scene initialized with Phong shading")
 end
 
 function update(deltaTime)

@@ -53,6 +53,11 @@ VulkanRenderer::VulkanRenderer() :
     m_texturedDescriptorSetLayout(VK_NULL_HANDLE),
     m_texturedDescriptorPool(VK_NULL_HANDLE),
     m_texturedPipelineLayout(VK_NULL_HANDLE),
+    m_phongDescriptorSetLayout(VK_NULL_HANDLE),
+    m_phongDescriptorPool(VK_NULL_HANDLE),
+    m_phongPipelineLayout(VK_NULL_HANDLE),
+    m_lightX(0.0f), m_lightY(0.0f), m_lightZ(1.0f),
+    m_ambientStrength(0.3f), m_diffuseStrength(0.7f), m_specularStrength(0.5f), m_shininess(32.0f),
     currentFrame(0),
     graphicsQueueFamilyIndex(0),
     swapchainFramebuffers(nullptr)
@@ -83,6 +88,9 @@ void VulkanRenderer::initialize(SDL_Window* window) {
     createTexturedDescriptorSetLayout();
     createTexturedPipelineLayout();
     createTexturedDescriptorPool();
+    createPhongDescriptorSetLayout();
+    createPhongPipelineLayout();
+    createPhongDescriptorPool();
     createFramebuffers();
     createVertexBuffer();
     createDebugVertexBuffer();
@@ -1137,6 +1145,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     for (uint64_t pipelineId : m_pipelinesToDraw) {
         bool isDebug = m_debugPipelines.count(pipelineId) > 0 && m_debugPipelines[pipelineId];
         bool isTextured = m_texturedPipelines.count(pipelineId) > 0 && m_texturedPipelines[pipelineId];
+        bool isPhong = m_phongPipelines.count(pipelineId) > 0 && m_phongPipelines[pipelineId];
 
         if (isDebug) {
             vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
@@ -1176,6 +1185,36 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                         VkDescriptorSet descriptorSet = descIt->second;
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
                                               m_texturedPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+                        vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+                    }
+                }
+            }
+        } else if (isPhong) {
+            // Draw Phong-shaded sprites in batches
+            auto it = m_pipelines.find(pipelineId);
+            if (it != m_pipelines.end() && !m_spriteBatches.empty()) {
+                float phongPushConstants[10] = {
+                    static_cast<float>(swapchainExtent.width), 
+                    static_cast<float>(swapchainExtent.height), 
+                    time,
+                    m_lightX, m_lightY, m_lightZ,
+                    m_ambientStrength, m_diffuseStrength, m_specularStrength, m_shininess
+                };
+                vkCmdPushConstants(commandBuffer, m_phongPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(phongPushConstants), phongPushConstants);
+                
+                VkBuffer vertexBuffers[] = {spriteVertexBuffer};
+                VkDeviceSize offsets[] = {0};
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                vkCmdBindIndexBuffer(commandBuffer, spriteIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
+                
+                // Draw each batch with its corresponding texture pair (diffuse + normal)
+                for (const auto& batch : m_spriteBatches) {
+                    auto descIt = m_phongDescriptorSets.find(batch.textureId);
+                    if (descIt != m_phongDescriptorSets.end()) {
+                        VkDescriptorSet descriptorSet = descIt->second;
+                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+                                              m_phongPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
                         vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
                     }
                 }
@@ -1658,4 +1697,254 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
     
     // Upload to GPU
     updateSpriteVertexBuffer(allVertexData, allIndices);
+}
+
+void VulkanRenderer::createPhongDescriptorSetLayout() {
+    // Descriptor set layout for Phong shading with two textures (diffuse and normal)
+    VkDescriptorSetLayoutBinding bindings[2];
+    
+    // Binding 0: Diffuse texture
+    bindings[0].binding = 0;
+    bindings[0].descriptorCount = 1;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[0].pImmutableSamplers = nullptr;
+    bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    
+    // Binding 1: Normal map texture
+    bindings[1].binding = 1;
+    bindings[1].descriptorCount = 1;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[1].pImmutableSamplers = nullptr;
+    bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 2;
+    layoutInfo.pBindings = bindings;
+    
+    assert(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_phongDescriptorSetLayout) == VK_SUCCESS);
+}
+
+void VulkanRenderer::createPhongPipelineLayout() {
+    // Push constants for Phong shading (time, width, height, light params)
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(float) * 10;  // width, height, time, lightX, lightY, lightZ, ambient, diffuse, specular, shininess
+    
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &m_phongDescriptorSetLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    
+    assert(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_phongPipelineLayout) == VK_SUCCESS);
+}
+
+void VulkanRenderer::createPhongDescriptorPool() {
+    // Create descriptor pool for Phong descriptors (2 textures per set)
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSize.descriptorCount = 200;  // Support up to 100 material sets (2 textures each)
+    
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = 100;
+    
+    assert(vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_phongDescriptorPool) == VK_SUCCESS);
+}
+
+void VulkanRenderer::createPhongDescriptorSet(uint64_t baseTextureId, uint64_t normalTextureId) {
+    auto baseIt = m_textures.find(baseTextureId);
+    auto normalIt = m_textures.find(normalTextureId);
+    assert(baseIt != m_textures.end());
+    assert(normalIt != m_textures.end());
+    
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_phongDescriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_phongDescriptorSetLayout;
+    
+    VkDescriptorSet descriptorSet;
+    assert(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) == VK_SUCCESS);
+    
+    VkDescriptorImageInfo imageInfos[2];
+    
+    // Base texture
+    imageInfos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfos[0].imageView = baseIt->second.imageView;
+    imageInfos[0].sampler = baseIt->second.sampler;
+    
+    // Normal map texture
+    imageInfos[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfos[1].imageView = normalIt->second.imageView;
+    imageInfos[1].sampler = normalIt->second.sampler;
+    
+    VkWriteDescriptorSet descriptorWrites[2];
+    
+    // Write base texture
+    descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[0].pNext = nullptr;
+    descriptorWrites[0].dstSet = descriptorSet;
+    descriptorWrites[0].dstBinding = 0;
+    descriptorWrites[0].dstArrayElement = 0;
+    descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrites[0].descriptorCount = 1;
+    descriptorWrites[0].pImageInfo = &imageInfos[0];
+    descriptorWrites[0].pBufferInfo = nullptr;
+    descriptorWrites[0].pTexelBufferView = nullptr;
+    
+    // Write normal map texture
+    descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[1].pNext = nullptr;
+    descriptorWrites[1].dstSet = descriptorSet;
+    descriptorWrites[1].dstBinding = 1;
+    descriptorWrites[1].dstArrayElement = 0;
+    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrites[1].descriptorCount = 1;
+    descriptorWrites[1].pImageInfo = &imageInfos[1];
+    descriptorWrites[1].pBufferInfo = nullptr;
+    descriptorWrites[1].pTexelBufferView = nullptr;
+    
+    vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
+    
+    m_phongDescriptorSets[baseTextureId] = descriptorSet;
+}
+
+void VulkanRenderer::createPhongPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader) {
+    std::vector<char> vertShaderData(vertShader.data, vertShader.data + vertShader.size);
+    std::vector<char> fragShaderData(fragShader.data, fragShader.data + fragShader.size);
+    
+    VkShaderModule vertShaderModule = createShaderModule(vertShaderData);
+    VkShaderModule fragShaderModule = createShaderModule(fragShaderData);
+    
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertShaderStageInfo.module = vertShaderModule;
+    vertShaderStageInfo.pName = "main";
+    
+    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragShaderStageInfo.module = fragShaderModule;
+    fragShaderStageInfo.pName = "main";
+    
+    VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+    
+    // Vertex input: position (vec2) + texcoord (vec2)
+    VkVertexInputBindingDescription bindingDescription{};
+    bindingDescription.binding = 0;
+    bindingDescription.stride = sizeof(float) * 4;
+    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    
+    VkVertexInputAttributeDescription attributeDescriptions[2];
+    attributeDescriptions[0].binding = 0;
+    attributeDescriptions[0].location = 0;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[0].offset = 0;
+    
+    attributeDescriptions[1].binding = 0;
+    attributeDescriptions[1].location = 1;
+    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[1].offset = sizeof(float) * 2;
+    
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputInfo.vertexAttributeDescriptionCount = 2;
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
+    
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+    
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float)swapchainExtent.width;
+    viewport.height = (float)swapchainExtent.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = swapchainExtent;
+    
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1;
+    viewportState.pScissors = &scissor;
+    
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_FALSE;
+    
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    
+    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &colorBlendAttachment;
+    
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = shaderStages;
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.layout = m_phongPipelineLayout;
+    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.subpass = 0;
+    
+    VkPipeline pipeline;
+    assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
+    
+    m_pipelines[id] = pipeline;
+    m_phongPipelines[id] = true;
+    
+    vkDestroyShaderModule(device, fragShaderModule, nullptr);
+    vkDestroyShaderModule(device, vertShaderModule, nullptr);
+}
+
+void VulkanRenderer::setLightParameters(float x, float y, float z, float ambient, float diffuse, float specular, float shininess) {
+    m_lightX = x;
+    m_lightY = y;
+    m_lightZ = z;
+    m_ambientStrength = ambient;
+    m_diffuseStrength = diffuse;
+    m_specularStrength = specular;
+    m_shininess = shininess;
 }

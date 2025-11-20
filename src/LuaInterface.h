@@ -79,6 +79,9 @@ private:
     // Texture loading
     static int loadTexture(lua_State* L);
     static int loadTexturedShaders(lua_State* L);
+    static int loadPhongShaders(lua_State* L);
+    static int setLightPosition(lua_State* L);
+    static int setLightParameters(lua_State* L);
 
     // Audio Lua bindings
     static int audioLoadBuffer(lua_State* L);

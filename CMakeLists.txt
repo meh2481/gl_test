@@ -86,15 +86,25 @@ add_custom_command(
     COMMAND ${GLSLC} -fshader-stage=frag ${CMAKE_SOURCE_DIR}/shaders/sprite_fragment.glsl -o sprite_fragment.spv
     DEPENDS ${CMAKE_SOURCE_DIR}/shaders/sprite_fragment.glsl
 )
-add_custom_target(shaders DEPENDS vertex.spv nebula_fragment.spv menu_fragment.spv cloud_fragment.spv debug_vertex.spv debug_fragment.spv sprite_vertex.spv sprite_fragment.spv)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/phong_vertex.spv
+    COMMAND ${GLSLC} -fshader-stage=vert ${CMAKE_SOURCE_DIR}/shaders/phong_vertex.glsl -o phong_vertex.spv
+    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/phong_vertex.glsl
+)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/phong_fragment.spv
+    COMMAND ${GLSLC} -fshader-stage=frag ${CMAKE_SOURCE_DIR}/shaders/phong_fragment.glsl -o phong_fragment.spv
+    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/phong_fragment.glsl
+)
+add_custom_target(shaders DEPENDS vertex.spv nebula_fragment.spv menu_fragment.spv cloud_fragment.spv debug_vertex.spv debug_fragment.spv sprite_vertex.spv sprite_fragment.spv phong_vertex.spv phong_fragment.spv)
 
 add_executable(packer tools/packer.cpp src/ResourceTypes.h)
 target_link_libraries(packer ${LZ4_LIBRARIES} ${PNG_LIBRARIES} squish)
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/res.pak
-    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_BINARY_DIR}/debug_vertex.spv ${CMAKE_BINARY_DIR}/debug_fragment.spv ${CMAKE_BINARY_DIR}/sprite_vertex.spv ${CMAKE_BINARY_DIR}/sprite_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua ${CMAKE_SOURCE_DIR}/scenes/physics.lua ${CMAKE_SOURCE_DIR}/scenes/audio_test.lua ${CMAKE_SOURCE_DIR}/res/metalwall.png ${CMAKE_SOURCE_DIR}/res/rock.png ${CMAKE_SOURCE_DIR}/res/sfx.opus
-    DEPENDS packer ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_BINARY_DIR}/debug_vertex.spv ${CMAKE_BINARY_DIR}/debug_fragment.spv ${CMAKE_BINARY_DIR}/sprite_vertex.spv ${CMAKE_BINARY_DIR}/sprite_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua ${CMAKE_SOURCE_DIR}/scenes/physics.lua ${CMAKE_SOURCE_DIR}/scenes/audio_test.lua ${CMAKE_SOURCE_DIR}/res/metalwall.png ${CMAKE_SOURCE_DIR}/res/rock.png ${CMAKE_SOURCE_DIR}/res/sfx.opus
+    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_BINARY_DIR}/debug_vertex.spv ${CMAKE_BINARY_DIR}/debug_fragment.spv ${CMAKE_BINARY_DIR}/sprite_vertex.spv ${CMAKE_BINARY_DIR}/sprite_fragment.spv ${CMAKE_BINARY_DIR}/phong_vertex.spv ${CMAKE_BINARY_DIR}/phong_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua ${CMAKE_SOURCE_DIR}/scenes/physics.lua ${CMAKE_SOURCE_DIR}/scenes/audio_test.lua ${CMAKE_SOURCE_DIR}/res/metalwall.png ${CMAKE_SOURCE_DIR}/res/rock.png ${CMAKE_SOURCE_DIR}/res/metalwall.norm.png ${CMAKE_SOURCE_DIR}/res/rock.norm.png ${CMAKE_SOURCE_DIR}/res/sfx.opus
+    DEPENDS packer ${CMAKE_BINARY_DIR}/vertex.spv ${CMAKE_BINARY_DIR}/nebula_fragment.spv ${CMAKE_BINARY_DIR}/menu_fragment.spv ${CMAKE_BINARY_DIR}/cloud_fragment.spv ${CMAKE_BINARY_DIR}/debug_vertex.spv ${CMAKE_BINARY_DIR}/debug_fragment.spv ${CMAKE_BINARY_DIR}/sprite_vertex.spv ${CMAKE_BINARY_DIR}/sprite_fragment.spv ${CMAKE_BINARY_DIR}/phong_vertex.spv ${CMAKE_BINARY_DIR}/phong_fragment.spv ${CMAKE_SOURCE_DIR}/scenes/default.lua ${CMAKE_SOURCE_DIR}/scenes/menu.lua ${CMAKE_SOURCE_DIR}/scenes/physics.lua ${CMAKE_SOURCE_DIR}/scenes/audio_test.lua ${CMAKE_SOURCE_DIR}/res/metalwall.png ${CMAKE_SOURCE_DIR}/res/rock.png ${CMAKE_SOURCE_DIR}/res/metalwall.norm.png ${CMAKE_SOURCE_DIR}/res/rock.norm.png ${CMAKE_SOURCE_DIR}/res/sfx.opus
 )
 
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
