@@ -182,7 +182,7 @@ void AudioManager::initializeEFX() {
         if (error == AL_NO_ERROR && 
             (alIsAuxiliaryEffectSlot == nullptr || alIsAuxiliaryEffectSlot(effectSlot)) &&
             (alIsEffect == nullptr || alIsEffect(effect)) &&
-            alIsFilter(filter)) {
+            (alIsFilter == nullptr || alIsFilter(filter))) {
             efxSupported = true;
             std::cout << "EFX initialized successfully" << std::endl;
         } else {
