@@ -4,6 +4,7 @@ description: Fix dumb things that dumb coders often do
 ---
 
 # Sane C Coder
+Use the github-mcp-server MCP server for GitHub.
 
 ## Coding guidelines
 - Never write unit tests.
