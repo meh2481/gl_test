@@ -1172,11 +1172,12 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 vkCmdDraw(commandBuffer, debugVertexCount, 1, 0, 0);
             }
         } else {
-            // Generic textured pipeline rendering
+            // Check if this is a textured pipeline
             auto pipelineIt = m_pipelines.find(pipelineId);
             auto infoIt = m_pipelineInfo.find(pipelineId);
             
             if (pipelineIt != m_pipelines.end() && infoIt != m_pipelineInfo.end() && !m_spriteBatches.empty()) {
+                // Textured pipeline rendering
                 const PipelineInfo& info = infoIt->second;
                 
                 // Prepare push constants based on pipeline requirements
@@ -1224,6 +1225,16 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                         vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
                     }
                 }
+            } else if (pipelineIt != m_pipelines.end()) {
+                // Non-textured pipeline (e.g., background shaders)
+                vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
+                
+                // Bind regular vertex buffer
+                VkBuffer vertexBuffers[] = {vertexBuffer};
+                VkDeviceSize offsets[] = {0};
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineIt->second);
+                vkCmdDraw(commandBuffer, 4, 1, 0, 0);
             }
         }
     }
