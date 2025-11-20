@@ -171,6 +171,18 @@ public:
     void deserializeBindings(const char* data) {
         if (!data || *data == '\0') return;
 
+#ifdef DEBUG
+        // In debug mode, preserve default bindings for actions not in config
+        // Save default bindings for each action
+        KeyList defaultBindings[ACTION_COUNT];
+        for (int i = 0; i < ACTION_COUNT; ++i) {
+            const KeyList& keys = getKeysForAction(static_cast<Action>(i));
+            for (int j = 0; j < keys.count; ++j) {
+                defaultBindings[i].add(keys.keys[j]);
+            }
+        }
+#endif
+
         clearAllBindings();
 
         // Parse the string
@@ -203,6 +215,21 @@ public:
 
             if (*ptr == ';') ++ptr;
         }
+
+#ifdef DEBUG
+        // Restore default bindings for actions that weren't in the config
+        for (int i = 0; i < ACTION_COUNT; ++i) {
+            Action action = static_cast<Action>(i);
+            const KeyList& currentKeys = getKeysForAction(action);
+            
+            // If this action has no bindings after loading config, restore defaults
+            if (currentKeys.count == 0) {
+                for (int j = 0; j < defaultBindings[i].count; ++j) {
+                    bind(defaultBindings[i].keys[j], action);
+                }
+            }
+        }
+#endif
     }
 
 private:
