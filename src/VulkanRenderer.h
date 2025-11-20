@@ -100,6 +100,7 @@ private:
     // Sprite batch data
     struct BatchDrawData {
         uint64_t textureId;
+        uint64_t descriptorId;
         uint32_t indexCount;
         uint32_t firstIndex;
     };

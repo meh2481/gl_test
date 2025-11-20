@@ -946,8 +946,9 @@ int LuaInterface::createLayer(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: textureFilename (string), width (number), height (number)
-    assert(lua_gettop(L) == 3);
+    // Arguments: textureFilename (string), width (number), height (number), [normalMapFilename (string)]
+    int numArgs = lua_gettop(L);
+    assert(numArgs == 3 || numArgs == 4);
     assert(lua_isstring(L, 1));
     assert(lua_isnumber(L, 2));
     assert(lua_isnumber(L, 3));
@@ -955,11 +956,17 @@ int LuaInterface::createLayer(lua_State* L) {
     const char* filename = lua_tostring(L, 1);
     float width = (float)lua_tonumber(L, 2);
     float height = (float)lua_tonumber(L, 3);
+    
+    uint64_t normalMapId = 0;
+    if (numArgs == 4 && lua_isstring(L, 4)) {
+        const char* normalMapFilename = lua_tostring(L, 4);
+        normalMapId = std::hash<std::string>{}(normalMapFilename);
+    }
 
     // Hash the filename to get texture ID (same as packer)
     uint64_t textureId = std::hash<std::string>{}(filename);
 
-    int layerId = interface->layerManager_->createLayer(textureId, width, height);
+    int layerId = interface->layerManager_->createLayer(textureId, width, height, normalMapId);
     lua_pushinteger(L, layerId);
     return 1;
 }
@@ -1127,8 +1134,10 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader, 2);
     
     // Create descriptor set with both textures
+    // Use same formula as SceneLayer for descriptor ID
+    uint64_t descriptorId = baseTextureId ^ (normalTextureId << 1);
     std::vector<uint64_t> textureIds = {baseTextureId, normalTextureId};
-    interface->renderer_.createDescriptorSetForTextures(baseTextureId, textureIds);
+    interface->renderer_.createDescriptorSetForTextures(descriptorId, textureIds);
 
     return 0;
 }

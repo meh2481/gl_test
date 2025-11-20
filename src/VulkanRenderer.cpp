@@ -1205,14 +1205,14 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 for (const auto& batch : m_spriteBatches) {
                     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
                     
-                    // Find appropriate descriptor set
+                    // Find descriptor set using batch's descriptor ID
                     if (info.usesDualTexture) {
-                        auto descIt = m_dualTextureDescriptorSets.find(batch.textureId);
+                        auto descIt = m_dualTextureDescriptorSets.find(batch.descriptorId);
                         if (descIt != m_dualTextureDescriptorSets.end()) {
                             descriptorSet = descIt->second;
                         }
                     } else {
-                        auto descIt = m_singleTextureDescriptorSets.find(batch.textureId);
+                        auto descIt = m_singleTextureDescriptorSets.find(batch.descriptorId);
                         if (descIt != m_singleTextureDescriptorSets.end()) {
                             descriptorSet = descIt->second;
                         }
@@ -1689,6 +1689,7 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
         
         BatchDrawData drawData;
         drawData.textureId = batch.textureId;
+        drawData.descriptorId = batch.descriptorId;
         drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
         

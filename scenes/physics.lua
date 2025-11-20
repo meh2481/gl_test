@@ -51,7 +51,7 @@ function init()
         local layerId
         if i <= 2 then
             -- Phong shading with normal maps
-            layerId = createLayer("metalwall.png", 0.2, 0.2)
+            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.norm.png")
         elseif i <= 4 then
             -- Simple texture, no normal map
             layerId = createLayer("metalwall.png", 0.2, 0.2)
@@ -69,7 +69,7 @@ function init()
     table.insert(bodies, circleId)
 
     -- Attach a sprite layer to the circle
-    local layerId = createLayer("rock.png", 0.3, 0.3)
+    local layerId = createLayer("rock.png", 0.3, 0.3, "rock.norm.png")
     attachLayerToBody(layerId, circleId)
     table.insert(layers, layerId)
 

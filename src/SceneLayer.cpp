@@ -9,12 +9,23 @@ SceneLayerManager::SceneLayerManager()
 SceneLayerManager::~SceneLayerManager() {
 }
 
-int SceneLayerManager::createLayer(uint64_t textureId, float width, float height) {
+int SceneLayerManager::createLayer(uint64_t textureId, float width, float height, uint64_t normalMapId) {
     assert(width > 0.0f && height > 0.0f);
     
     int layerId = nextLayerId_++;
     SceneLayer layer;
     layer.textureId = textureId;
+    layer.normalMapId = normalMapId;
+    
+    // Compute descriptor ID based on textures used
+    if (normalMapId != 0) {
+        // Dual texture - combine texture IDs for unique descriptor ID
+        layer.descriptorId = textureId ^ (normalMapId << 1);
+    } else {
+        // Single texture - use texture ID directly
+        layer.descriptorId = textureId;
+    }
+    
     layer.physicsBodyId = -1;  // Not attached initially
     layer.width = width;
     layer.height = height;
@@ -74,7 +85,7 @@ void SceneLayerManager::updateLayerTransform(int layerId, float bodyX, float bod
 void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
     batches.clear();
     
-    // Group layers by texture ID
+    // Group layers by descriptor ID (not just texture ID)
     std::unordered_map<uint64_t, SpriteBatch*> batchMap;
     
     for (const auto& pair : layers_) {
@@ -85,14 +96,15 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
             continue;
         }
         
-        // Find or create batch for this texture
+        // Find or create batch for this descriptor ID
         SpriteBatch* batch = nullptr;
-        auto batchIt = batchMap.find(layer.textureId);
+        auto batchIt = batchMap.find(layer.descriptorId);
         if (batchIt == batchMap.end()) {
             batches.push_back(SpriteBatch());
             batch = &batches.back();
             batch->textureId = layer.textureId;
-            batchMap[layer.textureId] = batch;
+            batch->descriptorId = layer.descriptorId;
+            batchMap[layer.descriptorId] = batch;
         } else {
             batch = batchIt->second;
         }
