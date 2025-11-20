@@ -88,6 +88,8 @@ function onAction(action)
             local circleId = bodies[#bodies]
             local x, y = b2GetBodyPosition(circleId)
             b2ApplyForce(circleId, 0, 50, x, y)
+            -- Trigger controller vibration: medium intensity for 200ms
+            vibrate(0.5, 0.5, 200)
         end
     end
     if action == ACTION_RESET_PHYSICS then
@@ -114,6 +116,8 @@ function onAction(action)
                 b2SetBodyAwake(bodyId, true)
             end
         end
+        -- Trigger controller vibration: light intensity for 150ms
+        vibrate(0.3, 0.3, 150)
     end
     if action == ACTION_TOGGLE_DEBUG_DRAW then
         print("Toggling debug draw")
