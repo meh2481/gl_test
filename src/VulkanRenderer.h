@@ -18,8 +18,7 @@ public:
     void initialize(SDL_Window* window);
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
-    void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader);
-    void createMultiTexturePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader);
+    void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void setCurrentPipeline(uint64_t id);
     void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
     void setDebugDrawData(const std::vector<float>& vertexData);
@@ -28,7 +27,7 @@ public:
     void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
     void setSpriteBatches(const std::vector<SpriteBatch>& batches);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
-    void createMultiTextureDescriptorSet(uint64_t baseTextureId, uint64_t normalTextureId);
+    void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
     void setShaderParameters(float x, float y, float z, float ambient, float diffuse, float specular, float shininess);
     void render(float time);
     void cleanup();
@@ -114,18 +113,27 @@ private:
         VkSampler sampler;
     };
     std::map<uint64_t, TextureData> m_textures;
-    VkDescriptorSetLayout m_texturedDescriptorSetLayout;
-    VkDescriptorPool m_texturedDescriptorPool;
-    std::map<uint64_t, VkDescriptorSet> m_texturedDescriptorSets;
-    VkPipelineLayout m_texturedPipelineLayout;
-    std::map<uint64_t, bool> m_texturedPipelines;  // Track which pipelines are textured
     
-    // Multi-texture rendering support
-    VkDescriptorSetLayout m_multiTextureDescriptorSetLayout;
-    VkDescriptorPool m_multiTextureDescriptorPool;
-    std::map<uint64_t, VkDescriptorSet> m_multiTextureDescriptorSets;
-    VkPipelineLayout m_multiTexturePipelineLayout;
-    std::map<uint64_t, bool> m_multiTexturePipelines;  // Track which pipelines use multi-texture
+    // Generic descriptor set support - keyed by descriptor ID
+    // Each descriptor can have 1 or more textures
+    VkDescriptorSetLayout m_singleTextureDescriptorSetLayout;
+    VkDescriptorPool m_singleTextureDescriptorPool;
+    std::map<uint64_t, VkDescriptorSet> m_singleTextureDescriptorSets;
+    VkPipelineLayout m_singleTexturePipelineLayout;
+    
+    VkDescriptorSetLayout m_dualTextureDescriptorSetLayout;
+    VkDescriptorPool m_dualTextureDescriptorPool;
+    std::map<uint64_t, VkDescriptorSet> m_dualTextureDescriptorSets;
+    VkPipelineLayout m_dualTexturePipelineLayout;
+    
+    // Pipeline metadata - stores which resources each pipeline uses
+    struct PipelineInfo {
+        VkPipelineLayout layout;
+        VkDescriptorSetLayout descriptorSetLayout;
+        bool usesDualTexture;  // true = 2 textures, false = 1 texture
+    };
+    std::map<uint64_t, PipelineInfo> m_pipelineInfo;
+    
     float m_shaderParams[7];  // Generic shader parameters (e.g., light position, material properties)
     
     VkSemaphore imageAvailableSemaphores[2];
@@ -172,11 +180,12 @@ private:
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, float time);
     void createTextureImage(uint64_t textureId, const void* imageData, uint32_t width, uint32_t height, VkFormat format, size_t dataSize);
     void createTextureSampler(uint64_t textureId);
-    void createTexturedDescriptorSetLayout();
-    void createTexturedDescriptorPool();
-    void createTexturedDescriptorSet(uint64_t textureId);
-    void createTexturedPipelineLayout();
-    void createMultiTextureDescriptorSetLayout();
-    void createMultiTextureDescriptorPool();
-    void createMultiTexturePipelineLayout();
+    void createSingleTextureDescriptorSetLayout();
+    void createSingleTextureDescriptorPool();
+    void createSingleTextureDescriptorSet(uint64_t textureId);
+    void createSingleTexturePipelineLayout();
+    void createDualTextureDescriptorSetLayout();
+    void createDualTextureDescriptorPool();
+    void createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id);
+    void createDualTexturePipelineLayout();
 };

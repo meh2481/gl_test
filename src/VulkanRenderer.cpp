@@ -50,12 +50,12 @@ VulkanRenderer::VulkanRenderer() :
     spriteIndexBufferMemory(VK_NULL_HANDLE),
     spriteIndexBufferSize(0),
     spriteIndexCount(0),
-    m_texturedDescriptorSetLayout(VK_NULL_HANDLE),
-    m_texturedDescriptorPool(VK_NULL_HANDLE),
-    m_texturedPipelineLayout(VK_NULL_HANDLE),
-    m_multiTextureDescriptorSetLayout(VK_NULL_HANDLE),
-    m_multiTextureDescriptorPool(VK_NULL_HANDLE),
-    m_multiTexturePipelineLayout(VK_NULL_HANDLE),
+    m_singleTextureDescriptorSetLayout(VK_NULL_HANDLE),
+    m_singleTextureDescriptorPool(VK_NULL_HANDLE),
+    m_singleTexturePipelineLayout(VK_NULL_HANDLE),
+    m_dualTextureDescriptorSetLayout(VK_NULL_HANDLE),
+    m_dualTextureDescriptorPool(VK_NULL_HANDLE),
+    m_dualTexturePipelineLayout(VK_NULL_HANDLE),
     currentFrame(0),
     graphicsQueueFamilyIndex(0),
     swapchainFramebuffers(nullptr)
@@ -70,14 +70,14 @@ VulkanRenderer::VulkanRenderer() :
         inFlightFences[i] = VK_NULL_HANDLE;
     }
     
-    // Initialize shader parameters with defaults (e.g., for Phong: light pos + material params)
-    m_shaderParams[0] = 0.0f;  // param 0 (e.g., lightX)
-    m_shaderParams[1] = 0.0f;  // param 1 (e.g., lightY)
-    m_shaderParams[2] = 1.0f;  // param 2 (e.g., lightZ)
-    m_shaderParams[3] = 0.3f;  // param 3 (e.g., ambient)
-    m_shaderParams[4] = 0.7f;  // param 4 (e.g., diffuse)
-    m_shaderParams[5] = 0.5f;  // param 5 (e.g., specular)
-    m_shaderParams[6] = 32.0f; // param 6 (e.g., shininess)
+    // Initialize shader parameters with defaults
+    m_shaderParams[0] = 0.0f;
+    m_shaderParams[1] = 0.0f;
+    m_shaderParams[2] = 1.0f;
+    m_shaderParams[3] = 0.3f;
+    m_shaderParams[4] = 0.7f;
+    m_shaderParams[5] = 0.5f;
+    m_shaderParams[6] = 32.0f;
 }
 
 VulkanRenderer::~VulkanRenderer() {
@@ -92,12 +92,12 @@ void VulkanRenderer::initialize(SDL_Window* window) {
     createImageViews();
     createRenderPass();
     createPipelineLayout();
-    createTexturedDescriptorSetLayout();
-    createTexturedPipelineLayout();
-    createTexturedDescriptorPool();
-    createMultiTextureDescriptorSetLayout();
-    createMultiTexturePipelineLayout();
-    createMultiTextureDescriptorPool();
+    createSingleTextureDescriptorSetLayout();
+    createSingleTexturePipelineLayout();
+    createSingleTextureDescriptorPool();
+    createDualTextureDescriptorSetLayout();
+    createDualTexturePipelineLayout();
+    createDualTextureDescriptorPool();
     createFramebuffers();
     createVertexBuffer();
     createDebugVertexBuffer();
@@ -1151,8 +1151,6 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     // Draw all pipelines
     for (uint64_t pipelineId : m_pipelinesToDraw) {
         bool isDebug = m_debugPipelines.count(pipelineId) > 0 && m_debugPipelines[pipelineId];
-        bool isTextured = m_texturedPipelines.count(pipelineId) > 0 && m_texturedPipelines[pipelineId];
-        bool isMultiTexture = m_multiTexturePipelines.count(pipelineId) > 0 && m_multiTexturePipelines[pipelineId];
 
         if (isDebug) {
             vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
@@ -1173,70 +1171,59 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_debugLinePipeline);
                 vkCmdDraw(commandBuffer, debugVertexCount, 1, 0, 0);
             }
-        } else if (isTextured) {
-            // Draw textured sprites in batches, one per texture
-            auto it = m_pipelines.find(pipelineId);
-            if (it != m_pipelines.end() && !m_spriteBatches.empty()) {
-                vkCmdPushConstants(commandBuffer, m_texturedPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
-                
-                VkBuffer vertexBuffers[] = {spriteVertexBuffer};
-                VkDeviceSize offsets[] = {0};
-                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                vkCmdBindIndexBuffer(commandBuffer, spriteIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
-                
-                // Draw each batch with its corresponding texture
-                for (const auto& batch : m_spriteBatches) {
-                    auto descIt = m_texturedDescriptorSets.find(batch.textureId);
-                    if (descIt != m_texturedDescriptorSets.end()) {
-                        VkDescriptorSet descriptorSet = descIt->second;
-                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
-                                              m_texturedPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-                        vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
-                    }
-                }
-            }
-        } else if (isMultiTexture) {
-            // Draw multi-textured sprites in batches
-            auto it = m_pipelines.find(pipelineId);
-            if (it != m_pipelines.end() && !m_spriteBatches.empty()) {
-                float multiTexPushConstants[10] = {
-                    static_cast<float>(swapchainExtent.width), 
-                    static_cast<float>(swapchainExtent.height), 
-                    time,
-                    m_shaderParams[0], m_shaderParams[1], m_shaderParams[2],
-                    m_shaderParams[3], m_shaderParams[4], m_shaderParams[5], m_shaderParams[6]
-                };
-                vkCmdPushConstants(commandBuffer, m_multiTexturePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(multiTexPushConstants), multiTexPushConstants);
-                
-                VkBuffer vertexBuffers[] = {spriteVertexBuffer};
-                VkDeviceSize offsets[] = {0};
-                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                vkCmdBindIndexBuffer(commandBuffer, spriteIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
-                
-                // Draw each batch with its corresponding texture pair (diffuse + normal)
-                for (const auto& batch : m_spriteBatches) {
-                    auto descIt = m_multiTextureDescriptorSets.find(batch.textureId);
-                    if (descIt != m_multiTextureDescriptorSets.end()) {
-                        VkDescriptorSet descriptorSet = descIt->second;
-                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
-                                              m_multiTexturePipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-                        vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
-                    }
-                }
-            }
         } else {
-            auto it = m_pipelines.find(pipelineId);
-            if (it != m_pipelines.end()) {
-                vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
+            // Generic textured pipeline rendering
+            auto pipelineIt = m_pipelines.find(pipelineId);
+            auto infoIt = m_pipelineInfo.find(pipelineId);
+            
+            if (pipelineIt != m_pipelines.end() && infoIt != m_pipelineInfo.end() && !m_spriteBatches.empty()) {
+                const PipelineInfo& info = infoIt->second;
                 
-                // Bind regular vertex buffer
-                VkBuffer vertexBuffers[] = {vertexBuffer};
+                // Prepare push constants based on pipeline requirements
+                if (info.usesDualTexture) {
+                    // Extended push constants with shader parameters
+                    float extPushConstants[10] = {
+                        static_cast<float>(swapchainExtent.width), 
+                        static_cast<float>(swapchainExtent.height), 
+                        time,
+                        m_shaderParams[0], m_shaderParams[1], m_shaderParams[2],
+                        m_shaderParams[3], m_shaderParams[4], m_shaderParams[5], m_shaderParams[6]
+                    };
+                    vkCmdPushConstants(commandBuffer, info.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
+                } else {
+                    // Standard push constants
+                    vkCmdPushConstants(commandBuffer, info.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
+                }
+                
+                VkBuffer vertexBuffers[] = {spriteVertexBuffer};
                 VkDeviceSize offsets[] = {0};
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
-                vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+                vkCmdBindIndexBuffer(commandBuffer, spriteIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineIt->second);
+                
+                // Draw each batch with appropriate descriptor set
+                for (const auto& batch : m_spriteBatches) {
+                    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+                    
+                    // Find appropriate descriptor set
+                    if (info.usesDualTexture) {
+                        auto descIt = m_dualTextureDescriptorSets.find(batch.textureId);
+                        if (descIt != m_dualTextureDescriptorSets.end()) {
+                            descriptorSet = descIt->second;
+                        }
+                    } else {
+                        auto descIt = m_singleTextureDescriptorSets.find(batch.textureId);
+                        if (descIt != m_singleTextureDescriptorSets.end()) {
+                            descriptorSet = descIt->second;
+                        }
+                    }
+                    
+                    if (descriptorSet != VK_NULL_HANDLE) {
+                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+                                              info.layout, 0, 1, &descriptorSet, 0, nullptr);
+                        vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+                    }
+                }
             }
         }
     }
@@ -1251,7 +1238,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     vkCmdEndRenderPass(commandBuffer);
     assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
 }
-void VulkanRenderer::createTexturedDescriptorSetLayout() {
+void VulkanRenderer::createSingleTextureDescriptorSetLayout() {
     // Descriptor set layout for texture sampling
     VkDescriptorSetLayoutBinding samplerLayoutBinding{};
     samplerLayoutBinding.binding = 0;
@@ -1265,10 +1252,10 @@ void VulkanRenderer::createTexturedDescriptorSetLayout() {
     layoutInfo.bindingCount = 1;
     layoutInfo.pBindings = &samplerLayoutBinding;
 
-    assert(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_texturedDescriptorSetLayout) == VK_SUCCESS);
+    assert(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_singleTextureDescriptorSetLayout) == VK_SUCCESS);
 }
 
-void VulkanRenderer::createTexturedPipelineLayout() {
+void VulkanRenderer::createSingleTexturePipelineLayout() {
     // Push constants for time, width, height
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -1278,14 +1265,14 @@ void VulkanRenderer::createTexturedPipelineLayout() {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &m_texturedDescriptorSetLayout;
+    pipelineLayoutInfo.pSetLayouts = &m_singleTextureDescriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    assert(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_texturedPipelineLayout) == VK_SUCCESS);
+    assert(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_singleTexturePipelineLayout) == VK_SUCCESS);
 }
 
-void VulkanRenderer::createTexturedDescriptorPool() {
+void VulkanRenderer::createSingleTextureDescriptorPool() {
     // Create descriptor pool for texture descriptors
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1297,7 +1284,7 @@ void VulkanRenderer::createTexturedDescriptorPool() {
     poolInfo.pPoolSizes = &poolSize;
     poolInfo.maxSets = 100;
 
-    assert(vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_texturedDescriptorPool) == VK_SUCCESS);
+    assert(vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_singleTextureDescriptorPool) == VK_SUCCESS);
 }
 
 void VulkanRenderer::loadTexture(uint64_t textureId, const ResourceData& imageData) {
@@ -1324,10 +1311,10 @@ void VulkanRenderer::loadTexture(uint64_t textureId, const ResourceData& imageDa
     
     createTextureImage(textureId, compressedData, width, height, vkFormat, compressedSize);
     createTextureSampler(textureId);
-    createTexturedDescriptorSet(textureId);
+    createSingleTextureDescriptorSet(textureId);
 }
 
-void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader) {
+void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
     m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
     m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
     
@@ -1437,7 +1424,21 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.layout = m_texturedPipelineLayout;
+    
+    // Select appropriate pipeline layout based on texture count
+    VkPipelineLayout pipelineLayout;
+    VkDescriptorSetLayout descriptorSetLayout;
+    bool usesDualTexture = (numTextures == 2);
+    
+    if (usesDualTexture) {
+        pipelineLayout = m_dualTexturePipelineLayout;
+        descriptorSetLayout = m_dualTextureDescriptorSetLayout;
+    } else {
+        pipelineLayout = m_singleTexturePipelineLayout;
+        descriptorSetLayout = m_singleTextureDescriptorSetLayout;
+    }
+    
+    pipelineInfo.layout = pipelineLayout;
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
     
@@ -1445,7 +1446,13 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
     assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
     
     m_pipelines[id] = pipeline;
-    m_texturedPipelines[id] = true;
+    
+    // Store pipeline info
+    PipelineInfo info;
+    info.layout = pipelineLayout;
+    info.descriptorSetLayout = descriptorSetLayout;
+    info.usesDualTexture = usesDualTexture;
+    m_pipelineInfo[id] = info;
     
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
@@ -1635,15 +1642,15 @@ void VulkanRenderer::createTextureSampler(uint64_t textureId) {
     assert(vkCreateSampler(device, &samplerInfo, nullptr, &it->second.sampler) == VK_SUCCESS);
 }
 
-void VulkanRenderer::createTexturedDescriptorSet(uint64_t textureId) {
+void VulkanRenderer::createSingleTextureDescriptorSet(uint64_t textureId) {
     auto it = m_textures.find(textureId);
     assert(it != m_textures.end());
     
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = m_texturedDescriptorPool;
+    allocInfo.descriptorPool = m_singleTextureDescriptorPool;
     allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &m_texturedDescriptorSetLayout;
+    allocInfo.pSetLayouts = &m_singleTextureDescriptorSetLayout;
     
     VkDescriptorSet descriptorSet;
     assert(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) == VK_SUCCESS);
@@ -1664,7 +1671,7 @@ void VulkanRenderer::createTexturedDescriptorSet(uint64_t textureId) {
     
     vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
     
-    m_texturedDescriptorSets[textureId] = descriptorSet;
+    m_singleTextureDescriptorSets[textureId] = descriptorSet;
 }
 
 void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
@@ -1706,7 +1713,7 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
     updateSpriteVertexBuffer(allVertexData, allIndices);
 }
 
-void VulkanRenderer::createMultiTextureDescriptorSetLayout() {
+void VulkanRenderer::createDualTextureDescriptorSetLayout() {
     // Descriptor set layout with two textures (e.g., diffuse and normal map)
     VkDescriptorSetLayoutBinding bindings[2];
     
@@ -1729,10 +1736,10 @@ void VulkanRenderer::createMultiTextureDescriptorSetLayout() {
     layoutInfo.bindingCount = 2;
     layoutInfo.pBindings = bindings;
     
-    assert(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_multiTextureDescriptorSetLayout) == VK_SUCCESS);
+    assert(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_dualTextureDescriptorSetLayout) == VK_SUCCESS);
 }
 
-void VulkanRenderer::createMultiTexturePipelineLayout() {
+void VulkanRenderer::createDualTexturePipelineLayout() {
     // Push constants: time, width, height, plus 7 shader-specific parameters
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -1742,14 +1749,14 @@ void VulkanRenderer::createMultiTexturePipelineLayout() {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &m_multiTextureDescriptorSetLayout;
+    pipelineLayoutInfo.pSetLayouts = &m_dualTextureDescriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
     
-    assert(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_multiTexturePipelineLayout) == VK_SUCCESS);
+    assert(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_dualTexturePipelineLayout) == VK_SUCCESS);
 }
 
-void VulkanRenderer::createMultiTextureDescriptorPool() {
+void VulkanRenderer::createDualTextureDescriptorPool() {
     // Create descriptor pool for multi-texture descriptors (2 textures per set)
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1761,39 +1768,39 @@ void VulkanRenderer::createMultiTextureDescriptorPool() {
     poolInfo.pPoolSizes = &poolSize;
     poolInfo.maxSets = 100;
     
-    assert(vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_multiTextureDescriptorPool) == VK_SUCCESS);
+    assert(vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_dualTextureDescriptorPool) == VK_SUCCESS);
 }
 
-void VulkanRenderer::createMultiTextureDescriptorSet(uint64_t baseTextureId, uint64_t normalTextureId) {
-    auto baseIt = m_textures.find(baseTextureId);
-    auto normalIt = m_textures.find(normalTextureId);
-    assert(baseIt != m_textures.end());
-    assert(normalIt != m_textures.end());
+void VulkanRenderer::createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id) {
+    auto tex1It = m_textures.find(texture1Id);
+    auto tex2It = m_textures.find(texture2Id);
+    assert(tex1It != m_textures.end());
+    assert(tex2It != m_textures.end());
     
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = m_multiTextureDescriptorPool;
+    allocInfo.descriptorPool = m_dualTextureDescriptorPool;
     allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &m_multiTextureDescriptorSetLayout;
+    allocInfo.pSetLayouts = &m_dualTextureDescriptorSetLayout;
     
     VkDescriptorSet descriptorSet;
     assert(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) == VK_SUCCESS);
     
     VkDescriptorImageInfo imageInfos[2];
     
-    // Base texture
+    // First texture
     imageInfos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageInfos[0].imageView = baseIt->second.imageView;
-    imageInfos[0].sampler = baseIt->second.sampler;
+    imageInfos[0].imageView = tex1It->second.imageView;
+    imageInfos[0].sampler = tex1It->second.sampler;
     
-    // Normal map texture
+    // Second texture
     imageInfos[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageInfos[1].imageView = normalIt->second.imageView;
-    imageInfos[1].sampler = normalIt->second.sampler;
+    imageInfos[1].imageView = tex2It->second.imageView;
+    imageInfos[1].sampler = tex2It->second.sampler;
     
     VkWriteDescriptorSet descriptorWrites[2];
     
-    // Write base texture
+    // Write first texture
     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrites[0].pNext = nullptr;
     descriptorWrites[0].dstSet = descriptorSet;
@@ -1805,7 +1812,7 @@ void VulkanRenderer::createMultiTextureDescriptorSet(uint64_t baseTextureId, uin
     descriptorWrites[0].pBufferInfo = nullptr;
     descriptorWrites[0].pTexelBufferView = nullptr;
     
-    // Write normal map texture
+    // Write second texture
     descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrites[1].pNext = nullptr;
     descriptorWrites[1].dstSet = descriptorSet;
@@ -1819,131 +1826,20 @@ void VulkanRenderer::createMultiTextureDescriptorSet(uint64_t baseTextureId, uin
     
     vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
     
-    m_multiTextureDescriptorSets[baseTextureId] = descriptorSet;
+    m_dualTextureDescriptorSets[descriptorId] = descriptorSet;
 }
 
-void VulkanRenderer::createMultiTexturePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader) {
-    std::vector<char> vertShaderData(vertShader.data, vertShader.data + vertShader.size);
-    std::vector<char> fragShaderData(fragShader.data, fragShader.data + fragShader.size);
-    
-    VkShaderModule vertShaderModule = createShaderModule(vertShaderData);
-    VkShaderModule fragShaderModule = createShaderModule(fragShaderData);
-    
-    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = vertShaderModule;
-    vertShaderStageInfo.pName = "main";
-    
-    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = fragShaderModule;
-    fragShaderStageInfo.pName = "main";
-    
-    VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
-    
-    // Vertex input: position (vec2) + texcoord (vec2)
-    VkVertexInputBindingDescription bindingDescription{};
-    bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(float) * 4;
-    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    
-    VkVertexInputAttributeDescription attributeDescriptions[2];
-    attributeDescriptions[0].binding = 0;
-    attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-    attributeDescriptions[0].offset = 0;
-    
-    attributeDescriptions[1].binding = 0;
-    attributeDescriptions[1].location = 1;
-    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-    attributeDescriptions[1].offset = sizeof(float) * 2;
-    
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 1;
-    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = 2;
-    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
-    
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    inputAssembly.primitiveRestartEnable = VK_FALSE;
-    
-    VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = (float)swapchainExtent.width;
-    viewport.height = (float)swapchainExtent.height;
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    
-    VkRect2D scissor{};
-    scissor.offset = {0, 0};
-    scissor.extent = swapchainExtent;
-    
-    VkPipelineViewportStateCreateInfo viewportState{};
-    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    viewportState.viewportCount = 1;
-    viewportState.pViewports = &viewport;
-    viewportState.scissorCount = 1;
-    viewportState.pScissors = &scissor;
-    
-    VkPipelineRasterizationStateCreateInfo rasterizer{};
-    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    rasterizer.depthClampEnable = VK_FALSE;
-    rasterizer.rasterizerDiscardEnable = VK_FALSE;
-    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_NONE;
-    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterizer.depthBiasEnable = VK_FALSE;
-    
-    VkPipelineMultisampleStateCreateInfo multisampling{};
-    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    
-    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_TRUE;
-    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-    
-    VkPipelineColorBlendStateCreateInfo colorBlending{};
-    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    colorBlending.logicOpEnable = VK_FALSE;
-    colorBlending.attachmentCount = 1;
-    colorBlending.pAttachments = &colorBlendAttachment;
-    
-    VkGraphicsPipelineCreateInfo pipelineInfo{};
-    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = 2;
-    pipelineInfo.pStages = shaderStages;
-    pipelineInfo.pVertexInputState = &vertexInputInfo;
-    pipelineInfo.pInputAssemblyState = &inputAssembly;
-    pipelineInfo.pViewportState = &viewportState;
-    pipelineInfo.pRasterizationState = &rasterizer;
-    pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.layout = m_multiTexturePipelineLayout;
-    pipelineInfo.renderPass = renderPass;
-    pipelineInfo.subpass = 0;
-    
-    VkPipeline pipeline;
-    assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
-    
-    m_pipelines[id] = pipeline;
-    m_multiTexturePipelines[id] = true;
-    
-    vkDestroyShaderModule(device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(device, vertShaderModule, nullptr);
+void VulkanRenderer::createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds) {
+    if (textureIds.size() == 1) {
+        // Single texture - already created by loadTexture
+        // Just copy the descriptor set reference
+        auto it = m_singleTextureDescriptorSets.find(textureIds[0]);
+        if (it != m_singleTextureDescriptorSets.end()) {
+            m_singleTextureDescriptorSets[descriptorId] = it->second;
+        }
+    } else if (textureIds.size() == 2) {
+        createDualTextureDescriptorSet(descriptorId, textureIds[0], textureIds[1]);
+    }
 }
 
 void VulkanRenderer::setShaderParameters(float x, float y, float z, float ambient, float diffuse, float specular, float shininess) {

@@ -7,11 +7,14 @@ function init()
     -- Load the nebula background shader (z-index 0)
     loadShaders("vertex.spv", "nebula_fragment.spv", 0)
 
-    -- Load multi-texture shaders for physics objects with normal maps (z-index 1, before debug draw)
+    -- Load Phong shaders with normal maps (z-index 1)
     loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "metalwall.png", "metalwall.norm.png")
+    loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "rock.png", "rock.norm.png")
     
-    -- Set shader parameters (for Phong: light position and material properties)
-    -- Position (x, y, z), ambient, diffuse, specular, shininess
+    -- Load regular textured shaders (no normal mapping) (z-index 1)
+    loadTexturedShaders("sprite_vertex.spv", "sprite_fragment.spv", 1)
+    
+    -- Set shader parameters for Phong lighting
     setShaderParameters(0.5, 0.5, 1.0, 0.3, 0.7, 0.8, 32.0)
 
     -- Load debug drawing shader (z-index 2, drawn on top)
@@ -34,7 +37,10 @@ function init()
     b2AddBoxFixture(groundId, 1.5, 0.1, 1.0, 0.3, 0.0)
     table.insert(bodies, groundId)
 
-    -- Create some dynamic boxes with metalwall.png sprites
+    -- Create 5 dynamic boxes with different rendering:
+    -- Box 1 & 2: Phong with normal maps (metalwall)
+    -- Box 3 & 4: Simple texture, no normal (metalwall)
+    -- Box 5: Display normal map as color (metalwall.norm)
     for i = 1, 5 do
         local x = -0.5 + (i - 1) * 0.25
         local y = 0.5
@@ -42,13 +48,22 @@ function init()
         b2AddBoxFixture(bodyId, 0.1, 0.1, 1.0, 0.3, 0.3)
         table.insert(bodies, bodyId)
 
-        -- Attach a sprite layer to this body
-        local layerId = createLayer("metalwall.png", 0.2, 0.2)
+        local layerId
+        if i <= 2 then
+            -- Phong shading with normal maps
+            layerId = createLayer("metalwall.png", 0.2, 0.2)
+        elseif i <= 4 then
+            -- Simple texture, no normal map
+            layerId = createLayer("metalwall.png", 0.2, 0.2)
+        else
+            -- Show normal map as color
+            layerId = createLayer("metalwall.norm.png", 0.2, 0.2)
+        end
         attachLayerToBody(layerId, bodyId)
         table.insert(layers, layerId)
     end
 
-    -- Create a dynamic circle with rock.png sprite
+    -- Create a dynamic circle with rock.png sprite using Phong with normal maps
     local circleId = b2CreateBody(B2_DYNAMIC_BODY, 0, 0.8, 0)
     b2AddCircleFixture(circleId, 0.15, 1.0, 0.3, 0.5)
     table.insert(bodies, circleId)
@@ -58,7 +73,7 @@ function init()
     attachLayerToBody(layerId, circleId)
     table.insert(layers, layerId)
 
-    print("Physics demo scene initialized with multi-texture rendering and normal maps")
+    print("Physics demo scene initialized with multiple shader types")
 end
 
 function update(deltaTime)

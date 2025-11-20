@@ -1123,11 +1123,12 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     int pipelineId = interface->pipelineIndex_++;
     interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
 
-    // Create multi-texture pipeline
-    interface->renderer_.createMultiTexturePipeline(pipelineId, vertShader, fragShader);
+    // Create textured pipeline with 2 textures
+    interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader, 2);
     
     // Create descriptor set with both textures
-    interface->renderer_.createMultiTextureDescriptorSet(baseTextureId, normalTextureId);
+    std::vector<uint64_t> textureIds = {baseTextureId, normalTextureId};
+    interface->renderer_.createDescriptorSetForTextures(baseTextureId, textureIds);
 
     return 0;
 }
