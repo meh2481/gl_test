@@ -11,12 +11,13 @@
 #include "SceneLayer.h"
 #include "InputActions.h"
 #include "AudioManager.h"
+#include "VibrationManager.h"
 
 class SceneManager;
 
 class LuaInterface {
 public:
-    LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager = nullptr);
+    LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager = nullptr, VibrationManager* vibrationManager = nullptr);
     ~LuaInterface();
 
     // Execute a Lua script from ResourceData
@@ -99,6 +100,11 @@ private:
     static int audioSetGlobalVolume(lua_State* L);
     static int audioSetGlobalEffect(lua_State* L);
 
+    // Vibration Lua bindings
+    static int vibrate(lua_State* L);
+    static int vibrateTriggers(lua_State* L);
+    static int stopVibration(lua_State* L);
+
     void registerFunctions();
 
     PakResource& pakResource_;
@@ -111,4 +117,5 @@ private:
     std::unique_ptr<Box2DPhysics> physics_;
     std::unique_ptr<SceneLayerManager> layerManager_;
     std::unique_ptr<AudioManager> audioManager_;
+    VibrationManager* vibrationManager_;
 };

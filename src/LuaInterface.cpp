@@ -4,8 +4,8 @@
 #include <cassert>
 #include <algorithm>
 
-LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), pipelineIndex_(0), currentSceneId_(0) {
+LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager, VibrationManager* vibrationManager)
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0) {
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
     physics_ = std::make_unique<Box2DPhysics>();
@@ -45,6 +45,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
                                      "audioReleaseSource", "audioIsSourcePlaying", "audioSetListenerPosition", "audioSetListenerVelocity",
                                      "audioSetListenerOrientation", "audioSetGlobalVolume", "audioSetGlobalEffect",
+                                     "vibrate", "vibrateTriggers", "stopVibration",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -451,6 +452,11 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "audioSetListenerOrientation", audioSetListenerOrientation);
     lua_register(luaState_, "audioSetGlobalVolume", audioSetGlobalVolume);
     lua_register(luaState_, "audioSetGlobalEffect", audioSetGlobalEffect);
+
+    // Register vibration functions
+    lua_register(luaState_, "vibrate", vibrate);
+    lua_register(luaState_, "vibrateTriggers", vibrateTriggers);
+    lua_register(luaState_, "stopVibration", stopVibration);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -1413,6 +1419,71 @@ int LuaInterface::audioSetGlobalEffect(lua_State* L) {
     }
 
     interface->audioManager_->setGlobalEffect((AudioEffect)effect, intensity);
+
+    return 0;
+}
+
+// vibrate(leftIntensity, rightIntensity, duration)
+// Trigger controller vibration with specified intensities (0.0 to 1.0) and duration in milliseconds
+int LuaInterface::vibrate(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int numArgs = lua_gettop(L);
+    assert(numArgs == 3);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    float leftIntensity = lua_tonumber(L, 1);
+    float rightIntensity = lua_tonumber(L, 2);
+    uint32_t duration = lua_tointeger(L, 3);
+
+    if (interface->vibrationManager_) {
+        interface->vibrationManager_->vibrate(leftIntensity, rightIntensity, duration);
+    }
+
+    return 0;
+}
+
+// vibrateTriggers(leftTrigger, rightTrigger, duration)
+// Trigger DualSense trigger motor vibration with specified intensities (0.0 to 1.0) and duration in milliseconds
+// Returns true if successful (controller supports trigger rumble)
+int LuaInterface::vibrateTriggers(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int numArgs = lua_gettop(L);
+    assert(numArgs == 3);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    float leftTrigger = lua_tonumber(L, 1);
+    float rightTrigger = lua_tonumber(L, 2);
+    uint32_t duration = lua_tointeger(L, 3);
+
+    bool success = false;
+    if (interface->vibrationManager_) {
+        success = interface->vibrationManager_->vibrateTriggers(leftTrigger, rightTrigger, duration);
+    }
+
+    lua_pushboolean(L, success);
+    return 1;
+}
+
+// stopVibration()
+// Stop all controller vibration
+int LuaInterface::stopVibration(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    if (interface->vibrationManager_) {
+        interface->vibrationManager_->stopVibration();
+    }
 
     return 0;
 }

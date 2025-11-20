@@ -3,8 +3,8 @@
 #include "SceneLayer.h"
 #include <cassert>
 
-SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer)
-    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this)), pendingPop_(false) {
+SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager)
+    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false) {
 }
 
 SceneManager::~SceneManager() {

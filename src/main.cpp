@@ -12,6 +12,7 @@
 #include "SceneManager.h"
 #include "config.h"
 #include "InputActions.h"
+#include "VibrationManager.h"
 
 #ifdef DEBUG
 #include "ImGuiManager.h"
@@ -79,7 +80,7 @@ static int hotReloadThread(void* data) {
 #endif
 
 int main() {
-    assert(SDL_Init(SDL_INIT_VIDEO) == 0);
+    assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) == 0);
 
     Config config = loadConfig();
 
@@ -93,7 +94,8 @@ int main() {
     pakResource.load(PAK_FILE);
 
     VulkanRenderer renderer;
-    SceneManager sceneManager(pakResource, renderer);
+    VibrationManager vibrationManager;
+    SceneManager sceneManager(pakResource, renderer, &vibrationManager);
     renderer.initialize(window);
 
     // Initialize keybinding manager
@@ -102,6 +104,26 @@ int main() {
     // Load keybindings from config if available
     if (config.keybindings[0] != '\0') {
         keybindings.deserializeBindings(config.keybindings);
+    }
+
+    // Open all available game controllers
+    SDL_GameController* gameController = nullptr;
+    for (int i = 0; i < SDL_NumJoysticks(); ++i) {
+        if (SDL_IsGameController(i)) {
+            gameController = SDL_GameControllerOpen(i);
+            if (gameController) {
+                vibrationManager.setGameController(gameController);
+                std::cout << "Game Controller " << i << " connected: " 
+                         << SDL_GameControllerName(gameController) << std::endl;
+                if (vibrationManager.hasRumbleSupport()) {
+                    std::cout << "  Rumble support: Yes" << std::endl;
+                }
+                if (vibrationManager.hasTriggerRumbleSupport()) {
+                    std::cout << "  Trigger rumble support: Yes (DualSense)" << std::endl;
+                }
+                break; // Use the first available controller
+            }
+        }
     }
 
     // Load initial scene
@@ -182,6 +204,38 @@ int main() {
                 }
 #endif
             }
+            // Handle gamepad button press
+            if (event.type == SDL_CONTROLLERBUTTONDOWN) {
+                const ActionList& actionList = keybindings.getActionsForGamepadButton(event.cbutton.button);
+                for (int i = 0; i < actionList.count; ++i) {
+                    sceneManager.handleAction(actionList.actions[i]);
+                }
+            }
+            // Handle gamepad connection
+            if (event.type == SDL_CONTROLLERDEVICEADDED && !gameController) {
+                gameController = SDL_GameControllerOpen(event.cdevice.which);
+                if (gameController) {
+                    vibrationManager.setGameController(gameController);
+                    std::cout << "Game Controller connected: " 
+                             << SDL_GameControllerName(gameController) << std::endl;
+                    if (vibrationManager.hasRumbleSupport()) {
+                        std::cout << "  Rumble support: Yes" << std::endl;
+                    }
+                    if (vibrationManager.hasTriggerRumbleSupport()) {
+                        std::cout << "  Trigger rumble support: Yes (DualSense)" << std::endl;
+                    }
+                }
+            }
+            // Handle gamepad disconnection
+            if (event.type == SDL_CONTROLLERDEVICEREMOVED) {
+                if (gameController && event.cdevice.which == SDL_JoystickInstanceID(
+                        SDL_GameControllerGetJoystick(gameController))) {
+                    std::cout << "Game Controller disconnected" << std::endl;
+                    vibrationManager.setGameController(nullptr);
+                    SDL_GameControllerClose(gameController);
+                    gameController = nullptr;
+                }
+            }
         }
 
         if(!sceneManager.updateActiveScene(deltaTime)) {
@@ -224,6 +278,11 @@ int main() {
     keybindings.serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
 
     saveConfig(config);
+
+    // Close game controller if open
+    if (gameController) {
+        SDL_GameControllerClose(gameController);
+    }
 
 #ifdef DEBUG
     // Cleanup ImGui

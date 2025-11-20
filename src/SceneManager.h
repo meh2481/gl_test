@@ -6,12 +6,13 @@
 #include "resource.h"
 #include "VulkanRenderer.h"
 #include "InputActions.h"
+#include "VibrationManager.h"
 
 class LuaInterface;
 
 class SceneManager {
 public:
-    SceneManager(PakResource& pakResource, VulkanRenderer& renderer);
+    SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager = nullptr);
     ~SceneManager();
 
     // Scene management
