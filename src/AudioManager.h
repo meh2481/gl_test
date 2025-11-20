@@ -124,6 +124,7 @@ private:
     bool efxSupported;
     ALuint effectSlot;
     ALuint effect;
+    ALuint filter;  // Filter for lowpass
     AudioEffect currentEffect;
     float currentEffectIntensity;
 

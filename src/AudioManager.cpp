@@ -47,7 +47,7 @@ static LPALAUXILIARYEFFECTSLOTI alAuxiliaryEffectSloti = nullptr;
 
 AudioManager::AudioManager()
     : device(nullptr), context(nullptr), bufferCount(0),
-      efxSupported(false), effectSlot(0), effect(0),
+      efxSupported(false), effectSlot(0), effect(0), filter(0),
       currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f) {
 
     // Initialize arrays
@@ -129,6 +129,9 @@ void AudioManager::cleanup() {
         if (alIsEffect && alIsEffect(effect)) {
             alDeleteEffects(1, &effect);
         }
+        if (alIsFilter && alIsFilter(filter)) {
+            alDeleteFilters(1, &filter);
+        }
     }
 
     // Cleanup context and device
@@ -163,12 +166,15 @@ void AudioManager::initializeEFX() {
     alIsAuxiliaryEffectSlot = (LPALISAUXILIARYEFFECTSLOT)alGetProcAddress("alIsAuxiliaryEffectSlot");
     alAuxiliaryEffectSloti = (LPALAUXILIARYEFFECTSLOTI)alGetProcAddress("alAuxiliaryEffectSloti");
 
-    if (alGenEffects && alGenAuxiliaryEffectSlots) {
+    if (alGenEffects && alGenAuxiliaryEffectSlots && alGenFilters) {
         // Create effect slot
         alGenAuxiliaryEffectSlots(1, &effectSlot);
 
         // Create effect
         alGenEffects(1, &effect);
+
+        // Create filter
+        alGenFilters(1, &filter);
 
         // Check for errors
         ALenum error = alGetError();
@@ -345,6 +351,17 @@ int AudioManager::createAudioSource(int bufferId, bool looping, float volume) {
     sources[slot].z = 0.0f;
     sources[slot].bufferId = bufferId;
 
+    // Apply current effect/filter to the new source if EFX is supported
+    if (efxSupported) {
+        if (currentEffect == AUDIO_EFFECT_LOWPASS) {
+            // Apply lowpass filter
+            alSourcei(sources[slot].source, AL_DIRECT_FILTER, filter);
+        } else if (currentEffect == AUDIO_EFFECT_REVERB) {
+            // Apply reverb effect
+            alSource3i(sources[slot].source, AL_AUXILIARY_SEND_FILTER, effectSlot, 0, AL_FILTER_NULL);
+        }
+    }
+
     return slot;
 }
 
@@ -484,10 +501,28 @@ void AudioManager::applyEffect() {
 
     switch (currentEffect) {
         case AUDIO_EFFECT_LOWPASS:
-            // Configure lowpass filter
-            alEffecti(effect, AL_EFFECT_TYPE, AL_EFFECT_LOWPASS);
-            alEffectf(effect, AL_LOWPASS_GAIN, currentEffectIntensity);
-            alEffectf(effect, AL_LOWPASS_GAINHF, 0.5f * currentEffectIntensity);
+            // Configure lowpass filter (filters are applied directly to sources, not through effect slots)
+            alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_LOWPASS);
+            alFilterf(filter, AL_LOWPASS_GAIN, currentEffectIntensity);
+            alFilterf(filter, AL_LOWPASS_GAINHF, 0.5f * currentEffectIntensity);
+            
+            // Apply filter directly to all active sources
+            for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+                if (sources[i].active) {
+                    alSourcei(sources[i].source, AL_DIRECT_FILTER, filter);
+                }
+            }
+            
+            // Clear effect slot (not used for lowpass)
+            alEffecti(effect, AL_EFFECT_TYPE, AL_EFFECT_NULL);
+            if (alAuxiliaryEffectSloti) {
+                alAuxiliaryEffectSloti(effectSlot, AL_EFFECTSLOT_EFFECT, effect);
+            }
+            for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+                if (sources[i].active) {
+                    alSource3i(sources[i].source, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL);
+                }
+            }
             break;
 
         case AUDIO_EFFECT_REVERB:
@@ -495,25 +530,51 @@ void AudioManager::applyEffect() {
             alEffecti(effect, AL_EFFECT_TYPE, AL_EFFECT_REVERB);
             alEffectf(effect, AL_REVERB_GAIN, currentEffectIntensity);
             alEffectf(effect, AL_REVERB_DECAY_TIME, 1.5f);
+            
+            // Apply effect to slot
+            if (alAuxiliaryEffectSloti) {
+                alAuxiliaryEffectSloti(effectSlot, AL_EFFECTSLOT_EFFECT, effect);
+            }
+            
+            // Apply effect slot to all active sources
+            for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+                if (sources[i].active) {
+                    alSource3i(sources[i].source, AL_AUXILIARY_SEND_FILTER, effectSlot, 0, AL_FILTER_NULL);
+                }
+            }
+            
+            // Clear direct filter (not used for reverb)
+            alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_NULL);
+            for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+                if (sources[i].active) {
+                    alSourcei(sources[i].source, AL_DIRECT_FILTER, AL_FILTER_NULL);
+                }
+            }
             break;
 
         case AUDIO_EFFECT_NONE:
         default:
             // Disable effect
             alEffecti(effect, AL_EFFECT_TYPE, AL_EFFECT_NULL);
+            if (alAuxiliaryEffectSloti) {
+                alAuxiliaryEffectSloti(effectSlot, AL_EFFECTSLOT_EFFECT, effect);
+            }
+            
+            // Clear effect slot from all active sources
+            for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+                if (sources[i].active) {
+                    alSource3i(sources[i].source, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL);
+                }
+            }
+            
+            // Disable filter
+            alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_NULL);
+            for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+                if (sources[i].active) {
+                    alSourcei(sources[i].source, AL_DIRECT_FILTER, AL_FILTER_NULL);
+                }
+            }
             break;
-    }
-
-    // Apply effect to slot
-    if (alAuxiliaryEffectSloti) {
-        alAuxiliaryEffectSloti(effectSlot, AL_EFFECTSLOT_EFFECT, effect);
-    }
-
-    // Apply effect slot to all active sources
-    for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
-        if (sources[i].active) {
-            alSource3i(sources[i].source, AL_AUXILIARY_SEND_FILTER, effectSlot, 0, AL_FILTER_NULL);
-        }
     }
 }
 
