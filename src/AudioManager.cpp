@@ -166,7 +166,8 @@ void AudioManager::initializeEFX() {
     alIsAuxiliaryEffectSlot = (LPALISAUXILIARYEFFECTSLOT)alGetProcAddress("alIsAuxiliaryEffectSlot");
     alAuxiliaryEffectSloti = (LPALAUXILIARYEFFECTSLOTI)alGetProcAddress("alAuxiliaryEffectSloti");
 
-    if (alGenEffects && alGenAuxiliaryEffectSlots && alGenFilters) {
+    if (alGenEffects && alGenAuxiliaryEffectSlots && alGenFilters && 
+        alFilteri && alFilterf && alDeleteFilters && alIsFilter) {
         // Create effect slot
         alGenAuxiliaryEffectSlots(1, &effectSlot);
 
@@ -176,9 +177,12 @@ void AudioManager::initializeEFX() {
         // Create filter
         alGenFilters(1, &filter);
 
-        // Check for errors
+        // Check for errors after all object creation
         ALenum error = alGetError();
-        if (error == AL_NO_ERROR) {
+        if (error == AL_NO_ERROR && 
+            (alIsAuxiliaryEffectSlot == nullptr || alIsAuxiliaryEffectSlot(effectSlot)) &&
+            (alIsEffect == nullptr || alIsEffect(effect)) &&
+            alIsFilter(filter)) {
             efxSupported = true;
             std::cout << "EFX initialized successfully" << std::endl;
         } else {
@@ -353,7 +357,7 @@ int AudioManager::createAudioSource(int bufferId, bool looping, float volume) {
 
     // Apply current effect/filter to the new source if EFX is supported
     if (efxSupported) {
-        if (currentEffect == AUDIO_EFFECT_LOWPASS) {
+        if (currentEffect == AUDIO_EFFECT_LOWPASS && alFilteri) {
             // Apply lowpass filter
             alSourcei(sources[slot].source, AL_DIRECT_FILTER, filter);
         } else if (currentEffect == AUDIO_EFFECT_REVERB) {
@@ -502,14 +506,16 @@ void AudioManager::applyEffect() {
     switch (currentEffect) {
         case AUDIO_EFFECT_LOWPASS:
             // Configure lowpass filter (filters are applied directly to sources, not through effect slots)
-            alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_LOWPASS);
-            alFilterf(filter, AL_LOWPASS_GAIN, currentEffectIntensity);
-            alFilterf(filter, AL_LOWPASS_GAINHF, 0.5f * currentEffectIntensity);
-            
-            // Apply filter directly to all active sources
-            for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
-                if (sources[i].active) {
-                    alSourcei(sources[i].source, AL_DIRECT_FILTER, filter);
+            if (alFilteri && alFilterf) {
+                alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_LOWPASS);
+                alFilterf(filter, AL_LOWPASS_GAIN, currentEffectIntensity);
+                alFilterf(filter, AL_LOWPASS_GAINHF, 0.5f * currentEffectIntensity);
+                
+                // Apply filter directly to all active sources
+                for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+                    if (sources[i].active) {
+                        alSourcei(sources[i].source, AL_DIRECT_FILTER, filter);
+                    }
                 }
             }
             
@@ -544,10 +550,12 @@ void AudioManager::applyEffect() {
             }
             
             // Clear direct filter (not used for reverb)
-            alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_NULL);
-            for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
-                if (sources[i].active) {
-                    alSourcei(sources[i].source, AL_DIRECT_FILTER, AL_FILTER_NULL);
+            if (alFilteri) {
+                alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_NULL);
+                for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+                    if (sources[i].active) {
+                        alSourcei(sources[i].source, AL_DIRECT_FILTER, AL_FILTER_NULL);
+                    }
                 }
             }
             break;
@@ -568,10 +576,12 @@ void AudioManager::applyEffect() {
             }
             
             // Disable filter
-            alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_NULL);
-            for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
-                if (sources[i].active) {
-                    alSourcei(sources[i].source, AL_DIRECT_FILTER, AL_FILTER_NULL);
+            if (alFilteri) {
+                alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_NULL);
+                for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+                    if (sources[i].active) {
+                        alSourcei(sources[i].source, AL_DIRECT_FILTER, AL_FILTER_NULL);
+                    }
                 }
             }
             break;
