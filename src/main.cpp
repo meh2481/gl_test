@@ -151,7 +151,7 @@ int main() {
             if (event.type == SDL_QUIT) {
                 running = false;
             }
-            if (event.type == SDL_KEYDOWN) {
+            if (event.type == SDL_KEYDOWN && !event.key.repeat) {
                 // Handle actions bound to this key
                 const ActionList& actionList = keybindings.getActionsForKey(event.key.keysym.sym);
                 for (int i = 0; i < actionList.count; ++i) {
