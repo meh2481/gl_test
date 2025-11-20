@@ -19,7 +19,7 @@ public:
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
     void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader);
-    void createPhongPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader);
+    void createMultiTexturePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader);
     void setCurrentPipeline(uint64_t id);
     void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
     void setDebugDrawData(const std::vector<float>& vertexData);
@@ -28,8 +28,8 @@ public:
     void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
     void setSpriteBatches(const std::vector<SpriteBatch>& batches);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
-    void createPhongDescriptorSet(uint64_t baseTextureId, uint64_t normalTextureId);
-    void setLightParameters(float x, float y, float z, float ambient, float diffuse, float specular, float shininess);
+    void createMultiTextureDescriptorSet(uint64_t baseTextureId, uint64_t normalTextureId);
+    void setShaderParameters(float x, float y, float z, float ambient, float diffuse, float specular, float shininess);
     void render(float time);
     void cleanup();
 
@@ -120,14 +120,13 @@ private:
     VkPipelineLayout m_texturedPipelineLayout;
     std::map<uint64_t, bool> m_texturedPipelines;  // Track which pipelines are textured
     
-    // Phong shading support
-    VkDescriptorSetLayout m_phongDescriptorSetLayout;
-    VkDescriptorPool m_phongDescriptorPool;
-    std::map<uint64_t, VkDescriptorSet> m_phongDescriptorSets;
-    VkPipelineLayout m_phongPipelineLayout;
-    std::map<uint64_t, bool> m_phongPipelines;  // Track which pipelines use Phong shading
-    float m_lightX, m_lightY, m_lightZ;
-    float m_ambientStrength, m_diffuseStrength, m_specularStrength, m_shininess;
+    // Multi-texture rendering support
+    VkDescriptorSetLayout m_multiTextureDescriptorSetLayout;
+    VkDescriptorPool m_multiTextureDescriptorPool;
+    std::map<uint64_t, VkDescriptorSet> m_multiTextureDescriptorSets;
+    VkPipelineLayout m_multiTexturePipelineLayout;
+    std::map<uint64_t, bool> m_multiTexturePipelines;  // Track which pipelines use multi-texture
+    float m_shaderParams[7];  // Generic shader parameters (e.g., light position, material properties)
     
     VkSemaphore imageAvailableSemaphores[2];
     VkSemaphore renderFinishedSemaphores[2];
@@ -177,7 +176,7 @@ private:
     void createTexturedDescriptorPool();
     void createTexturedDescriptorSet(uint64_t textureId);
     void createTexturedPipelineLayout();
-    void createPhongDescriptorSetLayout();
-    void createPhongDescriptorPool();
-    void createPhongPipelineLayout();
+    void createMultiTextureDescriptorSetLayout();
+    void createMultiTextureDescriptorPool();
+    void createMultiTexturePipelineLayout();
 };

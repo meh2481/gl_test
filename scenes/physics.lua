@@ -7,12 +7,12 @@ function init()
     -- Load the nebula background shader (z-index 0)
     loadShaders("vertex.spv", "nebula_fragment.spv", 0)
 
-    -- Load Phong shaders for physics objects with normal maps (z-index 1, before debug draw)
-    loadPhongShaders("phong_vertex.spv", "phong_fragment.spv", 1, "metalwall.png", "metalwall.norm.png")
+    -- Load multi-texture shaders for physics objects with normal maps (z-index 1, before debug draw)
+    loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "metalwall.png", "metalwall.norm.png")
     
-    -- Set up lighting for the scene
-    -- Light position (x, y, z), ambient, diffuse, specular, shininess
-    setLightParameters(0.5, 0.5, 1.0, 0.3, 0.7, 0.8, 32.0)
+    -- Set shader parameters (for Phong: light position and material properties)
+    -- Position (x, y, z), ambient, diffuse, specular, shininess
+    setShaderParameters(0.5, 0.5, 1.0, 0.3, 0.7, 0.8, 32.0)
 
     -- Load debug drawing shader (z-index 2, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 2)
@@ -58,7 +58,7 @@ function init()
     attachLayerToBody(layerId, circleId)
     table.insert(layers, layerId)
 
-    print("Physics demo scene initialized with Phong shading")
+    print("Physics demo scene initialized with multi-texture rendering and normal maps")
 end
 
 function update(deltaTime)

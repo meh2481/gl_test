@@ -53,11 +53,9 @@ VulkanRenderer::VulkanRenderer() :
     m_texturedDescriptorSetLayout(VK_NULL_HANDLE),
     m_texturedDescriptorPool(VK_NULL_HANDLE),
     m_texturedPipelineLayout(VK_NULL_HANDLE),
-    m_phongDescriptorSetLayout(VK_NULL_HANDLE),
-    m_phongDescriptorPool(VK_NULL_HANDLE),
-    m_phongPipelineLayout(VK_NULL_HANDLE),
-    m_lightX(0.0f), m_lightY(0.0f), m_lightZ(1.0f),
-    m_ambientStrength(0.3f), m_diffuseStrength(0.7f), m_specularStrength(0.5f), m_shininess(32.0f),
+    m_multiTextureDescriptorSetLayout(VK_NULL_HANDLE),
+    m_multiTextureDescriptorPool(VK_NULL_HANDLE),
+    m_multiTexturePipelineLayout(VK_NULL_HANDLE),
     currentFrame(0),
     graphicsQueueFamilyIndex(0),
     swapchainFramebuffers(nullptr)
@@ -71,6 +69,15 @@ VulkanRenderer::VulkanRenderer() :
         renderFinishedSemaphores[i] = VK_NULL_HANDLE;
         inFlightFences[i] = VK_NULL_HANDLE;
     }
+    
+    // Initialize shader parameters with defaults (e.g., for Phong: light pos + material params)
+    m_shaderParams[0] = 0.0f;  // param 0 (e.g., lightX)
+    m_shaderParams[1] = 0.0f;  // param 1 (e.g., lightY)
+    m_shaderParams[2] = 1.0f;  // param 2 (e.g., lightZ)
+    m_shaderParams[3] = 0.3f;  // param 3 (e.g., ambient)
+    m_shaderParams[4] = 0.7f;  // param 4 (e.g., diffuse)
+    m_shaderParams[5] = 0.5f;  // param 5 (e.g., specular)
+    m_shaderParams[6] = 32.0f; // param 6 (e.g., shininess)
 }
 
 VulkanRenderer::~VulkanRenderer() {
@@ -88,9 +95,9 @@ void VulkanRenderer::initialize(SDL_Window* window) {
     createTexturedDescriptorSetLayout();
     createTexturedPipelineLayout();
     createTexturedDescriptorPool();
-    createPhongDescriptorSetLayout();
-    createPhongPipelineLayout();
-    createPhongDescriptorPool();
+    createMultiTextureDescriptorSetLayout();
+    createMultiTexturePipelineLayout();
+    createMultiTextureDescriptorPool();
     createFramebuffers();
     createVertexBuffer();
     createDebugVertexBuffer();
@@ -1145,7 +1152,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     for (uint64_t pipelineId : m_pipelinesToDraw) {
         bool isDebug = m_debugPipelines.count(pipelineId) > 0 && m_debugPipelines[pipelineId];
         bool isTextured = m_texturedPipelines.count(pipelineId) > 0 && m_texturedPipelines[pipelineId];
-        bool isPhong = m_phongPipelines.count(pipelineId) > 0 && m_phongPipelines[pipelineId];
+        bool isMultiTexture = m_multiTexturePipelines.count(pipelineId) > 0 && m_multiTexturePipelines[pipelineId];
 
         if (isDebug) {
             vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
@@ -1189,18 +1196,18 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     }
                 }
             }
-        } else if (isPhong) {
-            // Draw Phong-shaded sprites in batches
+        } else if (isMultiTexture) {
+            // Draw multi-textured sprites in batches
             auto it = m_pipelines.find(pipelineId);
             if (it != m_pipelines.end() && !m_spriteBatches.empty()) {
-                float phongPushConstants[10] = {
+                float multiTexPushConstants[10] = {
                     static_cast<float>(swapchainExtent.width), 
                     static_cast<float>(swapchainExtent.height), 
                     time,
-                    m_lightX, m_lightY, m_lightZ,
-                    m_ambientStrength, m_diffuseStrength, m_specularStrength, m_shininess
+                    m_shaderParams[0], m_shaderParams[1], m_shaderParams[2],
+                    m_shaderParams[3], m_shaderParams[4], m_shaderParams[5], m_shaderParams[6]
                 };
-                vkCmdPushConstants(commandBuffer, m_phongPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(phongPushConstants), phongPushConstants);
+                vkCmdPushConstants(commandBuffer, m_multiTexturePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(multiTexPushConstants), multiTexPushConstants);
                 
                 VkBuffer vertexBuffers[] = {spriteVertexBuffer};
                 VkDeviceSize offsets[] = {0};
@@ -1210,11 +1217,11 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 
                 // Draw each batch with its corresponding texture pair (diffuse + normal)
                 for (const auto& batch : m_spriteBatches) {
-                    auto descIt = m_phongDescriptorSets.find(batch.textureId);
-                    if (descIt != m_phongDescriptorSets.end()) {
+                    auto descIt = m_multiTextureDescriptorSets.find(batch.textureId);
+                    if (descIt != m_multiTextureDescriptorSets.end()) {
                         VkDescriptorSet descriptorSet = descIt->second;
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
-                                              m_phongPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+                                              m_multiTexturePipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
                         vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
                     }
                 }
@@ -1699,18 +1706,18 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
     updateSpriteVertexBuffer(allVertexData, allIndices);
 }
 
-void VulkanRenderer::createPhongDescriptorSetLayout() {
-    // Descriptor set layout for Phong shading with two textures (diffuse and normal)
+void VulkanRenderer::createMultiTextureDescriptorSetLayout() {
+    // Descriptor set layout with two textures (e.g., diffuse and normal map)
     VkDescriptorSetLayoutBinding bindings[2];
     
-    // Binding 0: Diffuse texture
+    // Binding 0: First texture (e.g., diffuse/albedo)
     bindings[0].binding = 0;
     bindings[0].descriptorCount = 1;
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     bindings[0].pImmutableSamplers = nullptr;
     bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     
-    // Binding 1: Normal map texture
+    // Binding 1: Second texture (e.g., normal map)
     bindings[1].binding = 1;
     bindings[1].descriptorCount = 1;
     bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1722,31 +1729,31 @@ void VulkanRenderer::createPhongDescriptorSetLayout() {
     layoutInfo.bindingCount = 2;
     layoutInfo.pBindings = bindings;
     
-    assert(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_phongDescriptorSetLayout) == VK_SUCCESS);
+    assert(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_multiTextureDescriptorSetLayout) == VK_SUCCESS);
 }
 
-void VulkanRenderer::createPhongPipelineLayout() {
-    // Push constants for Phong shading (time, width, height, light params)
+void VulkanRenderer::createMultiTexturePipelineLayout() {
+    // Push constants: time, width, height, plus 7 shader-specific parameters
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(float) * 10;  // width, height, time, lightX, lightY, lightZ, ambient, diffuse, specular, shininess
+    pushConstantRange.size = sizeof(float) * 10;  // width, height, time, param0-6
     
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &m_phongDescriptorSetLayout;
+    pipelineLayoutInfo.pSetLayouts = &m_multiTextureDescriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
     
-    assert(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_phongPipelineLayout) == VK_SUCCESS);
+    assert(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_multiTexturePipelineLayout) == VK_SUCCESS);
 }
 
-void VulkanRenderer::createPhongDescriptorPool() {
-    // Create descriptor pool for Phong descriptors (2 textures per set)
+void VulkanRenderer::createMultiTextureDescriptorPool() {
+    // Create descriptor pool for multi-texture descriptors (2 textures per set)
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSize.descriptorCount = 200;  // Support up to 100 material sets (2 textures each)
+    poolSize.descriptorCount = 200;  // Support up to 100 sets (2 textures each)
     
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1754,10 +1761,10 @@ void VulkanRenderer::createPhongDescriptorPool() {
     poolInfo.pPoolSizes = &poolSize;
     poolInfo.maxSets = 100;
     
-    assert(vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_phongDescriptorPool) == VK_SUCCESS);
+    assert(vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_multiTextureDescriptorPool) == VK_SUCCESS);
 }
 
-void VulkanRenderer::createPhongDescriptorSet(uint64_t baseTextureId, uint64_t normalTextureId) {
+void VulkanRenderer::createMultiTextureDescriptorSet(uint64_t baseTextureId, uint64_t normalTextureId) {
     auto baseIt = m_textures.find(baseTextureId);
     auto normalIt = m_textures.find(normalTextureId);
     assert(baseIt != m_textures.end());
@@ -1765,9 +1772,9 @@ void VulkanRenderer::createPhongDescriptorSet(uint64_t baseTextureId, uint64_t n
     
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = m_phongDescriptorPool;
+    allocInfo.descriptorPool = m_multiTextureDescriptorPool;
     allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &m_phongDescriptorSetLayout;
+    allocInfo.pSetLayouts = &m_multiTextureDescriptorSetLayout;
     
     VkDescriptorSet descriptorSet;
     assert(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) == VK_SUCCESS);
@@ -1812,10 +1819,10 @@ void VulkanRenderer::createPhongDescriptorSet(uint64_t baseTextureId, uint64_t n
     
     vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, nullptr);
     
-    m_phongDescriptorSets[baseTextureId] = descriptorSet;
+    m_multiTextureDescriptorSets[baseTextureId] = descriptorSet;
 }
 
-void VulkanRenderer::createPhongPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader) {
+void VulkanRenderer::createMultiTexturePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader) {
     std::vector<char> vertShaderData(vertShader.data, vertShader.data + vertShader.size);
     std::vector<char> fragShaderData(fragShader.data, fragShader.data + fragShader.size);
     
@@ -1925,7 +1932,7 @@ void VulkanRenderer::createPhongPipeline(uint64_t id, const ResourceData& vertSh
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.layout = m_phongPipelineLayout;
+    pipelineInfo.layout = m_multiTexturePipelineLayout;
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
     
@@ -1933,18 +1940,18 @@ void VulkanRenderer::createPhongPipeline(uint64_t id, const ResourceData& vertSh
     assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
     
     m_pipelines[id] = pipeline;
-    m_phongPipelines[id] = true;
+    m_multiTexturePipelines[id] = true;
     
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
 
-void VulkanRenderer::setLightParameters(float x, float y, float z, float ambient, float diffuse, float specular, float shininess) {
-    m_lightX = x;
-    m_lightY = y;
-    m_lightZ = z;
-    m_ambientStrength = ambient;
-    m_diffuseStrength = diffuse;
-    m_specularStrength = specular;
-    m_shininess = shininess;
+void VulkanRenderer::setShaderParameters(float x, float y, float z, float ambient, float diffuse, float specular, float shininess) {
+    m_shaderParams[0] = x;
+    m_shaderParams[1] = y;
+    m_shaderParams[2] = z;
+    m_shaderParams[3] = ambient;
+    m_shaderParams[4] = diffuse;
+    m_shaderParams[5] = specular;
+    m_shaderParams[6] = shininess;
 }
