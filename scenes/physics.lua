@@ -7,8 +7,8 @@ chainLinks = {}
 lightBody = nil
 circleBody = nil
 chainAnchor = nil
-chainStartX = 0.5
-chainStartY = 0.8
+chainStartX = 0.6
+chainStartY = 0.7
 chainLinkHeight = 0.08
 chainLength = 5
 
@@ -99,14 +99,14 @@ function init()
     local chainStartX = chainStartX
     local chainStartY = chainStartY
     local linkHeight = chainLinkHeight
-    
+
     -- Create anchor point (static body at the top)
     chainAnchor = b2CreateBody(B2_STATIC_BODY, chainStartX, chainStartY, 0)
     b2AddCircleFixture(chainAnchor, 0.02, 1.0, 0.3, 0.0)
     table.insert(bodies, chainAnchor)
-    
+
     local prevBodyId = chainAnchor
-    
+
     -- Create chain links
     for i = 1, chainLength do
         local linkY = chainStartY - i * linkHeight
@@ -114,25 +114,25 @@ function init()
         b2AddBoxFixture(linkId, 0.01, linkHeight / 2, 0.5, 0.3, 0.0)
         table.insert(bodies, linkId)
         table.insert(chainLinks, linkId)
-        
+
         -- Create revolute joint to connect to previous link/anchor
         local jointId = b2CreateRevoluteJoint(
-            prevBodyId, 
+            prevBodyId,
             linkId,
             0.0, -linkHeight / 2,  -- anchor on previous body (bottom)
             0.0, linkHeight / 2,    -- anchor on current body (top)
             false, 0.0, 0.0         -- no angle limits
         )
         table.insert(joints, jointId)
-        
+
         prevBodyId = linkId
     end
-    
+
     -- Create light body at the end of the chain (a small dynamic circle)
     lightBody = b2CreateBody(B2_DYNAMIC_BODY, chainStartX, chainStartY - (chainLength + 0.5) * linkHeight, 0)
     b2AddCircleFixture(lightBody, 0.05, 0.2, 0.3, 0.3)
     table.insert(bodies, lightBody)
-    
+
     -- Connect light to the last chain link
     local lightJointId = b2CreateRevoluteJoint(
         prevBodyId,
@@ -149,7 +149,7 @@ end
 function update(deltaTime)
     -- Step the physics simulation (Box2D 3.x uses subStepCount instead of velocity/position iterations)
     b2Step(deltaTime, 4)
-    
+
     -- Update light position based on the light body at the end of the chain
     if lightBody then
         local lightX, lightY = b2GetBodyPosition(lightBody)
@@ -158,7 +158,7 @@ function update(deltaTime)
         -- Assuming the world is from -1 to 1, we normalize to 0-1
         local normalizedX = (lightX + 1.0) / 2.0
         local normalizedY = (lightY + 1.0) / 2.0
-        
+
         -- Update both Phong and Toon shaders
         setShaderParameters(phongShaderId, normalizedX, normalizedY, 1.0, 0.3, 0.7, 0.8, 32.0)
         setShaderParameters(toonShaderId, normalizedX, normalizedY, 1.0, 3.0)
