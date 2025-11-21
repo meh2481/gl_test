@@ -1182,7 +1182,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 const PipelineInfo& info = infoIt->second;
                 
                 // Prepare push constants based on pipeline requirements
-                if (info.usesDualTexture) {
+                if (info.usesExtendedPushConstants) {
                     // Extended push constants with shader parameters
                     // Get parameters for this pipeline (or use defaults if not set)
                     const auto& params = m_pipelineShaderParams.count(pipelineId) 
@@ -1474,6 +1474,7 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
     info.layout = pipelineLayout;
     info.descriptorSetLayout = descriptorSetLayout;
     info.usesDualTexture = usesDualTexture;
+    info.usesExtendedPushConstants = false;  // Will be set to true when setShaderParameters is called
     m_pipelineInfo[id] = info;
     
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
@@ -1875,6 +1876,12 @@ void VulkanRenderer::setShaderParameters(int pipelineId, int paramCount, const f
     // Zero out any unused parameters
     for (int i = paramCount; i < 7; ++i) {
         m_pipelineShaderParams[pipelineId][i] = 0.0f;
+    }
+    
+    // Mark this pipeline as using extended push constants
+    auto infoIt = m_pipelineInfo.find(pipelineId);
+    if (infoIt != m_pipelineInfo.end()) {
+        infoIt->second.usesExtendedPushConstants = true;
     }
 }
 
