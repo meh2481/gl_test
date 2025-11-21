@@ -1,5 +1,5 @@
 #include "config.h"
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <cassert>
 
 #define PREF_PATH_PREFIX "RetSphinxEngine"
@@ -52,7 +52,7 @@ bool ConfigManager::load(const char* filename) {
     SDL_strlcpy(configFilePath, filename, sizeof(configFilePath));
     entryCount = 0;
     
-    SDL_RWops* file = SDL_RWFromFile(filename, "r");
+    SDL_IOStream* file = SDL_IOFromFile(filename, "r");
     if (!file) {
         return false;
     }
@@ -62,7 +62,7 @@ bool ConfigManager::load(const char* filename) {
     size_t len = 0;
     char ch;
     
-    while (SDL_RWread(file, &ch, 1, 1) == 1) {
+    while (SDL_ReadIO(file, &ch, 1) == 1) {
         if (ch == '\n' || ch == '\r' || len >= sizeof(line) - 1) {
             if (len > 0) {
                 line[len] = '\0';
@@ -139,14 +139,14 @@ bool ConfigManager::load(const char* filename) {
         }
     }
     
-    SDL_RWclose(file);
+    SDL_CloseIO(file);
     return true;
 }
 
 bool ConfigManager::save() {
     assert(configFilePath[0] != '\0');
     
-    SDL_RWops* file = SDL_RWFromFile(configFilePath, "w");
+    SDL_IOStream* file = SDL_IOFromFile(configFilePath, "w");
     if (!file) {
         return false;
     }
@@ -163,7 +163,7 @@ bool ConfigManager::save() {
             // Add blank line before new section (except first)
             if (!firstSection) {
                 const char* newline = "\n";
-                SDL_RWwrite(file, newline, 1, SDL_strlen(newline));
+                SDL_WriteIO(file, newline, SDL_strlen(newline));
             }
             firstSection = false;
             
@@ -171,17 +171,17 @@ bool ConfigManager::save() {
             if (currentSection[0] != '\0') {
                 char sectionHeader[MAX_CONFIG_LINE];
                 SDL_snprintf(sectionHeader, sizeof(sectionHeader), "[%s]\n", currentSection);
-                SDL_RWwrite(file, sectionHeader, 1, SDL_strlen(sectionHeader));
+                SDL_WriteIO(file, sectionHeader, SDL_strlen(sectionHeader));
             }
         }
         
         // Write key=value
         char line[MAX_CONFIG_LINE];
         SDL_snprintf(line, sizeof(line), "%s = %s\n", entries[i].key, entries[i].value);
-        SDL_RWwrite(file, line, 1, SDL_strlen(line));
+        SDL_WriteIO(file, line, SDL_strlen(line));
     }
     
-    SDL_RWclose(file);
+    SDL_CloseIO(file);
     return true;
 }
 
@@ -234,7 +234,7 @@ Config loadConfig() {
         ConfigManager manager;
         if (manager.load(configFile)) {
             config.display = manager.getInt("Display", "display", 0);
-            config.fullscreenMode = manager.getInt("Display", "fullscreen", SDL_WINDOW_FULLSCREEN_DESKTOP);
+            config.fullscreenMode = (SDL_WindowFlags)manager.getInt("Display", "fullscreen", SDL_WINDOW_FULLSCREEN);
             const char* keybindings = manager.getString("Input", "keybindings", "");
             SDL_strlcpy(config.keybindings, keybindings, MAX_KEYBINDING_STRING);
         }

@@ -31,6 +31,9 @@ void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysica
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
 
+    // Initialize SDL3 backend for ImGui
+    ImGui_ImplSDL3_InitForVulkan(window);
+
     // Create descriptor pool for ImGui
     VkDescriptorPoolSize pool_sizes[] = {
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
@@ -72,6 +75,7 @@ void ImGuiManager::cleanup() {
     }
 
     ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
 
     if (imguiPool_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
@@ -87,8 +91,8 @@ void ImGuiManager::newFrame(int width, int height) {
         return;
     }
 
-    ImGui::GetIO().DisplaySize = ImVec2(width, height);
     ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 }
 
@@ -106,7 +110,8 @@ void ImGuiManager::processEvent(SDL_Event* event) {
         return;
     }
 
-    // No platform backend, so no event processing
+    // With SDL3 backend, we can process events
+    ImGui_ImplSDL3_ProcessEvent(event);
 }
 
 void ImGuiManager::showConsoleWindow() {

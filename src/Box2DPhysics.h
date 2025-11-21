@@ -3,7 +3,7 @@
 #include <box2d/box2d.h>
 #include <vector>
 #include <unordered_map>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 struct DebugVertex {
     float x, y;
@@ -84,7 +84,7 @@ private:
     std::vector<DebugVertex> debugTriangleVertices_;
     
     // Threading support
-    SDL_mutex* physicsMutex_;
-    SDL_atomic_t stepInProgress_;
+    SDL_Mutex* physicsMutex_;
+    SDL_AtomicInt stepInProgress_;
     SDL_Thread* stepThread_;
 };

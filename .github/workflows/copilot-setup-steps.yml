@@ -28,7 +28,19 @@ jobs:
       - name: Install required libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev vulkan-tools glslc libsdl2-dev liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
+          sudo apt-get install -y libvulkan-dev vulkan-tools glslc liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
+
+      - name: Install SDL3 from source
+        run: |
+          git clone --depth 1 --branch release-3.2.0 https://github.com/libsdl-org/SDL.git SDL3
+          cd SDL3
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          cmake --build . -j$(nproc)
+          sudo make install
+          sudo ldconfig
+          cd ../..
+          rm -rf SDL3
 
       - name: Install box2d v3 from source, without examples
         run: |
@@ -40,29 +52,33 @@ jobs:
           cmake --build .
           sudo make install
 
-      - name: Build and install ImGui with Vulkan backend
+      - name: Build and install ImGui with SDL3 and Vulkan backend
         run: |
           git clone https://github.com/ocornut/imgui.git
           cd imgui
           git checkout v1.92.4
-          g++ -fPIC -I. -c imgui.cpp -o imgui.o
-          g++ -fPIC -I. -c imgui_demo.cpp -o imgui_demo.o
-          g++ -fPIC -I. -c imgui_draw.cpp -o imgui_draw.o
-          g++ -fPIC -I. -c imgui_tables.cpp -o imgui_tables.o
-          g++ -fPIC -I. -c imgui_widgets.cpp -o imgui_widgets.o
-          g++ -fPIC -I. -c misc/cpp/imgui_stdlib.cpp -o imgui_stdlib.o
-          g++ -fPIC -I. -c backends/imgui_impl_vulkan.cpp -o imgui_impl_vulkan.o
+          g++ -fPIC -I. -I/usr/local/include/SDL3 -c imgui.cpp -o imgui.o
+          g++ -fPIC -I. -I/usr/local/include/SDL3 -c imgui_demo.cpp -o imgui_demo.o
+          g++ -fPIC -I. -I/usr/local/include/SDL3 -c imgui_draw.cpp -o imgui_draw.o
+          g++ -fPIC -I. -I/usr/local/include/SDL3 -c imgui_tables.cpp -o imgui_tables.o
+          g++ -fPIC -I. -I/usr/local/include/SDL3 -c imgui_widgets.cpp -o imgui_widgets.o
+          g++ -fPIC -I. -I/usr/local/include/SDL3 -c misc/cpp/imgui_stdlib.cpp -o imgui_stdlib.o
+          g++ -fPIC -I. -I/usr/local/include/SDL3 -c backends/imgui_impl_vulkan.cpp -o imgui_impl_vulkan.o
+          g++ -fPIC -I. -I/usr/local/include/SDL3 -c backends/imgui_impl_sdl3.cpp -o imgui_impl_sdl3.o
           g++ -shared -o libimgui.so *.o
           sudo cp libimgui.so /usr/lib/
           sudo cp *.h /usr/include/
           sudo cp backends/imgui_impl_vulkan.h /usr/include/
+          sudo cp backends/imgui_impl_sdl3.h /usr/include/
           sudo cp misc/cpp/imgui_stdlib.h /usr/include/
           cd ..
           rm -rf imgui
 
-      - name: Cleanup Box2D/imgui folders
+      - name: Cleanup Box2D/imgui/SDL3 folders
         run: |
           git rm --cached -r box2d || true
           rm -rf box2d 2>/dev/null || true
           git rm --cached -r imgui || true
           rm -rf imgui 2>/dev/null || true
+          git rm --cached -r SDL3 || true
+          rm -rf SDL3 2>/dev/null || true

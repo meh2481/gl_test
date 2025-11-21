@@ -1,7 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #define MAX_KEYBINDING_STRING 2048
 #define MAX_CONFIG_SECTIONS 16
@@ -12,7 +12,7 @@
 
 struct Config {
     int display = 0;
-    int fullscreenMode = SDL_WINDOW_FULLSCREEN_DESKTOP;
+    SDL_WindowFlags fullscreenMode = SDL_WINDOW_FULLSCREEN;
     char keybindings[MAX_KEYBINDING_STRING] = {0};
 };
 

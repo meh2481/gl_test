@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <map>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 struct ResourceData {
     char* data;
@@ -27,7 +27,7 @@ public:
 private:
     ResourceData m_pakData;
     std::map<uint64_t, std::vector<char>> m_decompressedData;
-    SDL_mutex* m_mutex;
+    SDL_Mutex* m_mutex;
 
 #ifdef _WIN32
     HANDLE m_hFile;

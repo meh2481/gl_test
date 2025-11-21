@@ -1,5 +1,5 @@
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_vulkan.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
 #include <iostream>
 #include <fstream>
@@ -31,10 +31,10 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
 #ifdef DEBUG
 // Structure to pass data to the hot-reload thread
 struct HotReloadData {
-    SDL_mutex* mutex;
-    SDL_atomic_t reloadComplete;
-    SDL_atomic_t reloadSuccess;
-    SDL_atomic_t reloadRequested;
+    SDL_Mutex* mutex;
+    SDL_AtomicInt reloadComplete;
+    SDL_AtomicInt reloadSuccess;
+    SDL_AtomicInt reloadRequested;
 };
 
 // Global ImGuiManager pointer for callback
@@ -55,7 +55,7 @@ static int hotReloadThread(void* data) {
 
     while (true) {
         // Wait for reload request
-        while (SDL_AtomicGet(&reloadData->reloadRequested) == 0) {
+        while (SDL_GetAtomicInt(&reloadData->reloadRequested) == 0) {
             SDL_Delay(100);
         }
 
@@ -68,9 +68,9 @@ static int hotReloadThread(void* data) {
         int result = system("make shaders && make res_pak");
 
         // Store result
-        SDL_AtomicSet(&reloadData->reloadSuccess, (result == 0) ? 1 : 0);
-        SDL_AtomicSet(&reloadData->reloadComplete, 1);
-        SDL_AtomicSet(&reloadData->reloadRequested, 0);
+        SDL_SetAtomicInt(&reloadData->reloadSuccess, (result == 0) ? 1 : 0);
+        SDL_SetAtomicInt(&reloadData->reloadComplete, 1);
+        SDL_SetAtomicInt(&reloadData->reloadRequested, 0);
 
         SDL_UnlockMutex(reloadData->mutex);
     }
@@ -80,14 +80,14 @@ static int hotReloadThread(void* data) {
 #endif
 
 int main() {
-    assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) == 0);
+    assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD));
 
     Config config = loadConfig();
 
-    SDL_DisplayMode displayMode;
-    assert(SDL_GetDesktopDisplayMode(config.display, &displayMode) == 0);
+    const SDL_DisplayMode* displayMode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
+    assert(displayMode != nullptr);
 
-    SDL_Window* window = SDL_CreateWindow("Shader Triangle", SDL_WINDOWPOS_CENTERED_DISPLAY(config.display), SDL_WINDOWPOS_CENTERED_DISPLAY(config.display), displayMode.w, displayMode.h, SDL_WINDOW_VULKAN | config.fullscreenMode);
+    SDL_Window* window = SDL_CreateWindow("Shader Triangle", displayMode->w, displayMode->h, SDL_WINDOW_VULKAN | config.fullscreenMode);
     assert(window != nullptr);
 
     PakResource pakResource;
@@ -107,23 +107,28 @@ int main() {
     }
 
     // Open all available game controllers
-    SDL_GameController* gameController = nullptr;
-    for (int i = 0; i < SDL_NumJoysticks(); ++i) {
-        if (SDL_IsGameController(i)) {
-            gameController = SDL_GameControllerOpen(i);
-            if (gameController) {
-                vibrationManager.setGameController(gameController);
-                std::cout << "Game Controller " << i << " connected: " 
-                         << SDL_GameControllerName(gameController) << std::endl;
-                if (vibrationManager.hasRumbleSupport()) {
-                    std::cout << "  Rumble support: Yes" << std::endl;
+    SDL_Gamepad* gameController = nullptr;
+    int numJoysticks;
+    SDL_JoystickID* joysticks = SDL_GetJoysticks(&numJoysticks);
+    if (joysticks) {
+        for (int i = 0; i < numJoysticks; ++i) {
+            if (SDL_IsGamepad(joysticks[i])) {
+                gameController = SDL_OpenGamepad(joysticks[i]);
+                if (gameController) {
+                    vibrationManager.setGameController(gameController);
+                    std::cout << "Game Controller " << i << " connected: " 
+                             << SDL_GetGamepadName(gameController) << std::endl;
+                    if (vibrationManager.hasRumbleSupport()) {
+                        std::cout << "  Rumble support: Yes" << std::endl;
+                    }
+                    if (vibrationManager.hasTriggerRumbleSupport()) {
+                        std::cout << "  Trigger rumble support: Yes (DualSense)" << std::endl;
+                    }
+                    break; // Use the first available controller
                 }
-                if (vibrationManager.hasTriggerRumbleSupport()) {
-                    std::cout << "  Trigger rumble support: Yes (DualSense)" << std::endl;
-                }
-                break; // Use the first available controller
             }
         }
+        SDL_free(joysticks);
     }
 
     // Load initial scene
@@ -150,9 +155,9 @@ int main() {
     HotReloadData reloadData;
     reloadData.mutex = SDL_CreateMutex();
     assert(reloadData.mutex != nullptr);
-    SDL_AtomicSet(&reloadData.reloadComplete, 0);
-    SDL_AtomicSet(&reloadData.reloadSuccess, 0);
-    SDL_AtomicSet(&reloadData.reloadRequested, 0);
+    SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
+    SDL_SetAtomicInt(&reloadData.reloadSuccess, 0);
+    SDL_SetAtomicInt(&reloadData.reloadRequested, 0);
 
     SDL_Thread* reloadThread = SDL_CreateThread(hotReloadThread, "HotReload", &reloadData);
     assert(reloadThread != nullptr);
@@ -160,9 +165,9 @@ int main() {
 
     bool running = true;
     SDL_Event event;
-    float lastTime = SDL_GetTicks() / 1000.0f;
+    float lastTime = SDL_GetTicks() / 1000000000.0f;
     while (running) {
-        float currentTime = SDL_GetTicks()  / 1000.0f;
+        float currentTime = SDL_GetTicks()  / 1000000000.0f;
         float deltaTime = (currentTime - lastTime);
         lastTime = currentTime;
         while (SDL_PollEvent(&event)) {
@@ -170,54 +175,54 @@ int main() {
             // Process event for ImGui first
             imguiManager.processEvent(&event);
 #endif
-            if (event.type == SDL_QUIT) {
+            if (event.type == SDL_EVENT_QUIT) {
                 running = false;
             }
-            if (event.type == SDL_KEYDOWN && !event.key.repeat) {
+            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
                 // Handle actions bound to this key
-                const ActionList& actionList = keybindings.getActionsForKey(event.key.keysym.sym);
+                const ActionList& actionList = keybindings.getActionsForKey(event.key.key);
                 for (int i = 0; i < actionList.count; ++i) {
                     sceneManager.handleAction(actionList.actions[i]);
                 }
 
                 // Handle special case: ALT+ENTER for fullscreen toggle
-                if (event.key.keysym.sym == SDLK_RETURN && (event.key.keysym.mod & KMOD_ALT)) {
-                    Uint32 flags = SDL_GetWindowFlags(window);
+                if (event.key.key == SDLK_RETURN && (event.key.mod & SDL_KMOD_ALT)) {
+                    SDL_WindowFlags flags = SDL_GetWindowFlags(window);
                     if (flags & config.fullscreenMode) {
-                        SDL_SetWindowFullscreen(window, 0);
-                        config.display = SDL_GetWindowDisplayIndex(window);
+                        SDL_SetWindowFullscreen(window, false);
+                        config.display = SDL_GetDisplayForWindow(window);
                     } else {
-                        SDL_SetWindowFullscreen(window, config.fullscreenMode);
-                        config.display = SDL_GetWindowDisplayIndex(window);
+                        SDL_SetWindowFullscreen(window, true);
+                        config.display = SDL_GetDisplayForWindow(window);
                     }
                     saveConfig(config);
                 }
 #ifdef DEBUG
                 // Handle special case: F5 for hot reload
-                if (event.key.keysym.sym == SDLK_F5) {
+                if (event.key.key == SDLK_F5) {
                     // Check if reload thread is ready
-                    if (SDL_AtomicGet(&reloadData.reloadRequested) == 0) {
+                    if (SDL_GetAtomicInt(&reloadData.reloadRequested) == 0) {
                         std::cout << "Requesting hot-reload..." << std::endl;
-                        SDL_AtomicSet(&reloadData.reloadComplete, 0);
-                        SDL_AtomicSet(&reloadData.reloadRequested, 1);
+                        SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
+                        SDL_SetAtomicInt(&reloadData.reloadRequested, 1);
                     }
                 }
 #endif
             }
             // Handle gamepad button press
-            if (event.type == SDL_CONTROLLERBUTTONDOWN) {
-                const ActionList& actionList = keybindings.getActionsForGamepadButton(event.cbutton.button);
+            if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
+                const ActionList& actionList = keybindings.getActionsForGamepadButton(event.gbutton.button);
                 for (int i = 0; i < actionList.count; ++i) {
                     sceneManager.handleAction(actionList.actions[i]);
                 }
             }
             // Handle gamepad connection
-            if (event.type == SDL_CONTROLLERDEVICEADDED && !gameController) {
-                gameController = SDL_GameControllerOpen(event.cdevice.which);
+            if (event.type == SDL_EVENT_GAMEPAD_ADDED && !gameController) {
+                gameController = SDL_OpenGamepad(event.gdevice.which);
                 if (gameController) {
                     vibrationManager.setGameController(gameController);
                     std::cout << "Game Controller connected: " 
-                             << SDL_GameControllerName(gameController) << std::endl;
+                             << SDL_GetGamepadName(gameController) << std::endl;
                     if (vibrationManager.hasRumbleSupport()) {
                         std::cout << "  Rumble support: Yes" << std::endl;
                     }
@@ -227,12 +232,11 @@ int main() {
                 }
             }
             // Handle gamepad disconnection
-            if (event.type == SDL_CONTROLLERDEVICEREMOVED) {
-                if (gameController && event.cdevice.which == SDL_JoystickInstanceID(
-                        SDL_GameControllerGetJoystick(gameController))) {
+            if (event.type == SDL_EVENT_GAMEPAD_REMOVED) {
+                if (gameController && event.gdevice.which == SDL_GetGamepadID(gameController)) {
                     std::cout << "Game Controller disconnected" << std::endl;
                     vibrationManager.setGameController(nullptr);
-                    SDL_GameControllerClose(gameController);
+                    SDL_CloseGamepad(gameController);
                     gameController = nullptr;
                 }
             }
@@ -244,8 +248,8 @@ int main() {
 
 #ifdef DEBUG
         // Check if hot-reload completed
-        if (SDL_AtomicGet(&reloadData.reloadComplete) == 1) {
-            if (SDL_AtomicGet(&reloadData.reloadSuccess) == 1) {
+        if (SDL_GetAtomicInt(&reloadData.reloadComplete) == 1) {
+            if (SDL_GetAtomicInt(&reloadData.reloadSuccess) == 1) {
                 std::cout << "Hot-reload complete, applying changes..." << std::endl;
                 // Reload pak
                 pakResource.reload(PAK_FILE);
@@ -254,7 +258,7 @@ int main() {
             } else {
                 std::cout << "Hot-reload failed!" << std::endl;
             }
-            SDL_AtomicSet(&reloadData.reloadComplete, 0);
+            SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
         }
 #endif
 
@@ -272,7 +276,7 @@ int main() {
     }
 
     // Save current display to config
-    config.display = SDL_GetWindowDisplayIndex(window);
+    config.display = SDL_GetDisplayForWindow(window);
 
     // Save keybindings to config
     keybindings.serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
@@ -281,7 +285,7 @@ int main() {
 
     // Close game controller if open
     if (gameController) {
-        SDL_GameControllerClose(gameController);
+        SDL_CloseGamepad(gameController);
     }
 
 #ifdef DEBUG

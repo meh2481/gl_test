@@ -5,7 +5,7 @@
 #include <cstring>
 #include <algorithm>
 #include <cassert>
-#include <SDL2/SDL_vulkan.h>
+#include <SDL3/SDL_vulkan.h>
 
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     if (value < min) return min;
@@ -464,19 +464,17 @@ void VulkanRenderer::createInstance(SDL_Window* window) {
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
-    unsigned int count;
-    assert(SDL_Vulkan_GetInstanceExtensions(window, &count, nullptr));
-    const char** extensions = new const char*[count];
-    SDL_Vulkan_GetInstanceExtensions(window, &count, extensions);
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(count);
+    Uint32 count;
+    const char* const* extensions = SDL_Vulkan_GetInstanceExtensions(&count);
+    assert(extensions != nullptr);
+    createInfo.enabledExtensionCount = count;
     createInfo.ppEnabledExtensionNames = extensions;
 
     assert(vkCreateInstance(&createInfo, nullptr, &instance) == VK_SUCCESS);
-    delete[] extensions;
 }
 
 void VulkanRenderer::createSurface(SDL_Window* window) {
-    assert(SDL_Vulkan_CreateSurface(window, instance, &surface));
+    assert(SDL_Vulkan_CreateSurface(window, instance, nullptr, &surface));
 }
 
 bool VulkanRenderer::checkDeviceExtensionSupport(VkPhysicalDevice device) {
@@ -647,7 +645,7 @@ VkExtent2D VulkanRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capa
         return capabilities.currentExtent;
     } else {
         int width, height;
-        SDL_Vulkan_GetDrawableSize(window, &width, &height);
+        SDL_GetWindowSizeInPixels(window, &width, &height);
         VkExtent2D actualExtent = {
             static_cast<uint32_t>(width),
             static_cast<uint32_t>(height)

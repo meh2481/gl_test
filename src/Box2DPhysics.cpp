@@ -19,7 +19,7 @@ Box2DPhysics::Box2DPhysics() : nextBodyId_(0), debugDrawEnabled_(false), stepThr
     
     physicsMutex_ = SDL_CreateMutex();
     assert(physicsMutex_ != nullptr);
-    SDL_AtomicSet(&stepInProgress_, 0);
+    SDL_SetAtomicInt(&stepInProgress_, 0);
 }
 
 Box2DPhysics::~Box2DPhysics() {
@@ -77,18 +77,18 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
 int Box2DPhysics::physicsStepThread(void* data) {
     StepData* stepData = (StepData*)data;
     stepData->physics->step(stepData->timeStep, stepData->subStepCount);
-    SDL_AtomicSet(&stepData->physics->stepInProgress_, 0);
+    SDL_SetAtomicInt(&stepData->physics->stepInProgress_, 0);
     delete stepData;
     return 0;
 }
 
 void Box2DPhysics::stepAsync(float timeStep, int subStepCount) {
     // Don't start a new step if one is in progress
-    if (SDL_AtomicGet(&stepInProgress_) != 0) {
+    if (SDL_GetAtomicInt(&stepInProgress_) != 0) {
         return;
     }
     
-    SDL_AtomicSet(&stepInProgress_, 1);
+    SDL_SetAtomicInt(&stepInProgress_, 1);
     StepData* data = new StepData{this, timeStep, subStepCount};
     stepThread_ = SDL_CreateThread(physicsStepThread, "PhysicsStep", data);
     assert(stepThread_ != nullptr);
@@ -96,11 +96,11 @@ void Box2DPhysics::stepAsync(float timeStep, int subStepCount) {
 }
 
 bool Box2DPhysics::isStepComplete() {
-    return SDL_AtomicGet(&stepInProgress_) == 0;
+    return SDL_GetAtomicInt(&stepInProgress_) == 0;
 }
 
 void Box2DPhysics::waitForStepComplete() {
-    while (SDL_AtomicGet(&stepInProgress_) != 0) {
+    while (SDL_GetAtomicInt(&stepInProgress_) != 0) {
         SDL_Delay(1);
     }
 }

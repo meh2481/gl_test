@@ -1,6 +1,6 @@
 #pragma once
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <unordered_map>
 #include <cassert>
 
@@ -104,22 +104,22 @@ public:
         // Set up default keybindings
         bind(SDLK_ESCAPE, ACTION_EXIT);
         bind(SDLK_RETURN, ACTION_MENU);
-        bind(SDLK_p, ACTION_PHYSICS_DEMO);
-        bind(SDLK_a, ACTION_AUDIO_TEST);
+        bind(SDLK_P, ACTION_PHYSICS_DEMO);
+        bind(SDLK_A, ACTION_AUDIO_TEST);
         bind(SDLK_SPACE, ACTION_APPLY_FORCE);
-        bind(SDLK_r, ACTION_RESET_PHYSICS);
-        bind(SDLK_d, ACTION_TOGGLE_DEBUG_DRAW);
+        bind(SDLK_R, ACTION_RESET_PHYSICS);
+        bind(SDLK_D, ACTION_TOGGLE_DEBUG_DRAW);
         // ALT+ENTER is handled separately via modifier check
         // F5 is handled separately in main.cpp for debug builds
         
         // Set up default gamepad bindings
-        bindGamepad(SDL_CONTROLLER_BUTTON_B, ACTION_EXIT);
-        bindGamepad(SDL_CONTROLLER_BUTTON_START, ACTION_MENU);
-        bindGamepad(SDL_CONTROLLER_BUTTON_Y, ACTION_PHYSICS_DEMO);
-        bindGamepad(SDL_CONTROLLER_BUTTON_X, ACTION_AUDIO_TEST);
-        bindGamepad(SDL_CONTROLLER_BUTTON_A, ACTION_APPLY_FORCE);
-        bindGamepad(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, ACTION_RESET_PHYSICS);
-        bindGamepad(SDL_CONTROLLER_BUTTON_LEFTSHOULDER, ACTION_TOGGLE_DEBUG_DRAW);
+        bindGamepad(SDL_GAMEPAD_BUTTON_SOUTH, ACTION_EXIT);
+        bindGamepad(SDL_GAMEPAD_BUTTON_START, ACTION_MENU);
+        bindGamepad(SDL_GAMEPAD_BUTTON_NORTH, ACTION_PHYSICS_DEMO);
+        bindGamepad(SDL_GAMEPAD_BUTTON_WEST, ACTION_AUDIO_TEST);
+        bindGamepad(SDL_GAMEPAD_BUTTON_EAST, ACTION_APPLY_FORCE);
+        bindGamepad(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, ACTION_RESET_PHYSICS);
+        bindGamepad(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, ACTION_TOGGLE_DEBUG_DRAW);
     }
 
     // Bind a key to an action
