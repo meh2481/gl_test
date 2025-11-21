@@ -59,7 +59,7 @@ function init()
             layerId = createLayer(metalwallTexId, 0.2, 0.2, metalwallNormId, phongShaderId)
         elseif i == 3 then
             -- Toon shader with normal maps
-            layerId = createLayer(metalwallTexId, 0.2, 0.2, metalwallNormId, toonShaderId)
+            layerId = createLayer(metalwallTexId, 0.2, 0.2, metalwallTexId, toonShaderId)
         elseif i == 4 then
             -- Simple texture, no normal map
             layerId = createLayer(metalwallTexId, 0.2, 0.2, simpleTexShaderId)
