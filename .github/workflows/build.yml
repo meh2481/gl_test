@@ -21,7 +21,7 @@ jobs:
           git clone --depth 1 --branch release-3.2.0 https://github.com/libsdl-org/SDL.git SDL3
           cd SDL3
           mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DSDL_UNIX_CONSOLE_BUILD=ON ..
           cmake --build . -j$(nproc)
           sudo make install
           sudo ldconfig
