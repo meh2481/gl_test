@@ -8,9 +8,6 @@ layout(push_constant) uniform PushConstants {
     float lightY;
     float lightZ;
     float levels;      // Number of shading levels (e.g., 3.0, 4.0, 5.0)
-    float param1;      // Unused
-    float param2;      // Unused
-    float param3;      // Unused
 } pc;
 
 layout(location = 0) in vec2 fragTexCoord;
@@ -25,20 +22,20 @@ layout(binding = 0) uniform sampler2D texSampler;
 void main() {
     // Sample the base texture
     vec4 texColor = texture(texSampler, fragTexCoord);
-    
+
     // Normal for 2D sprite (pointing at camera)
     vec3 normal = vec3(0.0, 0.0, 1.0);
-    
+
     // Calculate lighting
     vec3 lightDir = normalize(fragLightPos - fragPos);
     float diff = max(dot(normal, lightDir), 0.0);
-    
+
     // Quantize the diffuse lighting into discrete levels (cel-shading)
     float numLevels = max(pc.levels, 2.0);  // At least 2 levels
     float celDiff = floor(diff * numLevels) / numLevels;
-    
+
     // Apply toon shading
     vec3 toonColor = texColor.rgb * (0.3 + 0.7 * celDiff);
-    
+
     outColor = vec4(toonColor, texColor.a);
 }

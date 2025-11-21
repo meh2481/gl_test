@@ -9,22 +9,22 @@ function init()
 
     -- Load Phong shaders (z-index 1, 2 textures)
     phongShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, 2)
-    
-    -- Load toon shader (z-index 1, 2 textures)
-    toonShaderId = loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, 2)
-    
+
+    -- Load toon shader (z-index 1, 1 texture - no normal map)
+    toonShaderId = loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, 1)
+
     -- Load regular textured shaders (no normal mapping) (z-index 1, 1 texture)
     simpleTexShaderId = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, 1)
-    
+
     -- Set shader parameters for Phong shader
     -- Position (0.5, 0.5, 1.0) - light position
     -- ambient: 0.3, diffuse: 0.7, specular: 0.8, shininess: 32.0
     setShaderParameters(phongShaderId, 0.5, 0.5, 1.0, 0.3, 0.7, 0.8, 32.0)
-    
-    -- Set shader parameters for Toon shader
+
+    -- Set shader parameters for Toon shader (only 4 parameters needed)
     -- Position (0.5, 0.5, 1.0) - light position
-    -- levels: 3.0 (3 cel-shading levels), rest unused
-    setShaderParameters(toonShaderId, 0.5, 0.5, 1.0, 3.0, 0.0, 0.0, 0.0)
+    -- levels: 3.0 (3 cel-shading levels)
+    setShaderParameters(toonShaderId, 0.5, 0.5, 1.0, 3.0)
 
     -- Load debug drawing shader (z-index 2, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 2)
@@ -63,8 +63,8 @@ function init()
             -- Phong shading with normal maps
             layerId = createLayer(metalwallTexId, 0.2, 0.2, metalwallNormId, phongShaderId)
         elseif i == 3 then
-            -- Toon shader with normal maps
-            layerId = createLayer(metalwallTexId, 0.2, 0.2, metalwallTexId, toonShaderId)
+            -- Toon shader (single texture, no normal map)
+            layerId = createLayer(metalwallTexId, 0.2, 0.2, toonShaderId)
         elseif i == 4 then
             -- Simple texture, no normal map
             layerId = createLayer(metalwallTexId, 0.2, 0.2, simpleTexShaderId)

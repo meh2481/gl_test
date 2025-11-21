@@ -1161,27 +1161,25 @@ int LuaInterface::setShaderParameters(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: pipelineId (number), x (number), y (number), z (number), ambient (number), diffuse (number), specular (number), shininess (number)
-    assert(lua_gettop(L) == 8);
+    // Arguments: pipelineId (number), then 3-7 float parameters
+    // Minimum: pipelineId + 3 light position params (4 total)
+    // Maximum: pipelineId + 7 params (8 total)
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 4 && numArgs <= 8);
     assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-    assert(lua_isnumber(L, 3));
-    assert(lua_isnumber(L, 4));
-    assert(lua_isnumber(L, 5));
-    assert(lua_isnumber(L, 6));
-    assert(lua_isnumber(L, 7));
-    assert(lua_isnumber(L, 8));
 
     int pipelineId = (int)lua_tonumber(L, 1);
-    float x = (float)lua_tonumber(L, 2);
-    float y = (float)lua_tonumber(L, 3);
-    float z = (float)lua_tonumber(L, 4);
-    float ambient = (float)lua_tonumber(L, 5);
-    float diffuse = (float)lua_tonumber(L, 6);
-    float specular = (float)lua_tonumber(L, 7);
-    float shininess = (float)lua_tonumber(L, 8);
+    
+    // Read parameters, defaulting to 0.0 if not provided
+    float params[7] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    int paramCount = numArgs - 1;  // Exclude pipelineId from count
+    
+    for (int i = 0; i < paramCount && i < 7; ++i) {
+        assert(lua_isnumber(L, i + 2));
+        params[i] = (float)lua_tonumber(L, i + 2);
+    }
 
-    interface->renderer_.setShaderParameters(pipelineId, x, y, z, ambient, diffuse, specular, shininess);
+    interface->renderer_.setShaderParameters(pipelineId, paramCount, params);
 
     return 0;
 }
