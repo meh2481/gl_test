@@ -35,7 +35,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexture",
                                      "setShaderUniform3f", "setShaderParameters",
                                      "pushScene", "popScene", "print",
-                                     "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
+                                     "b2SetGravity", "b2SetFixedTimestep", "b2Step", "b2CreateBody", "b2DestroyBody",
                                      "b2AddBoxFixture", "b2AddCircleFixture", "b2SetBodyPosition",
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
@@ -405,6 +405,7 @@ void LuaInterface::registerFunctions() {
 
     // Register Box2D functions
     lua_register(luaState_, "b2SetGravity", b2SetGravity);
+    lua_register(luaState_, "b2SetFixedTimestep", b2SetFixedTimestep);
     lua_register(luaState_, "b2Step", b2Step);
     lua_register(luaState_, "b2CreateBody", b2CreateBody);
     lua_register(luaState_, "b2DestroyBody", b2DestroyBody);
@@ -630,6 +631,20 @@ int LuaInterface::b2SetGravity(lua_State* L) {
     float y = lua_tonumber(L, 2);
 
     interface->physics_->setGravity(x, y);
+    return 0;
+}
+
+int LuaInterface::b2SetFixedTimestep(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    float timestep = lua_tonumber(L, 1);
+
+    interface->physics_->setFixedTimestep(timestep);
     return 0;
 }
 

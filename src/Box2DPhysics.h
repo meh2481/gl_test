@@ -19,6 +19,10 @@ public:
     void setGravity(float x, float y);
     void step(float timeStep, int subStepCount = 4);
     
+    // Set the fixed timestep for physics simulation (default is 1/60)
+    void setFixedTimestep(float timestep);
+    float getFixedTimestep() const { return fixedTimestep_; }
+    
     // Async physics stepping - runs physics simulation on a background thread
     // Use stepAsync() to start stepping, isStepComplete() to check, waitForStepComplete() to block
     void stepAsync(float timeStep, int subStepCount = 4);
@@ -82,6 +86,10 @@ private:
     bool debugDrawEnabled_;
     std::vector<DebugVertex> debugLineVertices_;
     std::vector<DebugVertex> debugTriangleVertices_;
+    
+    // Fixed timestep accumulator for framerate-independent physics
+    float timeAccumulator_;
+    float fixedTimestep_;
     
     // Threading support
     SDL_Mutex* physicsMutex_;

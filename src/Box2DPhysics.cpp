@@ -11,7 +11,8 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
     a = ((hexColor >> 24) & 0xFF) / 255.0f;
 }
 
-Box2DPhysics::Box2DPhysics() : nextBodyId_(0), debugDrawEnabled_(false), stepThread_(nullptr) {
+Box2DPhysics::Box2DPhysics() : nextBodyId_(0), debugDrawEnabled_(false), stepThread_(nullptr), 
+                                timeAccumulator_(0.0f), fixedTimestep_(1.0f / 60.0f) {
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldId_ = b2CreateWorld(&worldDef);
@@ -39,10 +40,23 @@ void Box2DPhysics::setGravity(float x, float y) {
     b2World_SetGravity(worldId_, (b2Vec2){x, y});
 }
 
+void Box2DPhysics::setFixedTimestep(float timestep) {
+    assert(timestep > 0.0f);
+    fixedTimestep_ = timestep;
+}
+
 void Box2DPhysics::step(float timeStep, int subStepCount) {
     SDL_LockMutex(physicsMutex_);
     
-    b2World_Step(worldId_, timeStep, subStepCount);
+    // Accumulate the variable timestep
+    timeAccumulator_ += timeStep;
+    
+    // Step the physics simulation in fixed increments
+    // This ensures framerate-independent physics behavior
+    while (timeAccumulator_ >= fixedTimestep_) {
+        b2World_Step(worldId_, fixedTimestep_, subStepCount);
+        timeAccumulator_ -= fixedTimestep_;
+    }
 
     if (debugDrawEnabled_) {
         debugLineVertices_.clear();

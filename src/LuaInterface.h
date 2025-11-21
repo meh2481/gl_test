@@ -51,6 +51,7 @@ private:
 
     // Box2D Lua bindings
     static int b2SetGravity(lua_State* L);
+    static int b2SetFixedTimestep(lua_State* L);
     static int b2Step(lua_State* L);
     static int b2CreateBody(lua_State* L);
     static int b2DestroyBody(lua_State* L);
