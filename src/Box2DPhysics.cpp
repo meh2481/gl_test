@@ -406,6 +406,11 @@ void Box2DPhysics::DrawCircle(b2Vec2 center, float radius, b2HexColor color, voi
         physics->addLineVertex(p1.x, p1.y, color);
         physics->addLineVertex(p2.x, p2.y, color);
     }
+
+    // Draw a reference line from center to edge (static, doesn't rotate).
+    // DrawSolidCircle should be called for proper rotation visualization.
+    physics->addLineVertex(center.x, center.y, color);
+    physics->addLineVertex(center.x + radius, center.y, color);
 }
 
 void Box2DPhysics::DrawSolidCircle(b2Transform transform, float radius, b2HexColor color, void* context) {
@@ -440,7 +445,7 @@ void Box2DPhysics::DrawSolidCircle(b2Transform transform, float radius, b2HexCol
         physics->addLineVertex(p2.x, p2.y, color);
     }
 
-    // Draw axis line
+    // Draw axis line from center to edge - rotates with the circle to show rotation angle
     b2Vec2 axis = b2RotateVector(transform.q, (b2Vec2){radius, 0.0f});
     physics->addLineVertex(center.x, center.y, color);
     physics->addLineVertex(center.x + axis.x, center.y + axis.y, color);
