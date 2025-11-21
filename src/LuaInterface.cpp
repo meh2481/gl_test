@@ -643,6 +643,7 @@ int LuaInterface::b2SetFixedTimestep(lua_State* L) {
     assert(lua_isnumber(L, 1));
 
     float timestep = lua_tonumber(L, 1);
+    assert(timestep > 0.0f);
 
     interface->physics_->setFixedTimestep(timestep);
     return 0;

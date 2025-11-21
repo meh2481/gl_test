@@ -3,6 +3,9 @@
 #include <cmath>
 #include <iostream>
 
+// Default fixed timestep for physics simulation (Box2D recommended value)
+static constexpr float DEFAULT_FIXED_TIMESTEP = 1.0f / 60.0f;
+
 // Helper function to convert b2HexColor to RGBA floats
 static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, float& a) {
     r = ((hexColor >> 16) & 0xFF) / 255.0f;
@@ -12,7 +15,7 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
 }
 
 Box2DPhysics::Box2DPhysics() : nextBodyId_(0), debugDrawEnabled_(false), stepThread_(nullptr), 
-                                timeAccumulator_(0.0f), fixedTimestep_(1.0f / 60.0f) {
+                                timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP) {
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldId_ = b2CreateWorld(&worldDef);
