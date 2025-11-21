@@ -137,6 +137,7 @@ private:
         VkPipelineLayout layout;
         VkDescriptorSetLayout descriptorSetLayout;
         bool usesDualTexture;  // true = 2 textures, false = 1 texture
+        bool usesExtendedPushConstants;  // true = uses extended push constants with shader parameters
         std::set<uint64_t> descriptorIds;  // Which descriptor sets this pipeline uses
     };
     std::map<uint64_t, PipelineInfo> m_pipelineInfo;
