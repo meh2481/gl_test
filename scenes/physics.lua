@@ -5,6 +5,12 @@ layers = {}
 debugDrawEnabled = true
 chainLinks = {}
 lightBody = nil
+circleBody = nil
+chainAnchor = nil
+chainStartX = 0.5
+chainStartY = 0.8
+chainLinkHeight = 0.08
+chainLength = 5
 
 function init()
     -- Load the nebula background shader (z-index 0)
@@ -80,27 +86,26 @@ function init()
     end
 
     -- Create a dynamic circle with rock.png sprite using Phong with normal maps
-    local circleId = b2CreateBody(B2_DYNAMIC_BODY, 0, 0.8, 0)
-    b2AddCircleFixture(circleId, 0.15, 1.0, 0.3, 0.5)
-    table.insert(bodies, circleId)
+    circleBody = b2CreateBody(B2_DYNAMIC_BODY, 0, 0.8, 0)
+    b2AddCircleFixture(circleBody, 0.15, 1.0, 0.3, 0.5)
+    table.insert(bodies, circleBody)
 
     -- Attach a sprite layer to the circle
     local layerId = createLayer(rockTexId, 0.3, 0.3, rockNormId, phongShaderId)
-    attachLayerToBody(layerId, circleId)
+    attachLayerToBody(layerId, circleBody)
     table.insert(layers, layerId)
 
     -- Create a chain with multiple links
-    local chainLength = 5
-    local chainStartX = 0.5
-    local chainStartY = 0.8
-    local linkHeight = 0.08
+    local chainStartX = chainStartX
+    local chainStartY = chainStartY
+    local linkHeight = chainLinkHeight
     
     -- Create anchor point (static body at the top)
-    local anchorId = b2CreateBody(B2_STATIC_BODY, chainStartX, chainStartY, 0)
-    b2AddCircleFixture(anchorId, 0.02, 1.0, 0.3, 0.0)
-    table.insert(bodies, anchorId)
+    chainAnchor = b2CreateBody(B2_STATIC_BODY, chainStartX, chainStartY, 0)
+    b2AddCircleFixture(chainAnchor, 0.02, 1.0, 0.3, 0.0)
+    table.insert(bodies, chainAnchor)
     
-    local prevBodyId = anchorId
+    local prevBodyId = chainAnchor
     
     -- Create chain links
     for i = 1, chainLength do
@@ -180,6 +185,8 @@ function cleanup()
     bodies = {}
     chainLinks = {}
     lightBody = nil
+    circleBody = nil
+    chainAnchor = nil
     -- Disable debug drawing
     b2EnableDebugDraw(false)
     print("Physics demo scene cleaned up")
@@ -191,11 +198,10 @@ function onAction(action)
         popScene()
     end
     if action == ACTION_APPLY_FORCE then
-        -- Apply impulse to the circle
-        if #bodies > 0 then
-            local circleId = bodies[#bodies]
-            local x, y = b2GetBodyPosition(circleId)
-            b2ApplyForce(circleId, 0, 50, x, y)
+        -- Apply impulse to the circle (rock)
+        if circleBody then
+            local x, y = b2GetBodyPosition(circleBody)
+            b2ApplyForce(circleBody, 0, 50, x, y)
             -- Trigger controller vibration: medium intensity for 200ms
             vibrate(0.5, 0.5, 200)
         end
@@ -215,9 +221,30 @@ function onAction(action)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
-            else
-                -- Circle
+            elseif i == 7 then
+                -- Circle (rock)
                 b2SetBodyPosition(bodyId, 0, 0.8)
+                b2SetBodyAngle(bodyId, 0)
+                b2SetBodyLinearVelocity(bodyId, 0, 0)
+                b2SetBodyAngularVelocity(bodyId, 0)
+                b2SetBodyAwake(bodyId, true)
+            elseif i == 8 then
+                -- Chain anchor - keep it in place (static body)
+                b2SetBodyPosition(bodyId, chainStartX, chainStartY)
+                b2SetBodyAngle(bodyId, 0)
+            elseif i <= 8 + chainLength then
+                -- Chain links
+                local linkIndex = i - 8
+                local linkY = chainStartY - linkIndex * chainLinkHeight
+                b2SetBodyPosition(bodyId, chainStartX, linkY)
+                b2SetBodyAngle(bodyId, 0)
+                b2SetBodyLinearVelocity(bodyId, 0, 0)
+                b2SetBodyAngularVelocity(bodyId, 0)
+                b2SetBodyAwake(bodyId, true)
+            else
+                -- Light body at the end of chain
+                local lightY = chainStartY - (chainLength + 0.5) * chainLinkHeight
+                b2SetBodyPosition(bodyId, chainStartX, lightY)
                 b2SetBodyAngle(bodyId, 0)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
