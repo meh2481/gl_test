@@ -1138,6 +1138,9 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     uint64_t descriptorId = baseTextureId ^ (normalTextureId << 1);
     std::vector<uint64_t> textureIds = {baseTextureId, normalTextureId};
     interface->renderer_.createDescriptorSetForTextures(descriptorId, textureIds);
+    
+    // Associate this descriptor with the pipeline
+    interface->renderer_.associateDescriptorWithPipeline(pipelineId, descriptorId);
 
     return 0;
 }

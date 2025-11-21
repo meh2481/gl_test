@@ -291,6 +291,13 @@ void VulkanRenderer::setCurrentPipeline(uint64_t id) {
     m_currentPipeline = it->second;
 }
 
+void VulkanRenderer::associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId) {
+    auto it = m_pipelineInfo.find(pipelineId);
+    if (it != m_pipelineInfo.end()) {
+        it->second.descriptorIds.insert(descriptorId);
+    }
+}
+
 void VulkanRenderer::setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds) {
     m_pipelinesToDraw = pipelineIds;
 }
@@ -1204,6 +1211,12 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 
                 // Draw each batch with appropriate descriptor set
                 for (const auto& batch : m_spriteBatches) {
+                    // If this pipeline has explicitly registered descriptors, only draw those
+                    // Otherwise (e.g., single-texture pipelines), draw any batch we have a descriptor for
+                    if (!info.descriptorIds.empty() && info.descriptorIds.find(batch.descriptorId) == info.descriptorIds.end()) {
+                        continue;
+                    }
+                    
                     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
                     
                     // Find descriptor set using batch's descriptor ID

@@ -6,6 +6,7 @@
 #include "resource.h"
 #include <vector>
 #include <map>
+#include <set>
 
 // Forward declarations
 struct SpriteBatch;
@@ -19,6 +20,7 @@ public:
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
     void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
+    void associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId);
     void setCurrentPipeline(uint64_t id);
     void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
     void setDebugDrawData(const std::vector<float>& vertexData);
@@ -132,6 +134,7 @@ private:
         VkPipelineLayout layout;
         VkDescriptorSetLayout descriptorSetLayout;
         bool usesDualTexture;  // true = 2 textures, false = 1 texture
+        std::set<uint64_t> descriptorIds;  // Which descriptor sets this pipeline uses
     };
     std::map<uint64_t, PipelineInfo> m_pipelineInfo;
     
