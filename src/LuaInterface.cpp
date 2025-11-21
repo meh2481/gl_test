@@ -32,7 +32,8 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_newtable(luaState_);
 
     // Copy global functions and tables into the scene table
-    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexture",
+    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexture",
+                                     "setShaderUniform3f", "setShaderParameters",
                                      "pushScene", "popScene", "print",
                                      "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
                                      "b2AddBoxFixture", "b2AddCircleFixture", "b2SetBodyPosition",
@@ -432,6 +433,9 @@ void LuaInterface::registerFunctions() {
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
     lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
+    lua_register(luaState_, "loadTexturedShadersEx", loadTexturedShadersEx);
+    lua_register(luaState_, "setShaderUniform3f", setShaderUniform3f);
+    lua_register(luaState_, "setShaderParameters", setShaderParameters);
 
     // Register audio functions
     lua_register(luaState_, "audioLoadBuffer", audioLoadBuffer);
@@ -942,20 +946,33 @@ int LuaInterface::createLayer(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: textureFilename (string), width (number), height (number)
-    assert(lua_gettop(L) == 3);
-    assert(lua_isstring(L, 1));
+    // Arguments: textureId (integer), width (number), height (number), 
+    //            [normalMapId (integer)], pipelineId (integer)
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 4 && numArgs <= 5);
+    assert(lua_isinteger(L, 1));
     assert(lua_isnumber(L, 2));
     assert(lua_isnumber(L, 3));
+    assert(lua_isinteger(L, 4) || (numArgs == 5 && lua_isinteger(L, 5)));
 
-    const char* filename = lua_tostring(L, 1);
+    uint64_t textureId = (uint64_t)lua_tointeger(L, 1);
     float width = (float)lua_tonumber(L, 2);
     float height = (float)lua_tonumber(L, 3);
+    
+    uint64_t normalMapId = 0;
+    int pipelineId = -1;
+    
+    // Parse arguments:
+    // 4 args: textureId, width, height, pipelineId
+    // 5 args: textureId, width, height, normalMapId, pipelineId
+    if (numArgs == 4) {
+        pipelineId = (int)lua_tointeger(L, 4);
+    } else { // numArgs == 5
+        normalMapId = (uint64_t)lua_tointeger(L, 4);
+        pipelineId = (int)lua_tointeger(L, 5);
+    }
 
-    // Hash the filename to get texture ID (same as packer)
-    uint64_t textureId = std::hash<std::string>{}(filename);
-
-    int layerId = interface->layerManager_->createLayer(textureId, width, height);
+    int layerId = interface->layerManager_->createLayer(textureId, width, height, normalMapId, pipelineId);
     lua_pushinteger(L, layerId);
     return 1;
 }
@@ -1040,7 +1057,9 @@ int LuaInterface::loadTexture(lua_State* L) {
     // Load the texture into the renderer
     interface->renderer_.loadTexture(textureId, imageData);
 
-    return 0;
+    // Return the texture ID so it can be used in createLayer
+    lua_pushinteger(L, textureId);
+    return 1;
 }
 
 int LuaInterface::loadTexturedShaders(lua_State* L) {
@@ -1072,6 +1091,95 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
 
     // Create textured pipeline
     interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader);
+
+    // Return the pipeline ID so it can be used in createLayer
+    lua_pushinteger(L, pipelineId);
+    return 1;
+}
+
+int LuaInterface::loadTexturedShadersEx(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), numTextures (integer)
+    assert(lua_gettop(L) == 4);
+    assert(lua_isstring(L, 1));
+    assert(lua_isstring(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+
+    const char* vertShaderName = lua_tostring(L, 1);
+    const char* fragShaderName = lua_tostring(L, 2);
+    int zIndex = (int)lua_tointeger(L, 3);
+    int numTextures = (int)lua_tointeger(L, 4);
+
+    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
+    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+
+    ResourceData vertShader = interface->pakResource_.getResource(vertId);
+    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+
+    assert(vertShader.data != nullptr);
+    assert(fragShader.data != nullptr);
+
+    int pipelineId = interface->pipelineIndex_++;
+    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+
+    // Create textured pipeline with specified number of textures
+    interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader, numTextures);
+
+    // Return the pipeline ID so it can be used in createLayer
+    lua_pushinteger(L, pipelineId);
+    return 1;
+}
+
+int LuaInterface::setShaderUniform3f(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: x (number), y (number), z (number)
+    assert(lua_gettop(L) == 3);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    float x = (float)lua_tonumber(L, 1);
+    float y = (float)lua_tonumber(L, 2);
+    float z = (float)lua_tonumber(L, 3);
+
+    // This function is deprecated - setShaderParameters now requires a pipeline ID
+    // For backward compatibility, this does nothing
+    // Users should call setShaderParameters(pipelineId, x, y, z, ...) instead
+    
+    return 0;
+}
+
+int LuaInterface::setShaderParameters(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: pipelineId (number), then 3-7 float parameters
+    // Minimum: pipelineId + 3 light position params (4 total)
+    // Maximum: pipelineId + 7 params (8 total)
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 4 && numArgs <= 8);
+    assert(lua_isnumber(L, 1));
+
+    int pipelineId = (int)lua_tonumber(L, 1);
+    
+    // Read parameters, defaulting to 0.0 if not provided
+    float params[7] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    int paramCount = numArgs - 1;  // Exclude pipelineId from count
+    
+    for (int i = 0; i < paramCount && i < 7; ++i) {
+        assert(lua_isnumber(L, i + 2));
+        params[i] = (float)lua_tonumber(L, i + 2);
+    }
+
+    interface->renderer_.setShaderParameters(pipelineId, paramCount, params);
 
     return 0;
 }

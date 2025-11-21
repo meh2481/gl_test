@@ -6,6 +6,8 @@
 #include "resource.h"
 #include <vector>
 #include <map>
+#include <set>
+#include <array>
 
 // Forward declarations
 struct SpriteBatch;
@@ -18,7 +20,8 @@ public:
     void initialize(SDL_Window* window);
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
-    void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader);
+    void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
+    void associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId);
     void setCurrentPipeline(uint64_t id);
     void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
     void setDebugDrawData(const std::vector<float>& vertexData);
@@ -27,6 +30,8 @@ public:
     void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
     void setSpriteBatches(const std::vector<SpriteBatch>& batches);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
+    void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
+    void setShaderParameters(int pipelineId, int paramCount, const float* params);
     void render(float time);
     void cleanup();
 
@@ -98,6 +103,9 @@ private:
     // Sprite batch data
     struct BatchDrawData {
         uint64_t textureId;
+        uint64_t normalMapId;
+        uint64_t descriptorId;
+        int pipelineId;
         uint32_t indexCount;
         uint32_t firstIndex;
     };
@@ -111,11 +119,32 @@ private:
         VkSampler sampler;
     };
     std::map<uint64_t, TextureData> m_textures;
-    VkDescriptorSetLayout m_texturedDescriptorSetLayout;
-    VkDescriptorPool m_texturedDescriptorPool;
-    std::map<uint64_t, VkDescriptorSet> m_texturedDescriptorSets;
-    VkPipelineLayout m_texturedPipelineLayout;
-    std::map<uint64_t, bool> m_texturedPipelines;  // Track which pipelines are textured
+    
+    // Generic descriptor set support - keyed by descriptor ID
+    // Each descriptor can have 1 or more textures
+    VkDescriptorSetLayout m_singleTextureDescriptorSetLayout;
+    VkDescriptorPool m_singleTextureDescriptorPool;
+    std::map<uint64_t, VkDescriptorSet> m_singleTextureDescriptorSets;
+    VkPipelineLayout m_singleTexturePipelineLayout;
+    
+    VkDescriptorSetLayout m_dualTextureDescriptorSetLayout;
+    VkDescriptorPool m_dualTextureDescriptorPool;
+    std::map<uint64_t, VkDescriptorSet> m_dualTextureDescriptorSets;
+    VkPipelineLayout m_dualTexturePipelineLayout;
+    
+    // Pipeline metadata - stores which resources each pipeline uses
+    struct PipelineInfo {
+        VkPipelineLayout layout;
+        VkDescriptorSetLayout descriptorSetLayout;
+        bool usesDualTexture;  // true = 2 textures, false = 1 texture
+        bool usesExtendedPushConstants;  // true = uses extended push constants with shader parameters
+        std::set<uint64_t> descriptorIds;  // Which descriptor sets this pipeline uses
+    };
+    std::map<uint64_t, PipelineInfo> m_pipelineInfo;
+    
+    // Per-pipeline shader parameters (e.g., light position, material properties)
+    std::map<int, std::array<float, 7>> m_pipelineShaderParams;
+    std::map<int, int> m_pipelineShaderParamCount;  // Track how many parameters each pipeline uses
     
     VkSemaphore imageAvailableSemaphores[2];
     VkSemaphore renderFinishedSemaphores[2];
@@ -161,8 +190,15 @@ private:
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, float time);
     void createTextureImage(uint64_t textureId, const void* imageData, uint32_t width, uint32_t height, VkFormat format, size_t dataSize);
     void createTextureSampler(uint64_t textureId);
-    void createTexturedDescriptorSetLayout();
-    void createTexturedDescriptorPool();
-    void createTexturedDescriptorSet(uint64_t textureId);
-    void createTexturedPipelineLayout();
+    void createSingleTextureDescriptorSetLayout();
+    void createSingleTextureDescriptorPool();
+    void createSingleTextureDescriptorSet(uint64_t textureId);
+    void createSingleTexturePipelineLayout();
+    void createDualTextureDescriptorSetLayout();
+    void createDualTextureDescriptorPool();
+    void createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id);
+    void createDualTexturePipelineLayout();
+    
+    // Helper method to get or create descriptor set lazily
+    VkDescriptorSet getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId, uint64_t normalMapId, bool usesDualTexture);
 };
