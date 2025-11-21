@@ -116,7 +116,7 @@ int main() {
                 gameController = SDL_OpenGamepad(joysticks[i]);
                 if (gameController) {
                     vibrationManager.setGameController(gameController);
-                    std::cout << "Game Controller " << i << " connected: " 
+                    std::cout << "Game Controller " << i << " connected: "
                              << SDL_GetGamepadName(gameController) << std::endl;
                     if (vibrationManager.hasRumbleSupport()) {
                         std::cout << "  Rumble support: Yes" << std::endl;
@@ -165,9 +165,9 @@ int main() {
 
     bool running = true;
     SDL_Event event;
-    float lastTime = SDL_GetTicks() / 1000000000.0f;
+    float lastTime = SDL_GetTicks() / 1000.0f;
     while (running) {
-        float currentTime = SDL_GetTicks()  / 1000000000.0f;
+        float currentTime = SDL_GetTicks()  / 1000.0f;
         float deltaTime = (currentTime - lastTime);
         lastTime = currentTime;
         while (SDL_PollEvent(&event)) {
@@ -221,7 +221,7 @@ int main() {
                 gameController = SDL_OpenGamepad(event.gdevice.which);
                 if (gameController) {
                     vibrationManager.setGameController(gameController);
-                    std::cout << "Game Controller connected: " 
+                    std::cout << "Game Controller connected: "
                              << SDL_GetGamepadName(gameController) << std::endl;
                     if (vibrationManager.hasRumbleSupport()) {
                         std::cout << "  Rumble support: Yes" << std::endl;
