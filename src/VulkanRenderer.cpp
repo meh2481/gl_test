@@ -70,14 +70,8 @@ VulkanRenderer::VulkanRenderer() :
         inFlightFences[i] = VK_NULL_HANDLE;
     }
     
-    // Initialize shader parameters with defaults
-    m_shaderParams[0] = 0.0f;
-    m_shaderParams[1] = 0.0f;
-    m_shaderParams[2] = 1.0f;
-    m_shaderParams[3] = 0.3f;
-    m_shaderParams[4] = 0.7f;
-    m_shaderParams[5] = 0.5f;
-    m_shaderParams[6] = 32.0f;
+    // Shader parameters are now stored per-pipeline in m_pipelineShaderParams
+    // They are set via setShaderParameters(pipelineId, ...) from Lua
 }
 
 VulkanRenderer::~VulkanRenderer() {
@@ -1190,12 +1184,17 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 // Prepare push constants based on pipeline requirements
                 if (info.usesDualTexture) {
                     // Extended push constants with shader parameters
+                    // Get parameters for this pipeline (or use defaults if not set)
+                    const auto& params = m_pipelineShaderParams.count(pipelineId) 
+                        ? m_pipelineShaderParams[pipelineId] 
+                        : std::array<float, 7>{0, 0, 0, 0, 0, 0, 0};
+                    
                     float extPushConstants[10] = {
                         static_cast<float>(swapchainExtent.width), 
                         static_cast<float>(swapchainExtent.height), 
                         time,
-                        m_shaderParams[0], m_shaderParams[1], m_shaderParams[2],
-                        m_shaderParams[3], m_shaderParams[4], m_shaderParams[5], m_shaderParams[6]
+                        params[0], params[1], params[2],
+                        params[3], params[4], params[5], params[6]
                     };
                     vkCmdPushConstants(commandBuffer, info.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
                 } else {
@@ -1868,14 +1867,14 @@ void VulkanRenderer::createDescriptorSetForTextures(uint64_t descriptorId, const
     }
 }
 
-void VulkanRenderer::setShaderParameters(float x, float y, float z, float ambient, float diffuse, float specular, float shininess) {
-    m_shaderParams[0] = x;
-    m_shaderParams[1] = y;
-    m_shaderParams[2] = z;
-    m_shaderParams[3] = ambient;
-    m_shaderParams[4] = diffuse;
-    m_shaderParams[5] = specular;
-    m_shaderParams[6] = shininess;
+void VulkanRenderer::setShaderParameters(int pipelineId, float x, float y, float z, float ambient, float diffuse, float specular, float shininess) {
+    m_pipelineShaderParams[pipelineId][0] = x;
+    m_pipelineShaderParams[pipelineId][1] = y;
+    m_pipelineShaderParams[pipelineId][2] = z;
+    m_pipelineShaderParams[pipelineId][3] = ambient;
+    m_pipelineShaderParams[pipelineId][4] = diffuse;
+    m_pipelineShaderParams[pipelineId][5] = specular;
+    m_pipelineShaderParams[pipelineId][6] = shininess;
 }
 
 VkDescriptorSet VulkanRenderer::getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId, uint64_t normalMapId, bool usesDualTexture) {
