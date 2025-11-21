@@ -9,13 +9,14 @@ SceneLayerManager::SceneLayerManager()
 SceneLayerManager::~SceneLayerManager() {
 }
 
-int SceneLayerManager::createLayer(uint64_t textureId, float width, float height, uint64_t normalMapId) {
+int SceneLayerManager::createLayer(uint64_t textureId, float width, float height, uint64_t normalMapId, int pipelineId) {
     assert(width > 0.0f && height > 0.0f);
     
     int layerId = nextLayerId_++;
     SceneLayer layer;
     layer.textureId = textureId;
     layer.normalMapId = normalMapId;
+    layer.pipelineId = pipelineId;
     
     // Compute descriptor ID based on textures used
     if (normalMapId != 0) {
@@ -85,7 +86,8 @@ void SceneLayerManager::updateLayerTransform(int layerId, float bodyX, float bod
 void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
     batches.clear();
     
-    // Group layers by descriptor ID (not just texture ID)
+    // Group layers by pipeline ID first, then by descriptor ID
+    // Key: (pipelineId << 32) | descriptorId
     std::unordered_map<uint64_t, SpriteBatch*> batchMap;
     
     for (const auto& pair : layers_) {
@@ -96,15 +98,19 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
             continue;
         }
         
-        // Find or create batch for this descriptor ID
+        // Create batch key from pipeline ID and descriptor ID
+        uint64_t batchKey = (static_cast<uint64_t>(layer.pipelineId) << 32) | layer.descriptorId;
+        
+        // Find or create batch for this key
         SpriteBatch* batch = nullptr;
-        auto batchIt = batchMap.find(layer.descriptorId);
+        auto batchIt = batchMap.find(batchKey);
         if (batchIt == batchMap.end()) {
             batches.push_back(SpriteBatch());
             batch = &batches.back();
             batch->textureId = layer.textureId;
             batch->descriptorId = layer.descriptorId;
-            batchMap[layer.descriptorId] = batch;
+            batch->pipelineId = layer.pipelineId;
+            batchMap[batchKey] = batch;
         } else {
             batch = batchIt->second;
         }

@@ -1209,11 +1209,17 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 vkCmdBindIndexBuffer(commandBuffer, spriteIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineIt->second);
                 
-                // Draw each batch with appropriate descriptor set
+                // Draw each batch that belongs to this pipeline
                 for (const auto& batch : m_spriteBatches) {
-                    // If this pipeline has explicitly registered descriptors, only draw those
-                    // Otherwise (e.g., single-texture pipelines), draw any batch we have a descriptor for
-                    if (!info.descriptorIds.empty() && info.descriptorIds.find(batch.descriptorId) == info.descriptorIds.end()) {
+                    // Only draw batches that explicitly use this pipeline
+                    // If batch has pipelineId == -1, it can be drawn by any pipeline that has a descriptor for it
+                    if (batch.pipelineId != -1 && batch.pipelineId != pipelineId) {
+                        continue;
+                    }
+                    
+                    // For batches with pipelineId == -1, check if this pipeline has the descriptor
+                    if (batch.pipelineId == -1 && !info.descriptorIds.empty() && 
+                        info.descriptorIds.find(batch.descriptorId) == info.descriptorIds.end()) {
                         continue;
                     }
                     
@@ -1714,6 +1720,7 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
         BatchDrawData drawData;
         drawData.textureId = batch.textureId;
         drawData.descriptorId = batch.descriptorId;
+        drawData.pipelineId = batch.pipelineId;
         drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
         

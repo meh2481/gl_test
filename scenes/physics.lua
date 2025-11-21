@@ -8,22 +8,19 @@ function init()
     loadShaders("vertex.spv", "nebula_fragment.spv", 0)
 
     -- Load Phong shaders with normal maps (z-index 1)
-    loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "metalwall.png", "metalwall.norm.png")
-    loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "rock.png", "rock.norm.png")
+    phongMetalwallShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "metalwall.png", "metalwall.norm.png")
+    phongRockShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "rock.png", "rock.norm.png")
     
-    -- Load toon shader (z-index 1) - uses same texture twice to get extended push constants
-    loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, "metalwall.png", "metalwall.png")
+    -- Load toon shader (z-index 1)
+    toonShaderId = loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, "metalwall.png", "metalwall.png")
     
     -- Load regular textured shaders (no normal mapping) (z-index 1)
-    loadTexturedShaders("sprite_vertex.spv", "sprite_fragment.spv", 1)
+    simpleTexShaderId = loadTexturedShaders("sprite_vertex.spv", "sprite_fragment.spv", 1)
     
-    -- Set shader parameters (shared by all extended shaders)
-    -- Position (0.5, 0.5, 1.0) - light position for both Phong and Toon
-    -- param3: Phong uses as ambient (0.3), Toon uses as levels (3.0) - compromise value 3.0
-    -- param4: Phong uses as diffuse (0.7), Toon ignores
-    -- param5: Phong uses as specular (0.8), Toon ignores
-    -- param6: Phong uses as shininess (32.0), Toon ignores
-    setShaderParameters(0.5, 0.5, 1.0, 3.0, 0.7, 0.8, 32.0)
+    -- Set shader parameters for Phong lighting
+    -- Position (0.5, 0.5, 1.0) - light position
+    -- ambient: 0.3, diffuse: 0.7, specular: 0.8, shininess: 32.0
+    setShaderParameters(0.5, 0.5, 1.0, 0.3, 0.7, 0.8, 32.0)
 
     -- Load debug drawing shader (z-index 2, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 2)
@@ -60,16 +57,16 @@ function init()
         local layerId
         if i <= 2 then
             -- Phong shading with normal maps
-            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.norm.png")
+            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.norm.png", phongMetalwallShaderId)
         elseif i == 3 then
-            -- Toon shader (uses metalwall texture twice as a workaround for dual-texture pipeline)
-            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.png")
+            -- Toon shader
+            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.png", toonShaderId)
         elseif i == 4 then
             -- Simple texture, no normal map
-            layerId = createLayer("metalwall.png", 0.2, 0.2)
+            layerId = createLayer("metalwall.png", 0.2, 0.2, simpleTexShaderId)
         else
             -- Show normal map as color
-            layerId = createLayer("metalwall.norm.png", 0.2, 0.2)
+            layerId = createLayer("metalwall.norm.png", 0.2, 0.2, simpleTexShaderId)
         end
         attachLayerToBody(layerId, bodyId)
         table.insert(layers, layerId)
@@ -81,7 +78,7 @@ function init()
     table.insert(bodies, circleId)
 
     -- Attach a sprite layer to the circle
-    local layerId = createLayer("rock.png", 0.3, 0.3, "rock.norm.png")
+    local layerId = createLayer("rock.png", 0.3, 0.3, "rock.norm.png", phongRockShaderId)
     attachLayerToBody(layerId, circleId)
     table.insert(layers, layerId)
 

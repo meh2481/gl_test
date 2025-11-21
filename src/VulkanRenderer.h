@@ -103,6 +103,7 @@ private:
     struct BatchDrawData {
         uint64_t textureId;
         uint64_t descriptorId;
+        int pipelineId;
         uint32_t indexCount;
         uint32_t firstIndex;
     };

@@ -946,9 +946,10 @@ int LuaInterface::createLayer(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: textureFilename (string), width (number), height (number), [normalMapFilename (string)]
+    // Arguments: textureFilename (string), width (number), height (number), 
+    //            [normalMapFilename (string)], [pipelineId (integer)]
     int numArgs = lua_gettop(L);
-    assert(numArgs == 3 || numArgs == 4);
+    assert(numArgs >= 3 && numArgs <= 5);
     assert(lua_isstring(L, 1));
     assert(lua_isnumber(L, 2));
     assert(lua_isnumber(L, 3));
@@ -958,15 +959,26 @@ int LuaInterface::createLayer(lua_State* L) {
     float height = (float)lua_tonumber(L, 3);
     
     uint64_t normalMapId = 0;
-    if (numArgs == 4 && lua_isstring(L, 4)) {
+    int pipelineId = -1;  // -1 means no specific pipeline
+    
+    // Parse optional arguments
+    if (numArgs >= 4 && lua_isstring(L, 4)) {
         const char* normalMapFilename = lua_tostring(L, 4);
         normalMapId = std::hash<std::string>{}(normalMapFilename);
+    }
+    
+    if (numArgs >= 5 && lua_isinteger(L, 5)) {
+        pipelineId = (int)lua_tointeger(L, 5);
+    }
+    // Also check if arg 4 is an integer (pipeline without normal map)
+    else if (numArgs == 4 && lua_isinteger(L, 4)) {
+        pipelineId = (int)lua_tointeger(L, 4);
     }
 
     // Hash the filename to get texture ID (same as packer)
     uint64_t textureId = std::hash<std::string>{}(filename);
 
-    int layerId = interface->layerManager_->createLayer(textureId, width, height, normalMapId);
+    int layerId = interface->layerManager_->createLayer(textureId, width, height, normalMapId, pipelineId);
     lua_pushinteger(L, layerId);
     return 1;
 }
@@ -1084,7 +1096,9 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
     // Create textured pipeline
     interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader);
 
-    return 0;
+    // Return the pipeline ID so it can be used in createLayer
+    lua_pushinteger(L, pipelineId);
+    return 1;
 }
 
 int LuaInterface::loadTexturedShadersEx(lua_State* L) {
@@ -1142,7 +1156,9 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     // Associate this descriptor with the pipeline
     interface->renderer_.associateDescriptorWithPipeline(pipelineId, descriptorId);
 
-    return 0;
+    // Return the pipeline ID so it can be used in createLayer
+    lua_pushinteger(L, pipelineId);
+    return 1;
 }
 
 int LuaInterface::setShaderUniform3f(lua_State* L) {
