@@ -31,7 +31,7 @@ public:
     void setSpriteBatches(const std::vector<SpriteBatch>& batches);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
-    void setShaderParameters(int pipelineId, float x, float y, float z, float ambient, float diffuse, float specular, float shininess);
+    void setShaderParameters(int pipelineId, int paramCount, const float* params);
     void render(float time);
     void cleanup();
 
@@ -143,6 +143,7 @@ private:
     
     // Per-pipeline shader parameters (e.g., light position, material properties)
     std::map<int, std::array<float, 7>> m_pipelineShaderParams;
+    std::map<int, int> m_pipelineShaderParamCount;  // Track how many parameters each pipeline uses
     
     VkSemaphore imageAvailableSemaphores[2];
     VkSemaphore renderFinishedSemaphores[2];

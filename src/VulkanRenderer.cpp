@@ -1867,14 +1867,15 @@ void VulkanRenderer::createDescriptorSetForTextures(uint64_t descriptorId, const
     }
 }
 
-void VulkanRenderer::setShaderParameters(int pipelineId, float x, float y, float z, float ambient, float diffuse, float specular, float shininess) {
-    m_pipelineShaderParams[pipelineId][0] = x;
-    m_pipelineShaderParams[pipelineId][1] = y;
-    m_pipelineShaderParams[pipelineId][2] = z;
-    m_pipelineShaderParams[pipelineId][3] = ambient;
-    m_pipelineShaderParams[pipelineId][4] = diffuse;
-    m_pipelineShaderParams[pipelineId][5] = specular;
-    m_pipelineShaderParams[pipelineId][6] = shininess;
+void VulkanRenderer::setShaderParameters(int pipelineId, int paramCount, const float* params) {
+    m_pipelineShaderParamCount[pipelineId] = paramCount;
+    for (int i = 0; i < paramCount && i < 7; ++i) {
+        m_pipelineShaderParams[pipelineId][i] = params[i];
+    }
+    // Zero out any unused parameters
+    for (int i = paramCount; i < 7; ++i) {
+        m_pipelineShaderParams[pipelineId][i] = 0.0f;
+    }
 }
 
 VkDescriptorSet VulkanRenderer::getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId, uint64_t normalMapId, bool usesDualTexture) {
