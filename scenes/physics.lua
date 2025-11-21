@@ -11,11 +11,19 @@ function init()
     loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "metalwall.png", "metalwall.norm.png")
     loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "rock.png", "rock.norm.png")
     
+    -- Load toon shader (z-index 1) - uses same texture twice to get extended push constants
+    loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, "metalwall.png", "metalwall.png")
+    
     -- Load regular textured shaders (no normal mapping) (z-index 1)
     loadTexturedShaders("sprite_vertex.spv", "sprite_fragment.spv", 1)
     
-    -- Set shader parameters for Phong lighting
-    setShaderParameters(0.5, 0.5, 1.0, 0.3, 0.7, 0.8, 32.0)
+    -- Set shader parameters (shared by all extended shaders)
+    -- Position (0.5, 0.5, 1.0) - light position for both Phong and Toon
+    -- param3: Phong uses as ambient (0.3), Toon uses as levels (3.0) - compromise value 3.0
+    -- param4: Phong uses as diffuse (0.7), Toon ignores
+    -- param5: Phong uses as specular (0.8), Toon ignores
+    -- param6: Phong uses as shininess (32.0), Toon ignores
+    setShaderParameters(0.5, 0.5, 1.0, 3.0, 0.7, 0.8, 32.0)
 
     -- Load debug drawing shader (z-index 2, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 2)
@@ -39,7 +47,8 @@ function init()
 
     -- Create 5 dynamic boxes with different rendering:
     -- Box 1 & 2: Phong with normal maps (metalwall)
-    -- Box 3 & 4: Simple texture, no normal (metalwall)
+    -- Box 3: Toon shader (metalwall)
+    -- Box 4: Simple texture, no normal (metalwall)
     -- Box 5: Display normal map as color (metalwall.norm)
     for i = 1, 5 do
         local x = -0.5 + (i - 1) * 0.25
@@ -52,7 +61,10 @@ function init()
         if i <= 2 then
             -- Phong shading with normal maps
             layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.norm.png")
-        elseif i <= 4 then
+        elseif i == 3 then
+            -- Toon shader (uses metalwall texture twice as a workaround for dual-texture pipeline)
+            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.png")
+        elseif i == 4 then
             -- Simple texture, no normal map
             layerId = createLayer("metalwall.png", 0.2, 0.2)
         else
