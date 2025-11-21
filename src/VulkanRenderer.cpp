@@ -258,9 +258,6 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
     if (isDebugPipeline) {
-        // Disable culling for debug rendering (lines don't have faces, and we want to see both sides of triangles)
-        rasterizer.cullMode = VK_CULL_MODE_NONE;
-        
         // Create line pipeline
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
         assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugLinePipeline) == VK_SUCCESS);
