@@ -17,6 +17,8 @@ layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in vec3 fragPos;
 layout(location = 2) in vec3 fragLightPos;
 layout(location = 3) in vec3 fragViewPos;
+layout(location = 4) in vec3 fragTangent;
+layout(location = 5) in vec3 fragBitangent;
 
 layout(location = 0) out vec4 outColor;
 
@@ -28,19 +30,35 @@ void main() {
     vec4 texColor = texture(texSampler, fragTexCoord);
     
     // Sample the normal map and convert from [0,1] to [-1,1]
-    vec3 normal = texture(normalSampler, fragTexCoord).rgb;
-    normal = normalize(normal * 2.0 - 1.0);
+    vec3 tangentNormal = texture(normalSampler, fragTexCoord).rgb;
+    tangentNormal = normalize(tangentNormal * 2.0 - 1.0);
     
-    // If we're in 2D, the normal should point generally towards the camera
-    // The normal map provides x,y perturbations, and z is the "height"
-    // We need to ensure the normal is in world space
-    // For 2D sprites, we assume the surface normal is (0, 0, 1) by default
-    normal = normalize(vec3(normal.x, normal.y, normal.z));
+    // Compute tangent space basis using screen-space derivatives
+    // This automatically accounts for sprite rotation
+    vec3 dPosX = dFdx(fragPos);
+    vec3 dPosY = dFdy(fragPos);
+    vec2 dTexX = dFdx(fragTexCoord);
+    vec2 dTexY = dFdy(fragTexCoord);
+    
+    // Compute tangent and bitangent from position and UV derivatives
+    vec3 N = vec3(0.0, 0.0, 1.0); // Base normal pointing at camera
+    vec3 T = normalize(dPosX * dTexY.t - dPosY * dTexX.t);
+    vec3 B = normalize(dPosY * dTexX.s - dPosX * dTexY.s);
+    
+    // Ensure right-handed coordinate system
+    if (dot(cross(T, B), N) < 0.0) {
+        B = -B;
+    }
+    
+    // Construct TBN matrix to transform from tangent space to world space
+    mat3 TBN = mat3(T, B, N);
+    
+    // Transform normal from tangent space to world space
+    vec3 normal = normalize(TBN * tangentNormal);
     
     // Calculate lighting
     vec3 lightDir = normalize(fragLightPos - fragPos);
     vec3 viewDir = normalize(fragViewPos - fragPos);
-    vec3 reflectDir = reflect(-lightDir, normal);
     
     // Ambient
     vec3 ambient = pc.ambientStrength * texColor.rgb;
