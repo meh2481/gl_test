@@ -108,6 +108,7 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
             batches.push_back(SpriteBatch());
             batch = &batches.back();
             batch->textureId = layer.textureId;
+            batch->normalMapId = layer.normalMapId;
             batch->descriptorId = layer.descriptorId;
             batch->pipelineId = layer.pipelineId;
             batchMap[batchKey] = batch;

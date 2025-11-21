@@ -946,37 +946,31 @@ int LuaInterface::createLayer(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: textureFilename (string), width (number), height (number), 
-    //            [normalMapFilename (string)], [pipelineId (integer)]
+    // Arguments: textureId (integer), width (number), height (number), 
+    //            [normalMapId (integer)], pipelineId (integer)
     int numArgs = lua_gettop(L);
-    assert(numArgs >= 3 && numArgs <= 5);
-    assert(lua_isstring(L, 1));
+    assert(numArgs >= 4 && numArgs <= 5);
+    assert(lua_isinteger(L, 1));
     assert(lua_isnumber(L, 2));
     assert(lua_isnumber(L, 3));
+    assert(lua_isinteger(L, 4) || (numArgs == 5 && lua_isinteger(L, 5)));
 
-    const char* filename = lua_tostring(L, 1);
+    uint64_t textureId = (uint64_t)lua_tointeger(L, 1);
     float width = (float)lua_tonumber(L, 2);
     float height = (float)lua_tonumber(L, 3);
     
     uint64_t normalMapId = 0;
-    int pipelineId = -1;  // -1 means no specific pipeline
+    int pipelineId = -1;
     
-    // Parse optional arguments
-    if (numArgs >= 4 && lua_isstring(L, 4)) {
-        const char* normalMapFilename = lua_tostring(L, 4);
-        normalMapId = std::hash<std::string>{}(normalMapFilename);
-    }
-    
-    if (numArgs >= 5 && lua_isinteger(L, 5)) {
+    // Parse arguments:
+    // 4 args: textureId, width, height, pipelineId
+    // 5 args: textureId, width, height, normalMapId, pipelineId
+    if (numArgs == 4) {
+        pipelineId = (int)lua_tointeger(L, 4);
+    } else { // numArgs == 5
+        normalMapId = (uint64_t)lua_tointeger(L, 4);
         pipelineId = (int)lua_tointeger(L, 5);
     }
-    // Also check if arg 4 is an integer (pipeline without normal map)
-    else if (numArgs == 4 && lua_isinteger(L, 4)) {
-        pipelineId = (int)lua_tointeger(L, 4);
-    }
-
-    // Hash the filename to get texture ID (same as packer)
-    uint64_t textureId = std::hash<std::string>{}(filename);
 
     int layerId = interface->layerManager_->createLayer(textureId, width, height, normalMapId, pipelineId);
     lua_pushinteger(L, layerId);
@@ -1063,7 +1057,9 @@ int LuaInterface::loadTexture(lua_State* L) {
     // Load the texture into the renderer
     interface->renderer_.loadTexture(textureId, imageData);
 
-    return 0;
+    // Return the texture ID so it can be used in createLayer
+    lua_pushinteger(L, textureId);
+    return 1;
 }
 
 int LuaInterface::loadTexturedShaders(lua_State* L) {
@@ -1106,25 +1102,20 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), 
-    //            baseTexture (string), normalTexture (string)
-    assert(lua_gettop(L) == 5);
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), numTextures (integer)
+    assert(lua_gettop(L) == 4);
     assert(lua_isstring(L, 1));
     assert(lua_isstring(L, 2));
     assert(lua_isnumber(L, 3));
-    assert(lua_isstring(L, 4));
-    assert(lua_isstring(L, 5));
+    assert(lua_isnumber(L, 4));
 
     const char* vertShaderName = lua_tostring(L, 1);
     const char* fragShaderName = lua_tostring(L, 2);
     int zIndex = (int)lua_tointeger(L, 3);
-    const char* baseTextureName = lua_tostring(L, 4);
-    const char* normalTextureName = lua_tostring(L, 5);
+    int numTextures = (int)lua_tointeger(L, 4);
 
     uint64_t vertId = std::hash<std::string>{}(vertShaderName);
     uint64_t fragId = std::hash<std::string>{}(fragShaderName);
-    uint64_t baseTextureId = std::hash<std::string>{}(baseTextureName);
-    uint64_t normalTextureId = std::hash<std::string>{}(normalTextureName);
 
     ResourceData vertShader = interface->pakResource_.getResource(vertId);
     ResourceData fragShader = interface->pakResource_.getResource(fragId);
@@ -1132,29 +1123,11 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     assert(vertShader.data != nullptr);
     assert(fragShader.data != nullptr);
 
-    // Load both textures
-    ResourceData baseImageData = interface->pakResource_.getResource(baseTextureId);
-    ResourceData normalImageData = interface->pakResource_.getResource(normalTextureId);
-    assert(baseImageData.data != nullptr && "Base texture not found in pak file");
-    assert(normalImageData.data != nullptr && "Normal texture not found in pak file");
-
-    interface->renderer_.loadTexture(baseTextureId, baseImageData);
-    interface->renderer_.loadTexture(normalTextureId, normalImageData);
-
     int pipelineId = interface->pipelineIndex_++;
     interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
 
-    // Create textured pipeline with 2 textures
-    interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader, 2);
-    
-    // Create descriptor set with both textures
-    // Use same formula as SceneLayer for descriptor ID
-    uint64_t descriptorId = baseTextureId ^ (normalTextureId << 1);
-    std::vector<uint64_t> textureIds = {baseTextureId, normalTextureId};
-    interface->renderer_.createDescriptorSetForTextures(descriptorId, textureIds);
-    
-    // Associate this descriptor with the pipeline
-    interface->renderer_.associateDescriptorWithPipeline(pipelineId, descriptorId);
+    // Create textured pipeline with specified number of textures
+    interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader, numTextures);
 
     // Return the pipeline ID so it can be used in createLayer
     lua_pushinteger(L, pipelineId);

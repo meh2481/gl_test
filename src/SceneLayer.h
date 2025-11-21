@@ -13,6 +13,7 @@ struct SpriteVertex {
 // Sprite batch for a single texture
 struct SpriteBatch {
     uint64_t textureId;
+    uint64_t normalMapId;    // Normal map texture ID (0 if none)
     uint64_t descriptorId;   // Descriptor set ID to use for this batch
     int pipelineId;          // Pipeline ID to use for this batch
     std::vector<SpriteVertex> vertices;

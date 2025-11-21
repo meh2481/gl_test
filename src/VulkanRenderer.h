@@ -102,6 +102,7 @@ private:
     // Sprite batch data
     struct BatchDrawData {
         uint64_t textureId;
+        uint64_t normalMapId;
         uint64_t descriptorId;
         int pipelineId;
         uint32_t indexCount;
@@ -193,4 +194,7 @@ private:
     void createDualTextureDescriptorPool();
     void createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id);
     void createDualTexturePipelineLayout();
+    
+    // Helper method to get or create descriptor set lazily
+    VkDescriptorSet getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId, uint64_t normalMapId, bool usesDualTexture);
 };

@@ -7,18 +7,15 @@ function init()
     -- Load the nebula background shader (z-index 0)
     loadShaders("vertex.spv", "nebula_fragment.spv", 0)
 
-    -- Load Phong shaders with normal maps (z-index 1)
-    phongMetalwallShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "metalwall.png", "metalwall.norm.png")
-    phongRockShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "rock.png", "rock.norm.png")
-
-    -- Load toon shader (z-index 1)
-    toonShaderId = loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, "metalwall.png", "metalwall.png")
-
-    -- Load regular textured shaders (no normal mapping) (z-index 1)
-    simpleTexShaderId = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, "metalwall.png", "metalwall.png") -- MH: Had to use loadTexturedShadersEx here with metalwall.png
-
-    simpleTexShaderId2 = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, "metalwall.norm.png", "metalwall.norm.png") -- MH: Had to add this and use loadTexturedShadersEx here with metalwall.norm.png
-
+    -- Load Phong shaders (z-index 1, 2 textures)
+    phongShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, 2)
+    
+    -- Load toon shader (z-index 1, 2 textures)
+    toonShaderId = loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, 2)
+    
+    -- Load regular textured shaders (no normal mapping) (z-index 1, 1 texture)
+    simpleTexShaderId = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, 1)
+    
     -- Set shader parameters for Phong lighting
     -- Position (0.5, 0.5, 1.0) - light position
     -- ambient: 0.3, diffuse: 0.7, specular: 0.8, shininess: 32.0
@@ -27,11 +24,11 @@ function init()
     -- Load debug drawing shader (z-index 2, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 2)
 
-    -- Load textures
-    loadTexture("rock.png")
-    loadTexture("rock.norm.png")
-    loadTexture("metalwall.png")
-    loadTexture("metalwall.norm.png")
+    -- Load textures and get texture IDs
+    rockTexId = loadTexture("rock.png")
+    rockNormId = loadTexture("rock.norm.png")
+    metalwallTexId = loadTexture("metalwall.png")
+    metalwallNormId = loadTexture("metalwall.norm.png")
 
     -- Enable Box2D debug drawing
     b2EnableDebugDraw(true)
@@ -59,16 +56,16 @@ function init()
         local layerId
         if i <= 2 then
             -- Phong shading with normal maps
-            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.norm.png", phongMetalwallShaderId)
+            layerId = createLayer(metalwallTexId, 0.2, 0.2, metalwallNormId, phongShaderId)
         elseif i == 3 then
-            -- Toon shader
-            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.png", toonShaderId) -- MH: Had to add "metalwall.png" here
+            -- Toon shader with normal maps
+            layerId = createLayer(metalwallTexId, 0.2, 0.2, metalwallTexId, toonShaderId)
         elseif i == 4 then
             -- Simple texture, no normal map
-            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.png", simpleTexShaderId) -- MH: Had to add "metalwall.png" here
+            layerId = createLayer(metalwallTexId, 0.2, 0.2, simpleTexShaderId)
         else
             -- Show normal map as color
-            layerId = createLayer("metalwall.norm.png", 0.2, 0.2, "metalwall.norm.png", simpleTexShaderId2) -- MH: Had to add "metalwall.norm.png" here and use simpleTexShaderId2
+            layerId = createLayer(metalwallNormId, 0.2, 0.2, simpleTexShaderId)
         end
         attachLayerToBody(layerId, bodyId)
         table.insert(layers, layerId)
@@ -80,7 +77,7 @@ function init()
     table.insert(bodies, circleId)
 
     -- Attach a sprite layer to the circle
-    local layerId = createLayer("rock.png", 0.3, 0.3, "rock.norm.png", phongRockShaderId)
+    local layerId = createLayer(rockTexId, 0.3, 0.3, rockNormId, phongShaderId)
     attachLayerToBody(layerId, circleId)
     table.insert(layers, layerId)
 

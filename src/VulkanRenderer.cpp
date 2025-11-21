@@ -1223,20 +1223,13 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                         continue;
                     }
                     
-                    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
-                    
-                    // Find descriptor set using batch's descriptor ID
-                    if (info.usesDualTexture) {
-                        auto descIt = m_dualTextureDescriptorSets.find(batch.descriptorId);
-                        if (descIt != m_dualTextureDescriptorSets.end()) {
-                            descriptorSet = descIt->second;
-                        }
-                    } else {
-                        auto descIt = m_singleTextureDescriptorSets.find(batch.descriptorId);
-                        if (descIt != m_singleTextureDescriptorSets.end()) {
-                            descriptorSet = descIt->second;
-                        }
-                    }
+                    // Get or create descriptor set lazily
+                    VkDescriptorSet descriptorSet = getOrCreateDescriptorSet(
+                        batch.descriptorId, 
+                        batch.textureId, 
+                        batch.normalMapId, 
+                        info.usesDualTexture
+                    );
                     
                     if (descriptorSet != VK_NULL_HANDLE) {
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
@@ -1719,6 +1712,7 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
         
         BatchDrawData drawData;
         drawData.textureId = batch.textureId;
+        drawData.normalMapId = batch.normalMapId;
         drawData.descriptorId = batch.descriptorId;
         drawData.pipelineId = batch.pipelineId;
         drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
@@ -1882,4 +1876,37 @@ void VulkanRenderer::setShaderParameters(float x, float y, float z, float ambien
     m_shaderParams[4] = diffuse;
     m_shaderParams[5] = specular;
     m_shaderParams[6] = shininess;
+}
+
+VkDescriptorSet VulkanRenderer::getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId, uint64_t normalMapId, bool usesDualTexture) {
+    if (usesDualTexture) {
+        // Check if dual-texture descriptor set already exists
+        auto it = m_dualTextureDescriptorSets.find(descriptorId);
+        if (it != m_dualTextureDescriptorSets.end()) {
+            return it->second;
+        }
+        
+        // Create new dual-texture descriptor set
+        if (normalMapId != 0) {
+            createDualTextureDescriptorSet(descriptorId, textureId, normalMapId);
+            return m_dualTextureDescriptorSets[descriptorId];
+        }
+    } else {
+        // Check if single-texture descriptor set already exists
+        auto it = m_singleTextureDescriptorSets.find(descriptorId);
+        if (it != m_singleTextureDescriptorSets.end()) {
+            return it->second;
+        }
+        
+        // For single texture, descriptor ID should equal texture ID
+        // Check if the texture has a descriptor set
+        auto texIt = m_singleTextureDescriptorSets.find(textureId);
+        if (texIt != m_singleTextureDescriptorSets.end()) {
+            // Reuse existing descriptor set
+            m_singleTextureDescriptorSets[descriptorId] = texIt->second;
+            return texIt->second;
+        }
+    }
+    
+    return VK_NULL_HANDLE;
 }
