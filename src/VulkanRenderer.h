@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <array>
 
 // Forward declarations
 struct SpriteBatch;
@@ -30,7 +31,7 @@ public:
     void setSpriteBatches(const std::vector<SpriteBatch>& batches);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
-    void setShaderParameters(float x, float y, float z, float ambient, float diffuse, float specular, float shininess);
+    void setShaderParameters(int pipelineId, float x, float y, float z, float ambient, float diffuse, float specular, float shininess);
     void render(float time);
     void cleanup();
 
@@ -140,7 +141,8 @@ private:
     };
     std::map<uint64_t, PipelineInfo> m_pipelineInfo;
     
-    float m_shaderParams[7];  // Generic shader parameters (e.g., light position, material properties)
+    // Per-pipeline shader parameters (e.g., light position, material properties)
+    std::map<int, std::array<float, 7>> m_pipelineShaderParams;
     
     VkSemaphore imageAvailableSemaphores[2];
     VkSemaphore renderFinishedSemaphores[2];
