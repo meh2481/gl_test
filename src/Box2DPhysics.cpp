@@ -14,7 +14,7 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
     a = ((hexColor >> 24) & 0xFF) / 255.0f;
 }
 
-Box2DPhysics::Box2DPhysics() : nextBodyId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
+Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
                                 timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP) {
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
@@ -286,6 +286,47 @@ void Box2DPhysics::addCircleFixture(int bodyId, float radius, float density, flo
     shapeDef.material.restitution = restitution;
 
     b2CreateCircleShape(it->second, &shapeDef, &circle);
+}
+
+int Box2DPhysics::createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy, 
+                                       float anchorBx, float anchorBy, bool enableLimit, 
+                                       float lowerAngle, float upperAngle) {
+    SDL_LockMutex(physicsMutex_);
+
+    auto itA = bodies_.find(bodyIdA);
+    auto itB = bodies_.find(bodyIdB);
+    assert(itA != bodies_.end() && itB != bodies_.end());
+
+    b2RevoluteJointDef jointDef = b2DefaultRevoluteJointDef();
+    jointDef.bodyIdA = itA->second;
+    jointDef.bodyIdB = itB->second;
+    jointDef.localAnchorA = (b2Vec2){anchorAx, anchorAy};
+    jointDef.localAnchorB = (b2Vec2){anchorBx, anchorBy};
+    jointDef.enableLimit = enableLimit;
+    jointDef.lowerAngle = lowerAngle;
+    jointDef.upperAngle = upperAngle;
+    jointDef.drawSize = 0.1f;
+
+    b2JointId jointId = b2CreateRevoluteJoint(worldId_, &jointDef);
+    assert(b2Joint_IsValid(jointId));
+
+    int internalId = nextJointId_++;
+    joints_[internalId] = jointId;
+
+    SDL_UnlockMutex(physicsMutex_);
+    return internalId;
+}
+
+void Box2DPhysics::destroyJoint(int jointId) {
+    SDL_LockMutex(physicsMutex_);
+
+    auto it = joints_.find(jointId);
+    if (it != joints_.end()) {
+        b2DestroyJoint(it->second);
+        joints_.erase(it);
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
 }
 
 void Box2DPhysics::enableDebugDraw(bool enable) {

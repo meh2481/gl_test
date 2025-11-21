@@ -40,6 +40,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
+                                     "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
@@ -423,6 +424,8 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2GetBodyLinearVelocity", b2GetBodyLinearVelocity);
     lua_register(luaState_, "b2GetBodyAngularVelocity", b2GetBodyAngularVelocity);
     lua_register(luaState_, "b2EnableDebugDraw", b2EnableDebugDraw);
+    lua_register(luaState_, "b2CreateRevoluteJoint", b2CreateRevoluteJoint);
+    lua_register(luaState_, "b2DestroyJoint", b2DestroyJoint);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -952,6 +955,61 @@ int LuaInterface::b2EnableDebugDraw(lua_State* L) {
 
     bool enable = lua_toboolean(L, 1);
     interface->physics_->enableDebugDraw(enable);
+    return 0;
+}
+
+int LuaInterface::b2CreateRevoluteJoint(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 6 && numArgs <= 9);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3) && lua_isnumber(L, 4));
+    assert(lua_isnumber(L, 5) && lua_isnumber(L, 6));
+
+    int bodyIdA = lua_tointeger(L, 1);
+    int bodyIdB = lua_tointeger(L, 2);
+    float anchorAx = lua_tonumber(L, 3);
+    float anchorAy = lua_tonumber(L, 4);
+    float anchorBx = lua_tonumber(L, 5);
+    float anchorBy = lua_tonumber(L, 6);
+    
+    bool enableLimit = false;
+    float lowerAngle = 0.0f;
+    float upperAngle = 0.0f;
+    
+    if (numArgs >= 7) {
+        assert(lua_isboolean(L, 7));
+        enableLimit = lua_toboolean(L, 7);
+    }
+    if (numArgs >= 8) {
+        assert(lua_isnumber(L, 8));
+        lowerAngle = lua_tonumber(L, 8);
+    }
+    if (numArgs >= 9) {
+        assert(lua_isnumber(L, 9));
+        upperAngle = lua_tonumber(L, 9);
+    }
+
+    int jointId = interface->physics_->createRevoluteJoint(bodyIdA, bodyIdB, anchorAx, anchorAy, 
+                                                            anchorBx, anchorBy, enableLimit, 
+                                                            lowerAngle, upperAngle);
+    lua_pushinteger(L, jointId);
+    return 1;
+}
+
+int LuaInterface::b2DestroyJoint(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int jointId = lua_tointeger(L, 1);
+    interface->physics_->destroyJoint(jointId);
     return 0;
 }
 

@@ -69,6 +69,8 @@ private:
     static int b2GetBodyLinearVelocity(lua_State* L);
     static int b2GetBodyAngularVelocity(lua_State* L);
     static int b2EnableDebugDraw(lua_State* L);
+    static int b2CreateRevoluteJoint(lua_State* L);
+    static int b2DestroyJoint(lua_State* L);
 
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);

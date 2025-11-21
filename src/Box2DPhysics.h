@@ -52,6 +52,10 @@ public:
     void addBoxFixture(int bodyId, float halfWidth, float halfHeight, float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);
     void addCircleFixture(int bodyId, float radius, float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);
 
+    // Joint management
+    int createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy, float anchorBx, float anchorBy, bool enableLimit = false, float lowerAngle = 0.0f, float upperAngle = 0.0f);
+    void destroyJoint(int jointId);
+
     // Debug drawing
     void enableDebugDraw(bool enable);
     bool isDebugDrawEnabled() const { return debugDrawEnabled_; }
@@ -82,7 +86,9 @@ private:
 
     b2WorldId worldId_;
     std::unordered_map<int, b2BodyId> bodies_;
+    std::unordered_map<int, b2JointId> joints_;
     int nextBodyId_;
+    int nextJointId_;
     bool debugDrawEnabled_;
     std::vector<DebugVertex> debugLineVertices_;
     std::vector<DebugVertex> debugTriangleVertices_;

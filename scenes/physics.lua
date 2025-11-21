@@ -1,7 +1,10 @@
 -- Physics demo scene
 bodies = {}
+joints = {}
 layers = {}
 debugDrawEnabled = true
+chainLinks = {}
+lightBody = nil
 
 function init()
     -- Load the nebula background shader (z-index 0)
@@ -86,12 +89,75 @@ function init()
     attachLayerToBody(layerId, circleId)
     table.insert(layers, layerId)
 
+    -- Create a chain with multiple links
+    local chainLength = 5
+    local chainStartX = 0.5
+    local chainStartY = 0.8
+    local linkHeight = 0.08
+    
+    -- Create anchor point (static body at the top)
+    local anchorId = b2CreateBody(B2_STATIC_BODY, chainStartX, chainStartY, 0)
+    b2AddCircleFixture(anchorId, 0.02, 1.0, 0.3, 0.0)
+    table.insert(bodies, anchorId)
+    
+    local prevBodyId = anchorId
+    
+    -- Create chain links
+    for i = 1, chainLength do
+        local linkY = chainStartY - i * linkHeight
+        local linkId = b2CreateBody(B2_DYNAMIC_BODY, chainStartX, linkY, 0)
+        b2AddBoxFixture(linkId, 0.01, linkHeight / 2, 0.5, 0.3, 0.0)
+        table.insert(bodies, linkId)
+        table.insert(chainLinks, linkId)
+        
+        -- Create revolute joint to connect to previous link/anchor
+        local jointId = b2CreateRevoluteJoint(
+            prevBodyId, 
+            linkId,
+            0.0, -linkHeight / 2,  -- anchor on previous body (bottom)
+            0.0, linkHeight / 2,    -- anchor on current body (top)
+            false, 0.0, 0.0         -- no angle limits
+        )
+        table.insert(joints, jointId)
+        
+        prevBodyId = linkId
+    end
+    
+    -- Create light body at the end of the chain (a small dynamic circle)
+    lightBody = b2CreateBody(B2_DYNAMIC_BODY, chainStartX, chainStartY - (chainLength + 0.5) * linkHeight, 0)
+    b2AddCircleFixture(lightBody, 0.05, 0.2, 0.3, 0.3)
+    table.insert(bodies, lightBody)
+    
+    -- Connect light to the last chain link
+    local lightJointId = b2CreateRevoluteJoint(
+        prevBodyId,
+        lightBody,
+        0.0, -linkHeight / 2,  -- anchor on last chain link (bottom)
+        0.0, 0.0,               -- anchor on light body (center)
+        false, 0.0, 0.0
+    )
+    table.insert(joints, lightJointId)
+
     print("Physics demo scene initialized with multiple shader types")
 end
 
 function update(deltaTime)
     -- Step the physics simulation (Box2D 3.x uses subStepCount instead of velocity/position iterations)
     b2Step(deltaTime, 4)
+    
+    -- Update light position based on the light body at the end of the chain
+    if lightBody then
+        local lightX, lightY = b2GetBodyPosition(lightBody)
+        -- Update shader parameters with new light position
+        -- The light position needs to be in normalized screen coordinates (0-1 range)
+        -- Assuming the world is from -1 to 1, we normalize to 0-1
+        local normalizedX = (lightX + 1.0) / 2.0
+        local normalizedY = (lightY + 1.0) / 2.0
+        
+        -- Update both Phong and Toon shaders
+        setShaderParameters(phongShaderId, normalizedX, normalizedY, 1.0, 0.3, 0.7, 0.8, 32.0)
+        setShaderParameters(toonShaderId, normalizedX, normalizedY, 1.0, 3.0)
+    end
 end
 
 function cleanup()
@@ -101,11 +167,19 @@ function cleanup()
     end
     layers = {}
 
+    -- Destroy all joints
+    for i, jointId in ipairs(joints) do
+        b2DestroyJoint(jointId)
+    end
+    joints = {}
+
     -- Destroy all physics bodies
     for i, bodyId in ipairs(bodies) do
         b2DestroyBody(bodyId)
     end
     bodies = {}
+    chainLinks = {}
+    lightBody = nil
     -- Disable debug drawing
     b2EnableDebugDraw(false)
     print("Physics demo scene cleaned up")
