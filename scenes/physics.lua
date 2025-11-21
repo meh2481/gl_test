@@ -10,13 +10,15 @@ function init()
     -- Load Phong shaders with normal maps (z-index 1)
     phongMetalwallShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "metalwall.png", "metalwall.norm.png")
     phongRockShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, "rock.png", "rock.norm.png")
-    
+
     -- Load toon shader (z-index 1)
     toonShaderId = loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, "metalwall.png", "metalwall.png")
-    
+
     -- Load regular textured shaders (no normal mapping) (z-index 1)
-    simpleTexShaderId = loadTexturedShaders("sprite_vertex.spv", "sprite_fragment.spv", 1)
-    
+    simpleTexShaderId = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, "metalwall.png", "metalwall.png") -- MH: Had to use loadTexturedShadersEx here with metalwall.png
+
+    simpleTexShaderId2 = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, "metalwall.norm.png", "metalwall.norm.png") -- MH: Had to add this and use loadTexturedShadersEx here with metalwall.norm.png
+
     -- Set shader parameters for Phong lighting
     -- Position (0.5, 0.5, 1.0) - light position
     -- ambient: 0.3, diffuse: 0.7, specular: 0.8, shininess: 32.0
@@ -60,13 +62,13 @@ function init()
             layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.norm.png", phongMetalwallShaderId)
         elseif i == 3 then
             -- Toon shader
-            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.png", toonShaderId)
+            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.png", toonShaderId) -- MH: Had to add "metalwall.png" here
         elseif i == 4 then
             -- Simple texture, no normal map
-            layerId = createLayer("metalwall.png", 0.2, 0.2, simpleTexShaderId)
+            layerId = createLayer("metalwall.png", 0.2, 0.2, "metalwall.png", simpleTexShaderId) -- MH: Had to add "metalwall.png" here
         else
             -- Show normal map as color
-            layerId = createLayer("metalwall.norm.png", 0.2, 0.2, simpleTexShaderId)
+            layerId = createLayer("metalwall.norm.png", 0.2, 0.2, "metalwall.norm.png", simpleTexShaderId2) -- MH: Had to add "metalwall.norm.png" here and use simpleTexShaderId2
         end
         attachLayerToBody(layerId, bodyId)
         table.insert(layers, layerId)
