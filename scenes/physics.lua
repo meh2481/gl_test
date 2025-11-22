@@ -7,8 +7,9 @@ chainLinks = {}
 lightBody = nil
 circleBody = nil
 chainAnchor = nil
-chainStartX = 0.6
+chainStartX = -0.6
 chainStartY = 0.7
+chainLightZ = 0.25
 chainLinkHeight = 0.08
 chainLength = 5
 
@@ -26,14 +27,14 @@ function init()
     simpleTexShaderId = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, 1)
 
     -- Set shader parameters for Phong shader
-    -- Position (0.5, 0.5, 1.0) - light position
+    -- Position (0.5, 0.5, chainLightZ) - light position
     -- ambient: 0.3, diffuse: 0.7, specular: 0.8, shininess: 32.0
-    setShaderParameters(phongShaderId, 0.5, 0.5, 1.0, 0.3, 0.7, 0.8, 32.0)
+    setShaderParameters(phongShaderId, 0.5, 0.5, chainLightZ, 0.3, 0.7, 0.8, 32.0)
 
     -- Set shader parameters for Toon shader (only 4 parameters needed)
-    -- Position (0.5, 0.5, 1.0) - light position
+    -- Position (0.5, 0.5, chainLightZ) - light position
     -- levels: 3.0 (3 cel-shading levels)
-    setShaderParameters(toonShaderId, 0.5, 0.5, 1.0, 3.0)
+    setShaderParameters(toonShaderId, 0.5, 0.5, chainLightZ, 3.0)
 
     -- Load debug drawing shader (z-index 2, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 2)
@@ -156,12 +157,12 @@ function update(deltaTime)
         -- Update shader parameters with new light position
         -- The light position needs to be in normalized screen coordinates (0-1 range)
         -- Assuming the world is from -1 to 1, we normalize to 0-1
-        local normalizedX = (lightX + 1.0) / 2.0
-        local normalizedY = (lightY + 1.0) / 2.0
+        -- local normalizedX = (lightX + 1.0) / 2.0
+        -- local normalizedY = (lightY + 1.0) / 2.0
 
         -- Update both Phong and Toon shaders
-        setShaderParameters(phongShaderId, normalizedX, normalizedY, 1.0, 0.3, 0.7, 0.8, 32.0)
-        setShaderParameters(toonShaderId, normalizedX, normalizedY, 1.0, 3.0)
+        setShaderParameters(phongShaderId, lightX, -lightY, chainLightZ, 0.3, 0.7, 0.8, 32.0)
+        setShaderParameters(toonShaderId, lightX, -lightY, chainLightZ, 3.0)
     end
 end
 
