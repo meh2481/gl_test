@@ -7,11 +7,11 @@ chainLinks = {}
 lightBody = nil
 circleBody = nil
 chainAnchor = nil
-chainStartX = -0.6
+chainStartX = -0.605
 chainStartY = 0.7
 chainLightZ = 0.25
-chainLinkHeight = 0.08
-chainLength = 5
+chainLinkHeight = 0.04
+chainLength = 10
 
 function init()
     -- Load the nebula background shader (z-index 0)
@@ -39,11 +39,12 @@ function init()
     -- Load debug drawing shader (z-index 2, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 2)
 
-    -- Load textures and get texture IDs
     rockTexId = loadTexture("rock.png")
     rockNormId = loadTexture("rock.norm.png")
     metalwallTexId = loadTexture("metalwall.png")
     metalwallNormId = loadTexture("metalwall.norm.png")
+    lanternTexId = loadTexture("lantern.png")
+    lanternNormId = loadTexture("lantern.norm.png")
 
     -- Enable Box2D debug drawing
     b2EnableDebugDraw(true)
@@ -134,12 +135,17 @@ function init()
     b2AddCircleFixture(lightBody, 0.05, 0.2, 0.3, 0.3)
     table.insert(bodies, lightBody)
 
+    -- Attach lantern sprite to the light body
+    local layerId = createLayer(lanternTexId, 0.1, 0.1, lanternNormId, phongShaderId)
+    attachLayerToBody(layerId, lightBody)
+    table.insert(layers, layerId)
+
     -- Connect light to the last chain link
     local lightJointId = b2CreateRevoluteJoint(
         prevBodyId,
         lightBody,
         0.0, -linkHeight / 2,  -- anchor on last chain link (bottom)
-        0.0, 0.0,               -- anchor on light body (center)
+        0.0, 0.05,               -- anchor on light body (top)
         false, 0.0, 0.0
     )
     table.insert(joints, lightJointId)
