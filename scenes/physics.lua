@@ -70,7 +70,9 @@ function init()
         table.insert(bodies, bodyId)
 
         local layerId
-        if i <= 2 then
+        if i <= 1 then
+            layerId = createLayer(lanternTexId, 0.2, 0.2, lanternNormId, phongShaderId)
+        elseif i <= 2 then
             -- Phong shading with normal maps
             layerId = createLayer(metalwallTexId, 0.2, 0.2, metalwallNormId, phongShaderId)
         elseif i == 3 then
@@ -95,6 +97,16 @@ function init()
     -- Attach a sprite layer to the circle
     local layerId = createLayer(rockTexId, 0.3, 0.3, rockNormId, phongShaderId)
     attachLayerToBody(layerId, circleBody)
+    table.insert(layers, layerId)
+
+    -- Create a dynamic circle with lantern.png sprite using Phong with normal maps
+    circleBody2 = b2CreateBody(B2_DYNAMIC_BODY, 0.5, 0.8, 0)
+    b2AddCircleFixture(circleBody2, 0.15, 1.0, 0.3, 0.5)
+    table.insert(bodies, circleBody2)
+
+    -- Attach a sprite layer to the circle
+    local layerId = createLayer(lanternTexId, 0.3, 0.3, lanternNormId, phongShaderId)
+    attachLayerToBody(layerId, circleBody2)
     table.insert(layers, layerId)
 
     -- Create a chain with multiple links
@@ -236,12 +248,19 @@ function onAction(action)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
             elseif i == 8 then
+                -- Lantern circle
+                b2SetBodyPosition(bodyId, 0.5, 0.8)
+                b2SetBodyAngle(bodyId, 0)
+                b2SetBodyLinearVelocity(bodyId, 0, 0)
+                b2SetBodyAngularVelocity(bodyId, 0)
+                b2SetBodyAwake(bodyId, true)
+            elseif i == 9 then
                 -- Chain anchor - keep it in place (static body)
                 b2SetBodyPosition(bodyId, chainStartX, chainStartY)
                 b2SetBodyAngle(bodyId, 0)
-            elseif i <= 8 + chainLength then
+            elseif i <= 9 + chainLength then
                 -- Chain links
-                local linkIndex = i - 8
+                local linkIndex = i - 9
                 local linkY = chainStartY - linkIndex * chainLinkHeight
                 b2SetBodyPosition(bodyId, chainStartX, linkY)
                 b2SetBodyAngle(bodyId, 0)
