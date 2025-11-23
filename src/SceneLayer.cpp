@@ -1,6 +1,7 @@
 #include "SceneLayer.h"
 #include <cmath>
 #include <cassert>
+#include <algorithm>
 
 // Hash function for std::pair to use in unordered_map
 struct PairHash {
@@ -186,4 +187,12 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
         batch->indices.push_back(baseIndex + 3);
         batch->indices.push_back(baseIndex + 0);
     }
+    
+    // Sort batches by pipeline ID first, then by descriptor ID for deterministic rendering order
+    std::sort(batches.begin(), batches.end(), [](const SpriteBatch& a, const SpriteBatch& b) {
+        if (a.pipelineId != b.pipelineId) {
+            return a.pipelineId < b.pipelineId;
+        }
+        return a.descriptorId < b.descriptorId;
+    });
 }
