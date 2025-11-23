@@ -2,6 +2,17 @@
 #include <cmath>
 #include <cassert>
 
+// Hash function for std::pair to use in unordered_map
+struct PairHash {
+    template <typename T1, typename T2>
+    std::size_t operator()(const std::pair<T1, T2>& p) const {
+        auto h1 = std::hash<T1>{}(p.first);
+        auto h2 = std::hash<T2>{}(p.second);
+        // Combine hashes using a standard technique
+        return h1 ^ (h2 << 1);
+    }
+};
+
 SceneLayerManager::SceneLayerManager()
     : nextLayerId_(1) {
 }
@@ -87,8 +98,8 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
     batches.clear();
     
     // Group layers by pipeline ID first, then by descriptor ID
-    // Key: (pipelineId << 32) | descriptorId
-    std::unordered_map<uint64_t, SpriteBatch*> batchMap;
+    // Use a pair<pipelineId, descriptorId> as the batch map key
+    std::unordered_map<std::pair<int, uint64_t>, SpriteBatch*, PairHash> batchMap;
     
     for (const auto& pair : layers_) {
         const SceneLayer& layer = pair.second;
@@ -99,7 +110,7 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
         }
         
         // Create batch key from pipeline ID and descriptor ID
-        uint64_t batchKey = (static_cast<uint64_t>(layer.pipelineId) << 32) | layer.descriptorId;
+        auto batchKey = std::make_pair(layer.pipelineId, layer.descriptorId);
         
         // Find or create batch for this key
         SpriteBatch* batch = nullptr;
