@@ -92,6 +92,20 @@ function init()
         table.insert(layers, layerId)
     end
 
+    -- Create a rectangle box using chain graphic with proper aspect ratio
+    local chainWidth, chainHeight = getTextureDimensions(chainTexId)
+    local chainAspectRatio = chainWidth / chainHeight
+    local boxHeight = 0.2  -- Fixed height
+    local boxWidth = boxHeight * chainAspectRatio  -- Width based on aspect ratio
+    local chainBoxBody = b2CreateBody(B2_DYNAMIC_BODY, -0.7, 0.3, 0)
+    b2AddBoxFixture(chainBoxBody, boxWidth / 2, boxHeight / 2, 1.0, 0.3, 0.3)
+    table.insert(bodies, chainBoxBody)
+
+    -- Attach chain sprite layer to the box
+    local chainBoxLayerId = createLayer(chainTexId, boxHeight, chainNormId, phongShaderId)
+    attachLayerToBody(chainBoxLayerId, chainBoxBody)
+    table.insert(layers, chainBoxLayerId)
+
     -- Create a dynamic circle with rock.png sprite using Phong with normal maps
     circleBody = b2CreateBody(B2_DYNAMIC_BODY, 0, 0.8, 0)
     b2AddCircleFixture(circleBody, 0.15, 1.0, 0.3, 0.5)
@@ -249,26 +263,33 @@ function onAction(action)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
             elseif i == 7 then
+                -- Chain box
+                b2SetBodyPosition(bodyId, -0.7, 0.3)
+                b2SetBodyAngle(bodyId, 0)
+                b2SetBodyLinearVelocity(bodyId, 0, 0)
+                b2SetBodyAngularVelocity(bodyId, 0)
+                b2SetBodyAwake(bodyId, true)
+            elseif i == 8 then
                 -- Circle (rock)
                 b2SetBodyPosition(bodyId, 0, 0.8)
                 b2SetBodyAngle(bodyId, 0)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
-            elseif i == 8 then
+            elseif i == 9 then
                 -- Lantern circle
                 b2SetBodyPosition(bodyId, 0.5, 0.8)
                 b2SetBodyAngle(bodyId, 0)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
-            elseif i == 9 then
+            elseif i == 10 then
                 -- Chain anchor - keep it in place (static body)
                 b2SetBodyPosition(bodyId, chainStartX, chainStartY)
                 b2SetBodyAngle(bodyId, 0)
-            elseif i <= 9 + chainLength then
+            elseif i <= 10 + chainLength then
                 -- Chain links
-                local linkIndex = i - 9
+                local linkIndex = i - 10
                 local linkY = chainStartY - linkIndex * chainLinkHeight
                 b2SetBodyPosition(bodyId, chainStartX, linkY)
                 b2SetBodyAngle(bodyId, 0)
