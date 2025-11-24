@@ -32,7 +32,8 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_newtable(luaState_);
 
     // Copy global functions and tables into the scene table
-    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexture",
+    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexturedShadersAdditive", "loadTexture",
+                                     "getTextureDimensions",
                                      "setShaderUniform3f", "setShaderParameters",
                                      "pushScene", "popScene", "print",
                                      "b2SetGravity", "b2SetFixedTimestep", "b2Step", "b2CreateBody", "b2DestroyBody",
@@ -41,7 +42,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
-                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled",
+                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
@@ -433,11 +434,14 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "attachLayerToBody", attachLayerToBody);
     lua_register(luaState_, "detachLayer", detachLayer);
     lua_register(luaState_, "setLayerEnabled", setLayerEnabled);
+    lua_register(luaState_, "setLayerOffset", setLayerOffset);
 
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
+    lua_register(luaState_, "getTextureDimensions", getTextureDimensions);
     lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
     lua_register(luaState_, "loadTexturedShadersEx", loadTexturedShadersEx);
+    lua_register(luaState_, "loadTexturedShadersAdditive", loadTexturedShadersAdditive);
     lua_register(luaState_, "setShaderUniform3f", setShaderUniform3f);
     lua_register(luaState_, "setShaderParameters", setShaderParameters);
 
@@ -565,7 +569,7 @@ int LuaInterface::loadShaders(lua_State* L) {
 int LuaInterface::luaPrint(lua_State* L) {
     int n = lua_gettop(L);  // Number of arguments
     std::string output;
-    
+
     // Convert all arguments to strings and concatenate them
     for (int i = 1; i <= n; i++) {
         const char* s = lua_tostring(L, i);
@@ -577,10 +581,10 @@ int LuaInterface::luaPrint(lua_State* L) {
         }
         output += s;
     }
-    
+
     // Output to std::cout (which will be captured by ConsoleCapture in debug builds)
     std::cout << output << std::endl;
-    
+
     return 0;
 }
 
@@ -975,11 +979,11 @@ int LuaInterface::b2CreateRevoluteJoint(lua_State* L) {
     float anchorAy = lua_tonumber(L, 4);
     float anchorBx = lua_tonumber(L, 5);
     float anchorBy = lua_tonumber(L, 6);
-    
+
     bool enableLimit = false;
     float lowerAngle = 0.0f;
     float upperAngle = 0.0f;
-    
+
     if (numArgs >= 7) {
         assert(lua_isboolean(L, 7));
         enableLimit = lua_toboolean(L, 7);
@@ -993,8 +997,8 @@ int LuaInterface::b2CreateRevoluteJoint(lua_State* L) {
         upperAngle = lua_tonumber(L, 9);
     }
 
-    int jointId = interface->physics_->createRevoluteJoint(bodyIdA, bodyIdB, anchorAx, anchorAy, 
-                                                            anchorBx, anchorBy, enableLimit, 
+    int jointId = interface->physics_->createRevoluteJoint(bodyIdA, bodyIdB, anchorAx, anchorAy,
+                                                            anchorBx, anchorBy, enableLimit,
                                                             lowerAngle, upperAngle);
     lua_pushinteger(L, jointId);
     return 1;
@@ -1020,30 +1024,50 @@ int LuaInterface::createLayer(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: textureId (integer), width (number), height (number), 
-    //            [normalMapId (integer)], pipelineId (integer)
+    // Arguments: textureId (integer), size (number), [normalMapId (integer)], pipelineId (integer)
+    // Size is the larger dimension - width and height are calculated based on texture aspect ratio
     int numArgs = lua_gettop(L);
-    assert(numArgs >= 4 && numArgs <= 5);
+    assert(numArgs >= 3 && numArgs <= 4);
     assert(lua_isinteger(L, 1));
     assert(lua_isnumber(L, 2));
-    assert(lua_isnumber(L, 3));
-    assert(lua_isinteger(L, 4) || (numArgs == 5 && lua_isinteger(L, 5)));
 
     uint64_t textureId = (uint64_t)lua_tointeger(L, 1);
-    float width = (float)lua_tonumber(L, 2);
-    float height = (float)lua_tonumber(L, 3);
-    
+    float size = (float)lua_tonumber(L, 2);
+
+    // Get texture dimensions and calculate width/height based on aspect ratio
+    uint32_t texWidth, texHeight;
+    float width, height;
+
+    if (!interface->renderer_.getTextureDimensions(textureId, &texWidth, &texHeight)) {
+        // Texture not found, default to square
+        width = height = size;
+    } else {
+        // Calculate dimensions preserving aspect ratio
+        float aspectRatio = (float)texWidth / (float)texHeight;
+        if (aspectRatio >= 1.0f) {
+            // Width >= height (landscape or square)
+            width = size;
+            height = size / aspectRatio;
+        } else {
+            // Height > width (portrait)
+            width = size * aspectRatio;
+            height = size;
+        }
+    }
+
     uint64_t normalMapId = 0;
     int pipelineId = -1;
-    
-    // Parse arguments:
-    // 4 args: textureId, width, height, pipelineId
-    // 5 args: textureId, width, height, normalMapId, pipelineId
-    if (numArgs == 4) {
+
+    if (numArgs == 3) {
+        // 3 args: textureId, size, pipelineId
+        assert(lua_isinteger(L, 3));
+        pipelineId = (int)lua_tointeger(L, 3);
+    } else if (numArgs == 4) {
+        // 4 args: textureId, size, normalMapId, pipelineId
+        assert(lua_isinteger(L, 3));
+        assert(lua_isinteger(L, 4));
+        normalMapId = (uint64_t)lua_tointeger(L, 3);
         pipelineId = (int)lua_tointeger(L, 4);
-    } else { // numArgs == 5
-        normalMapId = (uint64_t)lua_tointeger(L, 4);
-        pipelineId = (int)lua_tointeger(L, 5);
     }
 
     int layerId = interface->layerManager_->createLayer(textureId, width, height, normalMapId, pipelineId);
@@ -1110,6 +1134,24 @@ int LuaInterface::setLayerEnabled(lua_State* L) {
     return 0;
 }
 
+int LuaInterface::setLayerOffset(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 3);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float offsetX = lua_tonumber(L, 2);
+    float offsetY = lua_tonumber(L, 3);
+
+    interface->layerManager_->setLayerOffset(layerId, offsetX, offsetY);
+    return 0;
+}
+
 int LuaInterface::loadTexture(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -1133,6 +1175,29 @@ int LuaInterface::loadTexture(lua_State* L) {
 
     // Return the texture ID so it can be used in createLayer
     lua_pushinteger(L, textureId);
+    return 1;
+}
+
+int LuaInterface::getTextureDimensions(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Argument: textureId (integer)
+    assert(lua_gettop(L) == 1);
+    assert(lua_isinteger(L, 1));
+
+    uint64_t textureId = (uint64_t)lua_tointeger(L, 1);
+
+    uint32_t width, height;
+    if (interface->renderer_.getTextureDimensions(textureId, &width, &height)) {
+        lua_pushinteger(L, width);
+        lua_pushinteger(L, height);
+        return 2;
+    }
+
+    // Return nil if texture not found
+    lua_pushnil(L);
     return 1;
 }
 
@@ -1208,6 +1273,43 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     return 1;
 }
 
+int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), numTextures (integer)
+    assert(lua_gettop(L) == 4);
+    assert(lua_isstring(L, 1));
+    assert(lua_isstring(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+
+    const char* vertShaderName = lua_tostring(L, 1);
+    const char* fragShaderName = lua_tostring(L, 2);
+    int zIndex = (int)lua_tointeger(L, 3);
+    int numTextures = (int)lua_tointeger(L, 4);
+
+    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
+    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+
+    ResourceData vertShader = interface->pakResource_.getResource(vertId);
+    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+
+    assert(vertShader.data != nullptr);
+    assert(fragShader.data != nullptr);
+
+    int pipelineId = interface->pipelineIndex_++;
+    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+
+    // Create textured pipeline with additive blending
+    interface->renderer_.createTexturedPipelineAdditive(pipelineId, vertShader, fragShader, numTextures);
+
+    // Return the pipeline ID so it can be used in createLayer
+    lua_pushinteger(L, pipelineId);
+    return 1;
+}
+
 int LuaInterface::setShaderUniform3f(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -1226,7 +1328,7 @@ int LuaInterface::setShaderUniform3f(lua_State* L) {
     // This function is deprecated - setShaderParameters now requires a pipeline ID
     // For backward compatibility, this does nothing
     // Users should call setShaderParameters(pipelineId, x, y, z, ...) instead
-    
+
     return 0;
 }
 
@@ -1243,11 +1345,11 @@ int LuaInterface::setShaderParameters(lua_State* L) {
     assert(lua_isnumber(L, 1));
 
     int pipelineId = (int)lua_tonumber(L, 1);
-    
+
     // Read parameters, defaulting to 0.0 if not provided
     float params[7] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     int paramCount = numArgs - 1;  // Exclude pipelineId from count
-    
+
     for (int i = 0; i < paramCount && i < 7; ++i) {
         assert(lua_isnumber(L, i + 2));
         params[i] = (float)lua_tonumber(L, i + 2);

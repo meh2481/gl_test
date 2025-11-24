@@ -111,7 +111,7 @@ public:
         bind(SDLK_D, ACTION_TOGGLE_DEBUG_DRAW);
         // ALT+ENTER is handled separately via modifier check
         // F5 is handled separately in main.cpp for debug builds
-        
+
         // Set up default gamepad bindings
         bindGamepad(SDL_GAMEPAD_BUTTON_SOUTH, ACTION_EXIT);
         bindGamepad(SDL_GAMEPAD_BUTTON_START, ACTION_MENU);

@@ -21,6 +21,7 @@ public:
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
     void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
+    void createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId);
     void setCurrentPipeline(uint64_t id);
     void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
@@ -32,6 +33,7 @@ public:
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
+    bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
     void render(float time);
     void cleanup();
 
@@ -117,6 +119,8 @@ private:
         VkDeviceMemory memory;
         VkImageView imageView;
         VkSampler sampler;
+        uint32_t width;
+        uint32_t height;
     };
     std::map<uint64_t, TextureData> m_textures;
     

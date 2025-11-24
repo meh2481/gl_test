@@ -32,6 +32,13 @@ A C++ application using Vulkan rendering with Lua scripting and Box2D physics in
 - CMake
 - ImGui (libimgui-dev) - Debug builds only
 
+### Dependency Installation (arch)
+
+   ```
+   yay -S imgui-full
+   pacman -S sdl3
+   ```
+
 ## Building
 
 1. Create a build directory:

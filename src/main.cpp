@@ -84,10 +84,34 @@ int main() {
 
     Config config = loadConfig();
 
-    const SDL_DisplayMode* displayMode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
-    assert(displayMode != nullptr);
+    SDL_DisplayID primaryDisplay = SDL_GetPrimaryDisplay();
+    if (config.display == 0) {
+        config.display = primaryDisplay;
+    }
 
-    SDL_Window* window = SDL_CreateWindow("Shader Triangle", displayMode->w, displayMode->h, SDL_WINDOW_VULKAN | config.fullscreenMode);
+    const SDL_DisplayMode* displayMode = SDL_GetDesktopDisplayMode(config.display);
+    if (displayMode == nullptr) {
+        config.display = primaryDisplay;
+        displayMode = SDL_GetDesktopDisplayMode(config.display);
+        assert(displayMode != nullptr);
+    }
+
+    std::cout << "Launching on display: " << config.display << std::endl;
+
+    int x = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
+    int y = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Shader Triangle");
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, x);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, y);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, displayMode->w);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, displayMode->h);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, SDL_WINDOW_VULKAN | config.fullscreenMode);
+
+    SDL_Window* window = SDL_CreateWindowWithProperties(props);
+    SDL_DestroyProperties(props);
+
+    std::cout << "error code: " << SDL_GetError() << std::endl;
     assert(window != nullptr);
 
     PakResource pakResource;
@@ -188,12 +212,16 @@ int main() {
                 // Handle special case: ALT+ENTER for fullscreen toggle
                 if (event.key.key == SDLK_RETURN && (event.key.mod & SDL_KMOD_ALT)) {
                     SDL_WindowFlags flags = SDL_GetWindowFlags(window);
-                    if (flags & config.fullscreenMode) {
+                    if (flags & SDL_WINDOW_FULLSCREEN) {
                         SDL_SetWindowFullscreen(window, false);
+                        config.fullscreenMode = 0;
                         config.display = SDL_GetDisplayForWindow(window);
+                        std::cout << "Toggled to windowed on display: " << config.display << std::endl;
                     } else {
                         SDL_SetWindowFullscreen(window, true);
+                        config.fullscreenMode = SDL_WINDOW_FULLSCREEN;
                         config.display = SDL_GetDisplayForWindow(window);
+                        std::cout << "Toggled to fullscreen on display: " << config.display << std::endl;
                     }
                     saveConfig(config);
                 }
@@ -275,8 +303,15 @@ int main() {
         renderer.render(currentTime);
     }
 
-    // Save current display to config
+    // Save current fullscreen state and display to config
+    SDL_WindowFlags flags = SDL_GetWindowFlags(window);
+    if (flags & SDL_WINDOW_FULLSCREEN) {
+        config.fullscreenMode = SDL_WINDOW_FULLSCREEN;
+    } else {
+        config.fullscreenMode = 0;
+    }
     config.display = SDL_GetDisplayForWindow(window);
+    std::cout << "Saving display: " << config.display << std::endl;
 
     // Save keybindings to config
     keybindings.serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
