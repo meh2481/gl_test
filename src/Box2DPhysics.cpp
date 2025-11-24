@@ -334,6 +334,109 @@ void Box2DPhysics::destroyJoint(int jointId) {
     SDL_UnlockMutex(physicsMutex_);
 }
 
+// Callback context for overlap query
+struct OverlapQueryContext {
+    b2BodyId foundBodyId;
+    bool found;
+};
+
+// Overlap callback to find a body at a point
+static bool overlapCallback(b2ShapeId shapeId, void* context) {
+    OverlapQueryContext* ctx = (OverlapQueryContext*)context;
+    b2BodyId bodyId = b2Shape_GetBody(shapeId);
+    // Only consider dynamic bodies
+    b2BodyType bodyType = b2Body_GetType(bodyId);
+    if (bodyType == b2_dynamicBody) {
+        ctx->foundBodyId = bodyId;
+        ctx->found = true;
+        return false; // Stop query after finding first dynamic body
+    }
+    return true; // Continue query
+}
+
+int Box2DPhysics::queryBodyAtPoint(float x, float y) {
+    SDL_LockMutex(physicsMutex_);
+
+    // Create a small AABB around the point
+    float epsilon = 0.001f;
+    b2AABB aabb;
+    aabb.lowerBound = (b2Vec2){x - epsilon, y - epsilon};
+    aabb.upperBound = (b2Vec2){x + epsilon, y + epsilon};
+
+    OverlapQueryContext ctx;
+    ctx.found = false;
+
+    b2QueryFilter filter = b2DefaultQueryFilter();
+    b2World_OverlapAABB(worldId_, aabb, filter, overlapCallback, &ctx);
+
+    int result = -1;
+    if (ctx.found) {
+        // Find the internal ID for this body
+        for (const auto& pair : bodies_) {
+            if (B2_ID_EQUALS(pair.second, ctx.foundBodyId)) {
+                result = pair.first;
+                break;
+            }
+        }
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+    return result;
+}
+
+int Box2DPhysics::createMouseJoint(int bodyId, float targetX, float targetY, float maxForce) {
+    SDL_LockMutex(physicsMutex_);
+
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+
+    // Create a static ground body for the mouse joint if not exists
+    // (Mouse joint needs a static body as bodyA)
+    static b2BodyId groundBodyId = b2_nullBodyId;
+    if (!b2Body_IsValid(groundBodyId)) {
+        b2BodyDef groundDef = b2DefaultBodyDef();
+        groundDef.type = b2_staticBody;
+        groundDef.position = (b2Vec2){0.0f, 0.0f};
+        groundBodyId = b2CreateBody(worldId_, &groundDef);
+    }
+
+    b2MouseJointDef jointDef = b2DefaultMouseJointDef();
+    jointDef.bodyIdA = groundBodyId;
+    jointDef.bodyIdB = it->second;
+    jointDef.target = (b2Vec2){targetX, targetY};
+    jointDef.hertz = 4.0f;
+    jointDef.dampingRatio = 0.7f;
+    jointDef.maxForce = maxForce * b2Body_GetMass(it->second);
+
+    b2JointId jointId = b2CreateMouseJoint(worldId_, &jointDef);
+    assert(b2Joint_IsValid(jointId));
+
+    int internalId = nextJointId_++;
+    joints_[internalId] = jointId;
+
+    // Wake up the body
+    b2Body_SetAwake(it->second, true);
+
+    SDL_UnlockMutex(physicsMutex_);
+    return internalId;
+}
+
+void Box2DPhysics::updateMouseJointTarget(int jointId, float targetX, float targetY) {
+    SDL_LockMutex(physicsMutex_);
+
+    auto it = joints_.find(jointId);
+    if (it != joints_.end()) {
+        b2MouseJoint_SetTarget(it->second, (b2Vec2){targetX, targetY});
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+}
+
+void Box2DPhysics::destroyMouseJoint(int jointId) {
+    // Just use the regular destroyJoint function
+    destroyJoint(jointId);
+}
+
 void Box2DPhysics::enableDebugDraw(bool enable) {
     debugDrawEnabled_ = enable;
 }

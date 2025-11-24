@@ -5,7 +5,7 @@
 #include <algorithm>
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0) {
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f) {
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
     physics_ = std::make_unique<Box2DPhysics>();
@@ -42,6 +42,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
+                                     "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
@@ -49,6 +50,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "audioReleaseSource", "audioIsSourcePlaying", "audioSetListenerPosition", "audioSetListenerVelocity",
                                      "audioSetListenerOrientation", "audioSetGlobalVolume", "audioSetGlobalEffect",
                                      "vibrate", "vibrateTriggers", "stopVibration",
+                                     "getCursorPosition",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -81,6 +83,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     const char* actionConstants[] = {
         "ACTION_EXIT", "ACTION_MENU", "ACTION_PHYSICS_DEMO", "ACTION_AUDIO_TEST", "ACTION_TOGGLE_FULLSCREEN",
         "ACTION_HOTRELOAD", "ACTION_APPLY_FORCE", "ACTION_RESET_PHYSICS", "ACTION_TOGGLE_DEBUG_DRAW",
+        "ACTION_DRAG_START", "ACTION_DRAG_END",
         nullptr
     };
     for (const char** constant = actionConstants; *constant; ++constant) {
@@ -427,6 +430,10 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2EnableDebugDraw", b2EnableDebugDraw);
     lua_register(luaState_, "b2CreateRevoluteJoint", b2CreateRevoluteJoint);
     lua_register(luaState_, "b2DestroyJoint", b2DestroyJoint);
+    lua_register(luaState_, "b2QueryBodyAtPoint", b2QueryBodyAtPoint);
+    lua_register(luaState_, "b2CreateMouseJoint", b2CreateMouseJoint);
+    lua_register(luaState_, "b2UpdateMouseJointTarget", b2UpdateMouseJointTarget);
+    lua_register(luaState_, "b2DestroyMouseJoint", b2DestroyMouseJoint);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -470,6 +477,9 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "vibrateTriggers", vibrateTriggers);
     lua_register(luaState_, "stopVibration", stopVibration);
 
+    // Register cursor position function
+    lua_register(luaState_, "getCursorPosition", getCursorPosition);
+
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
     lua_setglobal(luaState_, "B2_STATIC_BODY");
@@ -497,6 +507,10 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_RESET_PHYSICS");
     lua_pushinteger(luaState_, ACTION_TOGGLE_DEBUG_DRAW);
     lua_setglobal(luaState_, "ACTION_TOGGLE_DEBUG_DRAW");
+    lua_pushinteger(luaState_, ACTION_DRAG_START);
+    lua_setglobal(luaState_, "ACTION_DRAG_START");
+    lua_pushinteger(luaState_, ACTION_DRAG_END);
+    lua_setglobal(luaState_, "ACTION_DRAG_END");
 
     // Register Audio effect constants
     lua_pushinteger(luaState_, AUDIO_EFFECT_NONE);
@@ -1014,6 +1028,75 @@ int LuaInterface::b2DestroyJoint(lua_State* L) {
 
     int jointId = lua_tointeger(L, 1);
     interface->physics_->destroyJoint(jointId);
+    return 0;
+}
+
+int LuaInterface::b2QueryBodyAtPoint(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2));
+
+    float x = lua_tonumber(L, 1);
+    float y = lua_tonumber(L, 2);
+
+    int bodyId = interface->physics_->queryBodyAtPoint(x, y);
+    lua_pushinteger(L, bodyId);
+    return 1;
+}
+
+int LuaInterface::b2CreateMouseJoint(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 3 && numArgs <= 4);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3));
+
+    int bodyId = lua_tointeger(L, 1);
+    float targetX = lua_tonumber(L, 2);
+    float targetY = lua_tonumber(L, 3);
+    float maxForce = 1000.0f;
+
+    if (numArgs >= 4) {
+        assert(lua_isnumber(L, 4));
+        maxForce = lua_tonumber(L, 4);
+    }
+
+    int jointId = interface->physics_->createMouseJoint(bodyId, targetX, targetY, maxForce);
+    lua_pushinteger(L, jointId);
+    return 1;
+}
+
+int LuaInterface::b2UpdateMouseJointTarget(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 3);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3));
+
+    int jointId = lua_tointeger(L, 1);
+    float targetX = lua_tonumber(L, 2);
+    float targetY = lua_tonumber(L, 3);
+
+    interface->physics_->updateMouseJointTarget(jointId, targetX, targetY);
+    return 0;
+}
+
+int LuaInterface::b2DestroyMouseJoint(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int jointId = lua_tointeger(L, 1);
+    interface->physics_->destroyMouseJoint(jointId);
     return 0;
 }
 
@@ -1770,5 +1853,17 @@ int LuaInterface::stopVibration(lua_State* L) {
     }
 
     return 0;
+}
+
+// getCursorPosition()
+// Returns current cursor position in world coordinates (x, y)
+int LuaInterface::getCursorPosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    lua_pushnumber(L, interface->cursorX_);
+    lua_pushnumber(L, interface->cursorY_);
+    return 2;
 }
 

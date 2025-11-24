@@ -181,3 +181,7 @@ void SceneManager::handleAction(Action action) {
         luaInterface_->handleAction(activeSceneId, action);
     }
 }
+
+void SceneManager::setCursorPosition(float x, float y) {
+    luaInterface_->setCursorPosition(x, y);
+}

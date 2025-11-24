@@ -15,6 +15,8 @@ enum Action {
     ACTION_APPLY_FORCE,
     ACTION_RESET_PHYSICS,
     ACTION_TOGGLE_DEBUG_DRAW,
+    ACTION_DRAG_START,
+    ACTION_DRAG_END,
     ACTION_COUNT  // Always keep last
 };
 
@@ -364,7 +366,7 @@ public:
         for (int i = 0; i < ACTION_COUNT; ++i) {
             Action action = static_cast<Action>(i);
             const KeyList& currentKeys = getKeysForAction(action);
-            
+
             // If this action has no key bindings after loading config, restore defaults
             if (currentKeys.count == 0) {
                 for (int j = 0; j < defaultKeyBindings[i].count; ++j) {
@@ -373,7 +375,7 @@ public:
             }
 
             const GamepadButtonList& currentButtons = getGamepadButtonsForAction(action);
-            
+
             // If this action has no gamepad bindings after loading config, restore defaults
             if (currentButtons.count == 0) {
                 for (int j = 0; j < defaultGamepadBindings[i].count; ++j) {

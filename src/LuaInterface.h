@@ -41,6 +41,11 @@ public:
     // Audio access
     AudioManager& getAudioManager() { return *audioManager_; }
 
+    // Cursor position for drag operations (in world coordinates)
+    void setCursorPosition(float x, float y) { cursorX_ = x; cursorY_ = y; }
+    float getCursorX() const { return cursorX_; }
+    float getCursorY() const { return cursorY_; }
+
 private:
     // Lua-callable functions
     static int loadShaders(lua_State* L);
@@ -71,6 +76,10 @@ private:
     static int b2EnableDebugDraw(lua_State* L);
     static int b2CreateRevoluteJoint(lua_State* L);
     static int b2DestroyJoint(lua_State* L);
+    static int b2QueryBodyAtPoint(lua_State* L);
+    static int b2CreateMouseJoint(lua_State* L);
+    static int b2UpdateMouseJointTarget(lua_State* L);
+    static int b2DestroyMouseJoint(lua_State* L);
 
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);
@@ -114,6 +123,9 @@ private:
     static int vibrateTriggers(lua_State* L);
     static int stopVibration(lua_State* L);
 
+    // Cursor position Lua bindings
+    static int getCursorPosition(lua_State* L);
+
     void registerFunctions();
 
     PakResource& pakResource_;
@@ -127,4 +139,6 @@ private:
     std::unique_ptr<SceneLayerManager> layerManager_;
     std::unique_ptr<AudioManager> audioManager_;
     VibrationManager* vibrationManager_;
+    float cursorX_;
+    float cursorY_;
 };

@@ -18,11 +18,11 @@ public:
     // World management
     void setGravity(float x, float y);
     void step(float timeStep, int subStepCount = 4);
-    
+
     // Set the fixed timestep for physics simulation (default is 1/60)
     void setFixedTimestep(float timestep);
     float getFixedTimestep() const { return fixedTimestep_; }
-    
+
     // Async physics stepping - runs physics simulation on a background thread
     // Use stepAsync() to start stepping, isStepComplete() to check, waitForStepComplete() to block
     void stepAsync(float timeStep, int subStepCount = 4);
@@ -56,6 +56,12 @@ public:
     int createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy, float anchorBx, float anchorBy, bool enableLimit = false, float lowerAngle = 0.0f, float upperAngle = 0.0f);
     void destroyJoint(int jointId);
 
+    // Mouse joint (for drag debugging)
+    int queryBodyAtPoint(float x, float y);
+    int createMouseJoint(int bodyId, float targetX, float targetY, float maxForce = 1000.0f);
+    void updateMouseJointTarget(int jointId, float targetX, float targetY);
+    void destroyMouseJoint(int jointId);
+
     // Debug drawing
     void enableDebugDraw(bool enable);
     bool isDebugDrawEnabled() const { return debugDrawEnabled_; }
@@ -74,10 +80,10 @@ private:
 
     void addLineVertex(float x, float y, b2HexColor color);
     void addTriangleVertex(float x, float y, b2HexColor color);
-    
+
     // Thread function for async physics step
     static int physicsStepThread(void* data);
-    
+
     struct StepData {
         Box2DPhysics* physics;
         float timeStep;
@@ -92,11 +98,11 @@ private:
     bool debugDrawEnabled_;
     std::vector<DebugVertex> debugLineVertices_;
     std::vector<DebugVertex> debugTriangleVertices_;
-    
+
     // Fixed timestep accumulator for framerate-independent physics
     float timeAccumulator_;
     float fixedTimestep_;
-    
+
     // Threading support
     SDL_Mutex* physicsMutex_;
     SDL_AtomicInt stepInProgress_;

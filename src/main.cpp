@@ -268,6 +268,29 @@ int main() {
                     gameController = nullptr;
                 }
             }
+            // Handle mouse button press for drag actions
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_LEFT) {
+                // Convert mouse coordinates to world coordinates
+                // The world is roughly -1 to 1 in both x and y (normalized device coordinates)
+                int windowWidth, windowHeight;
+                SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+                float worldX = (event.button.x / (float)windowWidth) * 2.0f - 1.0f;
+                float worldY = 1.0f - (event.button.y / (float)windowHeight) * 2.0f; // Flip Y
+                sceneManager.setCursorPosition(worldX, worldY);
+                sceneManager.handleAction(ACTION_DRAG_START);
+            }
+            // Handle mouse button release for drag actions
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_LEFT) {
+                sceneManager.handleAction(ACTION_DRAG_END);
+            }
+            // Handle mouse motion for cursor tracking
+            if (event.type == SDL_EVENT_MOUSE_MOTION) {
+                int windowWidth, windowHeight;
+                SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+                float worldX = (event.motion.x / (float)windowWidth) * 2.0f - 1.0f;
+                float worldY = 1.0f - (event.motion.y / (float)windowHeight) * 2.0f; // Flip Y
+                sceneManager.setCursorPosition(worldX, worldY);
+            }
         }
 
         if(!sceneManager.updateActiveScene(deltaTime)) {

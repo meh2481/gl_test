@@ -27,6 +27,9 @@ public:
     bool updateActiveScene(float deltaTime);
     void handleAction(Action action);
 
+    // Cursor position for drag operations (in world coordinates)
+    void setCursorPosition(float x, float y);
+
 private:
     PakResource& pakResource_;
     VulkanRenderer& renderer_;

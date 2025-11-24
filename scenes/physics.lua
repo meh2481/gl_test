@@ -14,6 +14,10 @@ chainLinkHeight = 0.04
 chainLength = 10
 CHAIN_OFFSET = 0.0035
 
+-- Mouse drag state
+mouseJointId = nil
+draggedBodyId = nil
+
 function init()
     -- Load the nebula background shader (z-index 0)
     loadShaders("vertex.spv", "nebula_fragment.spv", 0)
@@ -201,6 +205,12 @@ function update(deltaTime)
     -- Step the physics simulation (Box2D 3.x uses subStepCount instead of velocity/position iterations)
     b2Step(deltaTime, 4)
 
+    -- Update mouse joint target if dragging
+    if mouseJointId then
+        local cursorX, cursorY = getCursorPosition()
+        b2UpdateMouseJointTarget(mouseJointId, cursorX, cursorY)
+    end
+
     -- Update light position based on the light body at the end of the chain
     if lightBody then
         local lightX, lightY = b2GetBodyPosition(lightBody)
@@ -211,6 +221,13 @@ function update(deltaTime)
 end
 
 function cleanup()
+    -- Destroy mouse joint if active
+    if mouseJointId then
+        b2DestroyMouseJoint(mouseJointId)
+        mouseJointId = nil
+        draggedBodyId = nil
+    end
+
     -- Destroy all scene layers
     for i, layerId in ipairs(layers) do
         destroyLayer(layerId)
@@ -317,5 +334,22 @@ function onAction(action)
         print("Toggling debug draw")
         debugDrawEnabled = not debugDrawEnabled
         b2EnableDebugDraw(debugDrawEnabled)
+    end
+    if action == ACTION_DRAG_START then
+        -- Start dragging: find body at cursor position and create mouse joint
+        local cursorX, cursorY = getCursorPosition()
+        local bodyId = b2QueryBodyAtPoint(cursorX, cursorY)
+        if bodyId >= 0 then
+            draggedBodyId = bodyId
+            mouseJointId = b2CreateMouseJoint(bodyId, cursorX, cursorY, 1000.0)
+        end
+    end
+    if action == ACTION_DRAG_END then
+        -- End dragging: destroy mouse joint
+        if mouseJointId then
+            b2DestroyMouseJoint(mouseJointId)
+            mouseJointId = nil
+            draggedBodyId = nil
+        end
     end
 end
