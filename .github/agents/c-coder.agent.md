@@ -16,3 +16,6 @@ Use the github-mcp-server MCP server for GitHub.
 - Use Box2D version 3. The Box2D version in apt is 2, which is ancient.
 - Do not run CodeQL or other security analysis tools.
 - Remove all whitespace from the end of lines in any files you modify.
+- Don't add new lua scenes unless I specifically request them.
+- Don't add new assets to the res/ folder unless I specifically request them.
+- Never split Lua APIs. Update existing Lua function calls when refactoring.

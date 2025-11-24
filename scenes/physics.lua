@@ -133,7 +133,7 @@ function init()
         table.insert(chainLinks, linkId)
 
         -- Attach sprite layer to chain link
-        local layerId = createLayer(chainTexId, 0.03, chainNormId, phongShaderId)
+        local layerId = createLayer(chainTexId, linkHeight, chainNormId, phongShaderId)
         attachLayerToBody(layerId, linkId)
         table.insert(layers, layerId)
 
