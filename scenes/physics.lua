@@ -27,6 +27,9 @@ function init()
     -- Load regular textured shaders (no normal mapping) (z-index 1, 1 texture)
     simpleTexShaderId = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, 1)
 
+    -- Load additive blending shader for bloom effect (z-index 3, above debug, 1 texture)
+    bloomShaderId = loadTexturedShadersAdditive("sprite_vertex.spv", "sprite_fragment.spv", 3, 1)
+
     -- Set shader parameters for Phong shader
     -- Position (0.5, 0.5, chainLightZ) - light position
     -- ambient: 0.3, diffuse: 0.7, specular: 0.8, shininess: 32.0
@@ -48,6 +51,7 @@ function init()
     lanternNormId = loadTexture("lantern.norm.png")
     chainTexId = loadTexture("chain.png")
     chainNormId = loadTexture("chain.norm.png")
+    bloomTexId = loadTexture("bloom.png")
 
     -- Enable Box2D debug drawing
     b2EnableDebugDraw(true)
@@ -126,6 +130,11 @@ function init()
     attachLayerToBody(layerId, circleBody2)
     table.insert(layers, layerId)
 
+    -- Add bloom effect to lantern
+    local bloomLayerId = createLayer(bloomTexId, 0.6, bloomShaderId)
+    attachLayerToBody(bloomLayerId, circleBody2)
+    table.insert(layers, bloomLayerId)
+
     -- Create a chain with multiple links
     local chainStartX = chainStartX
     local chainStartY = chainStartY
@@ -173,6 +182,11 @@ function init()
     local layerId = createLayer(lanternTexId, 0.1, lanternNormId, phongShaderId)
     attachLayerToBody(layerId, lightBody)
     table.insert(layers, layerId)
+
+    -- Add bloom effect to swinging chain light
+    local bloomLayerId = createLayer(bloomTexId, 0.2, bloomShaderId)
+    attachLayerToBody(bloomLayerId, lightBody)
+    table.insert(layers, bloomLayerId)
 
     -- Connect light to the last chain link
     local lightJointId = b2CreateRevoluteJoint(

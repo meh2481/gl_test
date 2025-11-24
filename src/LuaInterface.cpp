@@ -32,7 +32,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_newtable(luaState_);
 
     // Copy global functions and tables into the scene table
-    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexture",
+    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexturedShadersAdditive", "loadTexture",
                                      "getTextureDimensions",
                                      "setShaderUniform3f", "setShaderParameters",
                                      "pushScene", "popScene", "print",
@@ -440,6 +440,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "getTextureDimensions", getTextureDimensions);
     lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
     lua_register(luaState_, "loadTexturedShadersEx", loadTexturedShadersEx);
+    lua_register(luaState_, "loadTexturedShadersAdditive", loadTexturedShadersAdditive);
     lua_register(luaState_, "setShaderUniform3f", setShaderUniform3f);
     lua_register(luaState_, "setShaderParameters", setShaderParameters);
 
@@ -1247,6 +1248,43 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
 
     // Create textured pipeline with specified number of textures
     interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader, numTextures);
+
+    // Return the pipeline ID so it can be used in createLayer
+    lua_pushinteger(L, pipelineId);
+    return 1;
+}
+
+int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), numTextures (integer)
+    assert(lua_gettop(L) == 4);
+    assert(lua_isstring(L, 1));
+    assert(lua_isstring(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+
+    const char* vertShaderName = lua_tostring(L, 1);
+    const char* fragShaderName = lua_tostring(L, 2);
+    int zIndex = (int)lua_tointeger(L, 3);
+    int numTextures = (int)lua_tointeger(L, 4);
+
+    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
+    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+
+    ResourceData vertShader = interface->pakResource_.getResource(vertId);
+    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+
+    assert(vertShader.data != nullptr);
+    assert(fragShader.data != nullptr);
+
+    int pipelineId = interface->pipelineIndex_++;
+    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+
+    // Create textured pipeline with additive blending
+    interface->renderer_.createTexturedPipelineAdditive(pipelineId, vertShader, fragShader, numTextures);
 
     // Return the pipeline ID so it can be used in createLayer
     lua_pushinteger(L, pipelineId);
