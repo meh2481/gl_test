@@ -258,15 +258,15 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
     if (isDebugPipeline) {
-        // Create line pipeline with polygon mode set to LINE
+        // Create line pipeline
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-        rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
         assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugLinePipeline) == VK_SUCCESS);
+        std::cout << "Created debug line pipeline: " << m_debugLinePipeline << std::endl;
 
-        // Create triangle pipeline with polygon mode set to FILL
+        // Create triangle pipeline
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugTrianglePipeline) == VK_SUCCESS);
+        std::cout << "Created debug triangle pipeline: " << m_debugTrianglePipeline << std::endl;
 
         m_debugPipelines[id] = true;
     } else {
@@ -1176,6 +1176,11 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             }
             // Then draw lines
             if (debugVertexCount > 0 && m_debugLinePipeline != VK_NULL_HANDLE) {
+                static bool once = true;
+                if (once) {
+                    std::cout << "Drawing lines: count=" << debugVertexCount << " pipeline=" << m_debugLinePipeline << std::endl;
+                    once = false;
+                }
                 VkBuffer debugBuffers[] = {debugVertexBuffer};
                 VkDeviceSize offsets[] = {0};
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);
