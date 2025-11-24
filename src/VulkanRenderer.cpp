@@ -857,6 +857,17 @@ void VulkanRenderer::updateDebugVertexBuffer(const std::vector<float>& vertexDat
         return;
     }
 
+    // Debug: Print first few vertices to see coordinates
+    static bool printed = false;
+    if (!printed && vertexData.size() >= 12) {
+        std::cout << "First 2 line vertices (x,y,r,g,b,a):" << std::endl;
+        std::cout << "  V0: (" << vertexData[0] << ", " << vertexData[1] << ") color(" 
+                  << vertexData[2] << ", " << vertexData[3] << ", " << vertexData[4] << ", " << vertexData[5] << ")" << std::endl;
+        std::cout << "  V1: (" << vertexData[6] << ", " << vertexData[7] << ") color(" 
+                  << vertexData[8] << ", " << vertexData[9] << ", " << vertexData[10] << ", " << vertexData[11] << ")" << std::endl;
+        printed = true;
+    }
+
     size_t dataSize = vertexData.size() * sizeof(float);
 
     // Reallocate if needed
