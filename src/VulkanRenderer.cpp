@@ -1536,8 +1536,10 @@ void VulkanRenderer::createTextureImage(uint64_t textureId, const void* imageDat
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.flags = 0;
-    
+
     TextureData tex;
+    tex.width = width;
+    tex.height = height;
     assert(vkCreateImage(device, &imageInfo, nullptr, &tex.image) == VK_SUCCESS);
     
     VkMemoryRequirements imgMemRequirements;
@@ -1644,9 +1646,6 @@ void VulkanRenderer::createTextureImage(uint64_t textureId, const void* imageDat
     viewInfo.subresourceRange.layerCount = 1;
     
     assert(vkCreateImageView(device, &viewInfo, nullptr, &tex.imageView) == VK_SUCCESS);
-
-    tex.width = width;
-    tex.height = height;
 
     m_textures[textureId] = tex;
 }
