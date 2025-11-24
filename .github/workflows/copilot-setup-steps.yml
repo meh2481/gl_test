@@ -29,12 +29,44 @@ jobs:
         uses: actions/checkout@v5
         with:
           lfs: true
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        id: cache-apt
+        with:
+          path: |
+            /var/cache/apt/archives/*.deb
+            /usr/include/vulkan
+            /usr/lib/x86_64-linux-gnu/libvulkan*
+            /usr/lib/x86_64-linux-gnu/liblz4*
+            /usr/lib/x86_64-linux-gnu/liblua5.4*
+            /usr/lib/x86_64-linux-gnu/libpng*
+            /usr/lib/x86_64-linux-gnu/libsquish*
+            /usr/lib/x86_64-linux-gnu/libopenal*
+            /usr/lib/x86_64-linux-gnu/libopusfile*
+            /usr/bin/glslc
+            /usr/bin/vulkaninfo
+          key: apt-packages-${{ runner.os }}-v1
+
       - name: Install required libraries
+        if: steps.cache-apt.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libvulkan-dev vulkan-tools glslc liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
 
+      - name: Cache SDL3
+        uses: actions/cache@v4
+        id: cache-sdl3
+        with:
+          path: |
+            /usr/local/lib/libSDL3*
+            /usr/local/include/SDL3
+            /usr/local/lib/cmake/SDL3
+            /usr/local/lib/pkgconfig/sdl3.pc
+            /usr/local/share/licenses/SDL3
+          key: sdl3-${{ runner.os }}-release-3.2.0-v1
+
       - name: Install SDL3 from source
+        if: steps.cache-sdl3.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 --branch release-3.2.0 https://github.com/libsdl-org/SDL.git SDL3
           cd SDL3
@@ -46,7 +78,22 @@ jobs:
           cd ../..
           rm -rf SDL3
 
+      - name: Update shared library cache after SDL3 restore
+        if: steps.cache-sdl3.outputs.cache-hit == 'true'
+        run: sudo ldconfig
+
+      - name: Cache Box2D v3
+        uses: actions/cache@v4
+        id: cache-box2d
+        with:
+          path: |
+            /usr/local/lib/libbox2d*
+            /usr/local/include/box2d
+            /usr/local/lib/cmake/box2d
+          key: box2d-${{ runner.os }}-v3.1.1-v1
+
       - name: Install box2d v3 from source, without examples
+        if: steps.cache-box2d.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/erincatto/box2d.git
           cd box2d
@@ -56,7 +103,19 @@ jobs:
           cmake --build .
           sudo make install
 
+      - name: Cache ImGui
+        uses: actions/cache@v4
+        id: cache-imgui
+        with:
+          path: |
+            /usr/lib/libimgui.so
+            /usr/include/imgui*.h
+            /usr/include/imstb*.h
+            /usr/include/imconfig.h
+          key: imgui-${{ runner.os }}-v1.92.4-sdl3-vulkan-v1
+
       - name: Build and install ImGui with SDL3 and Vulkan backend
+        if: steps.cache-imgui.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/ocornut/imgui.git
           cd imgui
