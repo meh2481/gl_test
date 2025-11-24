@@ -33,6 +33,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
 
     // Copy global functions and tables into the scene table
     const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexture",
+                                     "getTextureDimensions",
                                      "setShaderUniform3f", "setShaderParameters",
                                      "pushScene", "popScene", "print",
                                      "b2SetGravity", "b2SetFixedTimestep", "b2Step", "b2CreateBody", "b2DestroyBody",
