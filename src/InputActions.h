@@ -10,6 +10,7 @@ enum Action {
     ACTION_MENU,
     ACTION_PHYSICS_DEMO,
     ACTION_AUDIO_TEST,
+    ACTION_ASPECT_TEST,
     ACTION_TOGGLE_FULLSCREEN,
     ACTION_HOTRELOAD,
     ACTION_APPLY_FORCE,
@@ -106,12 +107,13 @@ public:
         bind(SDLK_RETURN, ACTION_MENU);
         bind(SDLK_P, ACTION_PHYSICS_DEMO);
         bind(SDLK_A, ACTION_AUDIO_TEST);
+        bind(SDLK_T, ACTION_ASPECT_TEST);
         bind(SDLK_SPACE, ACTION_APPLY_FORCE);
         bind(SDLK_R, ACTION_RESET_PHYSICS);
         bind(SDLK_D, ACTION_TOGGLE_DEBUG_DRAW);
         // ALT+ENTER is handled separately via modifier check
         // F5 is handled separately in main.cpp for debug builds
-        
+
         // Set up default gamepad bindings
         bindGamepad(SDL_GAMEPAD_BUTTON_SOUTH, ACTION_EXIT);
         bindGamepad(SDL_GAMEPAD_BUTTON_START, ACTION_MENU);

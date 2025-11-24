@@ -26,4 +26,7 @@ function onAction(action)
     if action == ACTION_AUDIO_TEST then
         pushScene("audio_test.lua")
     end
+    if action == ACTION_ASPECT_TEST then
+        pushScene("aspect_test.lua")
+    end
 end
