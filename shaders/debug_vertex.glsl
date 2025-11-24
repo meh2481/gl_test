@@ -12,7 +12,8 @@ layout(location = 1) in vec4 inColor;
 layout(location = 0) out vec4 fragColor;
 
 void main() {
-    float aspect = pc.width / pc.height;
-    gl_Position = vec4(inPosition.x / aspect, -inPosition.y, 0.0, 1.0);
+    // Use simple position transformation without aspect correction
+    // This ensures both triangles and lines are rendered correctly
+    gl_Position = vec4(inPosition, 0.0, 1.0);
     fragColor = inColor;
 }
