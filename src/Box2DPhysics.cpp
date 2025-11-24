@@ -340,9 +340,12 @@ struct OverlapQueryContext {
     bool found;
 };
 
+// Small epsilon for point query AABB
+static constexpr float POINT_QUERY_EPSILON = 0.001f;
+
 // Overlap callback to find a body at a point
 static bool overlapCallback(b2ShapeId shapeId, void* context) {
-    OverlapQueryContext* ctx = (OverlapQueryContext*)context;
+    OverlapQueryContext* ctx = static_cast<OverlapQueryContext*>(context);
     b2BodyId bodyId = b2Shape_GetBody(shapeId);
     // Only consider dynamic bodies
     b2BodyType bodyType = b2Body_GetType(bodyId);
@@ -358,10 +361,9 @@ int Box2DPhysics::queryBodyAtPoint(float x, float y) {
     SDL_LockMutex(physicsMutex_);
 
     // Create a small AABB around the point
-    float epsilon = 0.001f;
     b2AABB aabb;
-    aabb.lowerBound = (b2Vec2){x - epsilon, y - epsilon};
-    aabb.upperBound = (b2Vec2){x + epsilon, y + epsilon};
+    aabb.lowerBound = (b2Vec2){x - POINT_QUERY_EPSILON, y - POINT_QUERY_EPSILON};
+    aabb.upperBound = (b2Vec2){x + POINT_QUERY_EPSILON, y + POINT_QUERY_EPSILON};
 
     OverlapQueryContext ctx;
     ctx.found = false;
