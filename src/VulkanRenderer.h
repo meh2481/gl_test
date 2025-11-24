@@ -32,6 +32,7 @@ public:
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
+    bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
     void render(float time);
     void cleanup();
 
@@ -117,6 +118,8 @@ private:
         VkDeviceMemory memory;
         VkImageView imageView;
         VkSampler sampler;
+        uint32_t width;
+        uint32_t height;
     };
     std::map<uint64_t, TextureData> m_textures;
     

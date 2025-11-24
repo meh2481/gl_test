@@ -345,6 +345,16 @@ void VulkanRenderer::render(float time) {
     currentFrame = (currentFrame + 1) % 2;
 }
 
+bool VulkanRenderer::getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const {
+    auto it = m_textures.find(textureId);
+    if (it == m_textures.end()) {
+        return false;
+    }
+    if (width) *width = it->second.width;
+    if (height) *height = it->second.height;
+    return true;
+}
+
 void VulkanRenderer::cleanup() {
 
     for (size_t i = 0; i < 2; i++) {
@@ -1634,7 +1644,10 @@ void VulkanRenderer::createTextureImage(uint64_t textureId, const void* imageDat
     viewInfo.subresourceRange.layerCount = 1;
     
     assert(vkCreateImageView(device, &viewInfo, nullptr, &tex.imageView) == VK_SUCCESS);
-    
+
+    tex.width = width;
+    tex.height = height;
+
     m_textures[textureId] = tex;
 }
 

@@ -81,6 +81,7 @@ private:
 
     // Texture loading
     static int loadTexture(lua_State* L);
+    static int getTextureDimensions(lua_State* L);
     static int loadTexturedShaders(lua_State* L);
     static int loadTexturedShadersEx(lua_State* L);
     static int setShaderUniform3f(lua_State* L);

@@ -436,6 +436,7 @@ void LuaInterface::registerFunctions() {
 
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
+    lua_register(luaState_, "getTextureDimensions", getTextureDimensions);
     lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
     lua_register(luaState_, "loadTexturedShadersEx", loadTexturedShadersEx);
     lua_register(luaState_, "setShaderUniform3f", setShaderUniform3f);
@@ -1020,30 +1021,71 @@ int LuaInterface::createLayer(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: textureId (integer), width (number), height (number), 
-    //            [normalMapId (integer)], pipelineId (integer)
+    // Arguments:
+    // Old API: textureId (integer), width (number), height (number), [normalMapId (integer)], pipelineId (integer)
+    // New API: textureId (integer), size (number), [normalMapId (integer)], pipelineId (integer)
     int numArgs = lua_gettop(L);
-    assert(numArgs >= 4 && numArgs <= 5);
+    assert(numArgs >= 3 && numArgs <= 5);
     assert(lua_isinteger(L, 1));
-    assert(lua_isnumber(L, 2));
-    assert(lua_isnumber(L, 3));
-    assert(lua_isinteger(L, 4) || (numArgs == 5 && lua_isinteger(L, 5)));
 
     uint64_t textureId = (uint64_t)lua_tointeger(L, 1);
-    float width = (float)lua_tonumber(L, 2);
-    float height = (float)lua_tonumber(L, 3);
-    
+    float width, height;
     uint64_t normalMapId = 0;
     int pipelineId = -1;
-    
-    // Parse arguments:
-    // 4 args: textureId, width, height, pipelineId
-    // 5 args: textureId, width, height, normalMapId, pipelineId
-    if (numArgs == 4) {
-        pipelineId = (int)lua_tointeger(L, 4);
-    } else { // numArgs == 5
-        normalMapId = (uint64_t)lua_tointeger(L, 4);
-        pipelineId = (int)lua_tointeger(L, 5);
+
+    // Check if arg 2 and 3 are both numbers (old API with explicit width and height)
+    if (numArgs >= 4 && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
+        // Old API: textureId, width, height, [normalMapId], pipelineId
+        width = (float)lua_tonumber(L, 2);
+        height = (float)lua_tonumber(L, 3);
+
+        if (numArgs == 4) {
+            // 4 args: textureId, width, height, pipelineId
+            assert(lua_isinteger(L, 4));
+            pipelineId = (int)lua_tointeger(L, 4);
+        } else if (numArgs == 5) {
+            // 5 args: textureId, width, height, normalMapId, pipelineId
+            assert(lua_isinteger(L, 4));
+            assert(lua_isinteger(L, 5));
+            normalMapId = (uint64_t)lua_tointeger(L, 4);
+            pipelineId = (int)lua_tointeger(L, 5);
+        }
+    } else {
+        // New API: textureId, size, [normalMapId], pipelineId
+        // Calculate width and height based on texture aspect ratio
+        assert(lua_isnumber(L, 2));
+        float size = (float)lua_tonumber(L, 2);
+
+        // Get texture dimensions
+        uint32_t texWidth, texHeight;
+        if (!interface->renderer_.getTextureDimensions(textureId, &texWidth, &texHeight)) {
+            // Texture not found, default to square
+            width = height = size;
+        } else {
+            // Calculate dimensions preserving aspect ratio
+            float aspectRatio = (float)texWidth / (float)texHeight;
+            if (aspectRatio >= 1.0f) {
+                // Width >= height
+                width = size;
+                height = size / aspectRatio;
+            } else {
+                // Height > width
+                width = size * aspectRatio;
+                height = size;
+            }
+        }
+
+        if (numArgs == 3) {
+            // 3 args: textureId, size, pipelineId
+            assert(lua_isinteger(L, 3));
+            pipelineId = (int)lua_tointeger(L, 3);
+        } else if (numArgs == 4) {
+            // 4 args: textureId, size, normalMapId, pipelineId
+            assert(lua_isinteger(L, 3));
+            assert(lua_isinteger(L, 4));
+            normalMapId = (uint64_t)lua_tointeger(L, 3);
+            pipelineId = (int)lua_tointeger(L, 4);
+        }
     }
 
     int layerId = interface->layerManager_->createLayer(textureId, width, height, normalMapId, pipelineId);
@@ -1133,6 +1175,29 @@ int LuaInterface::loadTexture(lua_State* L) {
 
     // Return the texture ID so it can be used in createLayer
     lua_pushinteger(L, textureId);
+    return 1;
+}
+
+int LuaInterface::getTextureDimensions(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Argument: textureId (integer)
+    assert(lua_gettop(L) == 1);
+    assert(lua_isinteger(L, 1));
+
+    uint64_t textureId = (uint64_t)lua_tointeger(L, 1);
+
+    uint32_t width, height;
+    if (interface->renderer_.getTextureDimensions(textureId, &width, &height)) {
+        lua_pushinteger(L, width);
+        lua_pushinteger(L, height);
+        return 2;
+    }
+
+    // Return nil if texture not found
+    lua_pushnil(L);
     return 1;
 }
 
