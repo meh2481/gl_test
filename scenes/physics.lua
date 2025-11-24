@@ -74,19 +74,19 @@ function init()
 
         local layerId
         if i <= 1 then
-            layerId = createLayer(lanternTexId, 0.2, 0.2, lanternNormId, phongShaderId)
+            layerId = createLayer(lanternTexId, 0.2, lanternNormId, phongShaderId)
         elseif i <= 2 then
             -- Phong shading with normal maps
-            layerId = createLayer(metalwallTexId, 0.2, 0.2, metalwallNormId, phongShaderId)
+            layerId = createLayer(metalwallTexId, 0.2, metalwallNormId, phongShaderId)
         elseif i == 3 then
             -- Toon shader (single texture, no normal map)
-            layerId = createLayer(metalwallTexId, 0.2, 0.2, toonShaderId)
+            layerId = createLayer(metalwallTexId, 0.2, toonShaderId)
         elseif i == 4 then
             -- Simple texture, no normal map
-            layerId = createLayer(metalwallTexId, 0.2, 0.2, simpleTexShaderId)
+            layerId = createLayer(metalwallTexId, 0.2, simpleTexShaderId)
         else
             -- Show normal map as color
-            layerId = createLayer(metalwallNormId, 0.2, 0.2, simpleTexShaderId)
+            layerId = createLayer(metalwallNormId, 0.2, simpleTexShaderId)
         end
         attachLayerToBody(layerId, bodyId)
         table.insert(layers, layerId)
@@ -98,7 +98,7 @@ function init()
     table.insert(bodies, circleBody)
 
     -- Attach a sprite layer to the circle
-    local layerId = createLayer(rockTexId, 0.3, 0.3, rockNormId, phongShaderId)
+    local layerId = createLayer(rockTexId, 0.3, rockNormId, phongShaderId)
     attachLayerToBody(layerId, circleBody)
     table.insert(layers, layerId)
 
@@ -108,7 +108,7 @@ function init()
     table.insert(bodies, circleBody2)
 
     -- Attach a sprite layer to the circle
-    local layerId = createLayer(lanternTexId, 0.3, 0.3, lanternNormId, phongShaderId)
+    local layerId = createLayer(lanternTexId, 0.3, lanternNormId, phongShaderId)
     attachLayerToBody(layerId, circleBody2)
     table.insert(layers, layerId)
 
@@ -133,7 +133,7 @@ function init()
         table.insert(chainLinks, linkId)
 
         -- Attach sprite layer to chain link
-        local layerId = createLayer(chainTexId, 0.03, linkHeight, chainNormId, phongShaderId)
+        local layerId = createLayer(chainTexId, 0.03, chainNormId, phongShaderId)
         attachLayerToBody(layerId, linkId)
         table.insert(layers, layerId)
 
@@ -156,7 +156,7 @@ function init()
     table.insert(bodies, lightBody)
 
     -- Attach lantern sprite to the light body
-    local layerId = createLayer(lanternTexId, 0.1, 0.1, lanternNormId, phongShaderId)
+    local layerId = createLayer(lanternTexId, 0.1, lanternNormId, phongShaderId)
     attachLayerToBody(layerId, lightBody)
     table.insert(layers, layerId)
 
