@@ -36,7 +36,8 @@ A C++ application using Vulkan rendering with Lua scripting and Box2D physics in
 
    ```
    yay -S imgui-full
-   pacman -S sdl3
+   pacman -S sdl3 git-lfs
+   git lfs install
    ```
 
 ## Building
