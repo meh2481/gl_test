@@ -569,7 +569,7 @@ int LuaInterface::loadShaders(lua_State* L) {
 int LuaInterface::luaPrint(lua_State* L) {
     int n = lua_gettop(L);  // Number of arguments
     std::string output;
-    
+
     // Convert all arguments to strings and concatenate them
     for (int i = 1; i <= n; i++) {
         const char* s = lua_tostring(L, i);
@@ -581,10 +581,10 @@ int LuaInterface::luaPrint(lua_State* L) {
         }
         output += s;
     }
-    
+
     // Output to std::cout (which will be captured by ConsoleCapture in debug builds)
     std::cout << output << std::endl;
-    
+
     return 0;
 }
 
@@ -979,11 +979,11 @@ int LuaInterface::b2CreateRevoluteJoint(lua_State* L) {
     float anchorAy = lua_tonumber(L, 4);
     float anchorBx = lua_tonumber(L, 5);
     float anchorBy = lua_tonumber(L, 6);
-    
+
     bool enableLimit = false;
     float lowerAngle = 0.0f;
     float upperAngle = 0.0f;
-    
+
     if (numArgs >= 7) {
         assert(lua_isboolean(L, 7));
         enableLimit = lua_toboolean(L, 7);
@@ -997,8 +997,8 @@ int LuaInterface::b2CreateRevoluteJoint(lua_State* L) {
         upperAngle = lua_tonumber(L, 9);
     }
 
-    int jointId = interface->physics_->createRevoluteJoint(bodyIdA, bodyIdB, anchorAx, anchorAy, 
-                                                            anchorBx, anchorBy, enableLimit, 
+    int jointId = interface->physics_->createRevoluteJoint(bodyIdA, bodyIdB, anchorAx, anchorAy,
+                                                            anchorBx, anchorBy, enableLimit,
                                                             lowerAngle, upperAngle);
     lua_pushinteger(L, jointId);
     return 1;
@@ -1328,7 +1328,7 @@ int LuaInterface::setShaderUniform3f(lua_State* L) {
     // This function is deprecated - setShaderParameters now requires a pipeline ID
     // For backward compatibility, this does nothing
     // Users should call setShaderParameters(pipelineId, x, y, z, ...) instead
-    
+
     return 0;
 }
 
@@ -1345,11 +1345,11 @@ int LuaInterface::setShaderParameters(lua_State* L) {
     assert(lua_isnumber(L, 1));
 
     int pipelineId = (int)lua_tonumber(L, 1);
-    
+
     // Read parameters, defaulting to 0.0 if not provided
     float params[7] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     int paramCount = numArgs - 1;  // Exclude pipelineId from count
-    
+
     for (int i = 0; i < paramCount && i < 7; ++i) {
         assert(lua_isnumber(L, i + 2));
         params[i] = (float)lua_tonumber(L, i + 2);

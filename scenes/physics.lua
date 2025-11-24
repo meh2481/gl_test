@@ -205,14 +205,8 @@ function update(deltaTime)
     if lightBody then
         local lightX, lightY = b2GetBodyPosition(lightBody)
         -- Update shader parameters with new light position
-        -- The light position needs to be in normalized screen coordinates (0-1 range)
-        -- Assuming the world is from -1 to 1, we normalize to 0-1
-        -- local normalizedX = (lightX + 1.0) / 2.0
-        -- local normalizedY = (lightY + 1.0) / 2.0
-
-        -- Update both Phong and Toon shaders
-        setShaderParameters(phongShaderId, lightX, -lightY, chainLightZ, 0.3, 0.7, 0.8, 32.0)
-        setShaderParameters(toonShaderId, lightX, -lightY, chainLightZ, 3.0)
+        setShaderParameters(phongShaderId, lightX, lightY, chainLightZ, 0.3, 0.7, 0.8, 32.0)
+        setShaderParameters(toonShaderId, lightX, lightY, chainLightZ, 3.0)
     end
 end
 
