@@ -15,3 +15,4 @@ Use the github-mcp-server MCP server for GitHub.
 - Do not add any _codeql* files or folders to the repository.
 - Use Box2D version 3. The Box2D version in apt is 2, which is ancient.
 - Do not run CodeQL or other security analysis tools.
+- Remove all whitespace from the end of lines in any files you modify.
