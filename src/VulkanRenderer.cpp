@@ -258,13 +258,15 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
     if (isDebugPipeline) {
-        // Create line pipeline
+        // Create line pipeline with wider line width for visibility
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        rasterizer.lineWidth = 2.0f;  // Increase line width for better visibility
         assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugLinePipeline) == VK_SUCCESS);
         std::cout << "Created debug line pipeline: " << m_debugLinePipeline << std::endl;
 
-        // Create triangle pipeline
+        // Create triangle pipeline with normal line width
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        rasterizer.lineWidth = 1.0f;  // Reset to normal for triangles
         assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugTrianglePipeline) == VK_SUCCESS);
         std::cout << "Created debug triangle pipeline: " << m_debugTrianglePipeline << std::endl;
 
