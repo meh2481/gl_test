@@ -258,12 +258,14 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
     if (isDebugPipeline) {
-        // Create line pipeline
+        // Create line pipeline with polygon mode set to LINE
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
         assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugLinePipeline) == VK_SUCCESS);
 
-        // Create triangle pipeline
+        // Create triangle pipeline with polygon mode set to FILL
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugTrianglePipeline) == VK_SUCCESS);
 
         m_debugPipelines[id] = true;
