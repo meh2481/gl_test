@@ -258,17 +258,13 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
     if (isDebugPipeline) {
-        // Create line pipeline with wider line width for visibility
+        // Create line pipeline
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-        rasterizer.lineWidth = 2.0f;  // Increase line width for better visibility
         assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugLinePipeline) == VK_SUCCESS);
-        std::cout << "Created debug line pipeline: " << m_debugLinePipeline << std::endl;
 
-        // Create triangle pipeline with normal line width
+        // Create triangle pipeline
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        rasterizer.lineWidth = 1.0f;  // Reset to normal for triangles
         assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugTrianglePipeline) == VK_SUCCESS);
-        std::cout << "Created debug triangle pipeline: " << m_debugTrianglePipeline << std::endl;
 
         m_debugPipelines[id] = true;
     } else {
@@ -857,17 +853,6 @@ void VulkanRenderer::updateDebugVertexBuffer(const std::vector<float>& vertexDat
         return;
     }
 
-    // Debug: Print first few vertices to see coordinates
-    static bool printed = false;
-    if (!printed && vertexData.size() >= 12) {
-        std::cout << "First 2 line vertices (x,y,r,g,b,a):" << std::endl;
-        std::cout << "  V0: (" << vertexData[0] << ", " << vertexData[1] << ") color(" 
-                  << vertexData[2] << ", " << vertexData[3] << ", " << vertexData[4] << ", " << vertexData[5] << ")" << std::endl;
-        std::cout << "  V1: (" << vertexData[6] << ", " << vertexData[7] << ") color(" 
-                  << vertexData[8] << ", " << vertexData[9] << ", " << vertexData[10] << ", " << vertexData[11] << ")" << std::endl;
-        printed = true;
-    }
-
     size_t dataSize = vertexData.size() * sizeof(float);
 
     // Reallocate if needed
@@ -1189,11 +1174,6 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             }
             // Then draw lines
             if (debugVertexCount > 0 && m_debugLinePipeline != VK_NULL_HANDLE) {
-                static bool once = true;
-                if (once) {
-                    std::cout << "Drawing lines: count=" << debugVertexCount << " pipeline=" << m_debugLinePipeline << std::endl;
-                    once = false;
-                }
                 VkBuffer debugBuffers[] = {debugVertexBuffer};
                 VkDeviceSize offsets[] = {0};
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);

@@ -12,7 +12,7 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
     g = ((hexColor >> 8) & 0xFF) / 255.0f;
     b = (hexColor & 0xFF) / 255.0f;
     a = ((hexColor >> 24) & 0xFF) / 255.0f;
-    
+
     // Box2D colors often have alpha=0, default to fully opaque
     if (a == 0.0f) {
         a = 1.0f;
@@ -293,8 +293,8 @@ void Box2DPhysics::addCircleFixture(int bodyId, float radius, float density, flo
     b2CreateCircleShape(it->second, &shapeDef, &circle);
 }
 
-int Box2DPhysics::createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy, 
-                                       float anchorBx, float anchorBy, bool enableLimit, 
+int Box2DPhysics::createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy,
+                                       float anchorBx, float anchorBy, bool enableLimit,
                                        float lowerAngle, float upperAngle) {
     SDL_LockMutex(physicsMutex_);
 
@@ -411,11 +411,6 @@ void Box2DPhysics::DrawCircle(b2Vec2 center, float radius, b2HexColor color, voi
         physics->addLineVertex(p1.x, p1.y, color);
         physics->addLineVertex(p2.x, p2.y, color);
     }
-
-    // Draw a reference line from center to edge (static, doesn't rotate).
-    // DrawSolidCircle should be called for proper rotation visualization.
-    physics->addLineVertex(center.x, center.y, color);
-    physics->addLineVertex(center.x + radius, center.y, color);
 }
 
 void Box2DPhysics::DrawSolidCircle(b2Transform transform, float radius, b2HexColor color, void* context) {
@@ -450,7 +445,7 @@ void Box2DPhysics::DrawSolidCircle(b2Transform transform, float radius, b2HexCol
         physics->addLineVertex(p2.x, p2.y, color);
     }
 
-    // Draw axis line from center to edge - rotates with the circle to show rotation angle
+    // Draw axis line
     b2Vec2 axis = b2RotateVector(transform.q, (b2Vec2){radius, 0.0f});
     physics->addLineVertex(center.x, center.y, color);
     physics->addLineVertex(center.x + axis.x, center.y + axis.y, color);
