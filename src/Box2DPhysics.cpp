@@ -12,6 +12,11 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
     g = ((hexColor >> 8) & 0xFF) / 255.0f;
     b = (hexColor & 0xFF) / 255.0f;
     a = ((hexColor >> 24) & 0xFF) / 255.0f;
+    
+    // Box2D colors often have alpha=0, default to fully opaque
+    if (a == 0.0f) {
+        a = 1.0f;
+    }
 }
 
 Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
