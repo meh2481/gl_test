@@ -27,8 +27,8 @@ function init()
     -- Load regular textured shaders (no normal mapping) (z-index 1, 1 texture)
     simpleTexShaderId = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, 1)
 
-    -- Load additive blending shader for bloom effect (z-index 3, above debug, 1 texture)
-    bloomShaderId = loadTexturedShadersAdditive("sprite_vertex.spv", "sprite_fragment.spv", 3, 1)
+    -- Load additive blending shader for bloom effect (z-index 2, below debug, 1 texture)
+    bloomShaderId = loadTexturedShadersAdditive("sprite_vertex.spv", "sprite_fragment.spv", 2, 1)
 
     -- Set shader parameters for Phong shader
     -- Position (0.5, 0.5, chainLightZ) - light position
@@ -40,8 +40,8 @@ function init()
     -- levels: 3.0 (3 cel-shading levels)
     setShaderParameters(toonShaderId, 0.5, 0.5, chainLightZ, 3.0)
 
-    -- Load debug drawing shader (z-index 2, drawn on top)
-    loadShaders("debug_vertex.spv", "debug_fragment.spv", 2)
+    -- Load debug drawing shader (z-index 3, drawn on top)
+    loadShaders("debug_vertex.spv", "debug_fragment.spv", 3)
 
     rockTexId = loadTexture("rock.png")
     rockNormId = loadTexture("rock.norm.png")
