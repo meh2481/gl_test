@@ -74,7 +74,7 @@ function init()
 
         local layerId
         if i <= 1 then
-            layerId = createLayer(lanternTexId, 0.2, lanternNormId, phongShaderId)
+            layerId = createLayer(metalwallTexId, 0.2, metalwallNormId, phongShaderId)
         elseif i <= 2 then
             -- Phong shading with normal maps
             layerId = createLayer(metalwallTexId, 0.2, metalwallNormId, phongShaderId)
