@@ -100,7 +100,8 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
     
     // Group layers by pipeline ID first, then by descriptor ID
     // Use a pair<pipelineId, descriptorId> as the batch map key
-    std::unordered_map<std::pair<int, uint64_t>, SpriteBatch*, PairHash> batchMap;
+    // Map to batch index instead of pointer to avoid invalidation during sorting
+    std::unordered_map<std::pair<int, uint64_t>, size_t, PairHash> batchMap;
     
     for (const auto& pair : layers_) {
         const SceneLayer& layer = pair.second;
@@ -114,19 +115,21 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
         auto batchKey = std::make_pair(layer.pipelineId, layer.descriptorId);
         
         // Find or create batch for this key
-        SpriteBatch* batch = nullptr;
+        size_t batchIndex;
         auto batchIt = batchMap.find(batchKey);
         if (batchIt == batchMap.end()) {
+            batchIndex = batches.size();
             batches.push_back(SpriteBatch());
-            batch = &batches.back();
-            batch->textureId = layer.textureId;
-            batch->normalMapId = layer.normalMapId;
-            batch->descriptorId = layer.descriptorId;
-            batch->pipelineId = layer.pipelineId;
-            batchMap[batchKey] = batch;
+            batches[batchIndex].textureId = layer.textureId;
+            batches[batchIndex].normalMapId = layer.normalMapId;
+            batches[batchIndex].descriptorId = layer.descriptorId;
+            batches[batchIndex].pipelineId = layer.pipelineId;
+            batchMap[batchKey] = batchIndex;
         } else {
-            batch = batchIt->second;
+            batchIndex = batchIt->second;
         }
+        
+        SpriteBatch& batch = batches[batchIndex];
         
         float centerX = layer.cachedX;
         float centerY = layer.cachedY;
@@ -157,7 +160,7 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
         float cosA = std::cos(angle);
         float sinA = std::sin(angle);
         
-        uint16_t baseIndex = static_cast<uint16_t>(batch->vertices.size());
+        uint16_t baseIndex = static_cast<uint16_t>(batch.vertices.size());
         
         for (int i = 0; i < 4; i++) {
             // Apply offset
@@ -175,17 +178,17 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
             vert.u = uvs[i][0];
             vert.v = uvs[i][1];
             
-            batch->vertices.push_back(vert);
+            batch.vertices.push_back(vert);
         }
         
         // Create indices for two triangles (quad)
-        batch->indices.push_back(baseIndex + 0);
-        batch->indices.push_back(baseIndex + 1);
-        batch->indices.push_back(baseIndex + 2);
+        batch.indices.push_back(baseIndex + 0);
+        batch.indices.push_back(baseIndex + 1);
+        batch.indices.push_back(baseIndex + 2);
         
-        batch->indices.push_back(baseIndex + 2);
-        batch->indices.push_back(baseIndex + 3);
-        batch->indices.push_back(baseIndex + 0);
+        batch.indices.push_back(baseIndex + 2);
+        batch.indices.push_back(baseIndex + 3);
+        batch.indices.push_back(baseIndex + 0);
     }
     
     // Sort batches by pipeline ID first, then by descriptor ID for deterministic rendering order
