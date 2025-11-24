@@ -107,4 +107,7 @@ private:
     SDL_Mutex* physicsMutex_;
     SDL_AtomicInt stepInProgress_;
     SDL_Thread* stepThread_;
+
+    // Ground body for mouse joint (lazy initialized, protected by mutex)
+    b2BodyId mouseJointGroundBody_;
 };

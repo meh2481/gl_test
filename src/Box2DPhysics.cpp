@@ -20,7 +20,7 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
 }
 
 Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
-                                timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP) {
+                                timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId) {
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldId_ = b2CreateWorld(&worldDef);
@@ -392,16 +392,15 @@ int Box2DPhysics::createMouseJoint(int bodyId, float targetX, float targetY, flo
 
     // Create a static ground body for the mouse joint if not exists
     // (Mouse joint needs a static body as bodyA)
-    static b2BodyId groundBodyId = b2_nullBodyId;
-    if (!b2Body_IsValid(groundBodyId)) {
+    if (!b2Body_IsValid(mouseJointGroundBody_)) {
         b2BodyDef groundDef = b2DefaultBodyDef();
         groundDef.type = b2_staticBody;
         groundDef.position = (b2Vec2){0.0f, 0.0f};
-        groundBodyId = b2CreateBody(worldId_, &groundDef);
+        mouseJointGroundBody_ = b2CreateBody(worldId_, &groundDef);
     }
 
     b2MouseJointDef jointDef = b2DefaultMouseJointDef();
-    jointDef.bodyIdA = groundBodyId;
+    jointDef.bodyIdA = mouseJointGroundBody_;
     jointDef.bodyIdB = it->second;
     jointDef.target = (b2Vec2){targetX, targetY};
     jointDef.hertz = 4.0f;

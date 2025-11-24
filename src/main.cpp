@@ -28,6 +28,13 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     return value;
 }
 
+// Convert screen coordinates to world coordinates
+// World coordinates are roughly -1 to 1 in both x and y
+inline void screenToWorld(float screenX, float screenY, int windowWidth, int windowHeight, float* worldX, float* worldY) {
+    *worldX = (screenX / (float)windowWidth) * 2.0f - 1.0f;
+    *worldY = 1.0f - (screenY / (float)windowHeight) * 2.0f; // Flip Y
+}
+
 #ifdef DEBUG
 // Structure to pass data to the hot-reload thread
 struct HotReloadData {
@@ -270,12 +277,10 @@ int main() {
             }
             // Handle mouse button press for drag actions
             if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_LEFT) {
-                // Convert mouse coordinates to world coordinates
-                // The world is roughly -1 to 1 in both x and y (normalized device coordinates)
                 int windowWidth, windowHeight;
+                float worldX, worldY;
                 SDL_GetWindowSize(window, &windowWidth, &windowHeight);
-                float worldX = (event.button.x / (float)windowWidth) * 2.0f - 1.0f;
-                float worldY = 1.0f - (event.button.y / (float)windowHeight) * 2.0f; // Flip Y
+                screenToWorld(event.button.x, event.button.y, windowWidth, windowHeight, &worldX, &worldY);
                 sceneManager.setCursorPosition(worldX, worldY);
                 sceneManager.handleAction(ACTION_DRAG_START);
             }
@@ -286,9 +291,9 @@ int main() {
             // Handle mouse motion for cursor tracking
             if (event.type == SDL_EVENT_MOUSE_MOTION) {
                 int windowWidth, windowHeight;
+                float worldX, worldY;
                 SDL_GetWindowSize(window, &windowWidth, &windowHeight);
-                float worldX = (event.motion.x / (float)windowWidth) * 2.0f - 1.0f;
-                float worldY = 1.0f - (event.motion.y / (float)windowHeight) * 2.0f; // Flip Y
+                screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight, &worldX, &worldY);
                 sceneManager.setCursorPosition(worldX, worldY);
             }
         }
