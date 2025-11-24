@@ -42,7 +42,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
-                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled",
+                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
@@ -434,6 +434,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "attachLayerToBody", attachLayerToBody);
     lua_register(luaState_, "detachLayer", detachLayer);
     lua_register(luaState_, "setLayerEnabled", setLayerEnabled);
+    lua_register(luaState_, "setLayerOffset", setLayerOffset);
 
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
@@ -1130,6 +1131,24 @@ int LuaInterface::setLayerEnabled(lua_State* L) {
     bool enabled = lua_toboolean(L, 2);
 
     interface->layerManager_->setLayerEnabled(layerId, enabled);
+    return 0;
+}
+
+int LuaInterface::setLayerOffset(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 3);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float offsetX = lua_tonumber(L, 2);
+    float offsetY = lua_tonumber(L, 3);
+
+    interface->layerManager_->setLayerOffset(layerId, offsetX, offsetY);
     return 0;
 }
 
