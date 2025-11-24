@@ -12,6 +12,7 @@ chainStartY = 0.7
 chainLightZ = 0.25
 chainLinkHeight = 0.04
 chainLength = 10
+CHAIN_OFFSET = 0.0035
 
 function init()
     -- Load the nebula background shader (z-index 0)
@@ -45,6 +46,8 @@ function init()
     metalwallNormId = loadTexture("metalwall.norm.png")
     lanternTexId = loadTexture("lantern.png")
     lanternNormId = loadTexture("lantern.norm.png")
+    chainTexId = loadTexture("chain.png")
+    chainNormId = loadTexture("chain.norm.png")
 
     -- Enable Box2D debug drawing
     b2EnableDebugDraw(true)
@@ -129,12 +132,17 @@ function init()
         table.insert(bodies, linkId)
         table.insert(chainLinks, linkId)
 
+        -- Attach sprite layer to chain link
+        local layerId = createLayer(chainTexId, 0.03, linkHeight, chainNormId, phongShaderId)
+        attachLayerToBody(layerId, linkId)
+        table.insert(layers, layerId)
+
         -- Create revolute joint to connect to previous link/anchor
         local jointId = b2CreateRevoluteJoint(
             prevBodyId,
             linkId,
-            0.0, -linkHeight / 2,  -- anchor on previous body (bottom)
-            0.0, linkHeight / 2,    -- anchor on current body (top)
+            0.0, -linkHeight / 2 + CHAIN_OFFSET,  -- anchor on previous body (bottom)
+            0.0, linkHeight / 2 - CHAIN_OFFSET,    -- anchor on current body (top)
             false, 0.0, 0.0         -- no angle limits
         )
         table.insert(joints, jointId)
@@ -156,8 +164,8 @@ function init()
     local lightJointId = b2CreateRevoluteJoint(
         prevBodyId,
         lightBody,
-        0.0, -linkHeight / 2,  -- anchor on last chain link (bottom)
-        0.0, 0.05,               -- anchor on light body (top)
+        0.0, -linkHeight / 2 + CHAIN_OFFSET,  -- anchor on last chain link (bottom)
+        0.0, 0.05 - CHAIN_OFFSET,               -- anchor on light body (top)
         false, 0.0, 0.0
     )
     table.insert(joints, lightJointId)
