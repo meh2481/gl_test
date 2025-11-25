@@ -201,12 +201,12 @@ function init()
     lightBody = b2CreateBody(B2_DYNAMIC_BODY, chainStartX, chainStartY - (chainLength + 0.5) * linkHeight, 0)
     -- Small lantern-shaped polygon for the chain light
     local smallLanternVerts = {
-        0, -0.045,  -- bottom center
-        0.03,  -0.03,   -- middle right
-        0.025,  0.02,  -- top right
+        0.0, -0.052,  -- bottom center
+        0.03,  -0.035,   -- middle right
+        0.025,  0.015,  -- top right
         0.0,  0.045,    -- top center
-        -0.025,  0.02,  -- top left
-        -0.03,  -0.03    -- middle left
+        -0.025,  0.015,  -- top left
+        -0.03,  -0.035    -- middle left
     }
     b2AddPolygonFixture(lightBody, smallLanternVerts, 0.2, 0.3, 0.3)
     table.insert(bodies, lightBody)
