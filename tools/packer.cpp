@@ -4,6 +4,7 @@
 #include <vector>
 #include <sys/stat.h>
 #include <cstring>
+#include <cmath>
 #include <lz4.h>
 #include <filesystem>
 #include <functional>
@@ -333,173 +334,177 @@ void compressImageRaw(const vector<uint8_t>& imageData, vector<char>& compressed
 size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>& atlases, uint32_t maxAtlasSize) {
     if (images.empty()) return 0;
 
-    // Separate images by alpha channel type (BC1 vs BC3 require different formats)
-    vector<size_t> rgbIndices;
-    vector<size_t> rgbaIndices;
+    // Sort all images by area (descending) for better bin packing
+    // Larger images should be placed first
+    vector<size_t> sortedIndices(images.size());
     for (size_t i = 0; i < images.size(); i++) {
-        if (images[i].hasAlpha) {
-            rgbaIndices.push_back(i);
-        } else {
-            rgbIndices.push_back(i);
-        }
+        sortedIndices[i] = i;
+    }
+    sort(sortedIndices.begin(), sortedIndices.end(), [&images](size_t a, size_t b) {
+        uint32_t areaA = images[a].width * images[a].height;
+        uint32_t areaB = images[b].width * images[b].height;
+        return areaA > areaB;
+    });
+
+    // Prepare rectangles for all images
+    vector<PackRect> rects;
+    rects.reserve(images.size());
+    for (size_t idx : sortedIndices) {
+        PackRect rect;
+        // Align to 4 pixels for DXT block boundaries
+        rect.width = alignTo4(images[idx].width);
+        rect.height = alignTo4(images[idx].height);
+        rect.imageIndex = idx;
+        rect.packed = false;
+        rects.push_back(rect);
     }
 
-    // Sort by height (descending) for better bin packing
-    auto sortByHeight = [&images](size_t a, size_t b) {
-        return images[a].height > images[b].height;
-    };
-    sort(rgbIndices.begin(), rgbIndices.end(), sortByHeight);
-    sort(rgbaIndices.begin(), rgbaIndices.end(), sortByHeight);
+    // Calculate total area needed (with some padding for inefficiency)
+    uint64_t totalArea = 0;
+    uint32_t maxImageW = 0, maxImageH = 0;
+    for (const auto& rect : rects) {
+        totalArea += (uint64_t)rect.width * rect.height;
+        maxImageW = max(maxImageW, rect.width);
+        maxImageH = max(maxImageH, rect.height);
+    }
 
-    // Helper function to pack a group of images
-    auto packGroup = [&](const vector<size_t>& indices, bool hasAlpha) {
-        vector<PackRect> rects;
-        rects.reserve(indices.size());
+    // Start with atlas size that can fit all images (estimate with 30% overhead)
+    uint32_t estimatedSize = (uint32_t)sqrt((double)totalArea * 1.3);
+    uint32_t atlasWidth = 256;
+    uint32_t atlasHeight = 256;
+    while (atlasWidth < estimatedSize && atlasWidth < maxAtlasSize) atlasWidth *= 2;
+    while (atlasHeight < estimatedSize && atlasHeight < maxAtlasSize) atlasHeight *= 2;
+    // Ensure atlas is at least as large as the biggest image
+    while (atlasWidth < maxImageW && atlasWidth < maxAtlasSize) atlasWidth *= 2;
+    while (atlasHeight < maxImageH && atlasHeight < maxAtlasSize) atlasHeight *= 2;
 
-        for (size_t idx : indices) {
-            PackRect rect;
-            // Align to 4 pixels for DXT block boundaries
-            rect.width = alignTo4(images[idx].width);
-            rect.height = alignTo4(images[idx].height);
-            rect.imageIndex = idx;
-            rect.packed = false;
-            rects.push_back(rect);
+    // Try to pack all images into atlases
+    while (true) {
+        // Find unpacked rects
+        vector<size_t> unpacked;
+        for (size_t i = 0; i < rects.size(); i++) {
+            if (!rects[i].packed) {
+                unpacked.push_back(i);
+            }
+        }
+        if (unpacked.empty()) break;
+
+        // Try progressively larger atlas sizes until we can pack at least one image
+        uint32_t tryWidth = atlasWidth;
+        uint32_t tryHeight = atlasHeight;
+        bool success = false;
+        vector<size_t> packedInThisAtlas;
+
+        while (!success && tryWidth <= maxAtlasSize && tryHeight <= maxAtlasSize) {
+            MaxRectsBinPacker packer(tryWidth, tryHeight);
+            packedInThisAtlas.clear();
+
+            // Try to pack all unpacked images into this atlas
+            for (size_t i : unpacked) {
+                PackRect testRect = rects[i];
+                if (packer.pack(testRect)) {
+                    rects[i] = testRect;  // Update with packed position
+                    packedInThisAtlas.push_back(i);
+                }
+            }
+
+            if (!packedInThisAtlas.empty()) {
+                success = true;
+            } else {
+                // Grow atlas - prefer square-ish shapes
+                if (tryWidth <= tryHeight && tryWidth * 2 <= maxAtlasSize) {
+                    tryWidth *= 2;
+                } else if (tryHeight * 2 <= maxAtlasSize) {
+                    tryHeight *= 2;
+                } else {
+                    break;  // Can't grow further
+                }
+            }
         }
 
-        // Pack into atlases
-        while (true) {
-            // Find unpacked rects
-            vector<size_t> unpacked;
-            for (size_t i = 0; i < rects.size(); i++) {
-                if (!rects[i].packed) {
-                    unpacked.push_back(i);
-                }
-            }
-            if (unpacked.empty()) break;
-
-            // Determine atlas size - start with minimum needed and grow
-            uint32_t atlasWidth = 256;
-            uint32_t atlasHeight = 256;
-
-            // Find the largest unpacked image
-            uint32_t maxW = 0, maxH = 0;
+        if (!success) {
+            // Images too large for atlas - mark remaining as standalone
             for (size_t i : unpacked) {
-                maxW = max(maxW, rects[i].width);
-                maxH = max(maxH, rects[i].height);
+                rects[i].packed = true;  // Mark to avoid infinite loop
             }
-
-            // Atlas must be at least as large as the largest image
-            while (atlasWidth < maxW && atlasWidth < maxAtlasSize) atlasWidth *= 2;
-            while (atlasHeight < maxH && atlasHeight < maxAtlasSize) atlasHeight *= 2;
-
-            // Try to pack at current size, grow if needed
-            bool anyPacked = false;
-            while (!anyPacked && atlasWidth <= maxAtlasSize && atlasHeight <= maxAtlasSize) {
-                MaxRectsBinPacker packer(atlasWidth, atlasHeight);
-
-                for (size_t i : unpacked) {
-                    if (packer.pack(rects[i])) {
-                        anyPacked = true;
-                    }
-                }
-
-                if (!anyPacked) {
-                    // Grow atlas
-                    if (atlasWidth <= atlasHeight && atlasWidth * 2 <= maxAtlasSize) {
-                        atlasWidth *= 2;
-                    } else if (atlasHeight * 2 <= maxAtlasSize) {
-                        atlasHeight *= 2;
-                    } else {
-                        break;  // Can't grow further
-                    }
-                }
-            }
-
-            if (!anyPacked) {
-                // Images too large for atlas - they will be stored as individual images
-                // Reset their packed flag so they can be processed individually
-                for (size_t i : unpacked) {
-                    if (!rects[i].packed) {
-                        // Mark as processed but remember they're oversized
-                        rects[i].packed = true;
-                        // These images will fall through to individual processing below
-                    }
-                }
-                continue;
-            }
-
-            // Create atlas with packed images
-            // Generate deterministic atlas ID based on content hash
-            uint64_t atlasContentHash = 0;
-            for (size_t i : unpacked) {
-                if (rects[i].packed) {
-                    atlasContentHash ^= images[rects[i].imageIndex].id;
-                    atlasContentHash = (atlasContentHash << 7) | (atlasContentHash >> 57);
-                }
-            }
-            atlasContentHash ^= ((uint64_t)atlasWidth << 32) | atlasHeight;
-            atlasContentHash ^= hasAlpha ? 0xFFFFFFFF : 0;
-
-            TextureAtlas atlas;
-            atlas.atlasId = atlasContentHash;
-            atlas.width = atlasWidth;
-            atlas.height = atlasHeight;
-            atlas.hasAlpha = hasAlpha;
-            atlas.imageData.resize(atlasWidth * atlasHeight * 4, 0);  // Initialize to transparent black
-
-            // Copy packed images into atlas
-            for (size_t i : unpacked) {
-                if (rects[i].packed) {
-                    PackRect& rect = rects[i];
-                    PNGImageData& img = images[rect.imageIndex];
-
-                    // Convert source image to RGBA if needed
-                    vector<uint8_t> rgbaSource;
-                    const uint8_t* srcData;
-                    if (img.hasAlpha) {
-                        srcData = img.imageData.data();
-                    } else {
-                        rgbaSource.resize(img.width * img.height * 4);
-                        for (uint32_t p = 0; p < img.width * img.height; p++) {
-                            rgbaSource[p * 4 + 0] = img.imageData[p * 3 + 0];
-                            rgbaSource[p * 4 + 1] = img.imageData[p * 3 + 1];
-                            rgbaSource[p * 4 + 2] = img.imageData[p * 3 + 2];
-                            rgbaSource[p * 4 + 3] = 255;
-                        }
-                        srcData = rgbaSource.data();
-                    }
-
-                    // Copy pixels to atlas
-                    for (uint32_t y = 0; y < img.height; y++) {
-                        for (uint32_t x = 0; x < img.width; x++) {
-                            uint32_t srcIdx = (y * img.width + x) * 4;
-                            uint32_t dstIdx = ((rect.y + y) * atlasWidth + (rect.x + x)) * 4;
-                            atlas.imageData[dstIdx + 0] = srcData[srcIdx + 0];
-                            atlas.imageData[dstIdx + 1] = srcData[srcIdx + 1];
-                            atlas.imageData[dstIdx + 2] = srcData[srcIdx + 2];
-                            atlas.imageData[dstIdx + 3] = srcData[srcIdx + 3];
-                        }
-                    }
-
-                    // Create atlas entry
-                    AtlasEntry entry;
-                    entry.originalId = img.id;
-                    entry.x = (uint16_t)rect.x;
-                    entry.y = (uint16_t)rect.y;
-                    entry.width = (uint16_t)img.width;
-                    entry.height = (uint16_t)img.height;
-                    atlas.entries.push_back(entry);
-                    atlas.packedImageIndices.push_back(rect.imageIndex);
-                }
-            }
-
-            atlases.push_back(std::move(atlas));
+            continue;
         }
-    };
 
-    // Pack RGB and RGBA images separately (different DXT formats)
-    packGroup(rgbIndices, false);
-    packGroup(rgbaIndices, true);
+        // Determine if this atlas needs alpha (BC3) or can use BC1
+        bool atlasHasAlpha = false;
+        for (size_t i : packedInThisAtlas) {
+            if (images[rects[i].imageIndex].hasAlpha) {
+                atlasHasAlpha = true;
+                break;
+            }
+        }
+
+        // Generate deterministic atlas ID based on content
+        uint64_t atlasContentHash = 0;
+        for (size_t i : packedInThisAtlas) {
+            atlasContentHash ^= images[rects[i].imageIndex].id;
+            atlasContentHash = (atlasContentHash << 7) | (atlasContentHash >> 57);
+        }
+        atlasContentHash ^= ((uint64_t)tryWidth << 32) | tryHeight;
+        atlasContentHash ^= atlasHasAlpha ? 0xFFFFFFFF : 0;
+
+        // Create the atlas
+        TextureAtlas atlas;
+        atlas.atlasId = atlasContentHash;
+        atlas.width = tryWidth;
+        atlas.height = tryHeight;
+        atlas.hasAlpha = atlasHasAlpha;
+        atlas.imageData.resize(tryWidth * tryHeight * 4, 0);  // Initialize to transparent black
+
+        // Copy packed images into atlas
+        for (size_t i : packedInThisAtlas) {
+            PackRect& rect = rects[i];
+            PNGImageData& img = images[rect.imageIndex];
+
+            // Convert source image to RGBA if needed
+            vector<uint8_t> rgbaSource;
+            const uint8_t* srcData;
+            if (img.hasAlpha) {
+                srcData = img.imageData.data();
+            } else {
+                rgbaSource.resize(img.width * img.height * 4);
+                for (uint32_t p = 0; p < img.width * img.height; p++) {
+                    rgbaSource[p * 4 + 0] = img.imageData[p * 3 + 0];
+                    rgbaSource[p * 4 + 1] = img.imageData[p * 3 + 1];
+                    rgbaSource[p * 4 + 2] = img.imageData[p * 3 + 2];
+                    rgbaSource[p * 4 + 3] = 255;
+                }
+                srcData = rgbaSource.data();
+            }
+
+            // Copy pixels to atlas
+            for (uint32_t y = 0; y < img.height; y++) {
+                for (uint32_t x = 0; x < img.width; x++) {
+                    uint32_t srcIdx = (y * img.width + x) * 4;
+                    uint32_t dstIdx = ((rect.y + y) * tryWidth + (rect.x + x)) * 4;
+                    atlas.imageData[dstIdx + 0] = srcData[srcIdx + 0];
+                    atlas.imageData[dstIdx + 1] = srcData[srcIdx + 1];
+                    atlas.imageData[dstIdx + 2] = srcData[srcIdx + 2];
+                    atlas.imageData[dstIdx + 3] = srcData[srcIdx + 3];
+                }
+            }
+
+            // Create atlas entry
+            AtlasEntry entry;
+            entry.originalId = img.id;
+            entry.x = (uint16_t)rect.x;
+            entry.y = (uint16_t)rect.y;
+            entry.width = (uint16_t)img.width;
+            entry.height = (uint16_t)img.height;
+            atlas.entries.push_back(entry);
+            atlas.packedImageIndices.push_back(rect.imageIndex);
+
+            // Mark as packed
+            rect.packed = true;
+        }
+
+        atlases.push_back(std::move(atlas));
+    }
 
     return atlases.size();
 }
