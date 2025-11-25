@@ -120,6 +120,7 @@ jobs:
         run: |
           mkdir -p build
           cd build
+          export PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH
           cmake -DCMAKE_PREFIX_PATH=$HOME/.local:/usr/local ..
           make
 
