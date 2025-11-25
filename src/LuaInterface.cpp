@@ -1403,6 +1403,15 @@ int LuaInterface::getTextureDimensions(lua_State* L) {
 
     uint64_t textureId = (uint64_t)lua_tointeger(L, 1);
 
+    // First check if this texture is an atlas reference
+    AtlasUV atlasUV;
+    if (interface->pakResource_.getAtlasUV(textureId, atlasUV) && atlasUV.width > 0 && atlasUV.height > 0) {
+        lua_pushinteger(L, atlasUV.width);
+        lua_pushinteger(L, atlasUV.height);
+        return 2;
+    }
+
+    // Fall back to renderer texture dimensions for standalone textures
     uint32_t width, height;
     if (interface->renderer_.getTextureDimensions(textureId, &width, &height)) {
         lua_pushinteger(L, width);
