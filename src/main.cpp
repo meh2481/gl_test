@@ -29,9 +29,10 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
 }
 
 // Convert screen coordinates to world coordinates
-// World coordinates are roughly -1 to 1 in both x and y
+// World coordinates are -aspect to aspect in x, -1 to 1 in y (aspect = width/height)
 inline void screenToWorld(float screenX, float screenY, int windowWidth, int windowHeight, float* worldX, float* worldY) {
-    *worldX = (screenX / (float)windowWidth) * 2.0f - 1.0f;
+    float aspect = windowWidth / (float)windowHeight;
+    *worldX = ((screenX / (float)windowWidth) * 2.0f - 1.0f) * aspect;
     *worldY = 1.0f - (screenY / (float)windowHeight) * 2.0f; // Flip Y
 }
 

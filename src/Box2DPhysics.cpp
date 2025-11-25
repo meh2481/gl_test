@@ -338,10 +338,11 @@ void Box2DPhysics::destroyJoint(int jointId) {
 struct OverlapQueryContext {
     b2BodyId foundBodyId;
     bool found;
+    b2Vec2 point;
 };
 
 // Small epsilon for point query AABB
-static constexpr float POINT_QUERY_EPSILON = 0.001f;
+static constexpr float POINT_QUERY_EPSILON = 0.00002f;
 
 // Overlap callback to find a body at a point
 static bool overlapCallback(b2ShapeId shapeId, void* context) {
@@ -349,10 +350,46 @@ static bool overlapCallback(b2ShapeId shapeId, void* context) {
     b2BodyId bodyId = b2Shape_GetBody(shapeId);
     // Only consider dynamic bodies
     b2BodyType bodyType = b2Body_GetType(bodyId);
-    if (bodyType == b2_dynamicBody) {
+    if (bodyType != b2_dynamicBody) {
+        return true; // Continue query
+    }
+
+    b2Transform transform = b2Body_GetTransform(bodyId);
+    b2ShapeType shapeType = b2Shape_GetType(shapeId);
+    bool overlaps = false;
+
+    if (shapeType == b2_polygonShape) {
+        b2Polygon polygon = b2Shape_GetPolygon(shapeId);
+        b2Vec2 localPoint = b2InvTransformPoint(transform, ctx->point);
+        int count = polygon.count;
+        const b2Vec2* vertices = polygon.vertices;
+        overlaps = true;
+        for (int i = 0; i < count; ++i) {
+            b2Vec2 a = vertices[i];
+            b2Vec2 b = vertices[(i + 1) % count];
+            b2Vec2 edge = b2Sub(b, a);
+            b2Vec2 toPoint = b2Sub(localPoint, a);
+            float cross = edge.x * toPoint.y - edge.y * toPoint.x;
+            if (cross < 0) {
+                overlaps = false;
+                break;
+            }
+        }
+    } else if (shapeType == b2_circleShape) {
+        b2Circle circle = b2Shape_GetCircle(shapeId);
+        b2Vec2 localPoint = b2InvTransformPoint(transform, ctx->point);
+        float dx = localPoint.x - circle.center.x;
+        float dy = localPoint.y - circle.center.y;
+        overlaps = (dx * dx + dy * dy) <= (circle.radius * circle.radius);
+    } else {
+        // For other shapes, skip
+        return true;
+    }
+
+    if (overlaps) {
         ctx->foundBodyId = bodyId;
         ctx->found = true;
-        return false; // Stop query after finding first dynamic body
+        return false; // Stop query after finding first overlapping dynamic body
     }
     return true; // Continue query
 }
@@ -367,6 +404,7 @@ int Box2DPhysics::queryBodyAtPoint(float x, float y) {
 
     OverlapQueryContext ctx;
     ctx.found = false;
+    ctx.point = (b2Vec2){x, y};
 
     b2QueryFilter filter = b2DefaultQueryFilter();
     b2World_OverlapAABB(worldId_, aabb, filter, overlapCallback, &ctx);
