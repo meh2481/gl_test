@@ -35,16 +35,6 @@ jobs:
         with:
           path: |
             /var/cache/apt/archives/*.deb
-            /usr/include/vulkan
-            /usr/lib/x86_64-linux-gnu/libvulkan*
-            /usr/lib/x86_64-linux-gnu/liblz4*
-            /usr/lib/x86_64-linux-gnu/liblua5.4*
-            /usr/lib/x86_64-linux-gnu/libpng*
-            /usr/lib/x86_64-linux-gnu/libsquish*
-            /usr/lib/x86_64-linux-gnu/libopenal*
-            /usr/lib/x86_64-linux-gnu/libopusfile*
-            /usr/bin/glslc
-            /usr/bin/vulkaninfo
           key: apt-packages-${{ runner.os }}-v1
 
       - name: Install required libraries
@@ -58,11 +48,11 @@ jobs:
         id: cache-sdl3
         with:
           path: |
-            /usr/local/lib/libSDL3*
-            /usr/local/include/SDL3
-            /usr/local/lib/cmake/SDL3
-            /usr/local/lib/pkgconfig/sdl3.pc
-            /usr/local/share/licenses/SDL3
+            ~/.local/lib/libSDL3*
+            ~/.local/include/SDL3
+            ~/.local/lib/cmake/SDL3
+            ~/.local/lib/pkgconfig/sdl3.pc
+            ~/.local/share/licenses/SDL3
           key: sdl3-${{ runner.os }}-release-3.2.0-v1
 
       - name: Install SDL3 from source
@@ -71,25 +61,20 @@ jobs:
           git clone --depth 1 --branch release-3.2.0 https://github.com/libsdl-org/SDL.git SDL3
           cd SDL3
           mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSDL_UNIX_CONSOLE_BUILD=ON ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DSDL_UNIX_CONSOLE_BUILD=ON -DCMAKE_INSTALL_PREFIX=$HOME/.local ..
           cmake --build . -j$(nproc)
-          sudo make install
-          sudo ldconfig
+          make install
           cd ../..
           rm -rf SDL3
-
-      - name: Update shared library cache after SDL3 restore
-        if: steps.cache-sdl3.outputs.cache-hit == 'true'
-        run: sudo ldconfig
 
       - name: Cache Box2D v3
         uses: actions/cache@v4
         id: cache-box2d
         with:
           path: |
-            /usr/local/lib/libbox2d*
-            /usr/local/include/box2d
-            /usr/local/lib/cmake/box2d
+            ~/.local/lib/libbox2d*
+            ~/.local/include/box2d
+            ~/.local/lib/cmake/box2d
           key: box2d-${{ runner.os }}-v3.1.1-v1
 
       - name: Install box2d v3 from source, without examples
@@ -99,19 +84,19 @@ jobs:
           cd box2d
           git checkout v3.1.1
           mkdir build && cd build
-          cmake -DBOX2D_SAMPLES=OFF -DBOX2D_DOCS=OFF -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=OFF ..
+          cmake -DBOX2D_SAMPLES=OFF -DBOX2D_DOCS=OFF -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=OFF -DCMAKE_INSTALL_PREFIX=$HOME/.local ..
           cmake --build .
-          sudo make install
+          make install
 
       - name: Cache ImGui
         uses: actions/cache@v4
         id: cache-imgui
         with:
           path: |
-            /usr/lib/libimgui.so
-            /usr/include/imgui*.h
-            /usr/include/imstb*.h
-            /usr/include/imconfig.h
+            ~/.local/lib/libimgui.so
+            ~/.local/include/imgui*.h
+            ~/.local/include/imstb*.h
+            ~/.local/include/imconfig.h
           key: imgui-${{ runner.os }}-v1.92.4-sdl3-vulkan-v1
 
       - name: Build and install ImGui with SDL3 and Vulkan backend
@@ -120,28 +105,26 @@ jobs:
           git clone https://github.com/ocornut/imgui.git
           cd imgui
           git checkout v1.92.4
-          g++ -fPIC -I. -I/usr/local/include/SDL3 -c imgui.cpp -o imgui.o
-          g++ -fPIC -I. -I/usr/local/include/SDL3 -c imgui_demo.cpp -o imgui_demo.o
-          g++ -fPIC -I. -I/usr/local/include/SDL3 -c imgui_draw.cpp -o imgui_draw.o
-          g++ -fPIC -I. -I/usr/local/include/SDL3 -c imgui_tables.cpp -o imgui_tables.o
-          g++ -fPIC -I. -I/usr/local/include/SDL3 -c imgui_widgets.cpp -o imgui_widgets.o
-          g++ -fPIC -I. -I/usr/local/include/SDL3 -c misc/cpp/imgui_stdlib.cpp -o imgui_stdlib.o
-          g++ -fPIC -I. -I/usr/local/include/SDL3 -c backends/imgui_impl_vulkan.cpp -o imgui_impl_vulkan.o
-          g++ -fPIC -I. -I/usr/local/include/SDL3 -c backends/imgui_impl_sdl3.cpp -o imgui_impl_sdl3.o
+          g++ -fPIC -I. -I$HOME/.local/include/SDL3 -c imgui.cpp -o imgui.o
+          g++ -fPIC -I. -I$HOME/.local/include/SDL3 -c imgui_demo.cpp -o imgui_demo.o
+          g++ -fPIC -I. -I$HOME/.local/include/SDL3 -c imgui_draw.cpp -o imgui_draw.o
+          g++ -fPIC -I. -I$HOME/.local/include/SDL3 -c imgui_tables.cpp -o imgui_tables.o
+          g++ -fPIC -I. -I$HOME/.local/include/SDL3 -c imgui_widgets.cpp -o imgui_widgets.o
+          g++ -fPIC -I. -I$HOME/.local/include/SDL3 -c misc/cpp/imgui_stdlib.cpp -o imgui_stdlib.o
+          g++ -fPIC -I. -I$HOME/.local/include/SDL3 -c backends/imgui_impl_vulkan.cpp -o imgui_impl_vulkan.o
+          g++ -fPIC -I. -I$HOME/.local/include/SDL3 -c backends/imgui_impl_sdl3.cpp -o imgui_impl_sdl3.o
           g++ -shared -o libimgui.so *.o
-          sudo cp libimgui.so /usr/lib/
-          sudo cp *.h /usr/include/
-          sudo cp backends/imgui_impl_vulkan.h /usr/include/
-          sudo cp backends/imgui_impl_sdl3.h /usr/include/
-          sudo cp misc/cpp/imgui_stdlib.h /usr/include/
+          mkdir -p $HOME/.local/lib $HOME/.local/include
+          cp libimgui.so $HOME/.local/lib/
+          cp *.h $HOME/.local/include/
+          cp backends/imgui_impl_vulkan.h $HOME/.local/include/
+          cp backends/imgui_impl_sdl3.h $HOME/.local/include/
+          cp misc/cpp/imgui_stdlib.h $HOME/.local/include/
           cd ..
           rm -rf imgui
 
       - name: Cleanup Box2D/imgui/SDL3 folders
         run: |
-          git rm --cached -r box2d || true
           rm -rf box2d 2>/dev/null || true
-          git rm --cached -r imgui || true
           rm -rf imgui 2>/dev/null || true
-          git rm --cached -r SDL3 || true
           rm -rf SDL3 2>/dev/null || true
