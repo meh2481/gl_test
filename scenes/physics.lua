@@ -228,6 +228,7 @@ function update(deltaTime)
     if mouseJointId then
         local cursorX, cursorY = getCursorPosition()
         b2UpdateMouseJointTarget(mouseJointId, cursorX, cursorY)
+        b2SetBodyAwake(draggedBodyId, true)
     end
 
     -- Update light position based on the light body at the end of the chain
