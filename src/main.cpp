@@ -345,7 +345,8 @@ int main() {
                     float deltaX = worldX - panStartCursorX;
                     float deltaY = worldY - panStartCursorY;
                     sceneManager.setCameraOffset(panStartCameraX - deltaX, panStartCameraY - deltaY);
-                    // Recalculate cursor position with new camera offset
+                    // Recalculate cursor position with new camera offset - this is necessary
+                    // because world coordinates change when the camera moves
                     screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
                                   sceneManager.getCameraOffsetX(), sceneManager.getCameraOffsetY(),
                                   sceneManager.getCameraZoom(), &worldX, &worldY);

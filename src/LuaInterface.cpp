@@ -2016,16 +2016,20 @@ int LuaInterface::setCameraZoom(lua_State* L) {
     return 0;
 }
 
+// Camera zoom constants
+static const float ZOOM_SCROLL_FACTOR = 1.1f;
+static const float MIN_CAMERA_ZOOM = 0.1f;
+static const float MAX_CAMERA_ZOOM = 10.0f;
+
 // applyScrollZoom applies zoom based on scroll delta
 void LuaInterface::applyScrollZoom(float scrollDelta) {
-    float zoomFactor = 1.1f;
     if (scrollDelta > 0) {
-        cameraZoom_ *= zoomFactor;
+        cameraZoom_ *= ZOOM_SCROLL_FACTOR;
     } else if (scrollDelta < 0) {
-        cameraZoom_ /= zoomFactor;
+        cameraZoom_ /= ZOOM_SCROLL_FACTOR;
     }
     // Clamp zoom to reasonable values
-    if (cameraZoom_ < 0.1f) cameraZoom_ = 0.1f;
-    if (cameraZoom_ > 10.0f) cameraZoom_ = 10.0f;
+    if (cameraZoom_ < MIN_CAMERA_ZOOM) cameraZoom_ = MIN_CAMERA_ZOOM;
+    if (cameraZoom_ > MAX_CAMERA_ZOOM) cameraZoom_ = MAX_CAMERA_ZOOM;
 }
 
