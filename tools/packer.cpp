@@ -665,6 +665,40 @@ int main(int argc, char* argv[]) {
     // Rebuild
     cout << "Building pak file" << endl;
 
+    // If PNG files haven't changed, we need to preserve existing atlas files from the pak
+    if (!anyPNGChanged && pakFile) {
+        // Load existing atlas files from pak
+        pakFile.seekg(sizeof(PakFileHeader));
+        vector<ResourcePtr> ptrs(existingPtrs.size());
+        pakFile.read((char*)ptrs.data(), sizeof(ResourcePtr) * ptrs.size());
+
+        for (size_t i = 0; i < existingPtrs.size(); i++) {
+            // Check if this is an atlas file by reading its header to check type
+            pakFile.seekg(existingPtrs[i].offset);
+            CompressionHeader comp;
+            pakFile.read((char*)&comp, sizeof(comp));
+
+            if (comp.type == RESOURCE_TYPE_IMAGE_ATLAS) {
+                // This is an atlas file, add it to our files list
+                FileInfo atlasFile;
+                atlasFile.filename = "_atlas_" + to_string(files.size());
+                atlasFile.id = existingPtrs[i].id;
+                atlasFile.mtime = existingPtrs[i].lastModified;
+                atlasFile.changed = false;
+                atlasFile.offset = existingPtrs[i].offset;
+
+                // Load compressed data
+                atlasFile.compressedData.resize(comp.compressedSize);
+                pakFile.read(atlasFile.compressedData.data(), comp.compressedSize);
+                atlasFile.compressionType = comp.compressionType;
+                atlasFile.data.resize(comp.decompressedSize);
+
+                cout << "Preserving existing atlas with ID " << atlasFile.id << endl;
+                files.push_back(std::move(atlasFile));
+            }
+        }
+    }
+
     // Collect PNG images for atlas packing
     if (anyPNGChanged) {
         cout << "PNG images changed, rebuilding atlas..." << endl;
@@ -824,14 +858,26 @@ int main(int argc, char* argv[]) {
         uint32_t fileType = getFileType(file.filename);
 
         if (fileType == RESOURCE_TYPE_IMAGE) {
-            // Already processed during atlas packing
-            if (file.data.empty()) {
-                // This shouldn't happen, but handle gracefully
-                cerr << "Warning: Empty data for image " << file.filename << endl;
+            if (anyPNGChanged) {
+                // Data was already set during atlas packing
+                if (file.data.empty()) {
+                    // This shouldn't happen, but handle gracefully
+                    cerr << "Warning: Empty data for image " << file.filename << endl;
+                }
+                compressData(file.data, file.compressedData, file.compressionType);
+                cout << "File " << file.filename << " (atlas reference) size " << file.data.size()
+                     << " compressed " << file.compressedData.size() << endl;
+            } else {
+                // No PNG changed, load from existing pak file
+                pakFile.seekg(file.offset);
+                CompressionHeader comp;
+                pakFile.read((char*)&comp, sizeof(comp));
+                file.compressedData.resize(comp.compressedSize);
+                pakFile.read(file.compressedData.data(), comp.compressedSize);
+                file.compressionType = comp.compressionType;
+                file.data.resize(comp.decompressedSize);
+                cout << "File " << file.filename << " (atlas reference) unchanged, using cached data" << endl;
             }
-            compressData(file.data, file.compressedData, file.compressionType);
-            cout << "File " << file.filename << " (atlas reference) size " << file.data.size()
-                 << " compressed " << file.compressedData.size() << endl;
         } else if (file.filename.find("_atlas_") == 0) {
             // Atlas file, already processed
             continue;
