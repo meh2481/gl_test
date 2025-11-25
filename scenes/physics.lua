@@ -128,12 +128,13 @@ function init()
     circleBody2 = b2CreateBody(B2_DYNAMIC_BODY, 0.5, 0.8, 0)
     -- Lantern-shaped polygon: narrower at top, wider at bottom
     local lanternVerts = {
-        -0.06, -0.12,  -- bottom left
-         0.06, -0.12,  -- bottom right
-         0.08,  0.0,   -- middle right
-         0.04,  0.12,  -- top right
-        -0.04,  0.12,  -- top left
-        -0.08,  0.0    -- middle left
+        -0.06, -0.146,  -- bottom left
+         0.06, -0.146,  -- bottom right
+         0.085,  -0.1,   -- middle right
+         0.067,  0.045,  -- top right
+         0.0,  0.15,    -- top center
+        -0.067,  0.045,  -- top left
+        -0.085,  -0.1    -- middle left
     }
     b2AddPolygonFixture(circleBody2, lanternVerts, 1.0, 0.3, 0.5)
     table.insert(bodies, circleBody2)
@@ -185,12 +186,12 @@ function init()
     lightBody = b2CreateBody(B2_DYNAMIC_BODY, chainStartX, chainStartY - (chainLength + 0.5) * linkHeight, 0)
     -- Small lantern-shaped polygon for the chain light
     local smallLanternVerts = {
-        -0.02, -0.04,  -- bottom left
-         0.02, -0.04,  -- bottom right
-         0.03,  0.0,   -- middle right
-         0.015, 0.04,  -- top right
-        -0.015, 0.04,  -- top left
-        -0.03,  0.0    -- middle left
+        0, -0.045,  -- bottom center
+        0.03,  -0.03,   -- middle right
+        0.025,  0.02,  -- top right
+        0.0,  0.045,    -- top center
+        -0.025,  0.02,  -- top left
+        -0.03,  -0.03    -- middle left
     }
     b2AddPolygonFixture(lightBody, smallLanternVerts, 0.2, 0.3, 0.3)
     table.insert(bodies, lightBody)
