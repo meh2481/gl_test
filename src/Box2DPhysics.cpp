@@ -618,7 +618,7 @@ void Box2DPhysics::DrawTransform(b2Transform xf, void* context) {
 
 void Box2DPhysics::DrawPoint(b2Vec2 p, float size, b2HexColor color, void* context) {
     Box2DPhysics* physics = static_cast<Box2DPhysics*>(context);
-    float halfSize = size * 0.5f;
+    float halfSize = size * 0.005f;
 
     // Draw a small cross
     physics->addLineVertex(p.x - halfSize, p.y, color);
