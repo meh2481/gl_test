@@ -4,6 +4,9 @@ layout(push_constant) uniform PushConstants {
     float width;
     float height;
     float time;
+    float cameraX;
+    float cameraY;
+    float cameraZoom;
     float lightX;
     float lightY;
     float lightZ;
