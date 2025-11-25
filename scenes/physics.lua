@@ -69,12 +69,12 @@ function init()
     table.insert(bodies, groundId)
 
     -- Create left wall (static line segment)
-    local leftWallId = b2CreateBody(B2_STATIC_BODY, -1.0, 0, 0)
+    local leftWallId = b2CreateBody(B2_STATIC_BODY, -1.5, 0, 0)
     b2AddSegmentFixture(leftWallId, 0, -1.0, 0, 10.0, 0.3, 0.0)
     table.insert(bodies, leftWallId)
 
     -- Create right wall (static line segment)
-    local rightWallId = b2CreateBody(B2_STATIC_BODY, 1.0, 0, 0)
+    local rightWallId = b2CreateBody(B2_STATIC_BODY, 1.5, 0, 0)
     b2AddSegmentFixture(rightWallId, 0, -1.0, 0, 10.0, 0.3, 0.0)
     table.insert(bodies, rightWallId)
 
