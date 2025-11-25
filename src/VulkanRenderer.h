@@ -93,8 +93,8 @@ private:
     VkDeviceMemory debugTriangleVertexBufferMemory;
     size_t debugTriangleVertexBufferSize;
     uint32_t debugTriangleVertexCount;
-
-    // Sprite rendering (4 floats per vertex: x, y, u, v)
+    
+    // Sprite rendering
     VkBuffer spriteVertexBuffer;
     VkDeviceMemory spriteVertexBufferMemory;
     size_t spriteVertexBufferSize;
@@ -103,17 +103,7 @@ private:
     VkDeviceMemory spriteIndexBufferMemory;
     size_t spriteIndexBufferSize;
     uint32_t spriteIndexCount;
-
-    // Normal-mapped sprite rendering (6 floats per vertex: x, y, u, v, nu, nv)
-    VkBuffer normalMappedSpriteVertexBuffer;
-    VkDeviceMemory normalMappedSpriteVertexBufferMemory;
-    size_t normalMappedSpriteVertexBufferSize;
-    uint32_t normalMappedSpriteVertexCount;
-    VkBuffer normalMappedSpriteIndexBuffer;
-    VkDeviceMemory normalMappedSpriteIndexBufferMemory;
-    size_t normalMappedSpriteIndexBufferSize;
-    uint32_t normalMappedSpriteIndexCount;
-
+    
     // Sprite batch data
     struct BatchDrawData {
         uint64_t textureId;
@@ -122,10 +112,9 @@ private:
         int pipelineId;
         uint32_t indexCount;
         uint32_t firstIndex;
-        bool usesNormalMap;  // True if this batch uses the normal-mapped vertex buffer
     };
     std::vector<BatchDrawData> m_spriteBatches;
-
+    
     // Texture support
     struct TextureData {
         VkImage image;

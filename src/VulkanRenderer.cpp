@@ -1103,8 +1103,8 @@ void VulkanRenderer::updateSpriteVertexBuffer(const std::vector<float>& vertexDa
     memcpy(data, indices.data(), indexDataSize);
     vkUnmapMemory(device, spriteIndexBufferMemory);
 
-    // Update counts (4 floats per vertex: x, y, u, v)
-    spriteVertexCount = vertexData.size() / 4;
+    // Update counts (6 floats per vertex: x, y, u, v, nu, nv)
+    spriteVertexCount = vertexData.size() / 6;
     spriteIndexCount = indices.size();
 }
 
@@ -1401,16 +1401,16 @@ void VulkanRenderer::loadAtlasTexture(uint64_t atlasId, const ResourceData& atla
 void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
     m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
     m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
-    
+
     VkShaderModule vertShaderModule = createShaderModule(m_vertShaderData);
     VkShaderModule fragShaderModule = createShaderModule(m_fragShaderData);
-    
+
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
     vertShaderStageInfo.module = vertShaderModule;
     vertShaderStageInfo.pName = "main";
-    
+
     VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -1419,28 +1419,56 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-    // Vertex input for sprites: position (vec2) + texCoord (vec2)
+    // Vertex input depends on whether we're using dual textures (with normal maps)
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(float) * 4; // 2 floats for position + 2 for texcoord
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescriptions[2]{};
-    attributeDescriptions[0].binding = 0;
-    attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;  // position
-    attributeDescriptions[0].offset = 0;
+    VkVertexInputAttributeDescription attributeDescriptions[3]{};
+    uint32_t numAttributes = 2;
 
-    attributeDescriptions[1].binding = 0;
-    attributeDescriptions[1].location = 1;
-    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;  // texcoord
-    attributeDescriptions[1].offset = sizeof(float) * 2;
+    if (numTextures == 2) {
+        // Dual texture pipeline (e.g., phong with normal maps): position (vec2) + texCoord (vec2) + normalTexCoord (vec2)
+        bindingDescription.stride = sizeof(float) * 6;
+
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;  // position
+        attributeDescriptions[0].offset = 0;
+
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;  // texcoord
+        attributeDescriptions[1].offset = sizeof(float) * 2;
+
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;  // normal map texcoord
+        attributeDescriptions[2].offset = sizeof(float) * 4;
+
+        numAttributes = 3;
+    } else {
+        // Single texture pipeline: position (vec2) + texCoord (vec2)
+        bindingDescription.stride = sizeof(float) * 6; // Still use 6 floats to match vertex buffer layout
+
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;  // position
+        attributeDescriptions[0].offset = 0;
+
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;  // texcoord
+        attributeDescriptions[1].offset = sizeof(float) * 2;
+
+        numAttributes = 2;
+    }
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = 2;
+    vertexInputInfo.vertexAttributeDescriptionCount = numAttributes;
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -1455,7 +1483,7 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
     viewport.height = (float)swapchainExtent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
-    
+
     VkRect2D scissor{};
     scissor.offset = {0, 0};
     scissor.extent = swapchainExtent;
@@ -1564,28 +1592,56 @@ void VulkanRenderer::createTexturedPipelineAdditive(uint64_t id, const ResourceD
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-    // Vertex input for sprites: position (vec2) + texCoord (vec2)
+    // Vertex input depends on whether we're using dual textures (with normal maps)
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(float) * 4; // 2 floats for position + 2 for texcoord
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescriptions[2]{};
-    attributeDescriptions[0].binding = 0;
-    attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;  // position
-    attributeDescriptions[0].offset = 0;
+    VkVertexInputAttributeDescription attributeDescriptions[3]{};
+    uint32_t numAttributes = 2;
 
-    attributeDescriptions[1].binding = 0;
-    attributeDescriptions[1].location = 1;
-    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;  // texcoord
-    attributeDescriptions[1].offset = sizeof(float) * 2;
+    if (numTextures == 2) {
+        // Dual texture pipeline: position (vec2) + texCoord (vec2) + normalTexCoord (vec2)
+        bindingDescription.stride = sizeof(float) * 6;
+
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].offset = 0;
+
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[1].offset = sizeof(float) * 2;
+
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[2].offset = sizeof(float) * 4;
+
+        numAttributes = 3;
+    } else {
+        // Single texture pipeline: position (vec2) + texCoord (vec2)
+        bindingDescription.stride = sizeof(float) * 6; // Still use 6 floats to match vertex buffer layout
+
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].offset = 0;
+
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[1].offset = sizeof(float) * 2;
+
+        numAttributes = 2;
+    }
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = 2;
+    vertexInputInfo.vertexAttributeDescriptionCount = numAttributes;
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -1913,75 +1969,46 @@ void VulkanRenderer::createSingleTextureDescriptorSet(uint64_t textureId) {
 
 void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
     m_spriteBatches.clear();
-
-    // Separate batches into regular (4 floats) and normal-mapped (6 floats)
-    std::vector<float> regularVertexData;
-    std::vector<uint16_t> regularIndices;
-    uint32_t regularBaseVertex = 0;
-
-    std::vector<float> normalMappedVertexData;
-    std::vector<uint16_t> normalMappedIndices;
-    uint32_t normalMappedBaseVertex = 0;
-
+    
+    // Combine all vertices and indices from all batches
+    std::vector<float> allVertexData;
+    std::vector<uint16_t> allIndices;
+    uint32_t baseVertex = 0;
+    
     for (const auto& batch : batches) {
         if (batch.vertices.empty() || batch.indices.empty()) {
             continue;
         }
-
-        bool usesNormalMap = (batch.normalMapId != 0);
-
+        
         BatchDrawData drawData;
         drawData.textureId = batch.textureId;
         drawData.normalMapId = batch.normalMapId;
         drawData.descriptorId = batch.descriptorId;
         drawData.pipelineId = batch.pipelineId;
+        drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
-        drawData.usesNormalMap = usesNormalMap;
 
-        if (usesNormalMap) {
-            // Normal-mapped batch: 6 floats per vertex (x, y, u, v, nu, nv)
-            drawData.firstIndex = static_cast<uint32_t>(normalMappedIndices.size());
-
-            for (const auto& v : batch.vertices) {
-                normalMappedVertexData.push_back(v.x);
-                normalMappedVertexData.push_back(v.y);
-                normalMappedVertexData.push_back(v.u);
-                normalMappedVertexData.push_back(v.v);
-                normalMappedVertexData.push_back(v.nu);
-                normalMappedVertexData.push_back(v.nv);
-            }
-
-            for (uint16_t idx : batch.indices) {
-                normalMappedIndices.push_back(idx + normalMappedBaseVertex);
-            }
-
-            normalMappedBaseVertex += static_cast<uint32_t>(batch.vertices.size());
-        } else {
-            // Regular batch: 4 floats per vertex (x, y, u, v)
-            drawData.firstIndex = static_cast<uint32_t>(regularIndices.size());
-
-            for (const auto& v : batch.vertices) {
-                regularVertexData.push_back(v.x);
-                regularVertexData.push_back(v.y);
-                regularVertexData.push_back(v.u);
-                regularVertexData.push_back(v.v);
-            }
-
-            for (uint16_t idx : batch.indices) {
-                regularIndices.push_back(idx + regularBaseVertex);
-            }
-
-            regularBaseVertex += static_cast<uint32_t>(batch.vertices.size());
+        // Add vertex data (6 floats per vertex: x, y, u, v, nu, nv)
+        for (const auto& v : batch.vertices) {
+            allVertexData.push_back(v.x);
+            allVertexData.push_back(v.y);
+            allVertexData.push_back(v.u);
+            allVertexData.push_back(v.v);
+            allVertexData.push_back(v.nu);
+            allVertexData.push_back(v.nv);
         }
 
+        // Add indices with offset
+        for (uint16_t idx : batch.indices) {
+            allIndices.push_back(idx + baseVertex);
+        }
+
+        baseVertex += static_cast<uint32_t>(batch.vertices.size());
         m_spriteBatches.push_back(drawData);
     }
 
-    // Upload regular sprite data to GPU
-    updateSpriteVertexBuffer(regularVertexData, regularIndices);
-
-    // Upload normal-mapped sprite data to GPU
-    updateNormalMappedSpriteVertexBuffer(normalMappedVertexData, normalMappedIndices);
+    // Upload to GPU
+    updateSpriteVertexBuffer(allVertexData, allIndices);
 }
 
 void VulkanRenderer::createDualTextureDescriptorSetLayout() {
