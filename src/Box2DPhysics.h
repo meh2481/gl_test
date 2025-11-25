@@ -52,6 +52,7 @@ public:
     void addBoxFixture(int bodyId, float halfWidth, float halfHeight, float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);
     void addCircleFixture(int bodyId, float radius, float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);
     void addPolygonFixture(int bodyId, const float* vertices, int vertexCount, float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);
+    void addSegmentFixture(int bodyId, float x1, float y1, float x2, float y2, float friction = 0.3f, float restitution = 0.0f);
 
     // Joint management
     int createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy, float anchorBx, float anchorBy, bool enableLimit = false, float lowerAngle = 0.0f, float upperAngle = 0.0f);

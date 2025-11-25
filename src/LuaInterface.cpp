@@ -37,7 +37,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "setShaderUniform3f", "setShaderParameters",
                                      "pushScene", "popScene", "print",
                                      "b2SetGravity", "b2SetFixedTimestep", "b2Step", "b2CreateBody", "b2DestroyBody",
-                                     "b2AddBoxFixture", "b2AddCircleFixture", "b2AddPolygonFixture", "b2SetBodyPosition",
+                                     "b2AddBoxFixture", "b2AddCircleFixture", "b2AddPolygonFixture", "b2AddSegmentFixture", "b2SetBodyPosition",
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
@@ -417,6 +417,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2AddBoxFixture", b2AddBoxFixture);
     lua_register(luaState_, "b2AddCircleFixture", b2AddCircleFixture);
     lua_register(luaState_, "b2AddPolygonFixture", b2AddPolygonFixture);
+    lua_register(luaState_, "b2AddSegmentFixture", b2AddSegmentFixture);
     lua_register(luaState_, "b2SetBodyPosition", b2SetBodyPosition);
     lua_register(luaState_, "b2SetBodyAngle", b2SetBodyAngle);
     lua_register(luaState_, "b2SetBodyLinearVelocity", b2SetBodyLinearVelocity);
@@ -835,6 +836,37 @@ int LuaInterface::b2AddPolygonFixture(lua_State* L) {
     }
 
     interface->physics_->addPolygonFixture(bodyId, vertices, numVertices, density, friction, restitution);
+    return 0;
+}
+
+int LuaInterface::b2AddSegmentFixture(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: bodyId, x1, y1, x2, y2, [friction], [restitution]
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 5);
+    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3) && lua_isnumber(L, 4) && lua_isnumber(L, 5));
+
+    int bodyId = lua_tointeger(L, 1);
+    float x1 = lua_tonumber(L, 2);
+    float y1 = lua_tonumber(L, 3);
+    float x2 = lua_tonumber(L, 4);
+    float y2 = lua_tonumber(L, 5);
+    float friction = 0.3f;
+    float restitution = 0.0f;
+
+    if (numArgs >= 6) {
+        assert(lua_isnumber(L, 6));
+        friction = lua_tonumber(L, 6);
+    }
+    if (numArgs >= 7) {
+        assert(lua_isnumber(L, 7));
+        restitution = lua_tonumber(L, 7);
+    }
+
+    interface->physics_->addSegmentFixture(bodyId, x1, y1, x2, y2, friction, restitution);
     return 0;
 }
 
