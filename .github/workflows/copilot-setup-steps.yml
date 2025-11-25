@@ -34,14 +34,24 @@ jobs:
         id: cache-apt
         with:
           path: |
-            /var/cache/apt/archives/*.deb
+            ~/apt-cache/*.deb
           key: apt-packages-${{ runner.os }}-v1
 
+      - name: Restore apt cache
+        if: steps.cache-apt.outputs.cache-hit == 'true'
+        run: |
+          sudo mkdir -p /var/cache/apt/archives
+          sudo cp ~/apt-cache/*.deb /var/cache/apt/archives/
+
       - name: Install required libraries
-        if: steps.cache-apt.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libvulkan-dev vulkan-tools glslc liblz4-dev liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev
+
+      - name: Prepare apt cache for saving
+        run: |
+          mkdir -p ~/apt-cache
+          cp /var/cache/apt/archives/*.deb ~/apt-cache/
 
       - name: Cache SDL3
         uses: actions/cache@v4
