@@ -199,7 +199,7 @@ function init()
     -- Attach lantern sprite to the light body
     local layerId = createLayer(lanternTexId, 0.1, lanternNormId, phongShaderId)
     attachLayerToBody(layerId, lightBody)
-    setLayerOffset(layerId, 0, 0.005)  -- Offset the lantern graphic slightly below the light body center
+    setLayerOffset(layerId, 0, 0.002)  -- Offset the lantern graphic slightly below the light body center
     table.insert(layers, layerId)
 
     -- Add bloom effect to swinging chain light
@@ -233,6 +233,7 @@ function update(deltaTime)
     -- Update light position based on the light body at the end of the chain
     if lightBody then
         local lightX, lightY = b2GetBodyPosition(lightBody)
+        lightX = lightX - 0.1 -- idk why this is slightly off
         -- Update shader parameters with new light position
         setShaderParameters(phongShaderId, lightX, lightY, chainLightZ, 0.3, 0.7, 0.8, 32.0)
         setShaderParameters(toonShaderId, lightX, lightY, chainLightZ, 3.0)
