@@ -7,7 +7,8 @@
 // Sprite vertex structure with position and texture coordinates
 struct SpriteVertex {
     float x, y;        // Position
-    float u, v;        // Texture coordinates
+    float u, v;        // Texture coordinates (diffuse)
+    float nu, nv;      // Normal map texture coordinates
 };
 
 // Sprite batch for a single texture

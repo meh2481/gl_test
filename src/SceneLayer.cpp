@@ -208,12 +208,26 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
         float u1 = layer.textureUV.u1;
         float v1 = layer.textureUV.v1;
 
+        // Get normal map UV coordinates
+        float nu0 = layer.normalMapUV.u0;
+        float nv0 = layer.normalMapUV.v0;
+        float nu1 = layer.normalMapUV.u1;
+        float nv1 = layer.normalMapUV.v1;
+
         // Texture coordinates using atlas UV or default 0-1
         float uvs[4][2] = {
             {u0, v1},  // Bottom-left
             {u1, v1},  // Bottom-right
             {u1, v0},  // Top-right
             {u0, v0}   // Top-left
+        };
+
+        // Normal map texture coordinates
+        float nuvs[4][2] = {
+            {nu0, nv1},  // Bottom-left
+            {nu1, nv1},  // Bottom-right
+            {nu1, nv0},  // Top-right
+            {nu0, nv0}   // Top-left
         };
 
         // Apply rotation and position
@@ -237,6 +251,8 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
             vert.y = centerY + ry;
             vert.u = uvs[i][0];
             vert.v = uvs[i][1];
+            vert.nu = nuvs[i][0];
+            vert.nv = nuvs[i][1];
 
             batch.vertices.push_back(vert);
         }
