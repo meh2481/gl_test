@@ -62,6 +62,7 @@ private:
     static int b2DestroyBody(lua_State* L);
     static int b2AddBoxFixture(lua_State* L);
     static int b2AddCircleFixture(lua_State* L);
+    static int b2AddPolygonFixture(lua_State* L);
     static int b2SetBodyPosition(lua_State* L);
     static int b2SetBodyAngle(lua_State* L);
     static int b2SetBodyLinearVelocity(lua_State* L);

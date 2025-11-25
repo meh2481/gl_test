@@ -37,7 +37,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "setShaderUniform3f", "setShaderParameters",
                                      "pushScene", "popScene", "print",
                                      "b2SetGravity", "b2SetFixedTimestep", "b2Step", "b2CreateBody", "b2DestroyBody",
-                                     "b2AddBoxFixture", "b2AddCircleFixture", "b2SetBodyPosition",
+                                     "b2AddBoxFixture", "b2AddCircleFixture", "b2AddPolygonFixture", "b2SetBodyPosition",
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
                                      "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
@@ -416,6 +416,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2DestroyBody", b2DestroyBody);
     lua_register(luaState_, "b2AddBoxFixture", b2AddBoxFixture);
     lua_register(luaState_, "b2AddCircleFixture", b2AddCircleFixture);
+    lua_register(luaState_, "b2AddPolygonFixture", b2AddPolygonFixture);
     lua_register(luaState_, "b2SetBodyPosition", b2SetBodyPosition);
     lua_register(luaState_, "b2SetBodyAngle", b2SetBodyAngle);
     lua_register(luaState_, "b2SetBodyLinearVelocity", b2SetBodyLinearVelocity);
@@ -786,6 +787,54 @@ int LuaInterface::b2AddCircleFixture(lua_State* L) {
     }
 
     interface->physics_->addCircleFixture(bodyId, radius, density, friction, restitution);
+    return 0;
+}
+
+int LuaInterface::b2AddPolygonFixture(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: bodyId, vertices table, [density], [friction], [restitution]
+    // vertices table format: {x1, y1, x2, y2, x3, y3, ...} (3-8 vertices)
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 2);
+    assert(lua_isnumber(L, 1) && lua_istable(L, 2));
+
+    int bodyId = lua_tointeger(L, 1);
+
+    // Get vertices from table using indexed access for proper ordering
+    float vertices[16]; // Max 8 vertices * 2 coords
+    int tableLen = (int)lua_rawlen(L, 2);
+    assert(tableLen >= 6 && tableLen <= 16); // 3-8 vertices (x,y pairs)
+
+    for (int i = 1; i <= tableLen && i <= 16; ++i) {
+        lua_rawgeti(L, 2, i);
+        assert(lua_isnumber(L, -1));
+        vertices[i - 1] = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+    }
+
+    int numVertices = tableLen / 2;
+
+    float density = 1.0f;
+    float friction = 0.3f;
+    float restitution = 0.0f;
+
+    if (numArgs >= 3) {
+        assert(lua_isnumber(L, 3));
+        density = lua_tonumber(L, 3);
+    }
+    if (numArgs >= 4) {
+        assert(lua_isnumber(L, 4));
+        friction = lua_tonumber(L, 4);
+    }
+    if (numArgs >= 5) {
+        assert(lua_isnumber(L, 5));
+        restitution = lua_tonumber(L, 5);
+    }
+
+    interface->physics_->addPolygonFixture(bodyId, vertices, numVertices, density, friction, restitution);
     return 0;
 }
 

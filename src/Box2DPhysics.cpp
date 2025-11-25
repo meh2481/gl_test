@@ -293,6 +293,27 @@ void Box2DPhysics::addCircleFixture(int bodyId, float radius, float density, flo
     b2CreateCircleShape(it->second, &shapeDef, &circle);
 }
 
+void Box2DPhysics::addPolygonFixture(int bodyId, const float* vertices, int vertexCount, float density, float friction, float restitution) {
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    assert(vertexCount >= 3 && vertexCount <= 8);
+
+    b2Vec2 points[8];
+    for (int i = 0; i < vertexCount; ++i) {
+        points[i] = (b2Vec2){vertices[i * 2], vertices[i * 2 + 1]};
+    }
+
+    b2Hull hull = b2ComputeHull(points, vertexCount);
+    b2Polygon polygon = b2MakePolygon(&hull, 0.0f);
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.density = density;
+    shapeDef.material.friction = friction;
+    shapeDef.material.restitution = restitution;
+
+    b2CreatePolygonShape(it->second, &shapeDef, &polygon);
+}
+
 int Box2DPhysics::createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy,
                                        float anchorBx, float anchorBy, bool enableLimit,
                                        float lowerAngle, float upperAngle) {

@@ -124,12 +124,21 @@ function init()
     attachLayerToBody(layerId, circleBody)
     table.insert(layers, layerId)
 
-    -- Create a dynamic circle with lantern.png sprite using Phong with normal maps
+    -- Create a dynamic polygon with lantern.png sprite using Phong with normal maps
     circleBody2 = b2CreateBody(B2_DYNAMIC_BODY, 0.5, 0.8, 0)
-    b2AddCircleFixture(circleBody2, 0.15, 1.0, 0.3, 0.5)
+    -- Lantern-shaped polygon: narrower at top, wider at bottom
+    local lanternVerts = {
+        -0.06, -0.12,  -- bottom left
+         0.06, -0.12,  -- bottom right
+         0.08,  0.0,   -- middle right
+         0.04,  0.12,  -- top right
+        -0.04,  0.12,  -- top left
+        -0.08,  0.0    -- middle left
+    }
+    b2AddPolygonFixture(circleBody2, lanternVerts, 1.0, 0.3, 0.5)
     table.insert(bodies, circleBody2)
 
-    -- Attach a sprite layer to the circle
+    -- Attach a sprite layer to the polygon body
     local layerId = createLayer(lanternTexId, 0.3, lanternNormId, phongShaderId)
     attachLayerToBody(layerId, circleBody2)
     table.insert(layers, layerId)
@@ -172,9 +181,18 @@ function init()
         prevBodyId = linkId
     end
 
-    -- Create light body at the end of the chain (a small dynamic circle)
+    -- Create light body at the end of the chain (a small dynamic polygon)
     lightBody = b2CreateBody(B2_DYNAMIC_BODY, chainStartX, chainStartY - (chainLength + 0.5) * linkHeight, 0)
-    b2AddCircleFixture(lightBody, 0.05, 0.2, 0.3, 0.3)
+    -- Small lantern-shaped polygon for the chain light
+    local smallLanternVerts = {
+        -0.02, -0.04,  -- bottom left
+         0.02, -0.04,  -- bottom right
+         0.03,  0.0,   -- middle right
+         0.015, 0.04,  -- top right
+        -0.015, 0.04,  -- top left
+        -0.03,  0.0    -- middle left
+    }
+    b2AddPolygonFixture(lightBody, smallLanternVerts, 0.2, 0.3, 0.3)
     table.insert(bodies, lightBody)
 
     -- Attach lantern sprite to the light body
