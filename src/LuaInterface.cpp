@@ -1210,25 +1210,33 @@ int LuaInterface::createLayer(lua_State* L) {
     uint64_t textureId = (uint64_t)lua_tointeger(L, 1);
     float size = (float)lua_tonumber(L, 2);
 
+    // Check if this texture uses atlas
+    AtlasUV atlasUV;
+    bool usesAtlas = interface->pakResource_.getAtlasUV(textureId, atlasUV);
+
     // Get texture dimensions and calculate width/height based on aspect ratio
     uint32_t texWidth, texHeight;
     float width, height;
 
-    if (!interface->renderer_.getTextureDimensions(textureId, &texWidth, &texHeight)) {
+    if (usesAtlas) {
+        // Use atlas entry dimensions
+        texWidth = atlasUV.width;
+        texHeight = atlasUV.height;
+    } else if (!interface->renderer_.getTextureDimensions(textureId, &texWidth, &texHeight)) {
         // Texture not found, default to square
-        width = height = size;
+        texWidth = texHeight = 1;
+    }
+
+    // Calculate dimensions preserving aspect ratio
+    float aspectRatio = (float)texWidth / (float)texHeight;
+    if (aspectRatio >= 1.0f) {
+        // Width >= height (landscape or square)
+        width = size;
+        height = size / aspectRatio;
     } else {
-        // Calculate dimensions preserving aspect ratio
-        float aspectRatio = (float)texWidth / (float)texHeight;
-        if (aspectRatio >= 1.0f) {
-            // Width >= height (landscape or square)
-            width = size;
-            height = size / aspectRatio;
-        } else {
-            // Height > width (portrait)
-            width = size * aspectRatio;
-            height = size;
-        }
+        // Height > width (portrait)
+        width = size * aspectRatio;
+        height = size;
     }
 
     uint64_t normalMapId = 0;
@@ -1247,6 +1255,21 @@ int LuaInterface::createLayer(lua_State* L) {
     }
 
     int layerId = interface->layerManager_->createLayer(textureId, width, height, normalMapId, pipelineId);
+
+    // Set atlas UV coordinates if applicable
+    if (usesAtlas) {
+        interface->layerManager_->setLayerAtlasUV(layerId, atlasUV.atlasId, atlasUV.u0, atlasUV.v0, atlasUV.u1, atlasUV.v1);
+    }
+
+    // Check if normal map uses atlas
+    if (normalMapId != 0) {
+        AtlasUV normalAtlasUV;
+        if (interface->pakResource_.getAtlasUV(normalMapId, normalAtlasUV)) {
+            interface->layerManager_->setLayerNormalMapAtlasUV(layerId, normalAtlasUV.atlasId,
+                normalAtlasUV.u0, normalAtlasUV.v0, normalAtlasUV.u1, normalAtlasUV.v1);
+        }
+    }
+
     lua_pushinteger(L, layerId);
     return 1;
 }
@@ -1346,8 +1369,22 @@ int LuaInterface::loadTexture(lua_State* L) {
     ResourceData imageData = interface->pakResource_.getResource(textureId);
     assert(imageData.data != nullptr && "Texture not found in pak file");
 
-    // Load the texture into the renderer
-    interface->renderer_.loadTexture(textureId, imageData);
+    // Check if this is an atlas reference (TextureHeader) or a standalone image (ImageHeader)
+    AtlasUV atlasUV;
+    if (interface->pakResource_.getAtlasUV(textureId, atlasUV)) {
+        // This is an atlas reference - load the atlas texture instead
+        ResourceData atlasData = interface->pakResource_.getResource(atlasUV.atlasId);
+        assert(atlasData.data != nullptr && "Atlas not found in pak file");
+
+        // Load the atlas texture (if not already loaded)
+        interface->renderer_.loadAtlasTexture(atlasUV.atlasId, atlasData);
+
+        // For now, we use the atlas ID for rendering
+        // The UV coordinates are stored in the atlas entry and will be used by SceneLayer
+    } else {
+        // Standalone image - load directly
+        interface->renderer_.loadTexture(textureId, imageData);
+    }
 
     // Return the texture ID so it can be used in createLayer
     lua_pushinteger(L, textureId);

@@ -31,6 +31,7 @@ public:
     void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
     void setSpriteBatches(const std::vector<SpriteBatch>& batches);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
+    void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);
     void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
     bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;

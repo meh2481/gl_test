@@ -11,6 +11,15 @@ struct ResourceData {
     size_t size;
 };
 
+// Atlas UV coordinates for texture
+struct AtlasUV {
+    uint64_t atlasId;   // ID of the atlas texture
+    float u0, v0;       // Bottom-left UV
+    float u1, v1;       // Top-right UV
+    uint16_t width;     // Original image width
+    uint16_t height;    // Original image height
+};
+
 class PakResource {
 public:
     PakResource();
@@ -18,6 +27,13 @@ public:
     bool load(const char* filename);
     bool reload(const char* filename);
     ResourceData getResource(uint64_t id);
+
+    // Get atlas UV coordinates for a texture resource
+    // Returns true if the resource is an atlas reference, false if standalone
+    bool getAtlasUV(uint64_t textureId, AtlasUV& uv);
+
+    // Get the actual atlas image data for rendering
+    ResourceData getAtlasData(uint64_t atlasId);
 
     // Async resource loading - preloads and decompresses resources in background threads
     // Use preloadResourceAsync() to start loading, then isResourceReady() to check completion
@@ -27,6 +43,7 @@ public:
 private:
     ResourceData m_pakData;
     std::map<uint64_t, std::vector<char>> m_decompressedData;
+    std::map<uint64_t, AtlasUV> m_atlasUVCache;  // Cache of atlas UV lookups
     SDL_Mutex* m_mutex;
 
 #ifdef _WIN32

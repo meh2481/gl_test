@@ -1343,10 +1343,10 @@ void VulkanRenderer::loadTexture(uint64_t textureId, const ResourceData& imageDa
     uint32_t width = header->width;
     uint32_t height = header->height;
     uint16_t format = header->format;
-    
+
     const char* compressedData = imageData.data + sizeof(ImageHeader);
     size_t compressedSize = imageData.size - sizeof(ImageHeader);
-    
+
     // Map our format to Vulkan format
     VkFormat vkFormat;
     if (format == IMAGE_FORMAT_BC1_DXT1) {
@@ -1357,10 +1357,45 @@ void VulkanRenderer::loadTexture(uint64_t textureId, const ResourceData& imageDa
         assert(false && "Unsupported image format");
         return;
     }
-    
+
     createTextureImage(textureId, compressedData, width, height, vkFormat, compressedSize);
     createTextureSampler(textureId);
     createSingleTextureDescriptorSet(textureId);
+}
+
+void VulkanRenderer::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData) {
+    // If atlas texture already exists, skip reloading
+    if (m_textures.find(atlasId) != m_textures.end()) {
+        return;
+    }
+
+    // Parse AtlasHeader to get format, width, height
+    assert(atlasData.size >= sizeof(AtlasHeader));
+    const AtlasHeader* header = (const AtlasHeader*)atlasData.data;
+    uint32_t width = header->width;
+    uint32_t height = header->height;
+    uint16_t format = header->format;
+    uint16_t numEntries = header->numEntries;
+
+    // Skip past header and entries to get to the compressed image data
+    size_t entriesSize = sizeof(AtlasEntry) * numEntries;
+    const char* compressedData = atlasData.data + sizeof(AtlasHeader) + entriesSize;
+    size_t compressedSize = atlasData.size - sizeof(AtlasHeader) - entriesSize;
+
+    // Map our format to Vulkan format
+    VkFormat vkFormat;
+    if (format == IMAGE_FORMAT_BC1_DXT1) {
+        vkFormat = VK_FORMAT_BC1_RGB_UNORM_BLOCK;
+    } else if (format == IMAGE_FORMAT_BC3_DXT5) {
+        vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
+    } else {
+        assert(false && "Unsupported atlas format");
+        return;
+    }
+
+    createTextureImage(atlasId, compressedData, width, height, vkFormat, compressedSize);
+    createTextureSampler(atlasId);
+    createSingleTextureDescriptorSet(atlasId);
 }
 
 void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {

@@ -28,6 +28,8 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     SceneLayer layer;
     layer.textureId = textureId;
     layer.normalMapId = normalMapId;
+    layer.atlasTextureId = textureId;  // Default to same as textureId
+    layer.atlasNormalMapId = normalMapId;  // Default to same as normalMapId
     layer.pipelineId = pipelineId;
 
     // Compute descriptor ID based on textures used
@@ -45,6 +47,20 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     layer.offsetX = 0.0f;
     layer.offsetY = 0.0f;
     layer.enabled = true;
+
+    // Default UV coordinates (full texture)
+    layer.textureUV.u0 = 0.0f;
+    layer.textureUV.v0 = 0.0f;
+    layer.textureUV.u1 = 1.0f;
+    layer.textureUV.v1 = 1.0f;
+    layer.textureUV.isAtlas = false;
+
+    layer.normalMapUV.u0 = 0.0f;
+    layer.normalMapUV.v0 = 0.0f;
+    layer.normalMapUV.u1 = 1.0f;
+    layer.normalMapUV.v1 = 1.0f;
+    layer.normalMapUV.isAtlas = false;
+
     layer.cachedX = 0.0f;
     layer.cachedY = 0.0f;
     layer.cachedAngle = 0.0f;
@@ -86,6 +102,43 @@ void SceneLayerManager::setLayerEnabled(int layerId, bool enabled) {
     }
 }
 
+void SceneLayerManager::setLayerAtlasUV(int layerId, uint64_t atlasTextureId, float u0, float v0, float u1, float v1) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.atlasTextureId = atlasTextureId;
+        it->second.textureUV.u0 = u0;
+        it->second.textureUV.v0 = v0;
+        it->second.textureUV.u1 = u1;
+        it->second.textureUV.v1 = v1;
+        it->second.textureUV.isAtlas = true;
+
+        // Update descriptor ID to use atlas texture
+        if (it->second.normalMapUV.isAtlas) {
+            it->second.descriptorId = atlasTextureId ^ (it->second.atlasNormalMapId << 1);
+        } else if (it->second.normalMapId != 0) {
+            it->second.descriptorId = atlasTextureId ^ (it->second.normalMapId << 1);
+        } else {
+            it->second.descriptorId = atlasTextureId;
+        }
+    }
+}
+
+void SceneLayerManager::setLayerNormalMapAtlasUV(int layerId, uint64_t atlasNormalMapId, float u0, float v0, float u1, float v1) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.atlasNormalMapId = atlasNormalMapId;
+        it->second.normalMapUV.u0 = u0;
+        it->second.normalMapUV.v0 = v0;
+        it->second.normalMapUV.u1 = u1;
+        it->second.normalMapUV.v1 = v1;
+        it->second.normalMapUV.isAtlas = true;
+
+        // Update descriptor ID to use atlas textures
+        uint64_t texId = it->second.textureUV.isAtlas ? it->second.atlasTextureId : it->second.textureId;
+        it->second.descriptorId = texId ^ (atlasNormalMapId << 1);
+    }
+}
+
 void SceneLayerManager::updateLayerTransform(int layerId, float bodyX, float bodyY, float bodyAngle) {
     auto it = layers_.find(layerId);
     if (it != layers_.end()) {
@@ -120,8 +173,9 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
         if (batchIt == batchMap.end()) {
             batchIndex = batches.size();
             batches.push_back(SpriteBatch());
-            batches[batchIndex].textureId = layer.textureId;
-            batches[batchIndex].normalMapId = layer.normalMapId;
+            // Use atlas texture ID if available, otherwise original texture ID
+            batches[batchIndex].textureId = layer.textureUV.isAtlas ? layer.atlasTextureId : layer.textureId;
+            batches[batchIndex].normalMapId = layer.normalMapUV.isAtlas ? layer.atlasNormalMapId : layer.normalMapId;
             batches[batchIndex].descriptorId = layer.descriptorId;
             batches[batchIndex].pipelineId = layer.pipelineId;
             batchMap[batchKey] = batchIndex;
@@ -148,12 +202,18 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
             {-hw,  hh}   // Top-left
         };
 
-        // Texture coordinates
+        // Get UV coordinates from layer (supports atlas or full texture)
+        float u0 = layer.textureUV.u0;
+        float v0 = layer.textureUV.v0;
+        float u1 = layer.textureUV.u1;
+        float v1 = layer.textureUV.v1;
+
+        // Texture coordinates using atlas UV or default 0-1
         float uvs[4][2] = {
-            {0.0f, 1.0f},  // Bottom-left
-            {1.0f, 1.0f},  // Bottom-right
-            {1.0f, 0.0f},  // Top-right
-            {0.0f, 0.0f}   // Top-left
+            {u0, v1},  // Bottom-left
+            {u1, v1},  // Bottom-right
+            {u1, v0},  // Top-right
+            {u0, v0}   // Top-left
         };
 
         // Apply rotation and position
