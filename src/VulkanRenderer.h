@@ -34,6 +34,7 @@ public:
     void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
     bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
+    void setCameraTransform(float offsetX, float offsetY, float zoom);
     void render(float time);
     void cleanup();
 
@@ -149,7 +150,12 @@ private:
     // Per-pipeline shader parameters (e.g., light position, material properties)
     std::map<int, std::array<float, 7>> m_pipelineShaderParams;
     std::map<int, int> m_pipelineShaderParamCount;  // Track how many parameters each pipeline uses
-    
+
+    // Camera transform
+    float m_cameraOffsetX;
+    float m_cameraOffsetY;
+    float m_cameraZoom;
+
     VkSemaphore imageAvailableSemaphores[2];
     VkSemaphore renderFinishedSemaphores[2];
     VkFence inFlightFences[2];

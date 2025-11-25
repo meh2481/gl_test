@@ -30,6 +30,13 @@ public:
     // Cursor position for drag operations (in world coordinates)
     void setCursorPosition(float x, float y);
 
+    // Camera control (in world coordinates)
+    void setCameraOffset(float x, float y);
+    float getCameraOffsetX() const;
+    float getCameraOffsetY() const;
+    float getCameraZoom() const;
+    void applyScrollZoom(float scrollDelta);
+
 private:
     PakResource& pakResource_;
     VulkanRenderer& renderer_;

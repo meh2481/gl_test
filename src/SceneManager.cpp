@@ -185,3 +185,23 @@ void SceneManager::handleAction(Action action) {
 void SceneManager::setCursorPosition(float x, float y) {
     luaInterface_->setCursorPosition(x, y);
 }
+
+void SceneManager::setCameraOffset(float x, float y) {
+    luaInterface_->setCameraOffset(x, y);
+}
+
+float SceneManager::getCameraOffsetX() const {
+    return luaInterface_->getCameraOffsetX();
+}
+
+float SceneManager::getCameraOffsetY() const {
+    return luaInterface_->getCameraOffsetY();
+}
+
+float SceneManager::getCameraZoom() const {
+    return luaInterface_->getCameraZoom();
+}
+
+void SceneManager::applyScrollZoom(float scrollDelta) {
+    luaInterface_->applyScrollZoom(scrollDelta);
+}

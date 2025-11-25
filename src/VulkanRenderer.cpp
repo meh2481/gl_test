@@ -56,6 +56,9 @@ VulkanRenderer::VulkanRenderer() :
     m_dualTextureDescriptorSetLayout(VK_NULL_HANDLE),
     m_dualTextureDescriptorPool(VK_NULL_HANDLE),
     m_dualTexturePipelineLayout(VK_NULL_HANDLE),
+    m_cameraOffsetX(0.0f),
+    m_cameraOffsetY(0.0f),
+    m_cameraZoom(1.0f),
     currentFrame(0),
     graphicsQueueFamilyIndex(0),
     swapchainFramebuffers(nullptr)
@@ -776,7 +779,7 @@ void VulkanRenderer::createPipelineLayout() {
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(float) * 3; // vec2 + float
+    pushConstantRange.size = sizeof(float) * 6; // width, height, time, cameraX, cameraY, cameraZoom
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
@@ -1155,7 +1158,14 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     renderPassInfo.pClearValues = &clearColor;
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    float pushConstants[3] = {static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), time};
+    float pushConstants[6] = {
+        static_cast<float>(swapchainExtent.width),
+        static_cast<float>(swapchainExtent.height),
+        time,
+        m_cameraOffsetX,
+        m_cameraOffsetY,
+        m_cameraZoom
+    };
 
     // Draw all pipelines
     for (uint64_t pipelineId : m_pipelinesToDraw) {
@@ -1188,19 +1198,22 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             if (pipelineIt != m_pipelines.end() && infoIt != m_pipelineInfo.end() && !m_spriteBatches.empty()) {
                 // Textured pipeline rendering
                 const PipelineInfo& info = infoIt->second;
-                
+
                 // Prepare push constants based on pipeline requirements
                 if (info.usesExtendedPushConstants) {
                     // Extended push constants with shader parameters
                     // Get parameters for this pipeline (or use defaults if not set)
-                    const auto& params = m_pipelineShaderParams.count(pipelineId) 
-                        ? m_pipelineShaderParams[pipelineId] 
+                    const auto& params = m_pipelineShaderParams.count(pipelineId)
+                        ? m_pipelineShaderParams[pipelineId]
                         : std::array<float, 7>{0, 0, 0, 0, 0, 0, 0};
-                    
-                    float extPushConstants[10] = {
-                        static_cast<float>(swapchainExtent.width), 
-                        static_cast<float>(swapchainExtent.height), 
+
+                    float extPushConstants[13] = {
+                        static_cast<float>(swapchainExtent.width),
+                        static_cast<float>(swapchainExtent.height),
                         time,
+                        m_cameraOffsetX,
+                        m_cameraOffsetY,
+                        m_cameraZoom,
                         params[0], params[1], params[2],
                         params[3], params[4], params[5], params[6]
                     };
@@ -1286,11 +1299,11 @@ void VulkanRenderer::createSingleTextureDescriptorSetLayout() {
 }
 
 void VulkanRenderer::createSingleTexturePipelineLayout() {
-    // Push constants for time, width, height
+    // Push constants for width, height, time, cameraX, cameraY, cameraZoom
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(float) * 3;
+    pushConstantRange.size = sizeof(float) * 6;
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1921,19 +1934,19 @@ void VulkanRenderer::createDualTextureDescriptorSetLayout() {
 }
 
 void VulkanRenderer::createDualTexturePipelineLayout() {
-    // Push constants: time, width, height, plus 7 shader-specific parameters
+    // Push constants: width, height, time, cameraX, cameraY, cameraZoom, plus 7 shader-specific parameters
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(float) * 10;  // width, height, time, param0-6
-    
+    pushConstantRange.size = sizeof(float) * 13;  // width, height, time, cameraX, cameraY, cameraZoom, param0-6
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &m_dualTextureDescriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-    
+
     assert(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_dualTexturePipelineLayout) == VK_SUCCESS);
 }
 
@@ -2032,12 +2045,18 @@ void VulkanRenderer::setShaderParameters(int pipelineId, int paramCount, const f
     for (int i = paramCount; i < 7; ++i) {
         m_pipelineShaderParams[pipelineId][i] = 0.0f;
     }
-    
+
     // Mark this pipeline as using extended push constants
     auto infoIt = m_pipelineInfo.find(pipelineId);
     if (infoIt != m_pipelineInfo.end()) {
         infoIt->second.usesExtendedPushConstants = true;
     }
+}
+
+void VulkanRenderer::setCameraTransform(float offsetX, float offsetY, float zoom) {
+    m_cameraOffsetX = offsetX;
+    m_cameraOffsetY = offsetY;
+    m_cameraZoom = zoom;
 }
 
 VkDescriptorSet VulkanRenderer::getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId, uint64_t normalMapId, bool usesDualTexture) {

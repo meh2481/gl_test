@@ -46,6 +46,14 @@ public:
     float getCursorX() const { return cursorX_; }
     float getCursorY() const { return cursorY_; }
 
+    // Camera pan/zoom (in world coordinates)
+    void setCameraOffset(float x, float y) { cameraOffsetX_ = x; cameraOffsetY_ = y; }
+    float getCameraOffsetX() const { return cameraOffsetX_; }
+    float getCameraOffsetY() const { return cameraOffsetY_; }
+    void setCameraZoom(float zoom) { cameraZoom_ = zoom; }
+    float getCameraZoom() const { return cameraZoom_; }
+    void applyScrollZoom(float scrollDelta);
+
 private:
     // Lua-callable functions
     static int loadShaders(lua_State* L);
@@ -128,6 +136,12 @@ private:
     // Cursor position Lua bindings
     static int getCursorPosition(lua_State* L);
 
+    // Camera Lua bindings
+    static int getCameraOffset(lua_State* L);
+    static int setCameraOffset(lua_State* L);
+    static int getCameraZoom(lua_State* L);
+    static int setCameraZoom(lua_State* L);
+
     void registerFunctions();
 
     PakResource& pakResource_;
@@ -143,4 +157,7 @@ private:
     VibrationManager* vibrationManager_;
     float cursorX_;
     float cursorY_;
+    float cameraOffsetX_;
+    float cameraOffsetY_;
+    float cameraZoom_;
 };

@@ -4,6 +4,9 @@ layout(push_constant) uniform PushConstants {
     float width;
     float height;
     float time;
+    float cameraX;
+    float cameraY;
+    float cameraZoom;
     float lightX;
     float lightY;
     float lightZ;
@@ -23,16 +26,18 @@ layout(location = 3) out vec3 fragViewPos;
 
 void main() {
     float aspect = pc.width / pc.height;
-    
+
     // Transform position to world space (we're in 2D, so z=0)
     fragPos = vec3(inPosition.x, inPosition.y, 0.0);
-    
+
     // Light position in world space
     fragLightPos = vec3(pc.lightX, pc.lightY, pc.lightZ);
-    
+
     // Camera/view position (looking down the -z axis)
     fragViewPos = vec3(0.0, 0.0, 1.0);
-    
-    gl_Position = vec4(inPosition.x / aspect, -inPosition.y, 0.0, 1.0);
+
+    // Apply camera transform: offset then zoom
+    vec2 pos = (inPosition - vec2(pc.cameraX, pc.cameraY)) * pc.cameraZoom;
+    gl_Position = vec4(pos.x / aspect, -pos.y, 0.0, 1.0);
     fragTexCoord = inTexCoord;
 }

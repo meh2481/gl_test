@@ -17,6 +17,8 @@ enum Action {
     ACTION_TOGGLE_DEBUG_DRAW,
     ACTION_DRAG_START,
     ACTION_DRAG_END,
+    ACTION_PAN_START,
+    ACTION_PAN_END,
     ACTION_COUNT  // Always keep last
 };
 

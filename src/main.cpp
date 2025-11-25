@@ -30,11 +30,25 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
 
 // Convert screen coordinates to world coordinates
 // World coordinates are -aspect to aspect in x, -1 to 1 in y (aspect = width/height)
-inline void screenToWorld(float screenX, float screenY, int windowWidth, int windowHeight, float* worldX, float* worldY) {
+// Accounts for camera offset and zoom
+inline void screenToWorld(float screenX, float screenY, int windowWidth, int windowHeight,
+                          float cameraOffsetX, float cameraOffsetY, float cameraZoom,
+                          float* worldX, float* worldY) {
     float aspect = windowWidth / (float)windowHeight;
-    *worldX = ((screenX / (float)windowWidth) * 2.0f - 1.0f) * aspect;
-    *worldY = 1.0f - (screenY / (float)windowHeight) * 2.0f; // Flip Y
+    // Convert to normalized device coordinates (-1 to 1)
+    float ndcX = (screenX / (float)windowWidth) * 2.0f - 1.0f;
+    float ndcY = 1.0f - (screenY / (float)windowHeight) * 2.0f; // Flip Y
+    // Apply inverse camera transform (aspect, zoom, then offset)
+    *worldX = (ndcX * aspect / cameraZoom) + cameraOffsetX;
+    *worldY = (ndcY / cameraZoom) + cameraOffsetY;
 }
+
+// Pan tracking state
+static bool isPanning = false;
+static float panStartCursorX = 0.0f;
+static float panStartCursorY = 0.0f;
+static float panStartCameraX = 0.0f;
+static float panStartCameraY = 0.0f;
 
 #ifdef DEBUG
 // Structure to pass data to the hot-reload thread
@@ -281,7 +295,9 @@ int main() {
                 int windowWidth, windowHeight;
                 float worldX, worldY;
                 SDL_GetWindowSize(window, &windowWidth, &windowHeight);
-                screenToWorld(event.button.x, event.button.y, windowWidth, windowHeight, &worldX, &worldY);
+                screenToWorld(event.button.x, event.button.y, windowWidth, windowHeight,
+                              sceneManager.getCameraOffsetX(), sceneManager.getCameraOffsetY(),
+                              sceneManager.getCameraZoom(), &worldX, &worldY);
                 sceneManager.setCursorPosition(worldX, worldY);
                 sceneManager.handleAction(ACTION_DRAG_START);
             }
@@ -289,15 +305,59 @@ int main() {
             if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_LEFT) {
                 sceneManager.handleAction(ACTION_DRAG_END);
             }
+            // Handle middle mouse button press for pan
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_MIDDLE) {
+                int windowWidth, windowHeight;
+                float worldX, worldY;
+                SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+                screenToWorld(event.button.x, event.button.y, windowWidth, windowHeight,
+                              sceneManager.getCameraOffsetX(), sceneManager.getCameraOffsetY(),
+                              sceneManager.getCameraZoom(), &worldX, &worldY);
+                sceneManager.setCursorPosition(worldX, worldY);
+                isPanning = true;
+                panStartCursorX = worldX;
+                panStartCursorY = worldY;
+                panStartCameraX = sceneManager.getCameraOffsetX();
+                panStartCameraY = sceneManager.getCameraOffsetY();
+                sceneManager.handleAction(ACTION_PAN_START);
+            }
+            // Handle middle mouse button release for pan
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_MIDDLE) {
+                isPanning = false;
+                sceneManager.handleAction(ACTION_PAN_END);
+            }
+            // Handle mouse wheel for zoom
+            if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+                sceneManager.applyScrollZoom(event.wheel.y);
+            }
             // Handle mouse motion for cursor tracking
             if (event.type == SDL_EVENT_MOUSE_MOTION) {
                 int windowWidth, windowHeight;
                 float worldX, worldY;
                 SDL_GetWindowSize(window, &windowWidth, &windowHeight);
-                screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight, &worldX, &worldY);
+                screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
+                              sceneManager.getCameraOffsetX(), sceneManager.getCameraOffsetY(),
+                              sceneManager.getCameraZoom(), &worldX, &worldY);
                 sceneManager.setCursorPosition(worldX, worldY);
+
+                // Update camera offset while panning
+                if (isPanning) {
+                    float deltaX = worldX - panStartCursorX;
+                    float deltaY = worldY - panStartCursorY;
+                    sceneManager.setCameraOffset(panStartCameraX - deltaX, panStartCameraY - deltaY);
+                    // Recalculate cursor position with new camera offset
+                    screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
+                                  sceneManager.getCameraOffsetX(), sceneManager.getCameraOffsetY(),
+                                  sceneManager.getCameraZoom(), &worldX, &worldY);
+                    sceneManager.setCursorPosition(worldX, worldY);
+                }
             }
         }
+
+        // Update renderer with current camera transform
+        renderer.setCameraTransform(sceneManager.getCameraOffsetX(),
+                                    sceneManager.getCameraOffsetY(),
+                                    sceneManager.getCameraZoom());
 
         if(!sceneManager.updateActiveScene(deltaTime)) {
             running = false;

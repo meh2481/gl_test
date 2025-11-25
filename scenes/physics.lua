@@ -305,6 +305,9 @@ function onAction(action)
         end
     end
     if action == ACTION_RESET_PHYSICS then
+        -- Reset camera to default position
+        setCameraOffset(0, 0)
+        setCameraZoom(1.0)
         -- Reset all bodies
         for i, bodyId in ipairs(bodies) do
             if i <= 4 then

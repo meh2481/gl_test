@@ -5,7 +5,7 @@
 #include <algorithm>
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f) {
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f) {
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
     physics_ = std::make_unique<Box2DPhysics>();
@@ -51,6 +51,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "audioSetListenerOrientation", "audioSetGlobalVolume", "audioSetGlobalEffect",
                                      "vibrate", "vibrateTriggers", "stopVibration",
                                      "getCursorPosition",
+                                     "getCameraOffset", "setCameraOffset", "getCameraZoom", "setCameraZoom",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -84,6 +85,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
         "ACTION_EXIT", "ACTION_MENU", "ACTION_PHYSICS_DEMO", "ACTION_AUDIO_TEST", "ACTION_TOGGLE_FULLSCREEN",
         "ACTION_HOTRELOAD", "ACTION_APPLY_FORCE", "ACTION_RESET_PHYSICS", "ACTION_TOGGLE_DEBUG_DRAW",
         "ACTION_DRAG_START", "ACTION_DRAG_END",
+        "ACTION_PAN_START", "ACTION_PAN_END",
         nullptr
     };
     for (const char** constant = actionConstants; *constant; ++constant) {
@@ -482,6 +484,12 @@ void LuaInterface::registerFunctions() {
     // Register cursor position function
     lua_register(luaState_, "getCursorPosition", getCursorPosition);
 
+    // Register camera functions
+    lua_register(luaState_, "getCameraOffset", getCameraOffset);
+    lua_register(luaState_, "setCameraOffset", setCameraOffset);
+    lua_register(luaState_, "getCameraZoom", getCameraZoom);
+    lua_register(luaState_, "setCameraZoom", setCameraZoom);
+
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
     lua_setglobal(luaState_, "B2_STATIC_BODY");
@@ -513,6 +521,10 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_DRAG_START");
     lua_pushinteger(luaState_, ACTION_DRAG_END);
     lua_setglobal(luaState_, "ACTION_DRAG_END");
+    lua_pushinteger(luaState_, ACTION_PAN_START);
+    lua_setglobal(luaState_, "ACTION_PAN_START");
+    lua_pushinteger(luaState_, ACTION_PAN_END);
+    lua_setglobal(luaState_, "ACTION_PAN_END");
 
     // Register Audio effect constants
     lua_pushinteger(luaState_, AUDIO_EFFECT_NONE);
@@ -1946,5 +1958,74 @@ int LuaInterface::getCursorPosition(lua_State* L) {
     lua_pushnumber(L, interface->cursorX_);
     lua_pushnumber(L, interface->cursorY_);
     return 2;
+}
+
+// getCameraOffset()
+// Returns current camera offset in world coordinates (x, y)
+int LuaInterface::getCameraOffset(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    lua_pushnumber(L, interface->cameraOffsetX_);
+    lua_pushnumber(L, interface->cameraOffsetY_);
+    return 2;
+}
+
+// setCameraOffset(x, y)
+// Sets camera offset in world coordinates
+int LuaInterface::setCameraOffset(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    interface->cameraOffsetX_ = lua_tonumber(L, 1);
+    interface->cameraOffsetY_ = lua_tonumber(L, 2);
+    return 0;
+}
+
+// getCameraZoom()
+// Returns current camera zoom level
+int LuaInterface::getCameraZoom(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    lua_pushnumber(L, interface->cameraZoom_);
+    return 1;
+}
+
+// setCameraZoom(zoom)
+// Sets camera zoom level (1.0 = normal, >1.0 = zoomed in, <1.0 = zoomed out)
+int LuaInterface::setCameraZoom(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    float zoom = lua_tonumber(L, 1);
+    if (zoom > 0.0f) {
+        interface->cameraZoom_ = zoom;
+    }
+    return 0;
+}
+
+// applyScrollZoom applies zoom based on scroll delta
+void LuaInterface::applyScrollZoom(float scrollDelta) {
+    float zoomFactor = 1.1f;
+    if (scrollDelta > 0) {
+        cameraZoom_ *= zoomFactor;
+    } else if (scrollDelta < 0) {
+        cameraZoom_ /= zoomFactor;
+    }
+    // Clamp zoom to reasonable values
+    if (cameraZoom_ < 0.1f) cameraZoom_ = 0.1f;
+    if (cameraZoom_ > 10.0f) cameraZoom_ = 10.0f;
 }
 
