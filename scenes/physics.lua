@@ -214,12 +214,13 @@ function init()
     -- Attach lantern sprite to the light body
     local layerId = createLayer(lanternTexId, 0.1, lanternNormId, phongShaderId)
     attachLayerToBody(layerId, lightBody)
-    setLayerOffset(layerId, 0, 0.002)  -- Offset the lantern graphic slightly below the light body center
+    setLayerOffset(layerId, 0, -0.001)  -- Offset the lantern graphic slightly below the light body center
     table.insert(layers, layerId)
 
     -- Add bloom effect to swinging chain light
-    local bloomLayerId = createLayer(bloomTexId, 1.5, bloomShaderId)
+    local bloomLayerId = createLayer(bloomTexId, 1.6, bloomShaderId)
     attachLayerToBody(bloomLayerId, lightBody)
+    setLayerOffset(bloomLayerId, 0, -0.004)
     table.insert(layers, bloomLayerId)
 
     -- Connect light to the last chain link
