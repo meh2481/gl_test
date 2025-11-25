@@ -2027,6 +2027,8 @@ void LuaInterface::applyScrollZoom(float scrollDelta) {
         cameraZoom_ *= ZOOM_SCROLL_FACTOR;
     } else if (scrollDelta < 0) {
         cameraZoom_ /= ZOOM_SCROLL_FACTOR;
+    } else {
+        return; // No change needed for zero scroll
     }
     // Clamp zoom to reasonable values
     if (cameraZoom_ < MIN_CAMERA_ZOOM) cameraZoom_ = MIN_CAMERA_ZOOM;

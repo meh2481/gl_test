@@ -335,23 +335,23 @@ int main() {
                 int windowWidth, windowHeight;
                 float worldX, worldY;
                 SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+
+                // Update camera offset while panning (before calculating cursor position)
+                if (isPanning) {
+                    // Calculate cursor position with original camera offset for delta calculation
+                    screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
+                                  panStartCameraX, panStartCameraY,
+                                  sceneManager.getCameraZoom(), &worldX, &worldY);
+                    float deltaX = worldX - panStartCursorX;
+                    float deltaY = worldY - panStartCursorY;
+                    sceneManager.setCameraOffset(panStartCameraX - deltaX, panStartCameraY - deltaY);
+                }
+
+                // Calculate final cursor position with current camera offset
                 screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
                               sceneManager.getCameraOffsetX(), sceneManager.getCameraOffsetY(),
                               sceneManager.getCameraZoom(), &worldX, &worldY);
                 sceneManager.setCursorPosition(worldX, worldY);
-
-                // Update camera offset while panning
-                if (isPanning) {
-                    float deltaX = worldX - panStartCursorX;
-                    float deltaY = worldY - panStartCursorY;
-                    sceneManager.setCameraOffset(panStartCameraX - deltaX, panStartCameraY - deltaY);
-                    // Recalculate cursor position with new camera offset - this is necessary
-                    // because world coordinates change when the camera moves
-                    screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
-                                  sceneManager.getCameraOffsetX(), sceneManager.getCameraOffsetY(),
-                                  sceneManager.getCameraZoom(), &worldX, &worldY);
-                    sceneManager.setCursorPosition(worldX, worldY);
-                }
             }
         }
 
