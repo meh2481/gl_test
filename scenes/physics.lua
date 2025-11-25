@@ -250,7 +250,6 @@ function update(deltaTime)
     -- Update light position based on the light body at the end of the chain
     if lightBody then
         local lightX, lightY = b2GetBodyPosition(lightBody)
-        lightX = lightX - 0.1 -- idk why this is slightly off
         -- Update shader parameters with new light position
         setShaderParameters(phongShaderId, lightX, lightY, chainLightZ, 0.3, 0.7, 0.8, 32.0)
         setShaderParameters(toonShaderId, lightX, lightY, chainLightZ, 3.0)
