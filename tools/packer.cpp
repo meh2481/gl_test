@@ -416,19 +416,32 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
             }
 
             if (!anyPacked) {
-                // Pack remaining images individually (they're too large for atlas)
+                // Images too large for atlas - they will be stored as individual images
+                // Reset their packed flag so they can be processed individually
                 for (size_t i : unpacked) {
                     if (!rects[i].packed) {
-                        rects[i].packed = true;  // Mark as "packed" to avoid infinite loop
-                        // These will be stored as individual images, not in atlas
+                        // Mark as processed but remember they're oversized
+                        rects[i].packed = true;
+                        // These images will fall through to individual processing below
                     }
                 }
                 continue;
             }
 
             // Create atlas with packed images
+            // Generate deterministic atlas ID based on content hash
+            uint64_t atlasContentHash = 0;
+            for (size_t i : unpacked) {
+                if (rects[i].packed) {
+                    atlasContentHash ^= images[rects[i].imageIndex].id;
+                    atlasContentHash = (atlasContentHash << 7) | (atlasContentHash >> 57);
+                }
+            }
+            atlasContentHash ^= ((uint64_t)atlasWidth << 32) | atlasHeight;
+            atlasContentHash ^= hasAlpha ? 0xFFFFFFFF : 0;
+
             TextureAtlas atlas;
-            atlas.atlasId = hash<string>{}("_atlas_" + to_string(atlases.size()));
+            atlas.atlasId = atlasContentHash;
             atlas.width = atlasWidth;
             atlas.height = atlasHeight;
             atlas.hasAlpha = hasAlpha;
@@ -688,8 +701,12 @@ int main(int argc, char* argv[]) {
         struct AtlasInfo {
             size_t atlasIndex;
             AtlasEntry entry;
+            bool isPacked;  // Whether this image was packed into an atlas
         };
         vector<AtlasInfo> imageToAtlas(pngImages.size());
+        for (size_t i = 0; i < imageToAtlas.size(); i++) {
+            imageToAtlas[i].isPacked = false;
+        }
 
         for (size_t atlasIdx = 0; atlasIdx < atlases.size(); atlasIdx++) {
             TextureAtlas& atlas = atlases[atlasIdx];
@@ -697,34 +714,72 @@ int main(int argc, char* argv[]) {
                 size_t imgIdx = atlas.packedImageIndices[i];
                 imageToAtlas[imgIdx].atlasIndex = atlasIdx;
                 imageToAtlas[imgIdx].entry = atlas.entries[i];
+                imageToAtlas[imgIdx].isPacked = true;
             }
         }
 
-        // For each image file, create a TextureHeader that references the atlas
+        // For each image file, either create a TextureHeader (if packed) or ImageHeader (if standalone)
         for (size_t i = 0; i < pngImages.size(); i++) {
             PNGImageData& img = pngImages[i];
             AtlasInfo& atlasInfo = imageToAtlas[i];
+
+            if (!atlasInfo.isPacked) {
+                // Image was too large for atlas - store as standalone ImageHeader
+                cout << "Image " << img.filename << " too large for atlas, storing standalone" << endl;
+
+                vector<char> compressedImage;
+                uint16_t format;
+                compressImageRaw(img.imageData, compressedImage, img.width, img.height, img.hasAlpha, format);
+
+                // Create ImageHeader
+                ImageHeader header;
+                header.format = format;
+                header.width = img.width;
+                header.height = img.height;
+                header.pad = 0;
+
+                // Find corresponding file and set its data
+                for (auto& file : files) {
+                    if (file.id == img.id) {
+                        file.data.resize(sizeof(ImageHeader) + compressedImage.size());
+                        memcpy(file.data.data(), &header, sizeof(ImageHeader));
+                        memcpy(file.data.data() + sizeof(ImageHeader), compressedImage.data(), compressedImage.size());
+                        file.changed = true;
+                        break;
+                    }
+                }
+                continue;
+            }
+
             TextureAtlas& atlas = atlases[atlasInfo.atlasIndex];
             AtlasEntry& entry = atlasInfo.entry;
 
             // Calculate UV coordinates
+            // u0,v0 = top-left corner in texture space (V increases downward in image)
+            // u1,v1 = bottom-right corner in texture space
             float u0 = (float)entry.x / atlas.width;
             float v0 = (float)entry.y / atlas.height;
             float u1 = (float)(entry.x + entry.width) / atlas.width;
             float v1 = (float)(entry.y + entry.height) / atlas.height;
 
             // Create TextureHeader
+            // UV coordinate layout in coordinates[8] array:
+            //   [0,1] = bottom-left  (u0, v1)
+            //   [2,3] = bottom-right (u1, v1)
+            //   [4,5] = top-right    (u1, v0)
+            //   [6,7] = top-left     (u0, v0)
+            // Note: v is stored with bottom having v1 (higher value) because
+            // image Y increases downward but GPU texture V typically increases upward
             TextureHeader texHeader;
             texHeader.atlasId = atlas.atlasId;
-            // Store UV coordinates: bottom-left, bottom-right, top-right, top-left
-            texHeader.coordinates[0] = u0;  // BL u
-            texHeader.coordinates[1] = v1;  // BL v (flipped Y for GPU)
-            texHeader.coordinates[2] = u1;  // BR u
-            texHeader.coordinates[3] = v1;  // BR v
-            texHeader.coordinates[4] = u1;  // TR u
-            texHeader.coordinates[5] = v0;  // TR v
-            texHeader.coordinates[6] = u0;  // TL u
-            texHeader.coordinates[7] = v0;  // TL v
+            texHeader.coordinates[0] = u0;  // bottom-left u
+            texHeader.coordinates[1] = v1;  // bottom-left v
+            texHeader.coordinates[2] = u1;  // bottom-right u
+            texHeader.coordinates[3] = v1;  // bottom-right v
+            texHeader.coordinates[4] = u1;  // top-right u
+            texHeader.coordinates[5] = v0;  // top-right v
+            texHeader.coordinates[6] = u0;  // top-left u
+            texHeader.coordinates[7] = v0;  // top-left v
 
             // Find corresponding file and set its data
             for (auto& file : files) {

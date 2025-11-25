@@ -169,16 +169,23 @@ bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
     }
 
     // Check if this is a TextureHeader (atlas reference)
-    // TextureHeader size is exactly 40 bytes (8 + 8*4 = 40)
+    // Use sizeof() for size comparison to stay in sync with structure definition
     if (resData.size == sizeof(TextureHeader)) {
         TextureHeader* texHeader = (TextureHeader*)resData.data;
 
         uv.atlasId = texHeader->atlasId;
-        // UV coordinates are stored as: BL, BR, TR, TL (each is u,v pair)
-        uv.u0 = texHeader->coordinates[0];  // BL u
-        uv.v0 = texHeader->coordinates[7];  // TL v (top)
-        uv.u1 = texHeader->coordinates[2];  // BR u
-        uv.v1 = texHeader->coordinates[1];  // BL v (bottom)
+
+        // UV coordinate layout in TextureHeader.coordinates[8]:
+        //   [0,1] = bottom-left  (u0, v_bottom)
+        //   [2,3] = bottom-right (u1, v_bottom)
+        //   [4,5] = top-right    (u1, v_top)
+        //   [6,7] = top-left     (u0, v_top)
+        // Extract bounds: u0 from index 0, u1 from index 2
+        //                 v_top from index 7, v_bottom from index 1
+        uv.u0 = texHeader->coordinates[0];  // left u (from bottom-left)
+        uv.u1 = texHeader->coordinates[2];  // right u (from bottom-right)
+        uv.v0 = texHeader->coordinates[7];  // top v (from top-left)
+        uv.v1 = texHeader->coordinates[1];  // bottom v (from bottom-left)
 
         // Get atlas to determine original dimensions
         ResourceData atlasData = getResource(texHeader->atlasId);
