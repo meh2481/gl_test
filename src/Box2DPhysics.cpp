@@ -314,6 +314,22 @@ void Box2DPhysics::addPolygonFixture(int bodyId, const float* vertices, int vert
     b2CreatePolygonShape(it->second, &shapeDef, &polygon);
 }
 
+void Box2DPhysics::addSegmentFixture(int bodyId, float x1, float y1, float x2, float y2, float friction, float restitution) {
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+
+    b2Segment segment;
+    segment.point1 = (b2Vec2){x1, y1};
+    segment.point2 = (b2Vec2){x2, y2};
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.density = 0.0f; // Segments are typically static, so density is 0
+    shapeDef.material.friction = friction;
+    shapeDef.material.restitution = restitution;
+
+    b2CreateSegmentShape(it->second, &shapeDef, &segment);
+}
+
 int Box2DPhysics::createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy,
                                        float anchorBx, float anchorBy, bool enableLimit,
                                        float lowerAngle, float upperAngle) {

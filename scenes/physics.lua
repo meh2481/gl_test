@@ -63,10 +63,25 @@ function init()
     -- Set gravity (x, y)
     b2SetGravity(0, -10)
 
-    -- Create ground (static body)
+    -- Create ground (static line segment)
     local groundId = b2CreateBody(B2_STATIC_BODY, 0, -0.8, 0)
-    b2AddBoxFixture(groundId, 1.5, 0.1, 1.0, 0.3, 0.0)
+    b2AddSegmentFixture(groundId, -1.5, 0, 1.5, 0, 0.3, 0.0)
     table.insert(bodies, groundId)
+
+    -- Create left wall (static line segment)
+    local leftWallId = b2CreateBody(B2_STATIC_BODY, -1.5, 0, 0)
+    b2AddSegmentFixture(leftWallId, 0, -1.0, 0, 10.0, 0.3, 0.0)
+    table.insert(bodies, leftWallId)
+
+    -- Create right wall (static line segment)
+    local rightWallId = b2CreateBody(B2_STATIC_BODY, 1.5, 0, 0)
+    b2AddSegmentFixture(rightWallId, 0, -1.0, 0, 10.0, 0.3, 0.0)
+    table.insert(bodies, rightWallId)
+
+    -- Create ceiling far above (static line segment)
+    local ceilingId = b2CreateBody(B2_STATIC_BODY, 0, 10.0, 0)
+    b2AddSegmentFixture(ceilingId, -1.5, 0, 1.5, 0, 0.3, 0.0)
+    table.insert(bodies, ceilingId)
 
     -- Create 5 dynamic boxes with different rendering:
     -- Box 1 & 2: Phong with normal maps (metalwall)
@@ -292,46 +307,45 @@ function onAction(action)
     if action == ACTION_RESET_PHYSICS then
         -- Reset all bodies
         for i, bodyId in ipairs(bodies) do
-            if i == 1 then
-                -- Ground - keep it in place
-                b2SetBodyPosition(bodyId, 0, -0.8)
-                b2SetBodyAngle(bodyId, 0)
-            elseif i <= 6 then
-                -- Boxes
-                local x = -0.5 + (i - 2) * 0.25
+            if i <= 4 then
+                -- Static bodies (ground, left wall, right wall, ceiling) - keep in place
+                -- No need to reset static bodies
+            elseif i <= 9 then
+                -- Boxes (5 dynamic boxes)
+                local x = -0.5 + (i - 5) * 0.25
                 b2SetBodyPosition(bodyId, x, 0.5)
                 b2SetBodyAngle(bodyId, 0)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
-            elseif i == 7 then
+            elseif i == 10 then
                 -- Chain box
                 b2SetBodyPosition(bodyId, -0.7, 0.3)
                 b2SetBodyAngle(bodyId, 0)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
-            elseif i == 8 then
+            elseif i == 11 then
                 -- Circle (rock)
                 b2SetBodyPosition(bodyId, 0, 0.8)
                 b2SetBodyAngle(bodyId, 0)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
-            elseif i == 9 then
+            elseif i == 12 then
                 -- Lantern circle
                 b2SetBodyPosition(bodyId, 0.5, 0.8)
                 b2SetBodyAngle(bodyId, 0)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
-            elseif i == 10 then
+            elseif i == 13 then
                 -- Chain anchor - keep it in place (static body)
                 b2SetBodyPosition(bodyId, chainStartX, chainStartY)
                 b2SetBodyAngle(bodyId, 0)
-            elseif i <= 10 + chainLength then
+            elseif i <= 13 + chainLength then
                 -- Chain links
-                local linkIndex = i - 10
+                local linkIndex = i - 13
                 local linkY = chainStartY - linkIndex * chainLinkHeight
                 b2SetBodyPosition(bodyId, chainStartX, linkY)
                 b2SetBodyAngle(bodyId, 0)
