@@ -187,6 +187,10 @@ bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
         uv.v0 = texHeader->coordinates[7];  // top v (from top-left)
         uv.v1 = texHeader->coordinates[1];  // bottom v (from bottom-left)
 
+        // Initialize dimensions to 0 (will be set from atlas entry)
+        uv.width = 0;
+        uv.height = 0;
+
         // Get atlas to determine original dimensions
         ResourceData atlasData = getResource(texHeader->atlasId);
         if (atlasData.data && atlasData.size >= sizeof(AtlasHeader)) {

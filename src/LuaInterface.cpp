@@ -1218,12 +1218,13 @@ int LuaInterface::createLayer(lua_State* L) {
     uint32_t texWidth, texHeight;
     float width, height;
 
-    if (usesAtlas) {
+    if (usesAtlas && atlasUV.width > 0 && atlasUV.height > 0) {
         // Use atlas entry dimensions
         texWidth = atlasUV.width;
         texHeight = atlasUV.height;
     } else if (!interface->renderer_.getTextureDimensions(textureId, &texWidth, &texHeight)) {
-        // Texture not found, default to square
+        // Texture not found, default to square using the requested size
+        // This allows the layer to be created even if texture is missing
         texWidth = texHeight = 1;
     }
 
