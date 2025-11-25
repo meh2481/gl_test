@@ -35,7 +35,7 @@ jobs:
         with:
           path: |
             ~/apt-cache/*.deb
-          key: apt-packages-${{ runner.os }}-v1
+          key: apt-packages-copilot-${{ runner.os }}-v1
 
       - name: Restore apt cache
         if: steps.cache-apt.outputs.cache-hit == 'true'
