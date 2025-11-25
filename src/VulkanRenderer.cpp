@@ -1331,6 +1331,12 @@ void VulkanRenderer::createSingleTextureDescriptorPool() {
 }
 
 void VulkanRenderer::loadTexture(uint64_t textureId, const ResourceData& imageData) {
+    // If texture already exists, skip reloading (textures don't change during hot-reload)
+    // This prevents descriptor pool exhaustion from repeated allocations
+    if (m_textures.find(textureId) != m_textures.end()) {
+        return;
+    }
+
     // Parse ImageHeader to get format, width, height
     assert(imageData.size >= sizeof(ImageHeader));
     const ImageHeader* header = (const ImageHeader*)imageData.data;
@@ -1834,9 +1840,14 @@ void VulkanRenderer::createTextureSampler(uint64_t textureId) {
 }
 
 void VulkanRenderer::createSingleTextureDescriptorSet(uint64_t textureId) {
+    // If descriptor set already exists for this texture, skip allocation
+    if (m_singleTextureDescriptorSets.find(textureId) != m_singleTextureDescriptorSets.end()) {
+        return;
+    }
+
     auto it = m_textures.find(textureId);
     assert(it != m_textures.end());
-    
+
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = m_singleTextureDescriptorPool;
@@ -1966,11 +1977,16 @@ void VulkanRenderer::createDualTextureDescriptorPool() {
 }
 
 void VulkanRenderer::createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id) {
+    // If descriptor set already exists for this ID, skip allocation
+    if (m_dualTextureDescriptorSets.find(descriptorId) != m_dualTextureDescriptorSets.end()) {
+        return;
+    }
+
     auto tex1It = m_textures.find(texture1Id);
     auto tex2It = m_textures.find(texture2Id);
     assert(tex1It != m_textures.end());
     assert(tex2It != m_textures.end());
-    
+
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = m_dualTextureDescriptorPool;
