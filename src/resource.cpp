@@ -98,8 +98,9 @@ bool PakResource::reload(const char* filename) {
 #endif
         m_pakData = {nullptr, 0};
     }
-    // Clear decompressed cache
+    // Clear caches
     m_decompressedData.clear();
+    m_atlasUVCache.clear();
     // Load again
     return load(filename);
 }
@@ -146,6 +147,92 @@ ResourceData PakResource::getResource(uint64_t id) {
 
     SDL_UnlockMutex(m_mutex);
     return ResourceData{nullptr, 0};
+}
+
+bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
+    SDL_LockMutex(m_mutex);
+
+    // Check cache first
+    auto cacheIt = m_atlasUVCache.find(textureId);
+    if (cacheIt != m_atlasUVCache.end()) {
+        uv = cacheIt->second;
+        SDL_UnlockMutex(m_mutex);
+        return true;
+    }
+
+    SDL_UnlockMutex(m_mutex);
+
+    // Get the resource data
+    ResourceData resData = getResource(textureId);
+    if (!resData.data || resData.size < sizeof(TextureHeader)) {
+        return false;  // Not a texture or not found
+    }
+
+    // Check if this is a TextureHeader (atlas reference)
+    // Use sizeof() for size comparison to stay in sync with structure definition
+    if (resData.size == sizeof(TextureHeader)) {
+        TextureHeader* texHeader = (TextureHeader*)resData.data;
+
+        uv.atlasId = texHeader->atlasId;
+
+        // UV coordinate layout in TextureHeader.coordinates[8]:
+        //   [0,1] = bottom-left  (u0, v_bottom)
+        //   [2,3] = bottom-right (u1, v_bottom)
+        //   [4,5] = top-right    (u1, v_top)
+        //   [6,7] = top-left     (u0, v_top)
+        // Extract bounds: u0 from index 0, u1 from index 2
+        //                 v_top from index 7, v_bottom from index 1
+        uv.u0 = texHeader->coordinates[0];  // left u (from bottom-left)
+        uv.u1 = texHeader->coordinates[2];  // right u (from bottom-right)
+        uv.v0 = texHeader->coordinates[7];  // top v (from top-left)
+        uv.v1 = texHeader->coordinates[1];  // bottom v (from bottom-left)
+
+        // Initialize dimensions to 0 (will be set from atlas entry)
+        uv.width = 0;
+        uv.height = 0;
+
+        // Get atlas to determine original dimensions
+        ResourceData atlasData = getResource(texHeader->atlasId);
+        if (atlasData.data && atlasData.size >= sizeof(AtlasHeader)) {
+            AtlasHeader* atlasHeader = (AtlasHeader*)atlasData.data;
+            AtlasEntry* entries = (AtlasEntry*)(atlasData.data + sizeof(AtlasHeader));
+
+            // Find the entry for this texture
+            for (uint16_t i = 0; i < atlasHeader->numEntries; i++) {
+                if (entries[i].originalId == textureId) {
+                    uv.width = entries[i].width;
+                    uv.height = entries[i].height;
+                    break;
+                }
+            }
+        }
+
+        // Cache the result
+        SDL_LockMutex(m_mutex);
+        m_atlasUVCache[textureId] = uv;
+        SDL_UnlockMutex(m_mutex);
+
+        return true;
+    }
+
+    return false;  // Not an atlas reference (standalone image)
+}
+
+ResourceData PakResource::getAtlasData(uint64_t atlasId) {
+    // Get the atlas resource
+    ResourceData resData = getResource(atlasId);
+    if (!resData.data || resData.size < sizeof(AtlasHeader)) {
+        return ResourceData{nullptr, 0};
+    }
+
+    // The atlas data contains: AtlasHeader + AtlasEntry[] + compressed image data
+    AtlasHeader* header = (AtlasHeader*)resData.data;
+    size_t entriesSize = sizeof(AtlasEntry) * header->numEntries;
+    size_t imageOffset = sizeof(AtlasHeader) + entriesSize;
+
+    // Return the image portion with header information
+    // We return the entire atlas data so the renderer can parse it
+    return resData;
 }
 
 // Structure for async preload thread
