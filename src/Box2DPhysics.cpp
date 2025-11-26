@@ -21,6 +21,9 @@ static constexpr float MOH_BASE_BREAK_SPEED = 3.0f;  // Base break speed at refe
 static constexpr float MIN_SECONDARY_FRACTURE_BRITTLENESS = 0.3f;  // Min brittleness for secondary fractures
 static constexpr float BRITTLENESS_REDUCTION_FACTOR = 0.8f;  // Reduces brittleness per generation to prevent infinite shattering
 
+// Minimum bounding box dimension for UV mapping (prevents division by zero)
+static constexpr float MIN_DIMENSION_FOR_UV_MAPPING = 0.0001f;
+
 // Helper function to convert b2HexColor to RGBA floats
 static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, float& a) {
     r = ((hexColor >> 16) & 0xFF) / 255.0f;
@@ -756,9 +759,9 @@ void Box2DPhysics::setBodyDestructible(int bodyId, float strength, float brittle
     props.originalWidth = maxX - minX;
     props.originalHeight = maxY - minY;
 
-    // Prevent division by zero
-    if (props.originalWidth < 0.0001f) props.originalWidth = 0.0001f;
-    if (props.originalHeight < 0.0001f) props.originalHeight = 0.0001f;
+    // Prevent division by zero in UV mapping
+    if (props.originalWidth < MIN_DIMENSION_FOR_UV_MAPPING) props.originalWidth = MIN_DIMENSION_FOR_UV_MAPPING;
+    if (props.originalHeight < MIN_DIMENSION_FOR_UV_MAPPING) props.originalHeight = MIN_DIMENSION_FOR_UV_MAPPING;
 
     destructibles_[bodyId] = props;
 }

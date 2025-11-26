@@ -1571,28 +1571,28 @@ int LuaInterface::setLayerPolygon(lua_State* L) {
 
     int layerId = (int)lua_tointeger(L, 1);
 
-    // Get vertices from table
+    // Get vertices from table (3-8 vertices = 6-16 x,y values)
     float vertices[16];
     int vertexLen = (int)lua_rawlen(L, 2);
-    assert(vertexLen >= 6 && vertexLen <= 16);  // 3-8 vertices
+    assert(vertexLen >= 6 && vertexLen <= 16);
 
-    for (int i = 1; i <= vertexLen && i <= 16; ++i) {
-        lua_rawgeti(L, 2, i);
+    for (int i = 0; i < vertexLen; ++i) {
+        lua_rawgeti(L, 2, i + 1);
         assert(lua_isnumber(L, -1));
-        vertices[i - 1] = lua_tonumber(L, -1);
+        vertices[i] = lua_tonumber(L, -1);
         lua_pop(L, 1);
     }
     int vertexCount = vertexLen / 2;
 
-    // Get UVs from table
+    // Get UVs from table (must match vertex count)
     float uvs[16];
     int uvLen = (int)lua_rawlen(L, 3);
-    assert(uvLen == vertexLen);  // Must match vertex count
+    assert(uvLen == vertexLen);
 
-    for (int i = 1; i <= uvLen && i <= 16; ++i) {
-        lua_rawgeti(L, 3, i);
+    for (int i = 0; i < uvLen; ++i) {
+        lua_rawgeti(L, 3, i + 1);
         assert(lua_isnumber(L, -1));
-        uvs[i - 1] = lua_tonumber(L, -1);
+        uvs[i] = lua_tonumber(L, -1);
         lua_pop(L, 1);
     }
 
