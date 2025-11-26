@@ -293,13 +293,13 @@ function update(deltaTime)
             -- Check if the destructible body was involved in a hard hit
             if event.bodyIdA == destructibleBody or event.bodyIdB == destructibleBody then
                 if event.approachSpeed >= destructibleStrength then
+                    print("CRASH! Object broke at speed: " .. string.format("%.2f", event.approachSpeed))
+
                     -- Get current position and velocity before destroying
                     local x, y = b2GetBodyPosition(destructibleBody)
                     local vx, vy = b2GetBodyLinearVelocity(destructibleBody)
                     local angle = b2GetBodyAngle(destructibleBody)
                     local angularVel = b2GetBodyAngularVelocity(destructibleBody)
-
-                    print("CRASH! Object broke at speed: " .. string.format("%.2f", event.approachSpeed))
 
                     -- Destroy the original body and layer
                     destroyLayer(destructibleLayer)
