@@ -42,9 +42,6 @@ void main() {
     float aspect = pc.width / pc.height;
     vec3 dPosX = dFdx(fragPos);
     vec3 dPosY = dFdy(fragPos);
-    // Correct for aspect ratio: screen X derivatives are scaled by aspect in gl_Position
-    dPosX.x *= aspect;
-    dPosY.x *= aspect;
     vec2 dTexX = dFdx(fragTexCoord);
     vec2 dTexY = dFdy(fragTexCoord);
 
@@ -64,9 +61,15 @@ void main() {
     // Transform normal from tangent space to world space
     vec3 normal = normalize(TBN * tangentNormal);
 
-    // Calculate lighting
-    vec3 lightDir = normalize(fragLightPos - fragPos);
-    vec3 viewDir = normalize(fragViewPos - fragPos);
+    // Calculate lighting vectors
+    // The TBN is computed from screen-space derivatives which include aspect ratio scaling
+    // So we need to apply the same aspect ratio correction to the light/view direction calculation
+    vec3 aspectCorrectedFragPos = vec3(fragPos.x / aspect, fragPos.y, fragPos.z);
+    vec3 aspectCorrectedLightPos = vec3(fragLightPos.x / aspect, fragLightPos.y, fragLightPos.z);
+    vec3 aspectCorrectedViewPos = vec3(fragViewPos.x / aspect, fragViewPos.y, fragViewPos.z);
+
+    vec3 lightDir = normalize(aspectCorrectedLightPos - aspectCorrectedFragPos);
+    vec3 viewDir = normalize(aspectCorrectedViewPos - aspectCorrectedFragPos);
 
     // Ambient
     vec3 ambient = pc.ambientStrength * texColor.rgb;
