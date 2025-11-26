@@ -12,6 +12,10 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, S
     layerManager_ = std::make_unique<SceneLayerManager>();
     audioManager_ = std::make_unique<AudioManager>();
     audioManager_->initialize();
+
+    // Set layer manager on physics so it can create fragment layers during fracture
+    physics_->setLayerManager(layerManager_.get());
+
     registerFunctions();
 }
 
@@ -1294,6 +1298,22 @@ int LuaInterface::b2SetBodyDestructible(lua_State* L) {
     interface->physics_->setBodyDestructible(bodyId, strength, brittleness,
                                               vertices, vertexCount,
                                               textureId, normalMapId, pipelineId);
+
+    // Check if texture uses atlas and set atlas UV info if so
+    AtlasUV atlasUV;
+    if (interface->pakResource_.getAtlasUV(textureId, atlasUV)) {
+        AtlasUV normalAtlasUV = {};
+        if (normalMapId > 0) {
+            interface->pakResource_.getAtlasUV(normalMapId, normalAtlasUV);
+        }
+        interface->physics_->setBodyDestructibleAtlasUV(
+            bodyId,
+            atlasUV.atlasId,
+            normalAtlasUV.atlasId,
+            atlasUV.u0, atlasUV.v0, atlasUV.u1, atlasUV.v1
+        );
+    }
+
     return 0;
 }
 
@@ -1347,6 +1367,14 @@ int LuaInterface::b2GetFractureEvents(lua_State* L) {
             lua_rawseti(L, -2, i + 1);
         }
         lua_setfield(L, -2, "newBodyIds");
+
+        // Create array of new layer IDs (created by C++)
+        lua_newtable(L);
+        for (int i = 0; i < event.fragmentCount; ++i) {
+            lua_pushinteger(L, event.newLayerIds[i]);
+            lua_rawseti(L, -2, i + 1);
+        }
+        lua_setfield(L, -2, "newLayerIds");
 
         // Create array of fragment areas for proper layer sizing
         lua_newtable(L);

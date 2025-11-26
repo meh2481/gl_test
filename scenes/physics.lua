@@ -319,10 +319,11 @@ end
 
 function update(deltaTime)
     -- Step the physics simulation (Box2D 3.x uses subStepCount instead of velocity/position iterations)
-    -- The C++ physics engine now automatically processes fractures during step
+    -- The C++ physics engine now automatically processes fractures during step,
+    -- including creating fragment layers and handling physics bodies
     b2Step(deltaTime, 4)
 
-    -- Handle fracture events from C++ - create layers for new fragment bodies
+    -- Handle fracture events from C++ - layers are now created in C++, but we need to track them for cleanup
     local fractureEvents = b2GetFractureEvents()
     for _, event in ipairs(fractureEvents) do
         print("FRACTURE! Object " .. event.originalBodyId .. " broke into " .. event.fragmentCount .. " pieces at speed " .. string.format("%.2f", event.impactSpeed))
@@ -349,29 +350,16 @@ function update(deltaTime)
             destructibleLayer = nil
         end
 
-        -- Create layers for new fragment bodies with proper UV clipping
+        -- Track fragment bodies and layers created by C++ for cleanup on reset
         for i = 1, event.fragmentCount do
             local fragBodyId = event.newBodyIds[i]
-            local fragPoly = event.fragmentPolygons[i]
-            if fragBodyId and fragBodyId >= 0 and fragPoly then
-                -- Calculate layer size from fragment polygon area
-                local fragArea = event.fragmentAreas[i] or 0.0144
-                local fragSize = math.sqrt(fragArea) * 2
-                if fragSize < 0.04 then fragSize = 0.04 end
-
-                -- Create layer with size based on polygon bounds
-                local fragLayer = createLayer(rockTexId, fragSize, rockNormId, phongShaderId)
-                attachLayerToBody(fragLayer, fragBodyId)
-
-                -- Apply polygon vertices and UV coordinates for texture clipping
-                if fragPoly.vertexCount >= 3 and fragPoly.vertices and fragPoly.uvs then
-                    setLayerPolygon(fragLayer, fragPoly.vertices, fragPoly.uvs)
-                end
-
-                -- Track as fragment (separate from main bodies list for cleanup)
+            local fragLayerId = event.newLayerIds[i]
+            if fragBodyId and fragBodyId >= 0 then
                 table.insert(fragmentBodies, fragBodyId)
-                table.insert(fragmentLayers, fragLayer)
-                bodyLayerMap[fragBodyId] = fragLayer
+                if fragLayerId and fragLayerId >= 0 then
+                    table.insert(fragmentLayers, fragLayerId)
+                    bodyLayerMap[fragBodyId] = fragLayerId
+                end
             end
         end
 

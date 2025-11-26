@@ -6,6 +6,9 @@
 #include <SDL3/SDL.h>
 #include <functional>
 
+// Forward declarations
+class SceneLayerManager;
+
 struct DebugVertex {
     float x, y;
     float r, g, b, a;
@@ -55,6 +58,12 @@ struct DestructibleProperties {
     uint64_t textureId;      // Texture for rendering fragments
     uint64_t normalMapId;    // Normal map for fragments
     int pipelineId;          // Shader pipeline for fragments
+    // Atlas UV coordinates (if using texture atlas)
+    bool usesAtlas;
+    float atlasU0, atlasV0;  // Bottom-left UV in atlas
+    float atlasU1, atlasV1;  // Top-right UV in atlas
+    uint64_t atlasTextureId;      // Atlas texture ID (if using atlas)
+    uint64_t atlasNormalMapId;    // Atlas normal map ID (if using atlas)
 };
 
 // Callback for when a body is fractured (returns new fragment body IDs and layer IDs)
@@ -75,6 +84,9 @@ class Box2DPhysics {
 public:
     Box2DPhysics();
     ~Box2DPhysics();
+
+    // Set the layer manager for fragment layer creation
+    void setLayerManager(SceneLayerManager* manager) { layerManager_ = manager; }
 
     // World management
     void setGravity(float x, float y);
@@ -138,6 +150,11 @@ public:
     void setBodyDestructible(int bodyId, float strength, float brittleness,
                              const float* vertices, int vertexCount,
                              uint64_t textureId, uint64_t normalMapId, int pipelineId);
+
+    // Set atlas UV coordinates for a destructible body (call after setBodyDestructible)
+    void setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureId, uint64_t atlasNormalMapId,
+                                     float u0, float v0, float u1, float v1);
+
     void clearBodyDestructible(int bodyId);
     bool isBodyDestructible(int bodyId) const;
     const DestructibleProperties* getDestructibleProperties(int bodyId) const;
@@ -228,6 +245,9 @@ private:
 
     // Fracture events from last physics step
     std::vector<FractureEvent> fractureEvents_;
+
+    // Layer manager for creating fragment layers (not owned)
+    SceneLayerManager* layerManager_ = nullptr;
 
     // Fracture callback
     FractureCallback fractureCallback_;

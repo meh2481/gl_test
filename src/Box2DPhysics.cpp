@@ -1,4 +1,5 @@
 #include "Box2DPhysics.h"
+#include "SceneLayer.h"
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -13,13 +14,14 @@ static constexpr float SLEEP_THRESHOLD = 0.001f;
 
 // Moh's hardness scale constants for calculating break force
 // The scale is roughly logarithmic - each level is ~1.5x harder than the previous
-static constexpr float MOH_SCALE_MULTIPLIER = 1.5f;
-static constexpr float MOH_REFERENCE_LEVEL = 5.0f;  // Reference hardness level (like glass)
-static constexpr float MOH_BASE_BREAK_SPEED = 3.0f;  // Base break speed at reference level (m/s)
+// Adjusted so strength 0.5 behaves like real-world hardness ~4, strength 4 like glass (5)
+static constexpr float MOH_SCALE_MULTIPLIER = 1.3f;
+static constexpr float MOH_REFERENCE_LEVEL = 4.0f;  // Reference hardness level (like calcite/fluorite)
+static constexpr float MOH_BASE_BREAK_SPEED = 2.0f;  // Base break speed at reference level (m/s)
 
 // Brittleness constants for fracture behavior
 static constexpr float MIN_SECONDARY_FRACTURE_BRITTLENESS = 0.3f;  // Min brittleness for secondary fractures
-static constexpr float BRITTLENESS_REDUCTION_FACTOR = 0.8f;  // Reduces brittleness per generation to prevent infinite shattering
+static constexpr float MIN_FRAGMENT_AREA = 0.001f;  // Minimum fragment area - objects smaller than this disappear
 
 // Minimum bounding box dimension for UV mapping (prevents division by zero)
 static constexpr float MIN_DIMENSION_FOR_UV_MAPPING = 0.0001f;
@@ -800,7 +802,30 @@ void Box2DPhysics::setBodyDestructible(int bodyId, float strength, float brittle
     if (props.originalWidth < MIN_DIMENSION_FOR_UV_MAPPING) props.originalWidth = MIN_DIMENSION_FOR_UV_MAPPING;
     if (props.originalHeight < MIN_DIMENSION_FOR_UV_MAPPING) props.originalHeight = MIN_DIMENSION_FOR_UV_MAPPING;
 
+    // Default to no atlas
+    props.usesAtlas = false;
+    props.atlasU0 = 0.0f;
+    props.atlasV0 = 0.0f;
+    props.atlasU1 = 1.0f;
+    props.atlasV1 = 1.0f;
+    props.atlasTextureId = textureId;
+    props.atlasNormalMapId = normalMapId;
+
     destructibles_[bodyId] = props;
+}
+
+void Box2DPhysics::setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureId, uint64_t atlasNormalMapId,
+                                               float u0, float v0, float u1, float v1) {
+    auto it = destructibles_.find(bodyId);
+    if (it != destructibles_.end()) {
+        it->second.usesAtlas = true;
+        it->second.atlasU0 = u0;
+        it->second.atlasV0 = v0;
+        it->second.atlasU1 = u1;
+        it->second.atlasV1 = v1;
+        it->second.atlasTextureId = atlasTextureId;
+        it->second.atlasNormalMapId = atlasNormalMapId;
+    }
 }
 
 void Box2DPhysics::clearBodyDestructible(int bodyId) {
@@ -847,15 +872,26 @@ FragmentPolygon Box2DPhysics::createFragmentWithUVs(const DestructiblePolygon& p
         result.vertices[i * 2 + 1] = y - result.centroidY;
 
         // Calculate UV coordinates based on position in original bounding box
-        // UV (0,0) is bottom-left, (1,1) is top-right
-        float u = (x - props.originalMinX) / props.originalWidth;
-        float v = (y - props.originalMinY) / props.originalHeight;
+        // localU/localV are normalized 0-1 within the original polygon bounds
+        float localU = (x - props.originalMinX) / props.originalWidth;
+        float localV = (y - props.originalMinY) / props.originalHeight;
 
         // Clamp to valid range
-        if (u < 0.0f) u = 0.0f;
-        if (u > 1.0f) u = 1.0f;
-        if (v < 0.0f) v = 0.0f;
-        if (v > 1.0f) v = 1.0f;
+        if (localU < 0.0f) localU = 0.0f;
+        if (localU > 1.0f) localU = 1.0f;
+        if (localV < 0.0f) localV = 0.0f;
+        if (localV > 1.0f) localV = 1.0f;
+
+        // If using atlas, transform to atlas UV coordinates
+        float u, v;
+        if (props.usesAtlas) {
+            // Map from local UV (0-1) to atlas UV range
+            u = props.atlasU0 + localU * (props.atlasU1 - props.atlasU0);
+            v = props.atlasV0 + localV * (props.atlasV1 - props.atlasV0);
+        } else {
+            u = localU;
+            v = localV;
+        }
 
         result.uvs[i * 2] = u;
         result.uvs[i * 2 + 1] = v;
@@ -1129,42 +1165,23 @@ int Box2DPhysics::createFragmentBody(float x, float y, float angle,
 void Box2DPhysics::processFractures() {
     fractureEvents_.clear();
 
-    // Process each collision event
-    for (const auto& hit : collisionHitEvents_) {
-        int destructibleId = -1;
-        int otherBodyId = -1;
-
-        // Check if either body is destructible
-        if (isBodyDestructible(hit.bodyIdA)) {
-            destructibleId = hit.bodyIdA;
-            otherBodyId = hit.bodyIdB;
-        } else if (isBodyDestructible(hit.bodyIdB)) {
-            destructibleId = hit.bodyIdB;
-            otherBodyId = hit.bodyIdA;
-        }
-
-        if (destructibleId < 0) continue;
-
-        const DestructibleProperties* props = getDestructibleProperties(destructibleId);
-        if (!props) continue;
+    // Helper to process a single destructible body in a collision
+    auto processDestructible = [this](int bodyId, const CollisionHitEvent& hit) {
+        const DestructibleProperties* props = getDestructibleProperties(bodyId);
+        if (!props) return;
 
         // Check if impact exceeds break threshold
         float breakForce = calculateBreakForce(props->strength, hit.approachSpeed);
-        if (hit.approachSpeed < breakForce) continue;
+        if (hit.approachSpeed < breakForce) return;
 
         // Check if already pending destruction
-        bool alreadyPending = false;
         for (int pending : pendingDestructions_) {
-            if (pending == destructibleId) {
-                alreadyPending = true;
-                break;
-            }
+            if (pending == bodyId) return;
         }
-        if (alreadyPending) continue;
 
         // Get body state
-        auto bodyIt = bodies_.find(destructibleId);
-        if (bodyIt == bodies_.end()) continue;
+        auto bodyIt = bodies_.find(bodyId);
+        if (bodyIt == bodies_.end()) return;
 
         b2Vec2 pos = b2Body_GetPosition(bodyIt->second);
         float angle = b2Rot_GetAngle(b2Body_GetRotation(bodyIt->second));
@@ -1178,48 +1195,96 @@ void Box2DPhysics::processFractures() {
                                                      hit.approachSpeed,
                                                      pos.x, pos.y, angle);
 
-        if (fracture.fragmentCount < 2) continue;
+        if (fracture.fragmentCount < 2) return;
 
         // Create fracture event
         FractureEvent event;
-        event.originalBodyId = destructibleId;
-        event.originalLayerId = -1;  // Will be set by caller
-        event.fragmentCount = fracture.fragmentCount;
+        event.originalBodyId = bodyId;
+        event.originalLayerId = -1;
+        event.fragmentCount = 0;  // Count valid fragments
         event.impactPointX = hit.pointX;
         event.impactPointY = hit.pointY;
         event.impactNormalX = hit.normalX;
         event.impactNormalY = hit.normalY;
         event.impactSpeed = hit.approachSpeed;
 
-        // Create fragment bodies
+        // Create fragment bodies (skip fragments that are too small)
         for (int i = 0; i < fracture.fragmentCount; ++i) {
+            // Skip fragments that are too small - they "disappear" instead of infinitely shattering
+            if (fracture.fragments[i].area < MIN_FRAGMENT_AREA) continue;
+
             int fragBodyId = createFragmentBody(pos.x, pos.y, angle,
                                                  fracture.fragments[i],
                                                  vel.x, vel.y, angularVel,
                                                  1.0f, 0.3f, 0.3f);
-            event.newBodyIds[i] = fragBodyId;
-            event.newLayerIds[i] = -1;  // Will be set by caller
-            event.fragmentAreas[i] = fracture.fragments[i].area;
+
+            int fragIdx = event.fragmentCount;
+            event.newBodyIds[fragIdx] = fragBodyId;
+            event.fragmentAreas[fragIdx] = fracture.fragments[i].area;
 
             // Create fragment polygon with UV coordinates for texture clipping
-            event.fragmentPolygons[i] = createFragmentWithUVs(fracture.fragments[i], *props);
+            event.fragmentPolygons[fragIdx] = createFragmentWithUVs(fracture.fragments[i], *props);
 
-            // Make fragments also destructible if original was brittle enough
-            // Reduce brittleness to prevent infinite shattering
-            if (props->brittleness > 0.5f && fragBodyId >= 0) {
-                setBodyDestructible(fragBodyId, props->strength,
-                                   props->brittleness * BRITTLENESS_REDUCTION_FACTOR,
+            // Create layer for fragment if layer manager is available
+            int layerId = -1;
+            if (layerManager_ && fragBodyId >= 0) {
+                // Calculate layer size from fragment polygon area
+                float fragSize = sqrtf(fracture.fragments[i].area) * 2.0f;
+                if (fragSize < 0.04f) fragSize = 0.04f;
+
+                // Create layer with atlas texture if available
+                uint64_t texId = props->usesAtlas ? props->atlasTextureId : props->textureId;
+                uint64_t normId = props->usesAtlas ? props->atlasNormalMapId : props->normalMapId;
+
+                layerId = layerManager_->createLayer(texId, fragSize, fragSize, normId, props->pipelineId);
+                layerManager_->attachLayerToBody(layerId, fragBodyId);
+
+                // Apply polygon vertices and UV coordinates for texture clipping
+                const FragmentPolygon& fragPoly = event.fragmentPolygons[fragIdx];
+                if (fragPoly.vertexCount >= 3) {
+                    layerManager_->setLayerPolygon(layerId, fragPoly.vertices, fragPoly.uvs, fragPoly.vertexCount);
+                }
+            }
+            event.newLayerIds[fragIdx] = layerId;
+
+            // Make fragments also destructible if original was brittle enough and fragment is large enough
+            if (props->brittleness > 0.5f && fragBodyId >= 0 && fracture.fragments[i].area >= MIN_FRAGMENT_AREA * 4.0f) {
+                setBodyDestructible(fragBodyId, props->strength, props->brittleness,
                                    fracture.fragments[i].vertices, fracture.fragments[i].vertexCount,
                                    props->textureId, props->normalMapId, props->pipelineId);
+
+                // Copy atlas info to new fragment
+                if (props->usesAtlas) {
+                    setBodyDestructibleAtlasUV(fragBodyId, props->atlasTextureId, props->atlasNormalMapId,
+                                                props->atlasU0, props->atlasV0, props->atlasU1, props->atlasV1);
+                }
             }
+
+            event.fragmentCount++;
         }
 
-        fractureEvents_.push_back(event);
-        pendingDestructions_.push_back(destructibleId);
+        // Only create event if we have valid fragments
+        if (event.fragmentCount > 0) {
+            fractureEvents_.push_back(event);
+            pendingDestructions_.push_back(bodyId);
 
-        // Call fracture callback if set
-        if (fractureCallback_) {
-            fractureCallback_(event);
+            // Call fracture callback if set
+            if (fractureCallback_) {
+                fractureCallback_(event);
+            }
+        }
+    };
+
+    // Process each collision event - check both bodies
+    for (const auto& hit : collisionHitEvents_) {
+        // Process body A if destructible
+        if (isBodyDestructible(hit.bodyIdA)) {
+            processDestructible(hit.bodyIdA, hit);
+        }
+
+        // Process body B if destructible (can happen in same collision)
+        if (isBodyDestructible(hit.bodyIdB)) {
+            processDestructible(hit.bodyIdB, hit);
         }
     }
 
