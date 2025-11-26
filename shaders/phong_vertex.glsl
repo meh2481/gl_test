@@ -31,11 +31,12 @@ layout(location = 6) out vec2 fragNormalTexCoord;
 void main() {
     float aspect = pc.width / pc.height;
 
-    // Transform position to world space (we're in 2D, so z=0)
-    fragPos = vec3(inPosition.x, inPosition.y, 0.0);
+    // Transform position to screen-consistent space (apply aspect ratio to x)
+    // This ensures fragPos derivatives match screen-space for correct lighting
+    fragPos = vec3(inPosition.x / aspect, inPosition.y, 0.0);
 
-    // Light position in world space
-    fragLightPos = vec3(pc.lightX, pc.lightY, pc.lightZ);
+    // Light position in screen-consistent space (same transform as fragPos)
+    fragLightPos = vec3(pc.lightX / aspect, pc.lightY, pc.lightZ);
 
     // Camera/view position (looking down the -z axis)
     fragViewPos = vec3(0.0, 0.0, 1.0);
