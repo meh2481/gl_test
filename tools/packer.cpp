@@ -347,13 +347,15 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
     });
 
     // Prepare rectangles for all images
+    // Add 2 pixels (1 on each side) for edge padding to prevent texture bleeding
+    const uint32_t EDGE_PADDING = 1;
     vector<PackRect> rects;
     rects.reserve(images.size());
     for (size_t idx : sortedIndices) {
         PackRect rect;
-        // Align to 4 pixels for DXT block boundaries
-        rect.width = alignTo4(images[idx].width);
-        rect.height = alignTo4(images[idx].height);
+        // Add 2 pixels for edge padding (1 on each side), then align to 4 pixels for DXT block boundaries
+        rect.width = alignTo4(images[idx].width + EDGE_PADDING * 2);
+        rect.height = alignTo4(images[idx].height + EDGE_PADDING * 2);
         rect.imageIndex = idx;
         rect.packed = false;
         rects.push_back(rect);
@@ -456,7 +458,8 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
         atlas.hasAlpha = atlasHasAlpha;
         atlas.imageData.resize(tryWidth * tryHeight * 4, 0);  // Initialize to transparent black
 
-        // Copy packed images into atlas
+        // Copy packed images into atlas with edge padding
+        const uint32_t EDGE_PADDING = 1;
         for (size_t i : packedInThisAtlas) {
             PackRect& rect = rects[i];
             PNGImageData& img = images[rect.imageIndex];
@@ -477,23 +480,58 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
                 srcData = rgbaSource.data();
             }
 
-            // Copy pixels to atlas
+            // Helper lambda to copy a pixel from source to atlas
+            auto copyPixel = [&](uint32_t srcX, uint32_t srcY, uint32_t dstX, uint32_t dstY) {
+                // Clamp source coordinates to valid range
+                srcX = min(srcX, img.width - 1);
+                srcY = min(srcY, img.height - 1);
+                uint32_t srcIdx = (srcY * img.width + srcX) * 4;
+                uint32_t dstIdx = (dstY * tryWidth + dstX) * 4;
+                atlas.imageData[dstIdx + 0] = srcData[srcIdx + 0];
+                atlas.imageData[dstIdx + 1] = srcData[srcIdx + 1];
+                atlas.imageData[dstIdx + 2] = srcData[srcIdx + 2];
+                atlas.imageData[dstIdx + 3] = srcData[srcIdx + 3];
+            };
+
+            // The actual image content starts at (rect.x + EDGE_PADDING, rect.y + EDGE_PADDING)
+            uint32_t contentX = rect.x + EDGE_PADDING;
+            uint32_t contentY = rect.y + EDGE_PADDING;
+
+            // Copy main image content
             for (uint32_t y = 0; y < img.height; y++) {
                 for (uint32_t x = 0; x < img.width; x++) {
-                    uint32_t srcIdx = (y * img.width + x) * 4;
-                    uint32_t dstIdx = ((rect.y + y) * tryWidth + (rect.x + x)) * 4;
-                    atlas.imageData[dstIdx + 0] = srcData[srcIdx + 0];
-                    atlas.imageData[dstIdx + 1] = srcData[srcIdx + 1];
-                    atlas.imageData[dstIdx + 2] = srcData[srcIdx + 2];
-                    atlas.imageData[dstIdx + 3] = srcData[srcIdx + 3];
+                    copyPixel(x, y, contentX + x, contentY + y);
                 }
             }
 
-            // Create atlas entry
+            // Duplicate edge pixels for padding (prevents texture bleeding)
+            // Top edge padding (duplicate first row)
+            for (uint32_t x = 0; x < img.width; x++) {
+                copyPixel(x, 0, contentX + x, contentY - 1);
+            }
+            // Bottom edge padding (duplicate last row)
+            for (uint32_t x = 0; x < img.width; x++) {
+                copyPixel(x, img.height - 1, contentX + x, contentY + img.height);
+            }
+            // Left edge padding (duplicate first column)
+            for (uint32_t y = 0; y < img.height; y++) {
+                copyPixel(0, y, contentX - 1, contentY + y);
+            }
+            // Right edge padding (duplicate last column)
+            for (uint32_t y = 0; y < img.height; y++) {
+                copyPixel(img.width - 1, y, contentX + img.width, contentY + y);
+            }
+            // Corner padding (duplicate corner pixels)
+            copyPixel(0, 0, contentX - 1, contentY - 1);  // Top-left
+            copyPixel(img.width - 1, 0, contentX + img.width, contentY - 1);  // Top-right
+            copyPixel(0, img.height - 1, contentX - 1, contentY + img.height);  // Bottom-left
+            copyPixel(img.width - 1, img.height - 1, contentX + img.width, contentY + img.height);  // Bottom-right
+
+            // Create atlas entry - point to actual content (offset by EDGE_PADDING)
             AtlasEntry entry;
             entry.originalId = img.id;
-            entry.x = (uint16_t)rect.x;
-            entry.y = (uint16_t)rect.y;
+            entry.x = (uint16_t)contentX;
+            entry.y = (uint16_t)contentY;
             entry.width = (uint16_t)img.width;
             entry.height = (uint16_t)img.height;
             atlas.entries.push_back(entry);
