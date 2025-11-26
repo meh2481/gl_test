@@ -43,7 +43,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
-                                     "b2GetCollisionHitEvents",
+                                     "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2ClearBodyDestructible", "b2GetFractureEvents",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
@@ -440,6 +440,9 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2UpdateMouseJointTarget", b2UpdateMouseJointTarget);
     lua_register(luaState_, "b2DestroyMouseJoint", b2DestroyMouseJoint);
     lua_register(luaState_, "b2GetCollisionHitEvents", b2GetCollisionHitEvents);
+    lua_register(luaState_, "b2SetBodyDestructible", b2SetBodyDestructible);
+    lua_register(luaState_, "b2ClearBodyDestructible", b2ClearBodyDestructible);
+    lua_register(luaState_, "b2GetFractureEvents", b2GetFractureEvents);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -1238,6 +1241,117 @@ int LuaInterface::b2GetCollisionHitEvents(lua_State* L) {
     }
 
     return 1; // Return the table
+}
+
+int LuaInterface::b2SetBodyDestructible(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: bodyId, strength, brittleness, vertices table, textureId, normalMapId, pipelineId
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 5);
+    assert(lua_isnumber(L, 1));  // bodyId
+    assert(lua_isnumber(L, 2));  // strength
+    assert(lua_isnumber(L, 3));  // brittleness
+    assert(lua_istable(L, 4));   // vertices
+
+    int bodyId = lua_tointeger(L, 1);
+    float strength = lua_tonumber(L, 2);
+    float brittleness = lua_tonumber(L, 3);
+
+    // Get vertices from table
+    float vertices[16];
+    int tableLen = (int)lua_rawlen(L, 4);
+    assert(tableLen >= 6 && tableLen <= 16);  // 3-8 vertices
+
+    for (int i = 1; i <= tableLen && i <= 16; ++i) {
+        lua_rawgeti(L, 4, i);
+        assert(lua_isnumber(L, -1));
+        vertices[i - 1] = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+    }
+    int vertexCount = tableLen / 2;
+
+    uint64_t textureId = 0;
+    uint64_t normalMapId = 0;
+    int pipelineId = -1;
+
+    if (numArgs >= 5) {
+        assert(lua_isnumber(L, 5));
+        textureId = (uint64_t)lua_tointeger(L, 5);
+    }
+    if (numArgs >= 6) {
+        assert(lua_isnumber(L, 6));
+        normalMapId = (uint64_t)lua_tointeger(L, 6);
+    }
+    if (numArgs >= 7) {
+        assert(lua_isnumber(L, 7));
+        pipelineId = (int)lua_tointeger(L, 7);
+    }
+
+    interface->physics_->setBodyDestructible(bodyId, strength, brittleness,
+                                              vertices, vertexCount,
+                                              textureId, normalMapId, pipelineId);
+    return 0;
+}
+
+int LuaInterface::b2ClearBodyDestructible(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int bodyId = lua_tointeger(L, 1);
+    interface->physics_->clearBodyDestructible(bodyId);
+    return 0;
+}
+
+int LuaInterface::b2GetFractureEvents(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 0);
+
+    const auto& events = interface->physics_->getFractureEvents();
+
+    lua_newtable(L);
+
+    int index = 1;
+    for (const auto& event : events) {
+        lua_newtable(L);
+
+        lua_pushnumber(L, event.originalBodyId);
+        lua_setfield(L, -2, "originalBodyId");
+
+        lua_pushnumber(L, event.fragmentCount);
+        lua_setfield(L, -2, "fragmentCount");
+
+        lua_pushnumber(L, event.impactPointX);
+        lua_setfield(L, -2, "impactPointX");
+
+        lua_pushnumber(L, event.impactPointY);
+        lua_setfield(L, -2, "impactPointY");
+
+        lua_pushnumber(L, event.impactSpeed);
+        lua_setfield(L, -2, "impactSpeed");
+
+        // Create array of new body IDs
+        lua_newtable(L);
+        for (int i = 0; i < event.fragmentCount; ++i) {
+            lua_pushnumber(L, event.newBodyIds[i]);
+            lua_rawseti(L, -2, i + 1);
+        }
+        lua_setfield(L, -2, "newBodyIds");
+
+        lua_rawseti(L, -2, index);
+        ++index;
+    }
+
+    return 1;
 }
 
 // Scene layer Lua binding implementations

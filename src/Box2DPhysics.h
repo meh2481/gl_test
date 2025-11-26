@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <SDL3/SDL.h>
+#include <functional>
 
 struct DebugVertex {
     float x, y;
@@ -17,6 +18,43 @@ struct CollisionHitEvent {
     float pointX, pointY;
     float normalX, normalY;
     float approachSpeed;
+};
+
+// 2D polygon for destructible objects
+struct DestructiblePolygon {
+    float vertices[16];  // Max 8 vertices, x/y pairs
+    int vertexCount;
+    float area;  // Calculated polygon area
+};
+
+// Fracture result containing new fragment polygons
+struct FractureResult {
+    DestructiblePolygon fragments[8];  // Max 8 fragments from a single fracture
+    int fragmentCount;
+};
+
+// Properties for destructible bodies
+struct DestructibleProperties {
+    float strength;     // Moh's hardness scale (1-10, typical 5-7), higher = more force needed
+    float brittleness;  // How easily it shatters (0.0-1.0), higher = more/smaller pieces
+    bool isDestructible;
+    float originalVertices[16];  // Original polygon vertices for texture UV calculation
+    int originalVertexCount;
+    uint64_t textureId;      // Texture for rendering fragments
+    uint64_t normalMapId;    // Normal map for fragments
+    int pipelineId;          // Shader pipeline for fragments
+};
+
+// Callback for when a body is fractured (returns new fragment body IDs and layer IDs)
+struct FractureEvent {
+    int originalBodyId;
+    int originalLayerId;
+    int newBodyIds[8];
+    int newLayerIds[8];
+    int fragmentCount;
+    float impactPointX, impactPointY;
+    float impactNormalX, impactNormalY;
+    float impactSpeed;
 };
 
 class Box2DPhysics {
@@ -82,6 +120,47 @@ public:
     // Collision events - returns hit events from last physics step
     const std::vector<CollisionHitEvent>& getCollisionHitEvents() const { return collisionHitEvents_; }
 
+    // Destructible object management
+    void setBodyDestructible(int bodyId, float strength, float brittleness,
+                             const float* vertices, int vertexCount,
+                             uint64_t textureId, uint64_t normalMapId, int pipelineId);
+    void clearBodyDestructible(int bodyId);
+    bool isBodyDestructible(int bodyId) const;
+    const DestructibleProperties* getDestructibleProperties(int bodyId) const;
+
+    // Get fracture events from last physics step
+    const std::vector<FractureEvent>& getFractureEvents() const { return fractureEvents_; }
+
+    // Process destructible collisions and generate fractures
+    // Returns body/layer IDs that should be created (caller must create layers)
+    // This is called automatically during step() but results can be queried
+    void processFractures();
+
+    // Calculate fracture based on impact point and properties
+    static FractureResult calculateFracture(const DestructibleProperties& props,
+                                            float impactX, float impactY,
+                                            float normalX, float normalY,
+                                            float impactSpeed,
+                                            float bodyX, float bodyY, float bodyAngle);
+
+    // Calculate polygon area using shoelace formula
+    static float calculatePolygonArea(const float* vertices, int vertexCount);
+
+    // Split polygon along a line, returns two polygons
+    static void splitPolygon(const float* vertices, int vertexCount,
+                             float lineX, float lineY, float lineDirX, float lineDirY,
+                             DestructiblePolygon& poly1, DestructiblePolygon& poly2);
+
+    // Create a fragment body with proper physics properties
+    int createFragmentBody(float x, float y, float angle,
+                          const DestructiblePolygon& polygon,
+                          float vx, float vy, float angularVel,
+                          float density, float friction, float restitution);
+
+    // Fracture callback - set to receive notifications when objects fracture
+    using FractureCallback = std::function<void(const FractureEvent&)>;
+    void setFractureCallback(FractureCallback callback) { fractureCallback_ = callback; }
+
 private:
     // Debug draw callbacks
     static void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context);
@@ -107,6 +186,7 @@ private:
     b2WorldId worldId_;
     std::unordered_map<int, b2BodyId> bodies_;
     std::unordered_map<int, b2JointId> joints_;
+    std::unordered_map<int, DestructibleProperties> destructibles_;  // Destructible properties per body
     int nextBodyId_;
     int nextJointId_;
     bool debugDrawEnabled_;
@@ -128,6 +208,21 @@ private:
     // Collision events from last physics step
     std::vector<CollisionHitEvent> collisionHitEvents_;
 
+    // Fracture events from last physics step
+    std::vector<FractureEvent> fractureEvents_;
+
+    // Fracture callback
+    FractureCallback fractureCallback_;
+
+    // Bodies pending destruction after fracture (processed after step)
+    std::vector<int> pendingDestructions_;
+
     // Helper to convert b2BodyId to internal ID
     int findInternalBodyId(b2BodyId bodyId);
+
+    // Calculate required force to break based on Moh's hardness
+    float calculateBreakForce(float strength, float impactSpeed) const;
+
+    // Determine number of fracture pieces based on brittleness and impact
+    int calculateFragmentCount(float brittleness, float impactSpeed, float strength) const;
 };

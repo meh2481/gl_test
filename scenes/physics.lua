@@ -21,8 +21,8 @@ draggedBodyId = nil
 -- Destructible object state
 destructibleBody = nil
 destructibleLayer = nil
-destructibleStrength = 3.0  -- Speed threshold to break (meters/second)
-destructibleBroken = false
+-- Maps body IDs to their layer IDs for destructible object management
+bodyLayerMap = {}
 
 function init()
     -- Load the nebula background shader (z-index 0)
@@ -241,84 +241,69 @@ function init()
 
     -- Create a destructible box that breaks when hit hard enough
     -- Positioned on the right side, uses rock texture
+    -- Uses new C++ fracture system with strength (Moh's scale) and brittleness
     destructibleBody = b2CreateBody(B2_DYNAMIC_BODY, 0.9, -0.3, 0)
-    b2AddBoxFixture(destructibleBody, 0.12, 0.12, 1.0, 0.3, 0.3)
+    -- Use polygon fixture with explicit vertices for proper fracture calculation
+    local boxVerts = {
+        -0.12, -0.12,
+         0.12, -0.12,
+         0.12,  0.12,
+        -0.12,  0.12
+    }
+    b2AddPolygonFixture(destructibleBody, boxVerts, 1.0, 0.3, 0.3)
     table.insert(bodies, destructibleBody)
 
     destructibleLayer = createLayer(rockTexId, 0.24, rockNormId, phongShaderId)
     attachLayerToBody(destructibleLayer, destructibleBody)
     table.insert(layers, destructibleLayer)
 
+    -- Track body-layer mapping for fracture handling
+    bodyLayerMap[destructibleBody] = destructibleLayer
+
+    -- Set body as destructible with properties:
+    -- strength: 5.5 (Moh's hardness scale, ~glass/quartz)
+    -- brittleness: 0.6 (moderately brittle, will shatter into multiple pieces)
+    b2SetBodyDestructible(destructibleBody, 5.5, 0.6, boxVerts, rockTexId, rockNormId, phongShaderId)
+
     print("Physics demo scene initialized with multiple shader types")
     print("Destructible rock added - hit it hard to break it!")
-end
-
--- Helper function to create fragment pieces when object breaks
-function createFragments(x, y, vx, vy, angle, angularVel)
-    -- Create two smaller fragments from the original box
-    local fragmentSize = 0.06  -- Half the original size
-    local offsetDist = 0.08
-
-    -- Fragment 1: upper-left piece
-    local frag1 = b2CreateBody(B2_DYNAMIC_BODY, x - offsetDist * 0.5, y + offsetDist * 0.5, angle)
-    b2AddBoxFixture(frag1, fragmentSize, fragmentSize, 1.0, 0.3, 0.3)
-    b2SetBodyLinearVelocity(frag1, vx - 1.5, vy + 1.0)
-    b2SetBodyAngularVelocity(frag1, angularVel + 3.0)
-    table.insert(bodies, frag1)
-
-    local fragLayer1 = createLayer(rockTexId, fragmentSize * 2, rockNormId, phongShaderId)
-    attachLayerToBody(fragLayer1, frag1)
-    table.insert(layers, fragLayer1)
-
-    -- Fragment 2: lower-right piece
-    local frag2 = b2CreateBody(B2_DYNAMIC_BODY, x + offsetDist * 0.5, y - offsetDist * 0.5, angle)
-    b2AddBoxFixture(frag2, fragmentSize, fragmentSize, 1.0, 0.3, 0.3)
-    b2SetBodyLinearVelocity(frag2, vx + 1.5, vy - 0.5)
-    b2SetBodyAngularVelocity(frag2, angularVel - 3.0)
-    table.insert(bodies, frag2)
-
-    local fragLayer2 = createLayer(rockTexId, fragmentSize * 2, rockNormId, phongShaderId)
-    attachLayerToBody(fragLayer2, frag2)
-    table.insert(layers, fragLayer2)
+    print("Using C++ fracture system with strength=5.5 (Moh's scale), brittleness=0.6")
 end
 
 function update(deltaTime)
     -- Step the physics simulation (Box2D 3.x uses subStepCount instead of velocity/position iterations)
+    -- The C++ physics engine now automatically processes fractures during step
     b2Step(deltaTime, 4)
 
-    -- Check for collisions that might break destructible objects
-    if destructibleBody and not destructibleBroken then
-        local hitEvents = b2GetCollisionHitEvents()
-        for _, event in ipairs(hitEvents) do
-            -- Check if the destructible body was involved in a hard hit
-            if event.bodyIdA == destructibleBody or event.bodyIdB == destructibleBody then
-                if event.approachSpeed >= destructibleStrength then
-                    print("CRASH! Object broke at speed: " .. string.format("%.2f", event.approachSpeed))
+    -- Handle fracture events from C++ - create layers for new fragment bodies
+    local fractureEvents = b2GetFractureEvents()
+    for _, event in ipairs(fractureEvents) do
+        print("FRACTURE! Object " .. event.originalBodyId .. " broke into " .. event.fragmentCount .. " pieces at speed " .. string.format("%.2f", event.impactSpeed))
 
-                    -- Get current position and velocity before destroying
-                    local x, y = b2GetBodyPosition(destructibleBody)
-                    local vx, vy = b2GetBodyLinearVelocity(destructibleBody)
-                    local angle = b2GetBodyAngle(destructibleBody)
-                    local angularVel = b2GetBodyAngularVelocity(destructibleBody)
+        -- Destroy the original layer if we know it
+        local originalLayerId = bodyLayerMap[event.originalBodyId]
+        if originalLayerId then
+            destroyLayer(originalLayerId)
+            bodyLayerMap[event.originalBodyId] = nil
+        end
 
-                    -- Destroy the original body and layer
-                    destroyLayer(destructibleLayer)
-                    b2DestroyBody(destructibleBody)
-
-                    -- Create fragment pieces
-                    createFragments(x, y, vx, vy, angle, angularVel)
-
-                    -- Mark as broken to prevent further processing
-                    destructibleBroken = true
-                    destructibleBody = nil
-                    destructibleLayer = nil
-
-                    -- Trigger vibration feedback
-                    vibrate(0.8, 0.8, 300)
-                    break
-                end
+        -- Create layers for new fragment bodies
+        for i = 1, event.fragmentCount do
+            local fragBodyId = event.newBodyIds[i]
+            if fragBodyId and fragBodyId >= 0 then
+                -- Create layer for fragment - size based on fragment
+                -- TODO: Calculate proper size from fragment polygon area
+                local fragSize = 0.12  -- Smaller than original
+                local fragLayer = createLayer(rockTexId, fragSize, rockNormId, phongShaderId)
+                attachLayerToBody(fragLayer, fragBodyId)
+                table.insert(bodies, fragBodyId)
+                table.insert(layers, fragLayer)
+                bodyLayerMap[fragBodyId] = fragLayer
             end
         end
+
+        -- Trigger vibration feedback
+        vibrate(0.8, 0.8, 300)
     end
 
     -- Update mouse joint target if dragging
@@ -359,6 +344,7 @@ function cleanup()
 
     -- Destroy all physics bodies
     for i, bodyId in ipairs(bodies) do
+        b2ClearBodyDestructible(bodyId)  -- Clear destructible state first
         b2DestroyBody(bodyId)
     end
     bodies = {}
@@ -368,7 +354,7 @@ function cleanup()
     chainAnchor = nil
     destructibleBody = nil
     destructibleLayer = nil
-    destructibleBroken = false
+    bodyLayerMap = {}
     -- Disable debug drawing
     b2EnableDebugDraw(false)
     print("Physics demo scene cleaned up")

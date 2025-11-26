@@ -98,6 +98,11 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
         }
     }
 
+    // Process fractures for destructible objects (must be done after collecting all collision events)
+    SDL_UnlockMutex(physicsMutex_);
+    processFractures();
+    SDL_LockMutex(physicsMutex_);
+
     if (debugDrawEnabled_) {
         debugLineVertices_.clear();
         debugTriangleVertices_.clear();
@@ -704,4 +709,406 @@ int Box2DPhysics::findInternalBodyId(b2BodyId bodyId) {
         }
     }
     return -1;
+}
+
+// Destructible object management
+void Box2DPhysics::setBodyDestructible(int bodyId, float strength, float brittleness,
+                                        const float* vertices, int vertexCount,
+                                        uint64_t textureId, uint64_t normalMapId, int pipelineId) {
+    assert(vertexCount >= 3 && vertexCount <= 8);
+
+    DestructibleProperties props;
+    props.strength = strength;
+    props.brittleness = brittleness;
+    props.isDestructible = true;
+    props.textureId = textureId;
+    props.normalMapId = normalMapId;
+    props.pipelineId = pipelineId;
+    props.originalVertexCount = vertexCount;
+
+    for (int i = 0; i < vertexCount * 2; ++i) {
+        props.originalVertices[i] = vertices[i];
+    }
+
+    destructibles_[bodyId] = props;
+}
+
+void Box2DPhysics::clearBodyDestructible(int bodyId) {
+    destructibles_.erase(bodyId);
+}
+
+bool Box2DPhysics::isBodyDestructible(int bodyId) const {
+    auto it = destructibles_.find(bodyId);
+    return it != destructibles_.end() && it->second.isDestructible;
+}
+
+const DestructibleProperties* Box2DPhysics::getDestructibleProperties(int bodyId) const {
+    auto it = destructibles_.find(bodyId);
+    if (it != destructibles_.end()) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
+// Calculate polygon area using shoelace formula
+float Box2DPhysics::calculatePolygonArea(const float* vertices, int vertexCount) {
+    float area = 0.0f;
+    for (int i = 0; i < vertexCount; ++i) {
+        int j = (i + 1) % vertexCount;
+        float x0 = vertices[i * 2];
+        float y0 = vertices[i * 2 + 1];
+        float x1 = vertices[j * 2];
+        float y1 = vertices[j * 2 + 1];
+        area += x0 * y1 - x1 * y0;
+    }
+    return fabsf(area) * 0.5f;
+}
+
+// Calculate break force based on Moh's hardness scale
+// Moh's scale is logarithmic - each level is ~2x harder than previous
+float Box2DPhysics::calculateBreakForce(float strength, float impactSpeed) const {
+    // Base threshold at strength 5 is ~3 m/s
+    // Each Moh unit multiplies by ~1.5
+    float baseThreshold = 3.0f;
+    float scaleFactor = powf(1.5f, strength - 5.0f);
+    return baseThreshold * scaleFactor;
+}
+
+// Calculate fragment count based on brittleness and impact energy
+int Box2DPhysics::calculateFragmentCount(float brittleness, float impactSpeed, float strength) const {
+    // Base fragments: 2
+    // Brittleness 0.0 = always 2 pieces
+    // Brittleness 1.0 = can shatter into many pieces based on impact
+    float breakThreshold = calculateBreakForce(strength, impactSpeed);
+    float excessEnergy = (impactSpeed - breakThreshold) / breakThreshold;
+
+    // More brittleness + more excess energy = more fragments
+    float fragmentFloat = 2.0f + brittleness * excessEnergy * 4.0f;
+    int fragments = (int)fragmentFloat;
+
+    // Clamp to valid range (2-8 fragments)
+    if (fragments < 2) fragments = 2;
+    if (fragments > 8) fragments = 8;
+
+    return fragments;
+}
+
+// Split polygon along a line
+void Box2DPhysics::splitPolygon(const float* vertices, int vertexCount,
+                                 float lineX, float lineY, float lineDirX, float lineDirY,
+                                 DestructiblePolygon& poly1, DestructiblePolygon& poly2) {
+    // Line perpendicular normal
+    float lineNormX = -lineDirY;
+    float lineNormY = lineDirX;
+
+    // Classify vertices as on positive or negative side of line
+    float sides[8];
+    for (int i = 0; i < vertexCount; ++i) {
+        float vx = vertices[i * 2] - lineX;
+        float vy = vertices[i * 2 + 1] - lineY;
+        sides[i] = vx * lineNormX + vy * lineNormY;
+    }
+
+    poly1.vertexCount = 0;
+    poly2.vertexCount = 0;
+
+    for (int i = 0; i < vertexCount; ++i) {
+        int j = (i + 1) % vertexCount;
+
+        float x0 = vertices[i * 2];
+        float y0 = vertices[i * 2 + 1];
+        float x1 = vertices[j * 2];
+        float y1 = vertices[j * 2 + 1];
+
+        // Add vertex to appropriate polygon
+        if (sides[i] >= 0 && poly1.vertexCount < 8) {
+            poly1.vertices[poly1.vertexCount * 2] = x0;
+            poly1.vertices[poly1.vertexCount * 2 + 1] = y0;
+            poly1.vertexCount++;
+        }
+        if (sides[i] < 0 && poly2.vertexCount < 8) {
+            poly2.vertices[poly2.vertexCount * 2] = x0;
+            poly2.vertices[poly2.vertexCount * 2 + 1] = y0;
+            poly2.vertexCount++;
+        }
+
+        // Check for edge crossing
+        if ((sides[i] >= 0) != (sides[j] >= 0)) {
+            // Calculate intersection point
+            float t = sides[i] / (sides[i] - sides[j]);
+            float intersectX = x0 + t * (x1 - x0);
+            float intersectY = y0 + t * (y1 - y0);
+
+            // Add intersection to both polygons
+            if (poly1.vertexCount < 8) {
+                poly1.vertices[poly1.vertexCount * 2] = intersectX;
+                poly1.vertices[poly1.vertexCount * 2 + 1] = intersectY;
+                poly1.vertexCount++;
+            }
+            if (poly2.vertexCount < 8) {
+                poly2.vertices[poly2.vertexCount * 2] = intersectX;
+                poly2.vertices[poly2.vertexCount * 2 + 1] = intersectY;
+                poly2.vertexCount++;
+            }
+        }
+    }
+
+    // Calculate areas
+    poly1.area = (poly1.vertexCount >= 3) ? calculatePolygonArea(poly1.vertices, poly1.vertexCount) : 0.0f;
+    poly2.area = (poly2.vertexCount >= 3) ? calculatePolygonArea(poly2.vertices, poly2.vertexCount) : 0.0f;
+}
+
+// Calculate fracture based on impact
+FractureResult Box2DPhysics::calculateFracture(const DestructibleProperties& props,
+                                                float impactX, float impactY,
+                                                float normalX, float normalY,
+                                                float impactSpeed,
+                                                float bodyX, float bodyY, float bodyAngle) {
+    FractureResult result;
+    result.fragmentCount = 0;
+
+    // Transform impact point to local coordinates
+    float cosA = cosf(-bodyAngle);
+    float sinA = sinf(-bodyAngle);
+    float localImpactX = (impactX - bodyX) * cosA - (impactY - bodyY) * sinA;
+    float localImpactY = (impactX - bodyX) * sinA + (impactY - bodyY) * cosA;
+
+    // Transform normal to local coordinates
+    float localNormalX = normalX * cosA - normalY * sinA;
+    float localNormalY = normalX * sinA + normalY * cosA;
+
+    // Calculate primary fracture line perpendicular to impact normal
+    // This creates a crack through the impact point
+    float fractureDirX = -localNormalY;
+    float fractureDirY = localNormalX;
+
+    // Start with the original polygon
+    DestructiblePolygon currentPoly;
+    currentPoly.vertexCount = props.originalVertexCount;
+    for (int i = 0; i < props.originalVertexCount * 2; ++i) {
+        currentPoly.vertices[i] = props.originalVertices[i];
+    }
+    currentPoly.area = calculatePolygonArea(currentPoly.vertices, currentPoly.vertexCount);
+
+    // Split the polygon along the fracture line
+    DestructiblePolygon poly1, poly2;
+    splitPolygon(currentPoly.vertices, currentPoly.vertexCount,
+                 localImpactX, localImpactY, fractureDirX, fractureDirY,
+                 poly1, poly2);
+
+    // Add valid fragments
+    if (poly1.vertexCount >= 3 && poly1.area > 0.0001f) {
+        result.fragments[result.fragmentCount++] = poly1;
+    }
+    if (poly2.vertexCount >= 3 && poly2.area > 0.0001f && result.fragmentCount < 8) {
+        result.fragments[result.fragmentCount++] = poly2;
+    }
+
+    // For high brittleness, add secondary fractures
+    if (props.brittleness > 0.3f && result.fragmentCount >= 2) {
+        // Calculate secondary fracture angle based on brittleness
+        float secondaryAngle = M_PI * 0.3f + (props.brittleness - 0.3f) * M_PI * 0.3f;
+
+        // Try to split the larger fragment
+        int largestIdx = (result.fragments[0].area > result.fragments[1].area) ? 0 : 1;
+        DestructiblePolygon& largest = result.fragments[largestIdx];
+
+        if (largest.vertexCount >= 4) {
+            // Calculate center of the largest fragment
+            float centerX = 0, centerY = 0;
+            for (int i = 0; i < largest.vertexCount; ++i) {
+                centerX += largest.vertices[i * 2];
+                centerY += largest.vertices[i * 2 + 1];
+            }
+            centerX /= largest.vertexCount;
+            centerY /= largest.vertexCount;
+
+            // Rotated fracture direction
+            float cosB = cosf(secondaryAngle);
+            float sinB = sinf(secondaryAngle);
+            float secondaryDirX = fractureDirX * cosB - fractureDirY * sinB;
+            float secondaryDirY = fractureDirX * sinB + fractureDirY * cosB;
+
+            DestructiblePolygon sub1, sub2;
+            splitPolygon(largest.vertices, largest.vertexCount,
+                        centerX, centerY, secondaryDirX, secondaryDirY,
+                        sub1, sub2);
+
+            // Replace the largest with its fragments
+            if (sub1.vertexCount >= 3 && sub2.vertexCount >= 3 &&
+                sub1.area > 0.0001f && sub2.area > 0.0001f) {
+                result.fragments[largestIdx] = sub1;
+                if (result.fragmentCount < 8) {
+                    result.fragments[result.fragmentCount++] = sub2;
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+// Create a fragment body with proper physics
+int Box2DPhysics::createFragmentBody(float x, float y, float angle,
+                                      const DestructiblePolygon& polygon,
+                                      float vx, float vy, float angularVel,
+                                      float density, float friction, float restitution) {
+    if (polygon.vertexCount < 3) return -1;
+
+    SDL_LockMutex(physicsMutex_);
+
+    // Calculate centroid of the fragment
+    float centroidX = 0, centroidY = 0;
+    for (int i = 0; i < polygon.vertexCount; ++i) {
+        centroidX += polygon.vertices[i * 2];
+        centroidY += polygon.vertices[i * 2 + 1];
+    }
+    centroidX /= polygon.vertexCount;
+    centroidY /= polygon.vertexCount;
+
+    // Transform centroid to world coordinates
+    float cosA = cosf(angle);
+    float sinA = sinf(angle);
+    float worldCentroidX = x + centroidX * cosA - centroidY * sinA;
+    float worldCentroidY = y + centroidX * sinA + centroidY * cosA;
+
+    // Create body at fragment centroid
+    b2BodyDef bodyDef = b2DefaultBodyDef();
+    bodyDef.type = b2_dynamicBody;
+    bodyDef.position = (b2Vec2){worldCentroidX, worldCentroidY};
+    bodyDef.rotation = b2MakeRot(angle);
+    bodyDef.linearVelocity = (b2Vec2){vx, vy};
+    bodyDef.angularVelocity = angularVel;
+    bodyDef.sleepThreshold = SLEEP_THRESHOLD;
+
+    b2BodyId bodyId = b2CreateBody(worldId_, &bodyDef);
+    assert(b2Body_IsValid(bodyId));
+
+    // Create polygon shape with vertices relative to centroid
+    b2Vec2 points[8];
+    for (int i = 0; i < polygon.vertexCount; ++i) {
+        points[i] = (b2Vec2){
+            polygon.vertices[i * 2] - centroidX,
+            polygon.vertices[i * 2 + 1] - centroidY
+        };
+    }
+
+    b2Hull hull = b2ComputeHull(points, polygon.vertexCount);
+    if (hull.count >= 3) {
+        b2Polygon poly = b2MakePolygon(&hull, 0.0f);
+
+        b2ShapeDef shapeDef = b2DefaultShapeDef();
+        // Scale density by area ratio to maintain consistent mass behavior
+        shapeDef.density = density;
+        shapeDef.material.friction = friction;
+        shapeDef.material.restitution = restitution;
+
+        b2CreatePolygonShape(bodyId, &shapeDef, &poly);
+    }
+
+    int internalId = nextBodyId_++;
+    bodies_[internalId] = bodyId;
+
+    SDL_UnlockMutex(physicsMutex_);
+    return internalId;
+}
+
+// Process fractures for destructible bodies
+void Box2DPhysics::processFractures() {
+    fractureEvents_.clear();
+
+    // Process each collision event
+    for (const auto& hit : collisionHitEvents_) {
+        int destructibleId = -1;
+        int otherBodyId = -1;
+
+        // Check if either body is destructible
+        if (isBodyDestructible(hit.bodyIdA)) {
+            destructibleId = hit.bodyIdA;
+            otherBodyId = hit.bodyIdB;
+        } else if (isBodyDestructible(hit.bodyIdB)) {
+            destructibleId = hit.bodyIdB;
+            otherBodyId = hit.bodyIdA;
+        }
+
+        if (destructibleId < 0) continue;
+
+        const DestructibleProperties* props = getDestructibleProperties(destructibleId);
+        if (!props) continue;
+
+        // Check if impact exceeds break threshold
+        float breakForce = calculateBreakForce(props->strength, hit.approachSpeed);
+        if (hit.approachSpeed < breakForce) continue;
+
+        // Check if already pending destruction
+        bool alreadyPending = false;
+        for (int pending : pendingDestructions_) {
+            if (pending == destructibleId) {
+                alreadyPending = true;
+                break;
+            }
+        }
+        if (alreadyPending) continue;
+
+        // Get body state
+        auto bodyIt = bodies_.find(destructibleId);
+        if (bodyIt == bodies_.end()) continue;
+
+        b2Vec2 pos = b2Body_GetPosition(bodyIt->second);
+        float angle = b2Rot_GetAngle(b2Body_GetRotation(bodyIt->second));
+        b2Vec2 vel = b2Body_GetLinearVelocity(bodyIt->second);
+        float angularVel = b2Body_GetAngularVelocity(bodyIt->second);
+
+        // Calculate fracture
+        FractureResult fracture = calculateFracture(*props,
+                                                     hit.pointX, hit.pointY,
+                                                     hit.normalX, hit.normalY,
+                                                     hit.approachSpeed,
+                                                     pos.x, pos.y, angle);
+
+        if (fracture.fragmentCount < 2) continue;
+
+        // Create fracture event
+        FractureEvent event;
+        event.originalBodyId = destructibleId;
+        event.originalLayerId = -1;  // Will be set by caller
+        event.fragmentCount = fracture.fragmentCount;
+        event.impactPointX = hit.pointX;
+        event.impactPointY = hit.pointY;
+        event.impactNormalX = hit.normalX;
+        event.impactNormalY = hit.normalY;
+        event.impactSpeed = hit.approachSpeed;
+
+        // Create fragment bodies
+        for (int i = 0; i < fracture.fragmentCount; ++i) {
+            int fragBodyId = createFragmentBody(pos.x, pos.y, angle,
+                                                 fracture.fragments[i],
+                                                 vel.x, vel.y, angularVel,
+                                                 1.0f, 0.3f, 0.3f);
+            event.newBodyIds[i] = fragBodyId;
+            event.newLayerIds[i] = -1;  // Will be set by caller
+
+            // Make fragments also destructible if original was brittle enough
+            if (props->brittleness > 0.5f && fragBodyId >= 0) {
+                setBodyDestructible(fragBodyId, props->strength, props->brittleness * 0.8f,
+                                   fracture.fragments[i].vertices, fracture.fragments[i].vertexCount,
+                                   props->textureId, props->normalMapId, props->pipelineId);
+            }
+        }
+
+        fractureEvents_.push_back(event);
+        pendingDestructions_.push_back(destructibleId);
+
+        // Call fracture callback if set
+        if (fractureCallback_) {
+            fractureCallback_(event);
+        }
+    }
+
+    // Destroy pending bodies
+    for (int bodyId : pendingDestructions_) {
+        clearBodyDestructible(bodyId);
+        destroyBody(bodyId);
+    }
+    pendingDestructions_.clear();
 }
