@@ -21,11 +21,13 @@ void main() {
     // At depth=0: factor=0 (no movement), at depth=1: factor=0.5 (half speed)
     // At depth=2: factor=0.667 (2/3 speed), at infinity: factor=1 (follows camera)
 
-    float parallaxFactor = pc.parallaxDepth / (1.0 + pc.parallaxDepth);
+    // Guard against invalid depth values (must be >= 0)
+    float safeDepth = max(0.0, pc.parallaxDepth);
+    float parallaxFactor = safeDepth / (1.0 + safeDepth);
 
     // Apply parallax offset to texture coordinates
     // Multiply by camera offset to create the parallax pan effect
-    // The offset is in world coordinates, so we need to scale appropriately
+    // Scale factor 0.25 converts world coordinates to appropriate texture offset
     vec2 parallaxOffset = vec2(pc.cameraX, pc.cameraY) * parallaxFactor * 0.25;
 
     gl_Position = vec4(inPosition, 0.0, 1.0);

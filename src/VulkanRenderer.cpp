@@ -1158,6 +1158,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     renderPassInfo.pClearValues = &clearColor;
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+    // Base push constants used by debug pipelines and as a template for others
     float pushConstants[7] = {
         static_cast<float>(swapchainExtent.width),
         static_cast<float>(swapchainExtent.height),
@@ -1165,7 +1166,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
         m_cameraOffsetX,
         m_cameraOffsetY,
         m_cameraZoom,
-        0.0f  // parallaxDepth (not used for debug, but size must match layout)
+        0.0f  // parallaxDepth (default 0, overridden per-pipeline for background shaders)
     };
 
     // Draw all pipelines
@@ -1262,7 +1263,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 // Non-textured pipeline (e.g., background shaders)
                 // Get parallax depth for this pipeline (default 0.0 = no parallax)
                 float parallaxDepth = 0.0f;
-                auto depthIt = m_pipelineParallaxDepth.find(pipelineId);
+                auto depthIt = m_pipelineParallaxDepth.find(static_cast<int>(pipelineId));
                 if (depthIt != m_pipelineParallaxDepth.end()) {
                     parallaxDepth = depthIt->second;
                 }
@@ -2185,7 +2186,7 @@ void VulkanRenderer::setCameraTransform(float offsetX, float offsetY, float zoom
     m_cameraZoom = zoom;
 }
 
-void VulkanRenderer::setPipelineParallaxDepth(uint64_t pipelineId, float depth) {
+void VulkanRenderer::setPipelineParallaxDepth(int pipelineId, float depth) {
     m_pipelineParallaxDepth[pipelineId] = depth;
 }
 

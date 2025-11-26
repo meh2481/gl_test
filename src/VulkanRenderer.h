@@ -34,7 +34,7 @@ public:
     void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);
     void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
-    void setPipelineParallaxDepth(uint64_t pipelineId, float depth);
+    void setPipelineParallaxDepth(int pipelineId, float depth);
     bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
     void setCameraTransform(float offsetX, float offsetY, float zoom);
     void render(float time);
@@ -154,7 +154,7 @@ private:
     std::map<int, int> m_pipelineShaderParamCount;  // Track how many parameters each pipeline uses
 
     // Per-pipeline parallax depth (0.0 = no parallax, >0 = background depth for parallax effect)
-    std::map<uint64_t, float> m_pipelineParallaxDepth;
+    std::map<int, float> m_pipelineParallaxDepth;
 
     // Camera transform
     float m_cameraOffsetX;
