@@ -12,16 +12,19 @@ static constexpr float DEFAULT_FIXED_TIMESTEP = 1.0f / 250.0f;
 // is imperceptible.
 static constexpr float SLEEP_THRESHOLD = 0.001f;
 
-// Moh's hardness scale constants for calculating break force
-// The scale is roughly logarithmic - each level is ~1.5x harder than the previous
+// Mohs hardness scale constants for calculating break force
+// The scale is roughly logarithmic - each level is ~1.3x harder than the previous
 // Adjusted so strength 0.5 behaves like real-world hardness ~4, strength 4 like glass (5)
-static constexpr float MOH_SCALE_MULTIPLIER = 1.3f;
-static constexpr float MOH_REFERENCE_LEVEL = 4.0f;  // Reference hardness level (like calcite/fluorite)
-static constexpr float MOH_BASE_BREAK_SPEED = 2.0f;  // Base break speed at reference level (m/s)
+static constexpr float MOHS_SCALE_MULTIPLIER = 1.3f;
+static constexpr float MOHS_REFERENCE_LEVEL = 4.0f;  // Reference hardness level (like calcite/fluorite)
+static constexpr float MOHS_BASE_BREAK_SPEED = 2.0f;  // Base break speed at reference level (m/s)
 
 // Brittleness constants for fracture behavior
 static constexpr float MIN_SECONDARY_FRACTURE_BRITTLENESS = 0.3f;  // Min brittleness for secondary fractures
 static constexpr float MIN_FRAGMENT_AREA = 0.001f;  // Minimum fragment area - objects smaller than this disappear
+static constexpr float MIN_REFRACTURE_AREA_MULTIPLIER = 4.0f;  // Fragments must be this many times MIN_FRAGMENT_AREA to be refracturable
+static constexpr float MIN_FRAGMENT_LAYER_SIZE = 0.04f;  // Minimum layer size for fragments
+static constexpr float SEPARATION_IMPULSE_FACTOR = 0.1f;  // Factor for separation impulse based on impact speed
 
 // Minimum bounding box dimension for UV mapping (prevents division by zero)
 static constexpr float MIN_DIMENSION_FOR_UV_MAPPING = 0.0001f;
@@ -914,11 +917,11 @@ float Box2DPhysics::calculatePolygonArea(const float* vertices, int vertexCount)
     return fabsf(area) * 0.5f;
 }
 
-// Calculate break force based on Moh's hardness scale
+// Calculate break force based on Mohs hardness scale
 float Box2DPhysics::calculateBreakForce(float strength, float impactSpeed) const {
-    // Moh's scale is roughly logarithmic - each level is ~1.5x harder than the previous
-    float scaleFactor = powf(MOH_SCALE_MULTIPLIER, strength - MOH_REFERENCE_LEVEL);
-    return MOH_BASE_BREAK_SPEED * scaleFactor;
+    // Mohs scale is roughly logarithmic - each level is ~1.3x harder than the previous
+    float scaleFactor = powf(MOHS_SCALE_MULTIPLIER, strength - MOHS_REFERENCE_LEVEL);
+    return MOHS_BASE_BREAK_SPEED * scaleFactor;
 }
 
 // Calculate fragment count based on brittleness and impact energy
@@ -1234,7 +1237,7 @@ void Box2DPhysics::processFractures() {
                         sepDirX /= sepLen;
                         sepDirY /= sepLen;
                         // Small separation impulse proportional to impact speed
-                        float sepImpulse = hit.approachSpeed * 0.1f;
+                        float sepImpulse = hit.approachSpeed * SEPARATION_IMPULSE_FACTOR;
                         b2Body_ApplyLinearImpulseToCenter(bodyIt->second, (b2Vec2){sepDirX * sepImpulse, sepDirY * sepImpulse}, true);
                     }
                 }
@@ -1252,7 +1255,7 @@ void Box2DPhysics::processFractures() {
             if (layerManager_ && fragBodyId >= 0) {
                 // Calculate layer size from fragment polygon area
                 float fragSize = sqrtf(fracture.fragments[i].area) * 2.0f;
-                if (fragSize < 0.04f) fragSize = 0.04f;
+                if (fragSize < MIN_FRAGMENT_LAYER_SIZE) fragSize = MIN_FRAGMENT_LAYER_SIZE;
 
                 // Create layer with atlas texture if available
                 uint64_t texId = props->usesAtlas ? props->atlasTextureId : props->textureId;
@@ -1270,7 +1273,7 @@ void Box2DPhysics::processFractures() {
             event.newLayerIds[fragIdx] = layerId;
 
             // Make fragments also destructible if original was brittle enough and fragment is large enough
-            if (props->brittleness > 0.5f && fragBodyId >= 0 && fracture.fragments[i].area >= MIN_FRAGMENT_AREA * 4.0f) {
+            if (props->brittleness > 0.5f && fragBodyId >= 0 && fracture.fragments[i].area >= MIN_FRAGMENT_AREA * MIN_REFRACTURE_AREA_MULTIPLIER) {
                 setBodyDestructible(fragBodyId, props->strength, props->brittleness,
                                    fracture.fragments[i].vertices, fracture.fragments[i].vertexCount,
                                    props->textureId, props->normalMapId, props->pipelineId);
