@@ -61,6 +61,9 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     layer.normalMapUV.v1 = 1.0f;
     layer.normalMapUV.isAtlas = false;
 
+    // Default to quad rendering (no polygon)
+    layer.polygonVertexCount = 0;
+
     layer.cachedX = 0.0f;
     layer.cachedY = 0.0f;
     layer.cachedAngle = 0.0f;
@@ -139,6 +142,17 @@ void SceneLayerManager::setLayerNormalMapAtlasUV(int layerId, uint64_t atlasNorm
     }
 }
 
+void SceneLayerManager::setLayerPolygon(int layerId, const float* vertices, const float* uvs, int vertexCount) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end() && vertexCount >= 3 && vertexCount <= 8) {
+        it->second.polygonVertexCount = vertexCount;
+        for (int i = 0; i < vertexCount * 2; ++i) {
+            it->second.polygonVertices[i] = vertices[i];
+            it->second.polygonUVs[i] = uvs[i];
+        }
+    }
+}
+
 void SceneLayerManager::updateLayerTransform(int layerId, float bodyX, float bodyY, float bodyAngle) {
     auto it = layers_.find(layerId);
     if (it != layers_.end()) {
@@ -189,82 +203,119 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
         float centerY = layer.cachedY;
         float angle = layer.cachedAngle;
 
-        // Calculate half-extents
-        float hw = layer.width * 0.5f;
-        float hh = layer.height * 0.5f;
-
-        // Create quad vertices (4 vertices for a sprite)
-        // Vertices in local space (before rotation)
-        float localVerts[4][2] = {
-            {-hw, -hh},  // Bottom-left
-            { hw, -hh},  // Bottom-right
-            { hw,  hh},  // Top-right
-            {-hw,  hh}   // Top-left
-        };
-
-        // Get UV coordinates from layer (supports atlas or full texture)
-        float u0 = layer.textureUV.u0;
-        float v0 = layer.textureUV.v0;
-        float u1 = layer.textureUV.u1;
-        float v1 = layer.textureUV.v1;
-
-        // Get normal map UV coordinates
-        float nu0 = layer.normalMapUV.u0;
-        float nv0 = layer.normalMapUV.v0;
-        float nu1 = layer.normalMapUV.u1;
-        float nv1 = layer.normalMapUV.v1;
-
-        // Texture coordinates using atlas UV or default 0-1
-        float uvs[4][2] = {
-            {u0, v1},  // Bottom-left
-            {u1, v1},  // Bottom-right
-            {u1, v0},  // Top-right
-            {u0, v0}   // Top-left
-        };
-
-        // Normal map texture coordinates
-        float nuvs[4][2] = {
-            {nu0, nv1},  // Bottom-left
-            {nu1, nv1},  // Bottom-right
-            {nu1, nv0},  // Top-right
-            {nu0, nv0}   // Top-left
-        };
-
         // Apply rotation and position
         float cosA = std::cos(angle);
         float sinA = std::sin(angle);
 
         uint16_t baseIndex = static_cast<uint16_t>(batch.vertices.size());
 
-        for (int i = 0; i < 4; i++) {
-            // Apply offset
-            float lx = localVerts[i][0] + layer.offsetX;
-            float ly = localVerts[i][1] + layer.offsetY;
+        // Check if using polygon rendering (for fragment texture clipping)
+        if (layer.polygonVertexCount >= 3) {
+            // Polygon rendering with per-vertex UVs
+            for (int i = 0; i < layer.polygonVertexCount; i++) {
+                // Get local vertex position
+                float lx = layer.polygonVertices[i * 2] + layer.offsetX;
+                float ly = layer.polygonVertices[i * 2 + 1] + layer.offsetY;
 
-            // Rotate
-            float rx = lx * cosA - ly * sinA;
-            float ry = lx * sinA + ly * cosA;
+                // Rotate
+                float rx = lx * cosA - ly * sinA;
+                float ry = lx * sinA + ly * cosA;
 
-            // Translate to body position
-            SpriteVertex vert;
-            vert.x = centerX + rx;
-            vert.y = centerY + ry;
-            vert.u = uvs[i][0];
-            vert.v = uvs[i][1];
-            vert.nu = nuvs[i][0];
-            vert.nv = nuvs[i][1];
+                // Get UV from polygon UVs
+                float u = layer.polygonUVs[i * 2];
+                float v = layer.polygonUVs[i * 2 + 1];
 
-            batch.vertices.push_back(vert);
+                // Translate to body position
+                SpriteVertex vert;
+                vert.x = centerX + rx;
+                vert.y = centerY + ry;
+                vert.u = u;
+                vert.v = 1.0f - v;  // Flip V for OpenGL-style coordinates
+                vert.nu = u;  // Use same UVs for normal map
+                vert.nv = 1.0f - v;
+
+                batch.vertices.push_back(vert);
+            }
+
+            // Create triangle fan indices for polygon (works for convex polygons)
+            for (int i = 1; i < layer.polygonVertexCount - 1; i++) {
+                batch.indices.push_back(baseIndex + 0);
+                batch.indices.push_back(baseIndex + i);
+                batch.indices.push_back(baseIndex + i + 1);
+            }
+        } else {
+            // Standard quad rendering
+            // Calculate half-extents
+            float hw = layer.width * 0.5f;
+            float hh = layer.height * 0.5f;
+
+            // Create quad vertices (4 vertices for a sprite)
+            // Vertices in local space (before rotation)
+            float localVerts[4][2] = {
+                {-hw, -hh},  // Bottom-left
+                { hw, -hh},  // Bottom-right
+                { hw,  hh},  // Top-right
+                {-hw,  hh}   // Top-left
+            };
+
+            // Get UV coordinates from layer (supports atlas or full texture)
+            float u0 = layer.textureUV.u0;
+            float v0 = layer.textureUV.v0;
+            float u1 = layer.textureUV.u1;
+            float v1 = layer.textureUV.v1;
+
+            // Get normal map UV coordinates
+            float nu0 = layer.normalMapUV.u0;
+            float nv0 = layer.normalMapUV.v0;
+            float nu1 = layer.normalMapUV.u1;
+            float nv1 = layer.normalMapUV.v1;
+
+            // Texture coordinates using atlas UV or default 0-1
+            float uvs[4][2] = {
+                {u0, v1},  // Bottom-left
+                {u1, v1},  // Bottom-right
+                {u1, v0},  // Top-right
+                {u0, v0}   // Top-left
+            };
+
+            // Normal map texture coordinates
+            float nuvs[4][2] = {
+                {nu0, nv1},  // Bottom-left
+                {nu1, nv1},  // Bottom-right
+                {nu1, nv0},  // Top-right
+                {nu0, nv0}   // Top-left
+            };
+
+            for (int i = 0; i < 4; i++) {
+                // Apply offset
+                float lx = localVerts[i][0] + layer.offsetX;
+                float ly = localVerts[i][1] + layer.offsetY;
+
+                // Rotate
+                float rx = lx * cosA - ly * sinA;
+                float ry = lx * sinA + ly * cosA;
+
+                // Translate to body position
+                SpriteVertex vert;
+                vert.x = centerX + rx;
+                vert.y = centerY + ry;
+                vert.u = uvs[i][0];
+                vert.v = uvs[i][1];
+                vert.nu = nuvs[i][0];
+                vert.nv = nuvs[i][1];
+
+                batch.vertices.push_back(vert);
+            }
+
+            // Create indices for two triangles (quad)
+            batch.indices.push_back(baseIndex + 0);
+            batch.indices.push_back(baseIndex + 1);
+            batch.indices.push_back(baseIndex + 2);
+
+            batch.indices.push_back(baseIndex + 2);
+            batch.indices.push_back(baseIndex + 3);
+            batch.indices.push_back(baseIndex + 0);
         }
-
-        // Create indices for two triangles (quad)
-        batch.indices.push_back(baseIndex + 0);
-        batch.indices.push_back(baseIndex + 1);
-        batch.indices.push_back(baseIndex + 2);
-
-        batch.indices.push_back(baseIndex + 2);
-        batch.indices.push_back(baseIndex + 3);
-        batch.indices.push_back(baseIndex + 0);
     }
 
     // Sort batches by pipeline ID first, then by descriptor ID for deterministic rendering order

@@ -736,9 +736,29 @@ void Box2DPhysics::setBodyDestructible(int bodyId, float strength, float brittle
     props.pipelineId = pipelineId;
     props.originalVertexCount = vertexCount;
 
-    for (int i = 0; i < vertexCount * 2; ++i) {
-        props.originalVertices[i] = vertices[i];
+    // Calculate bounding box for UV mapping
+    float minX = vertices[0], maxX = vertices[0];
+    float minY = vertices[1], maxY = vertices[1];
+
+    for (int i = 0; i < vertexCount; ++i) {
+        float x = vertices[i * 2];
+        float y = vertices[i * 2 + 1];
+        props.originalVertices[i * 2] = x;
+        props.originalVertices[i * 2 + 1] = y;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
     }
+
+    props.originalMinX = minX;
+    props.originalMinY = minY;
+    props.originalWidth = maxX - minX;
+    props.originalHeight = maxY - minY;
+
+    // Prevent division by zero
+    if (props.originalWidth < 0.0001f) props.originalWidth = 0.0001f;
+    if (props.originalHeight < 0.0001f) props.originalHeight = 0.0001f;
 
     destructibles_[bodyId] = props;
 }
@@ -758,6 +778,50 @@ const DestructibleProperties* Box2DPhysics::getDestructibleProperties(int bodyId
         return &it->second;
     }
     return nullptr;
+}
+
+// Convert a DestructiblePolygon to FragmentPolygon with UV coordinates
+FragmentPolygon Box2DPhysics::createFragmentWithUVs(const DestructiblePolygon& poly,
+                                                      const DestructibleProperties& props) {
+    FragmentPolygon result;
+    result.vertexCount = poly.vertexCount;
+    result.area = poly.area;
+
+    // Calculate centroid
+    result.centroidX = 0.0f;
+    result.centroidY = 0.0f;
+    for (int i = 0; i < poly.vertexCount; ++i) {
+        result.centroidX += poly.vertices[i * 2];
+        result.centroidY += poly.vertices[i * 2 + 1];
+    }
+    result.centroidX /= poly.vertexCount;
+    result.centroidY /= poly.vertexCount;
+
+    // Copy vertices and calculate UVs based on position within original bounding box
+    for (int i = 0; i < poly.vertexCount; ++i) {
+        float x = poly.vertices[i * 2];
+        float y = poly.vertices[i * 2 + 1];
+
+        // Store vertex (relative to centroid for proper local coordinates)
+        result.vertices[i * 2] = x - result.centroidX;
+        result.vertices[i * 2 + 1] = y - result.centroidY;
+
+        // Calculate UV coordinates based on position in original bounding box
+        // UV (0,0) is bottom-left, (1,1) is top-right
+        float u = (x - props.originalMinX) / props.originalWidth;
+        float v = (y - props.originalMinY) / props.originalHeight;
+
+        // Clamp to valid range
+        if (u < 0.0f) u = 0.0f;
+        if (u > 1.0f) u = 1.0f;
+        if (v < 0.0f) v = 0.0f;
+        if (v > 1.0f) v = 1.0f;
+
+        result.uvs[i * 2] = u;
+        result.uvs[i * 2 + 1] = v;
+    }
+
+    return result;
 }
 
 // Calculate polygon area using shoelace formula
@@ -1095,6 +1159,9 @@ void Box2DPhysics::processFractures() {
             event.newBodyIds[i] = fragBodyId;
             event.newLayerIds[i] = -1;  // Will be set by caller
             event.fragmentAreas[i] = fracture.fragments[i].area;
+
+            // Create fragment polygon with UV coordinates for texture clipping
+            event.fragmentPolygons[i] = createFragmentWithUVs(fracture.fragments[i], *props);
 
             // Make fragments also destructible if original was brittle enough
             // Reduce brittleness to prevent infinite shattering

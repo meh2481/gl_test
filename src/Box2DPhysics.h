@@ -27,6 +27,15 @@ struct DestructiblePolygon {
     float area;  // Calculated polygon area
 };
 
+// Fragment polygon with UV coordinates for texture clipping
+struct FragmentPolygon {
+    float vertices[16];  // Max 8 vertices, x/y pairs (local coordinates)
+    float uvs[16];       // Max 8 UV pairs, u/v for each vertex
+    int vertexCount;
+    float area;
+    float centroidX, centroidY;  // Centroid for positioning
+};
+
 // Fracture result containing new fragment polygons
 struct FractureResult {
     DestructiblePolygon fragments[8];  // Max 8 fragments from a single fracture
@@ -40,6 +49,9 @@ struct DestructibleProperties {
     bool isDestructible;
     float originalVertices[16];  // Original polygon vertices for texture UV calculation
     int originalVertexCount;
+    float originalWidth;   // Bounding box width for UV calculation
+    float originalHeight;  // Bounding box height for UV calculation
+    float originalMinX, originalMinY;  // Bounding box min for UV calculation
     uint64_t textureId;      // Texture for rendering fragments
     uint64_t normalMapId;    // Normal map for fragments
     int pipelineId;          // Shader pipeline for fragments
@@ -52,6 +64,7 @@ struct FractureEvent {
     int newBodyIds[8];
     int newLayerIds[8];
     float fragmentAreas[8];  // Area of each fragment for sizing layers
+    FragmentPolygon fragmentPolygons[8];  // Fragment polygons with UV coordinates
     int fragmentCount;
     float impactPointX, impactPointY;
     float impactNormalX, impactNormalY;
@@ -151,6 +164,10 @@ public:
     static void splitPolygon(const float* vertices, int vertexCount,
                              float lineX, float lineY, float lineDirX, float lineDirY,
                              DestructiblePolygon& poly1, DestructiblePolygon& poly2);
+
+    // Convert a DestructiblePolygon to FragmentPolygon with UV coordinates
+    static FragmentPolygon createFragmentWithUVs(const DestructiblePolygon& poly,
+                                                  const DestructibleProperties& props);
 
     // Create a fragment body with proper physics properties
     int createFragmentBody(float x, float y, float angle,

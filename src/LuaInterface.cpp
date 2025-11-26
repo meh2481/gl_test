@@ -44,7 +44,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2ClearBodyDestructible", "b2GetFractureEvents",
-                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset",
+                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerPolygon",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
@@ -451,6 +451,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "detachLayer", detachLayer);
     lua_register(luaState_, "setLayerEnabled", setLayerEnabled);
     lua_register(luaState_, "setLayerOffset", setLayerOffset);
+    lua_register(luaState_, "setLayerPolygon", setLayerPolygon);
 
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
@@ -1355,6 +1356,42 @@ int LuaInterface::b2GetFractureEvents(lua_State* L) {
         }
         lua_setfield(L, -2, "fragmentAreas");
 
+        // Create array of fragment polygons with vertices and UVs
+        lua_newtable(L);
+        for (int i = 0; i < event.fragmentCount; ++i) {
+            const FragmentPolygon& frag = event.fragmentPolygons[i];
+            lua_newtable(L);
+
+            // Vertex count
+            lua_pushnumber(L, frag.vertexCount);
+            lua_setfield(L, -2, "vertexCount");
+
+            // Centroid
+            lua_pushnumber(L, frag.centroidX);
+            lua_setfield(L, -2, "centroidX");
+            lua_pushnumber(L, frag.centroidY);
+            lua_setfield(L, -2, "centroidY");
+
+            // Vertices array
+            lua_newtable(L);
+            for (int j = 0; j < frag.vertexCount * 2; ++j) {
+                lua_pushnumber(L, frag.vertices[j]);
+                lua_rawseti(L, -2, j + 1);
+            }
+            lua_setfield(L, -2, "vertices");
+
+            // UVs array
+            lua_newtable(L);
+            for (int j = 0; j < frag.vertexCount * 2; ++j) {
+                lua_pushnumber(L, frag.uvs[j]);
+                lua_rawseti(L, -2, j + 1);
+            }
+            lua_setfield(L, -2, "uvs");
+
+            lua_rawseti(L, -2, i + 1);
+        }
+        lua_setfield(L, -2, "fragmentPolygons");
+
         lua_rawseti(L, -2, index);
         ++index;
     }
@@ -1518,6 +1555,48 @@ int LuaInterface::setLayerOffset(lua_State* L) {
     float offsetY = lua_tonumber(L, 3);
 
     interface->layerManager_->setLayerOffset(layerId, offsetX, offsetY);
+    return 0;
+}
+
+int LuaInterface::setLayerPolygon(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), vertices (table), uvs (table)
+    assert(lua_gettop(L) == 3);
+    assert(lua_isinteger(L, 1));
+    assert(lua_istable(L, 2));
+    assert(lua_istable(L, 3));
+
+    int layerId = (int)lua_tointeger(L, 1);
+
+    // Get vertices from table
+    float vertices[16];
+    int vertexLen = (int)lua_rawlen(L, 2);
+    assert(vertexLen >= 6 && vertexLen <= 16);  // 3-8 vertices
+
+    for (int i = 1; i <= vertexLen && i <= 16; ++i) {
+        lua_rawgeti(L, 2, i);
+        assert(lua_isnumber(L, -1));
+        vertices[i - 1] = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+    }
+    int vertexCount = vertexLen / 2;
+
+    // Get UVs from table
+    float uvs[16];
+    int uvLen = (int)lua_rawlen(L, 3);
+    assert(uvLen == vertexLen);  // Must match vertex count
+
+    for (int i = 1; i <= uvLen && i <= 16; ++i) {
+        lua_rawgeti(L, 3, i);
+        assert(lua_isnumber(L, -1));
+        uvs[i - 1] = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+    }
+
+    interface->layerManager_->setLayerPolygon(layerId, vertices, uvs, vertexCount);
     return 0;
 }
 

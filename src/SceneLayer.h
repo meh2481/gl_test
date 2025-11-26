@@ -47,6 +47,12 @@ struct SceneLayer {
     LayerAtlasUV textureUV;
     LayerAtlasUV normalMapUV;
 
+    // Polygon vertices for non-quad shapes (fragment rendering)
+    // If polygonVertexCount > 0, use polygon rendering instead of quad
+    float polygonVertices[16];  // Max 8 vertices, x/y pairs (local coordinates)
+    float polygonUVs[16];       // UV coordinates for each polygon vertex
+    int polygonVertexCount;     // 0 = use quad, > 0 = use polygon
+
     // Cached transform from physics
     float cachedX;
     float cachedY;
@@ -70,6 +76,12 @@ public:
     // Set atlas UV coordinates for a layer's texture
     void setLayerAtlasUV(int layerId, uint64_t atlasTextureId, float u0, float v0, float u1, float v1);
     void setLayerNormalMapAtlasUV(int layerId, uint64_t atlasNormalMapId, float u0, float v0, float u1, float v1);
+
+    // Set polygon vertices and UVs for fragment rendering (texture clipping)
+    // vertices: array of x,y pairs in local coordinates
+    // uvs: array of u,v pairs for texture coordinates
+    // vertexCount: number of vertices (3-8)
+    void setLayerPolygon(int layerId, const float* vertices, const float* uvs, int vertexCount);
 
     // Get all active layers
     const std::unordered_map<int, SceneLayer>& getLayers() const { return layers_; }

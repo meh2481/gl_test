@@ -287,18 +287,25 @@ function update(deltaTime)
             bodyLayerMap[event.originalBodyId] = nil
         end
 
-        -- Create layers for new fragment bodies
+        -- Create layers for new fragment bodies with proper UV clipping
         for i = 1, event.fragmentCount do
             local fragBodyId = event.newBodyIds[i]
-            if fragBodyId and fragBodyId >= 0 then
+            local fragPoly = event.fragmentPolygons[i]
+            if fragBodyId and fragBodyId >= 0 and fragPoly then
                 -- Calculate layer size from fragment polygon area
-                -- Area is in square units, so take sqrt for linear dimension
-                local fragArea = event.fragmentAreas[i] or 0.0144  -- Default to 0.12^2
-                local fragSize = math.sqrt(fragArea) * 2  -- Double to account for half-extents
-                if fragSize < 0.04 then fragSize = 0.04 end  -- Minimum visible size
+                local fragArea = event.fragmentAreas[i] or 0.0144
+                local fragSize = math.sqrt(fragArea) * 2
+                if fragSize < 0.04 then fragSize = 0.04 end
 
+                -- Create layer with size based on polygon bounds
                 local fragLayer = createLayer(rockTexId, fragSize, rockNormId, phongShaderId)
                 attachLayerToBody(fragLayer, fragBodyId)
+
+                -- Apply polygon vertices and UV coordinates for texture clipping
+                if fragPoly.vertexCount >= 3 and fragPoly.vertices and fragPoly.uvs then
+                    setLayerPolygon(fragLayer, fragPoly.vertices, fragPoly.uvs)
+                end
+
                 table.insert(bodies, fragBodyId)
                 table.insert(layers, fragLayer)
                 bodyLayerMap[fragBodyId] = fragLayer
