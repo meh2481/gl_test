@@ -33,7 +33,8 @@ struct DestructiblePolygon {
 // Fragment polygon with UV coordinates for texture clipping
 struct FragmentPolygon {
     float vertices[16];  // Max 8 vertices, x/y pairs (local coordinates)
-    float uvs[16];       // Max 8 UV pairs, u/v for each vertex
+    float uvs[16];       // Max 8 UV pairs, u/v for each vertex (texture)
+    float normalUvs[16]; // Max 8 UV pairs, u/v for each vertex (normal map)
     int vertexCount;
     float area;
     float centroidX, centroidY;  // Centroid for positioning
@@ -58,11 +59,15 @@ struct DestructibleProperties {
     uint64_t textureId;      // Texture for rendering fragments
     uint64_t normalMapId;    // Normal map for fragments
     int pipelineId;          // Shader pipeline for fragments
-    // Atlas UV coordinates (if using texture atlas)
+    // Atlas UV coordinates for texture (if using texture atlas)
     bool usesAtlas;
-    float atlasU0, atlasV0;  // Bottom-left UV in atlas
-    float atlasU1, atlasV1;  // Top-right UV in atlas
+    float atlasU0, atlasV0;  // Top-left UV in atlas for texture
+    float atlasU1, atlasV1;  // Bottom-right UV in atlas for texture
     uint64_t atlasTextureId;      // Atlas texture ID (if using atlas)
+    // Atlas UV coordinates for normal map (separate, may be different)
+    bool usesNormalMapAtlas;
+    float normalAtlasU0, normalAtlasV0;  // Top-left UV in atlas for normal map
+    float normalAtlasU1, normalAtlasV1;  // Bottom-right UV in atlas for normal map
     uint64_t atlasNormalMapId;    // Atlas normal map ID (if using atlas)
 };
 
@@ -152,9 +157,13 @@ public:
                              const float* vertices, int vertexCount,
                              uint64_t textureId, uint64_t normalMapId, int pipelineId);
 
-    // Set atlas UV coordinates for a destructible body (call after setBodyDestructible)
-    void setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureId, uint64_t atlasNormalMapId,
+    // Set atlas UV coordinates for a destructible body's texture (call after setBodyDestructible)
+    void setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureId,
                                      float u0, float v0, float u1, float v1);
+
+    // Set atlas UV coordinates for a destructible body's normal map (call after setBodyDestructible)
+    void setBodyDestructibleNormalMapAtlasUV(int bodyId, uint64_t atlasNormalMapId,
+                                              float u0, float v0, float u1, float v1);
 
     // Set the layer ID associated with a destructible body (for cleanup when fractured)
     void setBodyDestructibleLayer(int bodyId, int layerId);
