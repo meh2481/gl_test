@@ -31,7 +31,7 @@ void main() {
     // Account for aspect ratio so X and Y panning feel consistent
     // Scale factor 0.25 converts world coordinates to appropriate texture offset
     float aspect = pc.iResolution.x / pc.iResolution.y;
-    vec2 parallaxOffset = vec2(pc.cameraX / aspect, pc.cameraY) * parallaxFactor * 0.25;
+    vec2 parallaxOffset = vec2(pc.cameraX / aspect, -pc.cameraY) * parallaxFactor * 0.25;
 
     gl_Position = vec4(inPosition, 0.0, 1.0);
     fragTexCoord = inTexCoord + parallaxOffset;
