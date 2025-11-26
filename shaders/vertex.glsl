@@ -28,9 +28,10 @@ void main() {
 
     // Apply parallax offset to texture coordinates
     // Multiply by camera offset to create the parallax pan effect
-    // Negate Y to correct up/down panning direction
+    // Account for aspect ratio so X and Y panning feel consistent
     // Scale factor 0.25 converts world coordinates to appropriate texture offset
-    vec2 parallaxOffset = vec2(pc.cameraX, -pc.cameraY) * parallaxFactor * 0.25;
+    float aspect = pc.iResolution.x / pc.iResolution.y;
+    vec2 parallaxOffset = vec2(pc.cameraX / aspect, pc.cameraY) * parallaxFactor * 0.25;
 
     gl_Position = vec4(inPosition, 0.0, 1.0);
     fragTexCoord = inTexCoord + parallaxOffset;
