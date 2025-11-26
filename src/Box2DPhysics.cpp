@@ -1127,6 +1127,8 @@ int Box2DPhysics::createFragmentBody(float x, float y, float angle,
     bodyDef.linearVelocity = (b2Vec2){vx, vy};
     bodyDef.angularVelocity = angularVel;
     bodyDef.sleepThreshold = SLEEP_THRESHOLD;
+    // Enable bullet mode to prevent tunneling through walls on first frame
+    bodyDef.isBullet = true;
 
     b2BodyId bodyId = b2CreateBody(worldId_, &bodyDef);
     assert(b2Body_IsValid(bodyId));
@@ -1217,6 +1219,26 @@ void Box2DPhysics::processFractures() {
                                                  fracture.fragments[i],
                                                  vel.x, vel.y, angularVel,
                                                  1.0f, 0.3f, 0.3f);
+
+            // Apply a small impulse to push fragments apart from impact point
+            // This helps prevent fragments from clipping through walls on first frame
+            if (fragBodyId >= 0) {
+                auto bodyIt = bodies_.find(fragBodyId);
+                if (bodyIt != bodies_.end()) {
+                    b2Vec2 fragPos = b2Body_GetPosition(bodyIt->second);
+                    // Direction from impact to fragment center
+                    float sepDirX = fragPos.x - hit.pointX;
+                    float sepDirY = fragPos.y - hit.pointY;
+                    float sepLen = sqrtf(sepDirX * sepDirX + sepDirY * sepDirY);
+                    if (sepLen > 0.001f) {
+                        sepDirX /= sepLen;
+                        sepDirY /= sepLen;
+                        // Small separation impulse proportional to impact speed
+                        float sepImpulse = hit.approachSpeed * 0.1f;
+                        b2Body_ApplyLinearImpulseToCenter(bodyIt->second, (b2Vec2){sepDirX * sepImpulse, sepDirY * sepImpulse}, true);
+                    }
+                }
+            }
 
             int fragIdx = event.fragmentCount;
             event.newBodyIds[fragIdx] = fragBodyId;
