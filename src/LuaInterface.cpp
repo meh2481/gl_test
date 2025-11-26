@@ -1216,10 +1216,10 @@ int LuaInterface::b2GetCollisionHitEvents(lua_State* L) {
     for (const auto& event : events) {
         lua_newtable(L);
 
-        lua_pushnumber(L, event.bodyIdA);
+        lua_pushinteger(L, event.bodyIdA);
         lua_setfield(L, -2, "bodyIdA");
 
-        lua_pushnumber(L, event.bodyIdB);
+        lua_pushinteger(L, event.bodyIdB);
         lua_setfield(L, -2, "bodyIdB");
 
         lua_pushnumber(L, event.pointX);
@@ -1325,10 +1325,10 @@ int LuaInterface::b2GetFractureEvents(lua_State* L) {
     for (const auto& event : events) {
         lua_newtable(L);
 
-        lua_pushnumber(L, event.originalBodyId);
+        lua_pushinteger(L, event.originalBodyId);
         lua_setfield(L, -2, "originalBodyId");
 
-        lua_pushnumber(L, event.fragmentCount);
+        lua_pushinteger(L, event.fragmentCount);
         lua_setfield(L, -2, "fragmentCount");
 
         lua_pushnumber(L, event.impactPointX);
@@ -1343,7 +1343,7 @@ int LuaInterface::b2GetFractureEvents(lua_State* L) {
         // Create array of new body IDs
         lua_newtable(L);
         for (int i = 0; i < event.fragmentCount; ++i) {
-            lua_pushnumber(L, event.newBodyIds[i]);
+            lua_pushinteger(L, event.newBodyIds[i]);
             lua_rawseti(L, -2, i + 1);
         }
         lua_setfield(L, -2, "newBodyIds");

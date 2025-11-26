@@ -287,6 +287,15 @@ function update(deltaTime)
             bodyLayerMap[event.originalBodyId] = nil
         end
 
+        -- If the fractured body was being dragged, destroy the mouse joint
+        if draggedBodyId == event.originalBodyId then
+            if mouseJointId then
+                b2DestroyMouseJoint(mouseJointId)
+                mouseJointId = nil
+            end
+            draggedBodyId = nil
+        end
+
         -- Create layers for new fragment bodies with proper UV clipping
         for i = 1, event.fragmentCount do
             local fragBodyId = event.newBodyIds[i]

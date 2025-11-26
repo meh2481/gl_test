@@ -450,7 +450,9 @@ void Box2DPhysics::destroyJoint(int jointId) {
 
     auto it = joints_.find(jointId);
     if (it != joints_.end()) {
-        b2DestroyJoint(it->second);
+        if (b2Joint_IsValid(it->second)) {
+            b2DestroyJoint(it->second);
+        }
         joints_.erase(it);
     }
 
@@ -1219,6 +1221,27 @@ void Box2DPhysics::processFractures() {
         if (fractureCallback_) {
             fractureCallback_(event);
         }
+    }
+
+    // Destroy joints attached to pending destruction bodies
+    std::vector<int> jointsToDestroy;
+    for (int bodyId : pendingDestructions_) {
+        auto bodyIt = bodies_.find(bodyId);
+        if (bodyIt != bodies_.end()) {
+            for (auto& j : joints_) {
+                b2JointId jointId = j.second;
+                if (b2Joint_GetType(jointId) == b2_mouseJoint) {
+                    b2BodyId bodyB = b2Joint_GetBodyB(jointId);
+                    int attachedBodyId = findInternalBodyId(bodyB);
+                    if (attachedBodyId == bodyId) {
+                        jointsToDestroy.push_back(j.first);
+                    }
+                }
+            }
+        }
+    }
+    for (int jointId : jointsToDestroy) {
+        destroyJoint(jointId);
     }
 
     // Destroy pending bodies
