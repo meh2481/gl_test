@@ -40,8 +40,17 @@ void main() {
     // Compute tangent space basis using screen-space derivatives
     // This automatically accounts for sprite rotation
     float aspect = pc.width / pc.height;
+
+    // Get position derivatives - these are affected by aspect ratio in gl_Position
+    // gl_Position.x = pos.x / aspect means screen pixels span MORE world X units
+    // So dFdx(fragPos.x) is aspect times larger than it should be - divide to correct
     vec3 dPosX = dFdx(fragPos);
     vec3 dPosY = dFdy(fragPos);
+
+    // Correct for aspect ratio: dFdx(fragPos.x) is scaled by aspect, divide to normalize
+    dPosX.x /= aspect;
+    dPosY.x /= aspect;
+
     vec2 dTexX = dFdx(fragTexCoord);
     vec2 dTexY = dFdy(fragTexCoord);
 
@@ -61,15 +70,9 @@ void main() {
     // Transform normal from tangent space to world space
     vec3 normal = normalize(TBN * tangentNormal);
 
-    // Calculate lighting vectors
-    // The TBN is computed from screen-space derivatives which include aspect ratio scaling
-    // So we need to apply the same aspect ratio correction to the light/view direction calculation
-    vec3 aspectCorrectedFragPos = vec3(fragPos.x / aspect, fragPos.y, fragPos.z);
-    vec3 aspectCorrectedLightPos = vec3(fragLightPos.x / aspect, fragLightPos.y, fragLightPos.z);
-    vec3 aspectCorrectedViewPos = vec3(fragViewPos.x / aspect, fragViewPos.y, fragViewPos.z);
-
-    vec3 lightDir = normalize(aspectCorrectedLightPos - aspectCorrectedFragPos);
-    vec3 viewDir = normalize(aspectCorrectedViewPos - aspectCorrectedFragPos);
+    // Calculate lighting in world space (TBN is now in world space after aspect correction)
+    vec3 lightDir = normalize(fragLightPos - fragPos);
+    vec3 viewDir = normalize(fragViewPos - fragPos);
 
     // Ambient
     vec3 ambient = pc.ambientStrength * texColor.rgb;
