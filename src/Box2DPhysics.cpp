@@ -1267,12 +1267,25 @@ void Box2DPhysics::processFractures() {
                 float fragSize = sqrtf(fracture.fragments[i].area) * 2.0f;
                 if (fragSize < MIN_FRAGMENT_LAYER_SIZE) fragSize = MIN_FRAGMENT_LAYER_SIZE;
 
-                // Create layer with atlas texture if available
-                uint64_t texId = props->usesAtlas ? props->atlasTextureId : props->textureId;
-                uint64_t normId = props->usesAtlas ? props->atlasNormalMapId : props->normalMapId;
-
-                layerId = layerManager_->createLayer(texId, fragSize, fragSize, normId, props->pipelineId);
+                // Create layer with original (non-atlas) texture IDs
+                // This ensures proper descriptor set lookup
+                layerId = layerManager_->createLayer(props->textureId, fragSize, fragSize, props->normalMapId, props->pipelineId);
                 layerManager_->attachLayerToBody(layerId, fragBodyId);
+
+                // Set atlas UV coordinates if using atlas
+                // This is important for proper texture batching
+                if (props->usesAtlas) {
+                    layerManager_->setLayerAtlasUV(layerId, props->atlasTextureId,
+                                                    props->atlasU0, props->atlasV0,
+                                                    props->atlasU1, props->atlasV1);
+                    // Also set normal map atlas UV if available
+                    if (props->atlasNormalMapId > 0) {
+                        // Use same UV coordinates for normal map (they're packed together)
+                        layerManager_->setLayerNormalMapAtlasUV(layerId, props->atlasNormalMapId,
+                                                                 props->atlasU0, props->atlasV0,
+                                                                 props->atlasU1, props->atlasV1);
+                    }
+                }
 
                 // Apply polygon vertices and UV coordinates for texture clipping
                 const FragmentPolygon& fragPoly = event.fragmentPolygons[fragIdx];
