@@ -18,6 +18,12 @@ CHAIN_OFFSET = 0.0035
 mouseJointId = nil
 draggedBodyId = nil
 
+-- Destructible object state
+destructibleBody = nil
+destructibleLayer = nil
+destructibleStrength = 3.0  -- Speed threshold to break (meters/second)
+destructibleBroken = false
+
 function init()
     -- Load the nebula background shader (z-index 0)
     loadShaders("vertex.spv", "nebula_fragment.spv", 0)
@@ -233,12 +239,87 @@ function init()
     )
     table.insert(joints, lightJointId)
 
+    -- Create a destructible box that breaks when hit hard enough
+    -- Positioned on the right side, uses rock texture
+    destructibleBody = b2CreateBody(B2_DYNAMIC_BODY, 0.9, -0.3, 0)
+    b2AddBoxFixture(destructibleBody, 0.12, 0.12, 1.0, 0.3, 0.3)
+    table.insert(bodies, destructibleBody)
+
+    destructibleLayer = createLayer(rockTexId, 0.24, rockNormId, phongShaderId)
+    attachLayerToBody(destructibleLayer, destructibleBody)
+    table.insert(layers, destructibleLayer)
+
     print("Physics demo scene initialized with multiple shader types")
+    print("Destructible rock added - hit it hard to break it!")
+end
+
+-- Helper function to create fragment pieces when object breaks
+function createFragments(x, y, vx, vy, angle, angularVel)
+    -- Create two smaller fragments from the original box
+    local fragmentSize = 0.06  -- Half the original size
+    local offsetDist = 0.08
+
+    -- Fragment 1: upper-left piece
+    local frag1 = b2CreateBody(B2_DYNAMIC_BODY, x - offsetDist * 0.5, y + offsetDist * 0.5, angle)
+    b2AddBoxFixture(frag1, fragmentSize, fragmentSize, 1.0, 0.3, 0.3)
+    b2SetBodyLinearVelocity(frag1, vx - 1.5, vy + 1.0)
+    b2SetBodyAngularVelocity(frag1, angularVel + 3.0)
+    table.insert(bodies, frag1)
+
+    local fragLayer1 = createLayer(rockTexId, fragmentSize * 2, rockNormId, phongShaderId)
+    attachLayerToBody(fragLayer1, frag1)
+    table.insert(layers, fragLayer1)
+
+    -- Fragment 2: lower-right piece
+    local frag2 = b2CreateBody(B2_DYNAMIC_BODY, x + offsetDist * 0.5, y - offsetDist * 0.5, angle)
+    b2AddBoxFixture(frag2, fragmentSize, fragmentSize, 1.0, 0.3, 0.3)
+    b2SetBodyLinearVelocity(frag2, vx + 1.5, vy - 0.5)
+    b2SetBodyAngularVelocity(frag2, angularVel - 3.0)
+    table.insert(bodies, frag2)
+
+    local fragLayer2 = createLayer(rockTexId, fragmentSize * 2, rockNormId, phongShaderId)
+    attachLayerToBody(fragLayer2, frag2)
+    table.insert(layers, fragLayer2)
 end
 
 function update(deltaTime)
     -- Step the physics simulation (Box2D 3.x uses subStepCount instead of velocity/position iterations)
     b2Step(deltaTime, 4)
+
+    -- Check for collisions that might break destructible objects
+    if destructibleBody and not destructibleBroken then
+        local hitEvents = b2GetCollisionHitEvents()
+        for _, event in ipairs(hitEvents) do
+            -- Check if the destructible body was involved in a hard hit
+            if event.bodyIdA == destructibleBody or event.bodyIdB == destructibleBody then
+                if event.approachSpeed >= destructibleStrength then
+                    -- Get current position and velocity before destroying
+                    local x, y = b2GetBodyPosition(destructibleBody)
+                    local vx, vy = b2GetBodyLinearVelocity(destructibleBody)
+                    local angle = b2GetBodyAngle(destructibleBody)
+                    local angularVel = b2GetBodyAngularVelocity(destructibleBody)
+
+                    print("CRASH! Object broke at speed: " .. string.format("%.2f", event.approachSpeed))
+
+                    -- Destroy the original body and layer
+                    destroyLayer(destructibleLayer)
+                    b2DestroyBody(destructibleBody)
+
+                    -- Create fragment pieces
+                    createFragments(x, y, vx, vy, angle, angularVel)
+
+                    -- Mark as broken to prevent further processing
+                    destructibleBroken = true
+                    destructibleBody = nil
+                    destructibleLayer = nil
+
+                    -- Trigger vibration feedback
+                    vibrate(0.8, 0.8, 300)
+                    break
+                end
+            end
+        end
+    end
 
     -- Update mouse joint target if dragging
     if mouseJointId then
@@ -285,6 +366,9 @@ function cleanup()
     lightBody = nil
     circleBody = nil
     chainAnchor = nil
+    destructibleBody = nil
+    destructibleLayer = nil
+    destructibleBroken = false
     -- Disable debug drawing
     b2EnableDebugDraw(false)
     print("Physics demo scene cleaned up")

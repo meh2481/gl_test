@@ -10,6 +10,15 @@ struct DebugVertex {
     float r, g, b, a;
 };
 
+// Collision hit event for destructible objects
+struct CollisionHitEvent {
+    int bodyIdA;
+    int bodyIdB;
+    float pointX, pointY;
+    float normalX, normalY;
+    float approachSpeed;
+};
+
 class Box2DPhysics {
 public:
     Box2DPhysics();
@@ -70,6 +79,9 @@ public:
     const std::vector<DebugVertex>& getDebugLineVertices();
     const std::vector<DebugVertex>& getDebugTriangleVertices();
 
+    // Collision events - returns hit events from last physics step
+    const std::vector<CollisionHitEvent>& getCollisionHitEvents() const { return collisionHitEvents_; }
+
 private:
     // Debug draw callbacks
     static void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context);
@@ -112,4 +124,10 @@ private:
 
     // Ground body for mouse joint (lazy initialized, protected by mutex)
     b2BodyId mouseJointGroundBody_;
+
+    // Collision events from last physics step
+    std::vector<CollisionHitEvent> collisionHitEvents_;
+
+    // Helper to convert b2BodyId to internal ID
+    int findInternalBodyId(b2BodyId bodyId);
 };

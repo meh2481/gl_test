@@ -64,11 +64,38 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
     // Accumulate the variable timestep
     timeAccumulator_ += timeStep;
 
+    // Clear collision events from previous step
+    collisionHitEvents_.clear();
+
     // Step the physics simulation in fixed increments
     // This ensures framerate-independent physics behavior
     while (timeAccumulator_ >= fixedTimestep_) {
         b2World_Step(worldId_, fixedTimestep_, subStepCount);
         timeAccumulator_ -= fixedTimestep_;
+
+        // Process collision hit events after each physics step
+        b2ContactEvents contactEvents = b2World_GetContactEvents(worldId_);
+        for (int i = 0; i < contactEvents.hitCount; ++i) {
+            const b2ContactHitEvent& hitEvent = contactEvents.hitEvents[i];
+
+            b2BodyId bodyIdA = b2Shape_GetBody(hitEvent.shapeIdA);
+            b2BodyId bodyIdB = b2Shape_GetBody(hitEvent.shapeIdB);
+
+            int internalIdA = findInternalBodyId(bodyIdA);
+            int internalIdB = findInternalBodyId(bodyIdB);
+
+            if (internalIdA >= 0 || internalIdB >= 0) {
+                CollisionHitEvent event;
+                event.bodyIdA = internalIdA;
+                event.bodyIdB = internalIdB;
+                event.pointX = hitEvent.point.x;
+                event.pointY = hitEvent.point.y;
+                event.normalX = hitEvent.normal.x;
+                event.normalY = hitEvent.normal.y;
+                event.approachSpeed = hitEvent.approachSpeed;
+                collisionHitEvents_.push_back(event);
+            }
+        }
     }
 
     if (debugDrawEnabled_) {
@@ -668,4 +695,13 @@ void Box2DPhysics::DrawPoint(b2Vec2 p, float size, b2HexColor color, void* conte
     physics->addLineVertex(p.x + halfSize, p.y, color);
     physics->addLineVertex(p.x, p.y - halfSize, color);
     physics->addLineVertex(p.x, p.y + halfSize, color);
+}
+
+int Box2DPhysics::findInternalBodyId(b2BodyId bodyId) {
+    for (const auto& pair : bodies_) {
+        if (B2_ID_EQUALS(pair.second, bodyId)) {
+            return pair.first;
+        }
+    }
+    return -1;
 }

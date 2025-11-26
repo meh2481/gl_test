@@ -43,6 +43,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
+                                     "b2GetCollisionHitEvents",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
@@ -438,6 +439,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2CreateMouseJoint", b2CreateMouseJoint);
     lua_register(luaState_, "b2UpdateMouseJointTarget", b2UpdateMouseJointTarget);
     lua_register(luaState_, "b2DestroyMouseJoint", b2DestroyMouseJoint);
+    lua_register(luaState_, "b2GetCollisionHitEvents", b2GetCollisionHitEvents);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -1191,6 +1193,51 @@ int LuaInterface::b2DestroyMouseJoint(lua_State* L) {
     int jointId = lua_tointeger(L, 1);
     interface->physics_->destroyMouseJoint(jointId);
     return 0;
+}
+
+int LuaInterface::b2GetCollisionHitEvents(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // No arguments expected
+    assert(lua_gettop(L) == 0);
+
+    const auto& events = interface->physics_->getCollisionHitEvents();
+
+    // Create a table to hold the events
+    lua_newtable(L);
+
+    int index = 1;
+    for (const auto& event : events) {
+        lua_newtable(L);
+
+        lua_pushnumber(L, event.bodyIdA);
+        lua_setfield(L, -2, "bodyIdA");
+
+        lua_pushnumber(L, event.bodyIdB);
+        lua_setfield(L, -2, "bodyIdB");
+
+        lua_pushnumber(L, event.pointX);
+        lua_setfield(L, -2, "pointX");
+
+        lua_pushnumber(L, event.pointY);
+        lua_setfield(L, -2, "pointY");
+
+        lua_pushnumber(L, event.normalX);
+        lua_setfield(L, -2, "normalX");
+
+        lua_pushnumber(L, event.normalY);
+        lua_setfield(L, -2, "normalY");
+
+        lua_pushnumber(L, event.approachSpeed);
+        lua_setfield(L, -2, "approachSpeed");
+
+        lua_rawseti(L, -2, index);
+        ++index;
+    }
+
+    return 1; // Return the table
 }
 
 // Scene layer Lua binding implementations

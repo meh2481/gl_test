@@ -90,6 +90,7 @@ private:
     static int b2CreateMouseJoint(lua_State* L);
     static int b2UpdateMouseJointTarget(lua_State* L);
     static int b2DestroyMouseJoint(lua_State* L);
+    static int b2GetCollisionHitEvents(lua_State* L);
 
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);
