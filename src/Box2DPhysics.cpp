@@ -11,6 +11,16 @@ static constexpr float DEFAULT_FIXED_TIMESTEP = 1.0f / 250.0f;
 // is imperceptible.
 static constexpr float SLEEP_THRESHOLD = 0.001f;
 
+// Moh's hardness scale constants for calculating break force
+// The scale is roughly logarithmic - each level is ~1.5x harder than the previous
+static constexpr float MOH_SCALE_MULTIPLIER = 1.5f;
+static constexpr float MOH_REFERENCE_LEVEL = 5.0f;  // Reference hardness level (like glass)
+static constexpr float MOH_BASE_BREAK_SPEED = 3.0f;  // Base break speed at reference level (m/s)
+
+// Brittleness constants for fracture behavior
+static constexpr float MIN_SECONDARY_FRACTURE_BRITTLENESS = 0.3f;  // Min brittleness for secondary fractures
+static constexpr float BRITTLENESS_REDUCTION_FACTOR = 0.8f;  // Reduces brittleness per generation to prevent infinite shattering
+
 // Helper function to convert b2HexColor to RGBA floats
 static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, float& a) {
     r = ((hexColor >> 16) & 0xFF) / 255.0f;
@@ -765,13 +775,10 @@ float Box2DPhysics::calculatePolygonArea(const float* vertices, int vertexCount)
 }
 
 // Calculate break force based on Moh's hardness scale
-// Moh's scale is logarithmic - each level is ~2x harder than previous
 float Box2DPhysics::calculateBreakForce(float strength, float impactSpeed) const {
-    // Base threshold at strength 5 is ~3 m/s
-    // Each Moh unit multiplies by ~1.5
-    float baseThreshold = 3.0f;
-    float scaleFactor = powf(1.5f, strength - 5.0f);
-    return baseThreshold * scaleFactor;
+    // Moh's scale is roughly logarithmic - each level is ~1.5x harder than the previous
+    float scaleFactor = powf(MOH_SCALE_MULTIPLIER, strength - MOH_REFERENCE_LEVEL);
+    return MOH_BASE_BREAK_SPEED * scaleFactor;
 }
 
 // Calculate fragment count based on brittleness and impact energy
@@ -905,9 +912,9 @@ FractureResult Box2DPhysics::calculateFracture(const DestructibleProperties& pro
     }
 
     // For high brittleness, add secondary fractures
-    if (props.brittleness > 0.3f && result.fragmentCount >= 2) {
+    if (props.brittleness > MIN_SECONDARY_FRACTURE_BRITTLENESS && result.fragmentCount >= 2) {
         // Calculate secondary fracture angle based on brittleness
-        float secondaryAngle = M_PI * 0.3f + (props.brittleness - 0.3f) * M_PI * 0.3f;
+        float secondaryAngle = M_PI * 0.3f + (props.brittleness - MIN_SECONDARY_FRACTURE_BRITTLENESS) * M_PI * 0.3f;
 
         // Try to split the larger fragment
         int largestIdx = (result.fragments[0].area > result.fragments[1].area) ? 0 : 1;
@@ -1087,10 +1094,13 @@ void Box2DPhysics::processFractures() {
                                                  1.0f, 0.3f, 0.3f);
             event.newBodyIds[i] = fragBodyId;
             event.newLayerIds[i] = -1;  // Will be set by caller
+            event.fragmentAreas[i] = fracture.fragments[i].area;
 
             // Make fragments also destructible if original was brittle enough
+            // Reduce brittleness to prevent infinite shattering
             if (props->brittleness > 0.5f && fragBodyId >= 0) {
-                setBodyDestructible(fragBodyId, props->strength, props->brittleness * 0.8f,
+                setBodyDestructible(fragBodyId, props->strength,
+                                   props->brittleness * BRITTLENESS_REDUCTION_FACTOR,
                                    fracture.fragments[i].vertices, fracture.fragments[i].vertexCount,
                                    props->textureId, props->normalMapId, props->pipelineId);
             }

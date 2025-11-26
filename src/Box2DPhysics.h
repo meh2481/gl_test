@@ -51,6 +51,7 @@ struct FractureEvent {
     int originalLayerId;
     int newBodyIds[8];
     int newLayerIds[8];
+    float fragmentAreas[8];  // Area of each fragment for sizing layers
     int fragmentCount;
     float impactPointX, impactPointY;
     float impactNormalX, impactNormalY;

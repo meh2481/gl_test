@@ -291,9 +291,12 @@ function update(deltaTime)
         for i = 1, event.fragmentCount do
             local fragBodyId = event.newBodyIds[i]
             if fragBodyId and fragBodyId >= 0 then
-                -- Create layer for fragment - size based on fragment
-                -- TODO: Calculate proper size from fragment polygon area
-                local fragSize = 0.12  -- Smaller than original
+                -- Calculate layer size from fragment polygon area
+                -- Area is in square units, so take sqrt for linear dimension
+                local fragArea = event.fragmentAreas[i] or 0.0144  -- Default to 0.12^2
+                local fragSize = math.sqrt(fragArea) * 2  -- Double to account for half-extents
+                if fragSize < 0.04 then fragSize = 0.04 end  -- Minimum visible size
+
                 local fragLayer = createLayer(rockTexId, fragSize, rockNormId, phongShaderId)
                 attachLayerToBody(fragLayer, fragBodyId)
                 table.insert(bodies, fragBodyId)

@@ -1260,10 +1260,10 @@ int LuaInterface::b2SetBodyDestructible(lua_State* L) {
     float strength = lua_tonumber(L, 2);
     float brittleness = lua_tonumber(L, 3);
 
-    // Get vertices from table
+    // Get vertices from table - expects 6-16 elements (3-8 x,y vertex pairs)
     float vertices[16];
     int tableLen = (int)lua_rawlen(L, 4);
-    assert(tableLen >= 6 && tableLen <= 16);  // 3-8 vertices
+    assert(tableLen >= 6 && tableLen <= 16);
 
     for (int i = 1; i <= tableLen && i <= 16; ++i) {
         lua_rawgeti(L, 4, i);
@@ -1346,6 +1346,14 @@ int LuaInterface::b2GetFractureEvents(lua_State* L) {
             lua_rawseti(L, -2, i + 1);
         }
         lua_setfield(L, -2, "newBodyIds");
+
+        // Create array of fragment areas for proper layer sizing
+        lua_newtable(L);
+        for (int i = 0; i < event.fragmentCount; ++i) {
+            lua_pushnumber(L, event.fragmentAreas[i]);
+            lua_rawseti(L, -2, i + 1);
+        }
+        lua_setfield(L, -2, "fragmentAreas");
 
         lua_rawseti(L, -2, index);
         ++index;
