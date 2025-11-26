@@ -42,9 +42,10 @@ void main() {
     float aspect = pc.width / pc.height;
     vec3 dPosX = dFdx(fragPos);
     vec3 dPosY = dFdy(fragPos);
-    // Correct for aspect ratio: screen X derivatives are scaled by aspect in gl_Position
-    dPosX.x *= aspect;
-    dPosY.x *= aspect;
+    // Correct for aspect ratio: gl_Position.x is divided by aspect, so screen-space
+    // derivatives are aspect times larger than world-space - divide to correct
+    dPosX.x /= aspect;
+    dPosY.x /= aspect;
     vec2 dTexX = dFdx(fragTexCoord);
     vec2 dTexY = dFdy(fragTexCoord);
 
