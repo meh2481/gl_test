@@ -122,27 +122,6 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
                 }
             }
         }
-        for (int i = 0; i < contactEvents.hitCount; ++i) {
-            const b2ContactHitEvent& hitEvent = contactEvents.hitEvents[i];
-
-            b2BodyId bodyIdA = b2Shape_GetBody(hitEvent.shapeIdA);
-            b2BodyId bodyIdB = b2Shape_GetBody(hitEvent.shapeIdB);
-
-            int internalIdA = findInternalBodyId(bodyIdA);
-            int internalIdB = findInternalBodyId(bodyIdB);
-
-            if (internalIdA >= 0 || internalIdB >= 0) {
-                CollisionHitEvent event;
-                event.bodyIdA = internalIdA;
-                event.bodyIdB = internalIdB;
-                event.pointX = hitEvent.point.x;
-                event.pointY = hitEvent.point.y;
-                event.normalX = hitEvent.normal.x;
-                event.normalY = hitEvent.normal.y;
-                event.approachSpeed = hitEvent.approachSpeed;
-                collisionHitEvents_.push_back(event);
-            }
-        }
     }
 
     // Process fractures for destructible objects (must be done after collecting all collision events)
