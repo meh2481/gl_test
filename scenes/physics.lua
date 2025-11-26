@@ -26,8 +26,9 @@ destructibleStartX = 0.9
 destructibleStartY = -0.3
 
 function init()
-    -- Load the nebula background shader (z-index 0)
-    loadShaders("vertex.spv", "nebula_fragment.spv", 0)
+    -- Load the nebula background shader (z-index -2 = background)
+    -- Negative z-index = drawn first (background), moves slower than camera
+    loadShaders("vertex.spv", "nebula_fragment.spv", -2)
 
     -- Load Phong shaders (z-index 1, 2 textures)
     phongShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, 2)

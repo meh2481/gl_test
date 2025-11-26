@@ -552,17 +552,23 @@ int LuaInterface::loadShaders(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Check arguments - can be 2 or 3 (vertex, fragment, optional z-index)
+    // Check arguments - can be 2 or 3 (vertex, fragment, optional z-index/parallax depth)
     int numArgs = lua_gettop(L);
     assert(numArgs >= 2 && numArgs <= 3);
     assert(lua_isstring(L, 1) && lua_isstring(L, 2));
-    if (numArgs == 3) {
+    if (numArgs >= 3) {
         assert(lua_isnumber(L, 3));
     }
 
     const char* vertFile = lua_tostring(L, 1);
     const char* fragFile = lua_tostring(L, 2);
-    int zIndex = (numArgs == 3) ? lua_tointeger(L, 3) : 0;
+    // z-index controls both draw order (lower = drawn first) and parallax depth
+    // Lower z-index = background = drawn first, moves slower than camera (positive parallax)
+    // Higher z-index = foreground = drawn last, moves faster than camera (negative parallax)
+    // z-index 0 = no parallax (moves with objects)
+    int zIndex = (numArgs >= 3) ? lua_tointeger(L, 3) : 0;
+    // Invert z-index for parallax: lower z = positive parallax (slower), higher z = negative (faster)
+    float parallaxDepth = (float)(-zIndex);
 
     // Check if this specific shader combination is already loaded for this scene
     auto& scenePipelines = interface->scenePipelines_[interface->currentSceneId_];
@@ -595,12 +601,19 @@ int LuaInterface::loadShaders(lua_State* L) {
     bool isDebugPipeline = (std::string(vertFile) == "debug_vertex.spv");
 
     // Create pipeline
-    interface->renderer_.createPipeline(interface->pipelineIndex_, vertShader, fragShader, isDebugPipeline);
+    int pipelineId = interface->pipelineIndex_;
+    interface->renderer_.createPipeline(pipelineId, vertShader, fragShader, isDebugPipeline);
+
+    // Set parallax depth based on z-index (non-zero values get parallax)
+    if (parallaxDepth != 0.0f) {
+        interface->renderer_.setPipelineParallaxDepth(pipelineId, parallaxDepth);
+    }
+
     // Add to current scene's pipeline list with z-index
-    scenePipelines.emplace_back(interface->pipelineIndex_, zIndex);
+    scenePipelines.emplace_back(pipelineId, zIndex);
     interface->pipelineIndex_++;
 
-    std::cout << "Loaded shaders: " << vertFile << " and " << fragFile << " (z-index: " << zIndex << ")" << std::endl;
+    std::cout << "Loaded shaders: " << vertFile << " and " << fragFile << " (z-index: " << zIndex << ", parallax: " << parallaxDepth << ")" << std::endl;
 
     return 0; // No return values
 }

@@ -779,7 +779,7 @@ void VulkanRenderer::createPipelineLayout() {
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(float) * 6; // width, height, time, cameraX, cameraY, cameraZoom
+    pushConstantRange.size = sizeof(float) * 7; // width, height, time, cameraX, cameraY, cameraZoom, parallaxDepth
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
@@ -1158,13 +1158,15 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     renderPassInfo.pClearValues = &clearColor;
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    float pushConstants[6] = {
+    // Base push constants used by debug pipelines and as a template for others
+    float pushConstants[7] = {
         static_cast<float>(swapchainExtent.width),
         static_cast<float>(swapchainExtent.height),
         time,
         m_cameraOffsetX,
         m_cameraOffsetY,
-        m_cameraZoom
+        m_cameraZoom,
+        0.0f  // parallaxDepth (default 0, overridden per-pipeline for background shaders)
     };
 
     // Draw all pipelines
@@ -1259,8 +1261,24 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 }
             } else if (pipelineIt != m_pipelines.end()) {
                 // Non-textured pipeline (e.g., background shaders)
-                vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
-                
+                // Get parallax depth for this pipeline (default 0.0 = no parallax)
+                float parallaxDepth = 0.0f;
+                auto depthIt = m_pipelineParallaxDepth.find(static_cast<int>(pipelineId));
+                if (depthIt != m_pipelineParallaxDepth.end()) {
+                    parallaxDepth = depthIt->second;
+                }
+
+                float pipelinePushConstants[7] = {
+                    static_cast<float>(swapchainExtent.width),
+                    static_cast<float>(swapchainExtent.height),
+                    time,
+                    m_cameraOffsetX,
+                    m_cameraOffsetY,
+                    m_cameraZoom,
+                    parallaxDepth
+                };
+                vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pipelinePushConstants), pipelinePushConstants);
+
                 // Bind regular vertex buffer
                 VkBuffer vertexBuffers[] = {vertexBuffer};
                 VkDeviceSize offsets[] = {0};
@@ -2166,6 +2184,10 @@ void VulkanRenderer::setCameraTransform(float offsetX, float offsetY, float zoom
     m_cameraOffsetX = offsetX;
     m_cameraOffsetY = offsetY;
     m_cameraZoom = zoom;
+}
+
+void VulkanRenderer::setPipelineParallaxDepth(int pipelineId, float depth) {
+    m_pipelineParallaxDepth[pipelineId] = depth;
 }
 
 VkDescriptorSet VulkanRenderer::getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId, uint64_t normalMapId, bool usesDualTexture) {
