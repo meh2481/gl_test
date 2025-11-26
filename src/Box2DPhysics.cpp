@@ -24,7 +24,6 @@ static constexpr float MIN_SECONDARY_FRACTURE_BRITTLENESS = 0.3f;  // Min brittl
 static constexpr float MIN_FRAGMENT_AREA = 0.001f;  // Minimum fragment area - objects smaller than this disappear
 static constexpr float MIN_REFRACTURE_AREA_MULTIPLIER = 4.0f;  // Fragments must be this many times MIN_FRAGMENT_AREA to be refracturable
 static constexpr float MIN_FRAGMENT_LAYER_SIZE = 0.04f;  // Minimum layer size for fragments
-static constexpr float SEPARATION_IMPULSE_FACTOR = 0.1f;  // Factor for separation impulse based on impact speed
 
 // Minimum bounding box dimension for UV mapping (prevents division by zero)
 static constexpr float MIN_DIMENSION_FOR_UV_MAPPING = 0.0001f;
@@ -833,6 +832,28 @@ void Box2DPhysics::setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureI
 
 void Box2DPhysics::clearBodyDestructible(int bodyId) {
     destructibles_.erase(bodyId);
+    destructibleBodyLayers_.erase(bodyId);
+}
+
+void Box2DPhysics::setBodyDestructibleLayer(int bodyId, int layerId) {
+    destructibleBodyLayers_[bodyId] = layerId;
+}
+
+void Box2DPhysics::cleanupAllFragments() {
+    // Destroy all fragment layers
+    if (layerManager_) {
+        for (int layerId : fragmentLayerIds_) {
+            layerManager_->destroyLayer(layerId);
+        }
+    }
+    fragmentLayerIds_.clear();
+
+    // Destroy all fragment bodies
+    for (int bodyId : fragmentBodyIds_) {
+        clearBodyDestructible(bodyId);
+        destroyBody(bodyId);
+    }
+    fragmentBodyIds_.clear();
 }
 
 bool Box2DPhysics::isBodyDestructible(int bodyId) const {
@@ -1130,8 +1151,6 @@ int Box2DPhysics::createFragmentBody(float x, float y, float angle,
     bodyDef.linearVelocity = (b2Vec2){vx, vy};
     bodyDef.angularVelocity = angularVel;
     bodyDef.sleepThreshold = SLEEP_THRESHOLD;
-    // Enable bullet mode to prevent tunneling through walls on first frame
-    bodyDef.isBullet = true;
 
     b2BodyId bodyId = b2CreateBody(worldId_, &bodyDef);
     assert(b2Body_IsValid(bodyId));
@@ -1205,13 +1224,24 @@ void Box2DPhysics::processFractures() {
         // Create fracture event
         FractureEvent event;
         event.originalBodyId = bodyId;
-        event.originalLayerId = -1;
         event.fragmentCount = 0;  // Count valid fragments
         event.impactPointX = hit.pointX;
         event.impactPointY = hit.pointY;
         event.impactNormalX = hit.normalX;
         event.impactNormalY = hit.normalY;
         event.impactSpeed = hit.approachSpeed;
+
+        // Get and destroy the original layer if we know it
+        auto layerIt = destructibleBodyLayers_.find(bodyId);
+        if (layerIt != destructibleBodyLayers_.end()) {
+            event.originalLayerId = layerIt->second;
+            if (layerManager_) {
+                layerManager_->destroyLayer(layerIt->second);
+            }
+            destructibleBodyLayers_.erase(layerIt);
+        } else {
+            event.originalLayerId = -1;
+        }
 
         // Create fragment bodies (skip fragments that are too small)
         for (int i = 0; i < fracture.fragmentCount; ++i) {
@@ -1222,26 +1252,6 @@ void Box2DPhysics::processFractures() {
                                                  fracture.fragments[i],
                                                  vel.x, vel.y, angularVel,
                                                  1.0f, 0.3f, 0.3f);
-
-            // Apply a small impulse to push fragments apart from impact point
-            // This helps prevent fragments from clipping through walls on first frame
-            if (fragBodyId >= 0) {
-                auto bodyIt = bodies_.find(fragBodyId);
-                if (bodyIt != bodies_.end()) {
-                    b2Vec2 fragPos = b2Body_GetPosition(bodyIt->second);
-                    // Direction from impact to fragment center
-                    float sepDirX = fragPos.x - hit.pointX;
-                    float sepDirY = fragPos.y - hit.pointY;
-                    float sepLen = sqrtf(sepDirX * sepDirX + sepDirY * sepDirY);
-                    if (sepLen > 0.001f) {
-                        sepDirX /= sepLen;
-                        sepDirY /= sepLen;
-                        // Small separation impulse proportional to impact speed
-                        float sepImpulse = hit.approachSpeed * SEPARATION_IMPULSE_FACTOR;
-                        b2Body_ApplyLinearImpulseToCenter(bodyIt->second, (b2Vec2){sepDirX * sepImpulse, sepDirY * sepImpulse}, true);
-                    }
-                }
-            }
 
             int fragIdx = event.fragmentCount;
             event.newBodyIds[fragIdx] = fragBodyId;
@@ -1269,8 +1279,16 @@ void Box2DPhysics::processFractures() {
                 if (fragPoly.vertexCount >= 3) {
                     layerManager_->setLayerPolygon(layerId, fragPoly.vertices, fragPoly.uvs, fragPoly.vertexCount);
                 }
+
+                // Track fragment layer for cleanup
+                fragmentLayerIds_.push_back(layerId);
             }
             event.newLayerIds[fragIdx] = layerId;
+
+            // Track fragment body for cleanup
+            if (fragBodyId >= 0) {
+                fragmentBodyIds_.push_back(fragBodyId);
+            }
 
             // Make fragments also destructible if original was brittle enough and fragment is large enough
             if (props->brittleness > 0.5f && fragBodyId >= 0 && fracture.fragments[i].area >= MIN_FRAGMENT_AREA * MIN_REFRACTURE_AREA_MULTIPLIER) {
@@ -1282,6 +1300,11 @@ void Box2DPhysics::processFractures() {
                 if (props->usesAtlas) {
                     setBodyDestructibleAtlasUV(fragBodyId, props->atlasTextureId, props->atlasNormalMapId,
                                                 props->atlasU0, props->atlasV0, props->atlasU1, props->atlasV1);
+                }
+
+                // Set layer for fragment so it can be destroyed if fragment breaks
+                if (layerId >= 0) {
+                    setBodyDestructibleLayer(fragBodyId, layerId);
                 }
             }
 

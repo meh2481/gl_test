@@ -21,11 +21,6 @@ draggedBodyId = nil
 -- Destructible object state
 destructibleBody = nil
 destructibleLayer = nil
--- Maps body IDs to their layer IDs for destructible object management
-bodyLayerMap = {}
--- Tracks fragment bodies created from destructible objects (for cleanup on reset)
-fragmentBodies = {}
-fragmentLayers = {}
 -- Original destructible body position for reset
 destructibleStartX = 0.9
 destructibleStartY = -0.3
@@ -247,12 +242,12 @@ function init()
 
     -- Create a destructible box that breaks when hit hard enough
     -- Positioned on the right side, uses rock texture
-    -- Uses new C++ fracture system with strength (Moh's scale) and brittleness
+    -- Uses new C++ fracture system with strength (Mohs scale) and brittleness
     createDestructibleRock()
 
     print("Physics demo scene initialized with multiple shader types")
     print("Destructible rock added - hit it hard to break it!")
-    print("Using C++ fracture system with strength=5.5 (Moh's scale), brittleness=0.6")
+    print("Using C++ fracture system with strength=5.5 (Mohs scale), brittleness=0.6")
 end
 
 -- Helper function to create/recreate the destructible rock object
@@ -273,84 +268,42 @@ function createDestructibleRock()
     attachLayerToBody(destructibleLayer, destructibleBody)
     table.insert(layers, destructibleLayer)
 
-    bodyLayerMap[destructibleBody] = destructibleLayer
-
     -- Set body as destructible with properties
+    -- The C++ side handles everything: layer destruction, fragment creation, cleanup
     b2SetBodyDestructible(destructibleBody, 5.5, 0.6, boxVerts, metalwallTexId, metalwallNormId, phongShaderId)
-end
-
--- Helper function to clean up all fragments
-function cleanupFragments()
-    -- Destroy all fragment layers
-    for i, layerId in ipairs(fragmentLayers) do
-        destroyLayer(layerId)
-    end
-    fragmentLayers = {}
-
-    -- Destroy all fragment bodies and clear from bodyLayerMap
-    for i, bodyId in ipairs(fragmentBodies) do
-        b2ClearBodyDestructible(bodyId)
-        b2DestroyBody(bodyId)
-        bodyLayerMap[bodyId] = nil
-    end
-    fragmentBodies = {}
+    b2SetBodyDestructibleLayer(destructibleBody, destructibleLayer)
 end
 
 function update(deltaTime)
     -- Step the physics simulation (Box2D 3.x uses subStepCount instead of velocity/position iterations)
-    -- The C++ physics engine now automatically processes fractures during step,
-    -- including creating fragment layers and handling physics bodies
+    -- The C++ physics engine handles everything:
+    -- - Processing fracture events
+    -- - Destroying original layers
+    -- - Creating fragment bodies and layers with proper UV clipping
+    -- - Tracking fragments for cleanup
     b2Step(deltaTime, 4)
 
-    -- Handle fracture events from C++ - layers are now created in C++, but we need to track them for cleanup
-    local fractureEvents = b2GetFractureEvents()
-    for _, event in ipairs(fractureEvents) do
-        print("FRACTURE! Object " .. event.originalBodyId .. " broke into " .. event.fragmentCount .. " pieces at speed " .. string.format("%.2f", event.impactSpeed))
-
-        -- Destroy the original layer if we know it
-        local originalLayerId = bodyLayerMap[event.originalBodyId]
-        if originalLayerId then
-            destroyLayer(originalLayerId)
-            bodyLayerMap[event.originalBodyId] = nil
-        end
-
-        -- If the fractured body was being dragged, destroy the mouse joint
-        if draggedBodyId == event.originalBodyId then
-            if mouseJointId then
-                b2DestroyMouseJoint(mouseJointId)
-                mouseJointId = nil
-            end
-            draggedBodyId = nil
-        end
-
-        -- Mark the original destructible body as destroyed
-        if event.originalBodyId == destructibleBody then
+    -- Check if the destructible body was destroyed (no longer valid)
+    -- This is a simple check - if the body was fractured, it will have been destroyed
+    if destructibleBody ~= nil then
+        -- Try to get position - if body was destroyed, it won't be in the bodies table
+        local x, y = b2GetBodyPosition(destructibleBody)
+        if x == nil then
+            -- Body was destroyed by fracture
+            print("FRACTURE! Destructible object shattered")
             destructibleBody = nil
             destructibleLayer = nil
+            vibrate(0.8, 0.8, 300)
         end
-
-        -- Track fragment bodies and layers created by C++ for cleanup on reset
-        for i = 1, event.fragmentCount do
-            local fragBodyId = event.newBodyIds[i]
-            local fragLayerId = event.newLayerIds[i]
-            if fragBodyId and fragBodyId >= 0 then
-                table.insert(fragmentBodies, fragBodyId)
-                if fragLayerId and fragLayerId >= 0 then
-                    table.insert(fragmentLayers, fragLayerId)
-                    bodyLayerMap[fragBodyId] = fragLayerId
-                end
-            end
-        end
-
-        -- Trigger vibration feedback
-        vibrate(0.8, 0.8, 300)
     end
 
     -- Update mouse joint target if dragging
     if mouseJointId then
         local cursorX, cursorY = getCursorPosition()
         b2UpdateMouseJointTarget(mouseJointId, cursorX, cursorY)
-        b2SetBodyAwake(draggedBodyId, true)
+        if draggedBodyId then
+            b2SetBodyAwake(draggedBodyId, true)
+        end
     end
 
     -- Update light position based on the light body at the end of the chain
@@ -370,8 +323,8 @@ function cleanup()
         draggedBodyId = nil
     end
 
-    -- Clean up fragments first
-    cleanupFragments()
+    -- Clean up all fragments created by fractures (C++ handles this)
+    b2CleanupAllFragments()
 
     -- Destroy all scene layers
     for i, layerId in ipairs(layers) do
@@ -397,7 +350,6 @@ function cleanup()
     chainAnchor = nil
     destructibleBody = nil
     destructibleLayer = nil
-    bodyLayerMap = {}
     -- Disable debug drawing
     b2EnableDebugDraw(false)
     print("Physics demo scene cleaned up")
@@ -422,8 +374,8 @@ function onAction(action)
         setCameraOffset(0, 0)
         setCameraZoom(1.0)
 
-        -- Clean up any fragments from destructible objects
-        cleanupFragments()
+        -- Clean up all fragments created by fractures (C++ handles this)
+        b2CleanupAllFragments()
 
         -- If destructible body was destroyed, recreate it
         if destructibleBody == nil then

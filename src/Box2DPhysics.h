@@ -155,12 +155,22 @@ public:
     void setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureId, uint64_t atlasNormalMapId,
                                      float u0, float v0, float u1, float v1);
 
+    // Set the layer ID associated with a destructible body (for cleanup when fractured)
+    void setBodyDestructibleLayer(int bodyId, int layerId);
+
     void clearBodyDestructible(int bodyId);
     bool isBodyDestructible(int bodyId) const;
     const DestructibleProperties* getDestructibleProperties(int bodyId) const;
 
     // Get fracture events from last physics step
     const std::vector<FractureEvent>& getFractureEvents() const { return fractureEvents_; }
+
+    // Clean up all fragment bodies and layers created during fractures
+    // Call this before recreating destructible objects (e.g., on scene reset)
+    void cleanupAllFragments();
+
+    // Get fragment body IDs (for debugging/tracking)
+    const std::vector<int>& getFragmentBodyIds() const { return fragmentBodyIds_; }
 
     // Process destructible collisions and generate fractures
     // Returns body/layer IDs that should be created (caller must create layers)
@@ -254,6 +264,13 @@ private:
 
     // Bodies pending destruction after fracture (processed after step)
     std::vector<int> pendingDestructions_;
+
+    // Fragment tracking for cleanup
+    std::vector<int> fragmentBodyIds_;   // All fragment body IDs
+    std::vector<int> fragmentLayerIds_;  // All fragment layer IDs
+
+    // Map from destructible body ID to its layer ID (for destroying layer when body fractures)
+    std::unordered_map<int, int> destructibleBodyLayers_;
 
     // Helper to convert b2BodyId to internal ID
     int findInternalBodyId(b2BodyId bodyId);

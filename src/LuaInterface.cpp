@@ -47,7 +47,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
-                                     "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2ClearBodyDestructible", "b2GetFractureEvents",
+                                     "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerPolygon",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
@@ -445,8 +445,9 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2DestroyMouseJoint", b2DestroyMouseJoint);
     lua_register(luaState_, "b2GetCollisionHitEvents", b2GetCollisionHitEvents);
     lua_register(luaState_, "b2SetBodyDestructible", b2SetBodyDestructible);
+    lua_register(luaState_, "b2SetBodyDestructibleLayer", b2SetBodyDestructibleLayer);
     lua_register(luaState_, "b2ClearBodyDestructible", b2ClearBodyDestructible);
-    lua_register(luaState_, "b2GetFractureEvents", b2GetFractureEvents);
+    lua_register(luaState_, "b2CleanupAllFragments", b2CleanupAllFragments);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -1330,101 +1331,30 @@ int LuaInterface::b2ClearBodyDestructible(lua_State* L) {
     return 0;
 }
 
-int LuaInterface::b2GetFractureEvents(lua_State* L) {
+int LuaInterface::b2SetBodyDestructibleLayer(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int bodyId = lua_tointeger(L, 1);
+    int layerId = lua_tointeger(L, 2);
+    interface->physics_->setBodyDestructibleLayer(bodyId, layerId);
+    return 0;
+}
+
+int LuaInterface::b2CleanupAllFragments(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
     assert(lua_gettop(L) == 0);
 
-    const auto& events = interface->physics_->getFractureEvents();
-
-    lua_newtable(L);
-
-    int index = 1;
-    for (const auto& event : events) {
-        lua_newtable(L);
-
-        lua_pushinteger(L, event.originalBodyId);
-        lua_setfield(L, -2, "originalBodyId");
-
-        lua_pushinteger(L, event.fragmentCount);
-        lua_setfield(L, -2, "fragmentCount");
-
-        lua_pushnumber(L, event.impactPointX);
-        lua_setfield(L, -2, "impactPointX");
-
-        lua_pushnumber(L, event.impactPointY);
-        lua_setfield(L, -2, "impactPointY");
-
-        lua_pushnumber(L, event.impactSpeed);
-        lua_setfield(L, -2, "impactSpeed");
-
-        // Create array of new body IDs
-        lua_newtable(L);
-        for (int i = 0; i < event.fragmentCount; ++i) {
-            lua_pushinteger(L, event.newBodyIds[i]);
-            lua_rawseti(L, -2, i + 1);
-        }
-        lua_setfield(L, -2, "newBodyIds");
-
-        // Create array of new layer IDs (created by C++)
-        lua_newtable(L);
-        for (int i = 0; i < event.fragmentCount; ++i) {
-            lua_pushinteger(L, event.newLayerIds[i]);
-            lua_rawseti(L, -2, i + 1);
-        }
-        lua_setfield(L, -2, "newLayerIds");
-
-        // Create array of fragment areas for proper layer sizing
-        lua_newtable(L);
-        for (int i = 0; i < event.fragmentCount; ++i) {
-            lua_pushnumber(L, event.fragmentAreas[i]);
-            lua_rawseti(L, -2, i + 1);
-        }
-        lua_setfield(L, -2, "fragmentAreas");
-
-        // Create array of fragment polygons with vertices and UVs
-        lua_newtable(L);
-        for (int i = 0; i < event.fragmentCount; ++i) {
-            const FragmentPolygon& frag = event.fragmentPolygons[i];
-            lua_newtable(L);
-
-            // Vertex count
-            lua_pushnumber(L, frag.vertexCount);
-            lua_setfield(L, -2, "vertexCount");
-
-            // Centroid
-            lua_pushnumber(L, frag.centroidX);
-            lua_setfield(L, -2, "centroidX");
-            lua_pushnumber(L, frag.centroidY);
-            lua_setfield(L, -2, "centroidY");
-
-            // Vertices array
-            lua_newtable(L);
-            for (int j = 0; j < frag.vertexCount * 2; ++j) {
-                lua_pushnumber(L, frag.vertices[j]);
-                lua_rawseti(L, -2, j + 1);
-            }
-            lua_setfield(L, -2, "vertices");
-
-            // UVs array
-            lua_newtable(L);
-            for (int j = 0; j < frag.vertexCount * 2; ++j) {
-                lua_pushnumber(L, frag.uvs[j]);
-                lua_rawseti(L, -2, j + 1);
-            }
-            lua_setfield(L, -2, "uvs");
-
-            lua_rawseti(L, -2, i + 1);
-        }
-        lua_setfield(L, -2, "fragmentPolygons");
-
-        lua_rawseti(L, -2, index);
-        ++index;
-    }
-
-    return 1;
+    interface->physics_->cleanupAllFragments();
+    return 0;
 }
 
 // Scene layer Lua binding implementations

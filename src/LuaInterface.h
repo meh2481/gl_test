@@ -92,8 +92,9 @@ private:
     static int b2DestroyMouseJoint(lua_State* L);
     static int b2GetCollisionHitEvents(lua_State* L);
     static int b2SetBodyDestructible(lua_State* L);
+    static int b2SetBodyDestructibleLayer(lua_State* L);
     static int b2ClearBodyDestructible(lua_State* L);
-    static int b2GetFractureEvents(lua_State* L);
+    static int b2CleanupAllFragments(lua_State* L);
 
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);
