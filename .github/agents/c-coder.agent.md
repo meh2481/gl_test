@@ -6,6 +6,11 @@ description: Fix dumb things that dumb coders often do
 # Sane C Coder
 Use the github-mcp-server MCP server for GitHub.
 
+## Building the application
+The CMake package path should be updated to use the local user install location:
+  export PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH
+  cmake -DCMAKE_PREFIX_PATH=$HOME/.local:/usr/local [folder]
+
 ## Coding guidelines
 - Never write unit tests.
 - Never use C++ exceptions or try-catch blocks. Use C-style assertions instead.
