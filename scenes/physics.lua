@@ -263,7 +263,7 @@ function init()
     -- Set body as destructible with properties:
     -- strength: 5.5 (Moh's hardness scale, ~glass/quartz)
     -- brittleness: 0.6 (moderately brittle, will shatter into multiple pieces)
-    b2SetBodyDestructible(destructibleBody, 5.5, 0.6, boxVerts, rockTexId, rockNormId, phongShaderId)
+    b2SetBodyDestructible(destructibleBody, 0.5, 0.6, boxVerts, rockTexId, rockNormId, phongShaderId)
 
     print("Physics demo scene initialized with multiple shader types")
     print("Destructible rock added - hit it hard to break it!")

@@ -41,8 +41,12 @@ Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled
                                 timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId) {
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
+    worldDef.hitEventThreshold = 0.0f;
     worldId_ = b2CreateWorld(&worldDef);
     assert(b2World_IsValid(worldId_));
+
+    // Ensure hit event threshold is set
+    b2World_SetHitEventThreshold(worldId_, 0.0f);
 
     physicsMutex_ = SDL_CreateMutex();
     assert(physicsMutex_ != nullptr);
@@ -88,6 +92,33 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
 
         // Process collision hit events after each physics step
         b2ContactEvents contactEvents = b2World_GetContactEvents(worldId_);
+        // std::cout << "Contact events: begin=" << contactEvents.beginCount << " end=" << contactEvents.endCount << " hit=" << contactEvents.hitCount << std::endl;
+        for (int i = 0; i < contactEvents.beginCount; ++i) {
+            const b2ContactBeginTouchEvent& beginEvent = contactEvents.beginEvents[i];
+            b2BodyId bodyIdA = b2Shape_GetBody(beginEvent.shapeIdA);
+            b2BodyId bodyIdB = b2Shape_GetBody(beginEvent.shapeIdB);
+            b2Vec2 velA = b2Body_GetLinearVelocity(bodyIdA);
+            b2Vec2 velB = b2Body_GetLinearVelocity(bodyIdB);
+            b2Vec2 relativeVel = b2Sub(velA, velB);
+            float approachSpeed = -b2Dot(relativeVel, beginEvent.manifold.normal);
+            std::cout << "Begin event " << i << ": calculated approachSpeed=" << approachSpeed << std::endl;
+            if (approachSpeed > 0.0f) {
+                // Treat as hit event
+                int internalIdA = findInternalBodyId(bodyIdA);
+                int internalIdB = findInternalBodyId(bodyIdB);
+                if (internalIdA >= 0 || internalIdB >= 0) {
+                    CollisionHitEvent event;
+                    event.bodyIdA = internalIdA;
+                    event.bodyIdB = internalIdB;
+                    event.pointX = beginEvent.manifold.points[0].point.x; // Use first contact point
+                    event.pointY = beginEvent.manifold.points[0].point.y;
+                    event.normalX = beginEvent.manifold.normal.x;
+                    event.normalY = beginEvent.manifold.normal.y;
+                    event.approachSpeed = approachSpeed;
+                    collisionHitEvents_.push_back(event);
+                }
+            }
+        }
         for (int i = 0; i < contactEvents.hitCount; ++i) {
             const b2ContactHitEvent& hitEvent = contactEvents.hitEvents[i];
 
@@ -324,6 +355,7 @@ void Box2DPhysics::addBoxFixture(int bodyId, float halfWidth, float halfHeight, 
     shapeDef.density = density;
     shapeDef.material.friction = friction;
     shapeDef.material.restitution = restitution;
+    shapeDef.enableContactEvents = true;
 
     b2CreatePolygonShape(it->second, &shapeDef, &box);
 }
@@ -340,6 +372,7 @@ void Box2DPhysics::addCircleFixture(int bodyId, float radius, float density, flo
     shapeDef.density = density;
     shapeDef.material.friction = friction;
     shapeDef.material.restitution = restitution;
+    shapeDef.enableContactEvents = true;
 
     b2CreateCircleShape(it->second, &shapeDef, &circle);
 }
@@ -361,6 +394,7 @@ void Box2DPhysics::addPolygonFixture(int bodyId, const float* vertices, int vert
     shapeDef.density = density;
     shapeDef.material.friction = friction;
     shapeDef.material.restitution = restitution;
+    shapeDef.enableContactEvents = true;
 
     b2CreatePolygonShape(it->second, &shapeDef, &polygon);
 }
@@ -377,6 +411,7 @@ void Box2DPhysics::addSegmentFixture(int bodyId, float x1, float y1, float x2, f
     shapeDef.density = 0.0f; // Segments are typically static, so density is 0
     shapeDef.material.friction = friction;
     shapeDef.material.restitution = restitution;
+    shapeDef.enableContactEvents = true;
 
     b2CreateSegmentShape(it->second, &shapeDef, &segment);
 }
@@ -1076,6 +1111,7 @@ int Box2DPhysics::createFragmentBody(float x, float y, float angle,
         shapeDef.density = density;
         shapeDef.material.friction = friction;
         shapeDef.material.restitution = restitution;
+        shapeDef.enableContactEvents = true;
 
         b2CreatePolygonShape(bodyId, &shapeDef, &poly);
     }
