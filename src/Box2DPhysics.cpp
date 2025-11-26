@@ -349,6 +349,10 @@ float Box2DPhysics::getBodyAngularVelocity(int bodyId) {
     return b2Body_GetAngularVelocity(it->second);
 }
 
+bool Box2DPhysics::isBodyValid(int bodyId) const {
+    return bodies_.find(bodyId) != bodies_.end();
+}
+
 void Box2DPhysics::addBoxFixture(int bodyId, float halfWidth, float halfHeight, float density, float friction, float restitution) {
     auto it = bodies_.find(bodyId);
     assert(it != bodies_.end());

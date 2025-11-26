@@ -120,6 +120,7 @@ public:
     float getBodyLinearVelocityX(int bodyId);
     float getBodyLinearVelocityY(int bodyId);
     float getBodyAngularVelocity(int bodyId);
+    bool isBodyValid(int bodyId) const;
 
     // Shape management
     void addBoxFixture(int bodyId, float halfWidth, float halfHeight, float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);

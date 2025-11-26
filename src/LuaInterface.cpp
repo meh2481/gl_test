@@ -979,6 +979,10 @@ int LuaInterface::b2SetBodyAwake(lua_State* L) {
     int bodyId = lua_tointeger(L, 1);
     bool awake = lua_toboolean(L, 2);
 
+    if (!interface->physics_->isBodyValid(bodyId)) {
+        return 0;
+    }
+
     interface->physics_->setBodyAwake(bodyId, awake);
     return 0;
 }
@@ -1025,6 +1029,11 @@ int LuaInterface::b2GetBodyPosition(lua_State* L) {
     assert(lua_isnumber(L, 1));
 
     int bodyId = lua_tointeger(L, 1);
+    if (!interface->physics_->isBodyValid(bodyId)) {
+        lua_pushnil(L);
+        lua_pushnil(L);
+        return 2;
+    }
     float x = interface->physics_->getBodyPositionX(bodyId);
     float y = interface->physics_->getBodyPositionY(bodyId);
 
@@ -1042,6 +1051,10 @@ int LuaInterface::b2GetBodyAngle(lua_State* L) {
     assert(lua_isnumber(L, 1));
 
     int bodyId = lua_tointeger(L, 1);
+    if (!interface->physics_->isBodyValid(bodyId)) {
+        lua_pushnil(L);
+        return 1;
+    }
     float angle = interface->physics_->getBodyAngle(bodyId);
 
     lua_pushnumber(L, angle);
@@ -1057,6 +1070,11 @@ int LuaInterface::b2GetBodyLinearVelocity(lua_State* L) {
     assert(lua_isnumber(L, 1));
 
     int bodyId = lua_tointeger(L, 1);
+    if (!interface->physics_->isBodyValid(bodyId)) {
+        lua_pushnil(L);
+        lua_pushnil(L);
+        return 2;
+    }
     float vx = interface->physics_->getBodyLinearVelocityX(bodyId);
     float vy = interface->physics_->getBodyLinearVelocityY(bodyId);
 
@@ -1074,6 +1092,10 @@ int LuaInterface::b2GetBodyAngularVelocity(lua_State* L) {
     assert(lua_isnumber(L, 1));
 
     int bodyId = lua_tointeger(L, 1);
+    if (!interface->physics_->isBodyValid(bodyId)) {
+        lua_pushnil(L);
+        return 1;
+    }
     float omega = interface->physics_->getBodyAngularVelocity(bodyId);
 
     lua_pushnumber(L, omega);
