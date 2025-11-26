@@ -541,17 +541,21 @@ int LuaInterface::loadShaders(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Check arguments - can be 2 or 3 (vertex, fragment, optional z-index)
+    // Check arguments - can be 2, 3, or 4 (vertex, fragment, optional z-index, optional parallax depth)
     int numArgs = lua_gettop(L);
-    assert(numArgs >= 2 && numArgs <= 3);
+    assert(numArgs >= 2 && numArgs <= 4);
     assert(lua_isstring(L, 1) && lua_isstring(L, 2));
-    if (numArgs == 3) {
+    if (numArgs >= 3) {
         assert(lua_isnumber(L, 3));
+    }
+    if (numArgs >= 4) {
+        assert(lua_isnumber(L, 4));
     }
 
     const char* vertFile = lua_tostring(L, 1);
     const char* fragFile = lua_tostring(L, 2);
-    int zIndex = (numArgs == 3) ? lua_tointeger(L, 3) : 0;
+    int zIndex = (numArgs >= 3) ? lua_tointeger(L, 3) : 0;
+    float parallaxDepth = (numArgs >= 4) ? (float)lua_tonumber(L, 4) : 0.0f;
 
     // Check if this specific shader combination is already loaded for this scene
     auto& scenePipelines = interface->scenePipelines_[interface->currentSceneId_];
@@ -584,12 +588,19 @@ int LuaInterface::loadShaders(lua_State* L) {
     bool isDebugPipeline = (std::string(vertFile) == "debug_vertex.spv");
 
     // Create pipeline
-    interface->renderer_.createPipeline(interface->pipelineIndex_, vertShader, fragShader, isDebugPipeline);
+    int pipelineId = interface->pipelineIndex_;
+    interface->renderer_.createPipeline(pipelineId, vertShader, fragShader, isDebugPipeline);
+
+    // Set parallax depth for this pipeline if specified
+    if (parallaxDepth > 0.0f) {
+        interface->renderer_.setPipelineParallaxDepth(pipelineId, parallaxDepth);
+    }
+
     // Add to current scene's pipeline list with z-index
-    scenePipelines.emplace_back(interface->pipelineIndex_, zIndex);
+    scenePipelines.emplace_back(pipelineId, zIndex);
     interface->pipelineIndex_++;
 
-    std::cout << "Loaded shaders: " << vertFile << " and " << fragFile << " (z-index: " << zIndex << ")" << std::endl;
+    std::cout << "Loaded shaders: " << vertFile << " and " << fragFile << " (z-index: " << zIndex << ", parallax depth: " << parallaxDepth << ")" << std::endl;
 
     return 0; // No return values
 }

@@ -19,8 +19,9 @@ mouseJointId = nil
 draggedBodyId = nil
 
 function init()
-    -- Load the nebula background shader (z-index 0)
-    loadShaders("vertex.spv", "nebula_fragment.spv", 0)
+    -- Load the nebula background shader (z-index 0, parallax depth 2.0)
+    -- Higher depth = slower parallax movement (further in background)
+    loadShaders("vertex.spv", "nebula_fragment.spv", 0, 2.0)
 
     -- Load Phong shaders (z-index 1, 2 textures)
     phongShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, 2)
