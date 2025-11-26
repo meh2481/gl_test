@@ -248,28 +248,7 @@ function init()
     -- Create a destructible box that breaks when hit hard enough
     -- Positioned on the right side, uses rock texture
     -- Uses new C++ fracture system with strength (Moh's scale) and brittleness
-    destructibleBody = b2CreateBody(B2_DYNAMIC_BODY, 0.9, -0.3, 0)
-    -- Use polygon fixture with explicit vertices for proper fracture calculation
-    local boxVerts = {
-        -0.12, -0.12,
-         0.12, -0.12,
-         0.12,  0.12,
-        -0.12,  0.12
-    }
-    b2AddPolygonFixture(destructibleBody, boxVerts, 1.0, 0.3, 0.3)
-    table.insert(bodies, destructibleBody)
-
-    destructibleLayer = createLayer(rockTexId, 0.24, rockNormId, phongShaderId)
-    attachLayerToBody(destructibleLayer, destructibleBody)
-    table.insert(layers, destructibleLayer)
-
-    -- Track body-layer mapping for fracture handling
-    bodyLayerMap[destructibleBody] = destructibleLayer
-
-    -- Set body as destructible with properties:
-    -- strength: 5.5 (Moh's hardness scale, ~glass/quartz)
-    -- brittleness: 0.6 (moderately brittle, will shatter into multiple pieces)
-    b2SetBodyDestructible(destructibleBody, 0.5, 0.6, boxVerts, rockTexId, rockNormId, phongShaderId)
+    createDestructibleRock()
 
     print("Physics demo scene initialized with multiple shader types")
     print("Destructible rock added - hit it hard to break it!")
@@ -290,14 +269,14 @@ function createDestructibleRock()
     b2AddPolygonFixture(destructibleBody, boxVerts, 1.0, 0.3, 0.3)
     table.insert(bodies, destructibleBody)
 
-    destructibleLayer = createLayer(rockTexId, 0.24, rockNormId, phongShaderId)
+    destructibleLayer = createLayer(metalwallTexId, 0.24, metalwallNormId, phongShaderId)
     attachLayerToBody(destructibleLayer, destructibleBody)
     table.insert(layers, destructibleLayer)
 
     bodyLayerMap[destructibleBody] = destructibleLayer
 
     -- Set body as destructible with properties
-    b2SetBodyDestructible(destructibleBody, 0.5, 0.6, boxVerts, rockTexId, rockNormId, phongShaderId)
+    b2SetBodyDestructible(destructibleBody, 5.5, 0.6, boxVerts, metalwallTexId, metalwallNormId, phongShaderId)
 end
 
 -- Helper function to clean up all fragments
