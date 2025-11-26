@@ -39,8 +39,12 @@ void main() {
 
     // Compute tangent space basis using screen-space derivatives
     // This automatically accounts for sprite rotation
+    float aspect = pc.width / pc.height;
     vec3 dPosX = dFdx(fragPos);
     vec3 dPosY = dFdy(fragPos);
+    // Correct for aspect ratio: screen X derivatives are scaled by aspect in gl_Position
+    dPosX.x *= aspect;
+    dPosY.x *= aspect;
     vec2 dTexX = dFdx(fragTexCoord);
     vec2 dTexY = dFdy(fragTexCoord);
 
