@@ -6,6 +6,11 @@
 // Default fixed timestep for physics simulation (Box2D recommended value)
 static constexpr float DEFAULT_FIXED_TIMESTEP = 1.0f / 250.0f;
 
+// Sleep threshold in meters per second. Default Box2D value (0.05 m/s) causes visible
+// movement when bodies go to sleep. Lower threshold keeps bodies active until movement
+// is imperceptible.
+static constexpr float SLEEP_THRESHOLD = 0.001f;
+
 // Helper function to convert b2HexColor to RGBA floats
 static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, float& a) {
     r = ((hexColor >> 16) & 0xFF) / 255.0f;
@@ -142,6 +147,7 @@ int Box2DPhysics::createBody(int bodyType, float x, float y, float angle) {
 
     bodyDef.position = (b2Vec2){x, y};
     bodyDef.rotation = b2MakeRot(angle);
+    bodyDef.sleepThreshold = SLEEP_THRESHOLD;
 
     b2BodyId bodyId = b2CreateBody(worldId_, &bodyDef);
     assert(b2Body_IsValid(bodyId));
