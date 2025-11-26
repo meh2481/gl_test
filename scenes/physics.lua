@@ -284,20 +284,6 @@ function update(deltaTime)
     -- - Tracking fragments for cleanup
     b2Step(deltaTime, 4)
 
-    -- Check if the destructible body was destroyed (no longer valid)
-    -- This is a simple check - if the body was fractured, it will have been destroyed
-    if destructibleBody ~= nil then
-        -- Try to get position - if body was destroyed, it won't be in the bodies table
-        local x, y = b2GetBodyPosition(destructibleBody)
-        if x == nil then
-            -- Body was destroyed by fracture
-            print("FRACTURE! Destructible object shattered")
-            destructibleBody = nil
-            destructibleLayer = nil
-            vibrate(0.8, 0.8, 300)
-        end
-    end
-
     -- Update mouse joint target if dragging
     if mouseJointId then
         local cursorX, cursorY = getCursorPosition()
@@ -379,7 +365,8 @@ function onAction(action)
         b2CleanupAllFragments()
 
         -- If destructible body was destroyed, recreate it
-        if destructibleBody == nil then
+        local x, y = b2GetBodyPosition(destructibleBody)
+        if x == nil then
             createDestructibleRock()
         else
             -- Reset the existing destructible body
