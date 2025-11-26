@@ -56,6 +56,10 @@ struct DestructibleProperties {
     float originalWidth;   // Bounding box width for UV calculation
     float originalHeight;  // Bounding box height for UV calculation
     float originalMinX, originalMinY;  // Bounding box min for UV calculation
+    // Root bounding box - preserved from original parent for proper UV mapping in recursive fractures
+    float rootMinX, rootMinY;
+    float rootWidth, rootHeight;
+    bool hasRootBounds;  // True if root bounds are set (for fragments)
     uint64_t textureId;      // Texture for rendering fragments
     uint64_t normalMapId;    // Normal map for fragments
     int pipelineId;          // Shader pipeline for fragments
@@ -164,6 +168,9 @@ public:
     // Set atlas UV coordinates for a destructible body's normal map (call after setBodyDestructible)
     void setBodyDestructibleNormalMapAtlasUV(int bodyId, uint64_t atlasNormalMapId,
                                               float u0, float v0, float u1, float v1);
+
+    // Set root bounding box for a destructible fragment (for proper UV mapping in recursive fractures)
+    void setBodyDestructibleRootBounds(int bodyId, float minX, float minY, float width, float height);
 
     // Set the layer ID associated with a destructible body (for cleanup when fractured)
     void setBodyDestructibleLayer(int bodyId, int layerId);

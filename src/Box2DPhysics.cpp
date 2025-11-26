@@ -786,6 +786,13 @@ void Box2DPhysics::setBodyDestructible(int bodyId, float strength, float brittle
     if (props.originalWidth < MIN_DIMENSION_FOR_UV_MAPPING) props.originalWidth = MIN_DIMENSION_FOR_UV_MAPPING;
     if (props.originalHeight < MIN_DIMENSION_FOR_UV_MAPPING) props.originalHeight = MIN_DIMENSION_FOR_UV_MAPPING;
 
+    // Default root bounds to same as original (not a fragment)
+    props.hasRootBounds = false;
+    props.rootMinX = props.originalMinX;
+    props.rootMinY = props.originalMinY;
+    props.rootWidth = props.originalWidth;
+    props.rootHeight = props.originalHeight;
+
     // Default to no atlas
     props.usesAtlas = false;
     props.atlasU0 = 0.0f;
@@ -828,6 +835,17 @@ void Box2DPhysics::setBodyDestructibleNormalMapAtlasUV(int bodyId, uint64_t atla
         it->second.normalAtlasU1 = u1;
         it->second.normalAtlasV1 = v1;
         it->second.atlasNormalMapId = atlasNormalMapId;
+    }
+}
+
+void Box2DPhysics::setBodyDestructibleRootBounds(int bodyId, float minX, float minY, float width, float height) {
+    auto it = destructibles_.find(bodyId);
+    if (it != destructibles_.end()) {
+        it->second.hasRootBounds = true;
+        it->second.rootMinX = minX;
+        it->second.rootMinY = minY;
+        it->second.rootWidth = width;
+        it->second.rootHeight = height;
     }
 }
 
@@ -887,7 +905,13 @@ FragmentPolygon Box2DPhysics::createFragmentWithUVs(const DestructiblePolygon& p
     result.centroidX /= poly.vertexCount;
     result.centroidY /= poly.vertexCount;
 
-    // Copy vertices and calculate UVs based on position within original bounding box
+    // Use root bounds if available (for recursive fractures), otherwise use original bounds
+    float boundsMinX = props.hasRootBounds ? props.rootMinX : props.originalMinX;
+    float boundsMinY = props.hasRootBounds ? props.rootMinY : props.originalMinY;
+    float boundsWidth = props.hasRootBounds ? props.rootWidth : props.originalWidth;
+    float boundsHeight = props.hasRootBounds ? props.rootHeight : props.originalHeight;
+
+    // Copy vertices and calculate UVs based on position within root bounding box
     for (int i = 0; i < poly.vertexCount; ++i) {
         float x = poly.vertices[i * 2];
         float y = poly.vertices[i * 2 + 1];
@@ -896,10 +920,10 @@ FragmentPolygon Box2DPhysics::createFragmentWithUVs(const DestructiblePolygon& p
         result.vertices[i * 2] = x - result.centroidX;
         result.vertices[i * 2 + 1] = y - result.centroidY;
 
-        // Calculate UV coordinates based on position in original bounding box
-        // localU/localV are normalized 0-1 within the original polygon bounds
-        float localU = (x - props.originalMinX) / props.originalWidth;
-        float localV = (y - props.originalMinY) / props.originalHeight;
+        // Calculate UV coordinates based on position in root bounding box
+        // localU/localV are normalized 0-1 within the root polygon bounds
+        float localU = (x - boundsMinX) / boundsWidth;
+        float localV = (y - boundsMinY) / boundsHeight;
 
         // Clamp to valid range
         if (localU < 0.0f) localU = 0.0f;
@@ -1319,6 +1343,18 @@ void Box2DPhysics::processFractures() {
                 setBodyDestructible(fragBodyId, props->strength, props->brittleness,
                                    fracture.fragments[i].vertices, fracture.fragments[i].vertexCount,
                                    props->textureId, props->normalMapId, props->pipelineId);
+
+                // Copy root bounding box from parent for proper UV mapping
+                // If parent has root bounds, use those; otherwise use parent's original bounds
+                if (props->hasRootBounds) {
+                    setBodyDestructibleRootBounds(fragBodyId,
+                                                   props->rootMinX, props->rootMinY,
+                                                   props->rootWidth, props->rootHeight);
+                } else {
+                    setBodyDestructibleRootBounds(fragBodyId,
+                                                   props->originalMinX, props->originalMinY,
+                                                   props->originalWidth, props->originalHeight);
+                }
 
                 // Copy texture atlas info to new fragment
                 if (props->usesAtlas) {
