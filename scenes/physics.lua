@@ -23,6 +23,12 @@ destructibleBody = nil
 destructibleLayer = nil
 -- Maps body IDs to their layer IDs for destructible object management
 bodyLayerMap = {}
+-- Tracks fragment bodies created from destructible objects (for cleanup on reset)
+fragmentBodies = {}
+fragmentLayers = {}
+-- Original destructible body position for reset
+destructibleStartX = 0.9
+destructibleStartY = -0.3
 
 function init()
     -- Load the nebula background shader (z-index 0)
@@ -270,6 +276,47 @@ function init()
     print("Using C++ fracture system with strength=5.5 (Moh's scale), brittleness=0.6")
 end
 
+-- Helper function to create/recreate the destructible rock object
+function createDestructibleRock()
+    -- Use polygon fixture with explicit vertices for proper fracture calculation
+    local boxVerts = {
+        -0.12, -0.12,
+         0.12, -0.12,
+         0.12,  0.12,
+        -0.12,  0.12
+    }
+
+    destructibleBody = b2CreateBody(B2_DYNAMIC_BODY, destructibleStartX, destructibleStartY, 0)
+    b2AddPolygonFixture(destructibleBody, boxVerts, 1.0, 0.3, 0.3)
+    table.insert(bodies, destructibleBody)
+
+    destructibleLayer = createLayer(rockTexId, 0.24, rockNormId, phongShaderId)
+    attachLayerToBody(destructibleLayer, destructibleBody)
+    table.insert(layers, destructibleLayer)
+
+    bodyLayerMap[destructibleBody] = destructibleLayer
+
+    -- Set body as destructible with properties
+    b2SetBodyDestructible(destructibleBody, 0.5, 0.6, boxVerts, rockTexId, rockNormId, phongShaderId)
+end
+
+-- Helper function to clean up all fragments
+function cleanupFragments()
+    -- Destroy all fragment layers
+    for i, layerId in ipairs(fragmentLayers) do
+        destroyLayer(layerId)
+    end
+    fragmentLayers = {}
+
+    -- Destroy all fragment bodies and clear from bodyLayerMap
+    for i, bodyId in ipairs(fragmentBodies) do
+        b2ClearBodyDestructible(bodyId)
+        b2DestroyBody(bodyId)
+        bodyLayerMap[bodyId] = nil
+    end
+    fragmentBodies = {}
+end
+
 function update(deltaTime)
     -- Step the physics simulation (Box2D 3.x uses subStepCount instead of velocity/position iterations)
     -- The C++ physics engine now automatically processes fractures during step
@@ -296,6 +343,12 @@ function update(deltaTime)
             draggedBodyId = nil
         end
 
+        -- Mark the original destructible body as destroyed
+        if event.originalBodyId == destructibleBody then
+            destructibleBody = nil
+            destructibleLayer = nil
+        end
+
         -- Create layers for new fragment bodies with proper UV clipping
         for i = 1, event.fragmentCount do
             local fragBodyId = event.newBodyIds[i]
@@ -315,8 +368,9 @@ function update(deltaTime)
                     setLayerPolygon(fragLayer, fragPoly.vertices, fragPoly.uvs)
                 end
 
-                table.insert(bodies, fragBodyId)
-                table.insert(layers, fragLayer)
+                -- Track as fragment (separate from main bodies list for cleanup)
+                table.insert(fragmentBodies, fragBodyId)
+                table.insert(fragmentLayers, fragLayer)
                 bodyLayerMap[fragBodyId] = fragLayer
             end
         end
@@ -348,6 +402,9 @@ function cleanup()
         mouseJointId = nil
         draggedBodyId = nil
     end
+
+    -- Clean up fragments first
+    cleanupFragments()
 
     -- Destroy all scene layers
     for i, layerId in ipairs(layers) do
@@ -397,9 +454,28 @@ function onAction(action)
         -- Reset camera to default position
         setCameraOffset(0, 0)
         setCameraZoom(1.0)
-        -- Reset all bodies
+
+        -- Clean up any fragments from destructible objects
+        cleanupFragments()
+
+        -- If destructible body was destroyed, recreate it
+        if destructibleBody == nil then
+            createDestructibleRock()
+        else
+            -- Reset the existing destructible body
+            b2SetBodyPosition(destructibleBody, destructibleStartX, destructibleStartY)
+            b2SetBodyAngle(destructibleBody, 0)
+            b2SetBodyLinearVelocity(destructibleBody, 0, 0)
+            b2SetBodyAngularVelocity(destructibleBody, 0)
+            b2SetBodyAwake(destructibleBody, true)
+        end
+
+        -- Reset all core bodies (excluding fragments which are handled above)
         for i, bodyId in ipairs(bodies) do
-            if i <= 4 then
+            -- Skip the destructible body - it's handled separately
+            if bodyId == destructibleBody then
+                -- Already handled above
+            elseif i <= 4 then
                 -- Static bodies (ground, left wall, right wall, ceiling) - keep in place
                 -- No need to reset static bodies
             elseif i <= 9 then
@@ -444,7 +520,7 @@ function onAction(action)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
-            else
+            elseif i <= 13 + chainLength + 1 then
                 -- Light body at the end of chain
                 local lightY = chainStartY - (chainLength + 0.5) * chainLinkHeight
                 b2SetBodyPosition(bodyId, chainStartX, lightY)
@@ -453,6 +529,7 @@ function onAction(action)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
             end
+            -- Other bodies (like the destructible when not destroyed) are handled by the else case
         end
         -- Trigger controller vibration: light intensity for 150ms
         vibrate(0.3, 0.3, 150)
