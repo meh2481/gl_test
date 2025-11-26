@@ -815,12 +815,19 @@ void Box2DPhysics::setBodyDestructible(int bodyId, float strength, float brittle
     props.atlasU1 = 1.0f;
     props.atlasV1 = 1.0f;
     props.atlasTextureId = textureId;
+
+    // Default to no normal map atlas
+    props.usesNormalMapAtlas = false;
+    props.normalAtlasU0 = 0.0f;
+    props.normalAtlasV0 = 0.0f;
+    props.normalAtlasU1 = 1.0f;
+    props.normalAtlasV1 = 1.0f;
     props.atlasNormalMapId = normalMapId;
 
     destructibles_[bodyId] = props;
 }
 
-void Box2DPhysics::setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureId, uint64_t atlasNormalMapId,
+void Box2DPhysics::setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureId,
                                                float u0, float v0, float u1, float v1) {
     auto it = destructibles_.find(bodyId);
     if (it != destructibles_.end()) {
@@ -830,6 +837,18 @@ void Box2DPhysics::setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureI
         it->second.atlasU1 = u1;
         it->second.atlasV1 = v1;
         it->second.atlasTextureId = atlasTextureId;
+    }
+}
+
+void Box2DPhysics::setBodyDestructibleNormalMapAtlasUV(int bodyId, uint64_t atlasNormalMapId,
+                                                        float u0, float v0, float u1, float v1) {
+    auto it = destructibles_.find(bodyId);
+    if (it != destructibles_.end()) {
+        it->second.usesNormalMapAtlas = true;
+        it->second.normalAtlasU0 = u0;
+        it->second.normalAtlasV0 = v0;
+        it->second.normalAtlasU1 = u1;
+        it->second.normalAtlasV1 = v1;
         it->second.atlasNormalMapId = atlasNormalMapId;
     }
 }
@@ -910,7 +929,7 @@ FragmentPolygon Box2DPhysics::createFragmentWithUVs(const DestructiblePolygon& p
         if (localV < 0.0f) localV = 0.0f;
         if (localV > 1.0f) localV = 1.0f;
 
-        // If using atlas, transform to atlas UV coordinates
+        // Calculate texture UV
         float u, v;
         if (props.usesAtlas) {
             // Map from local UV (0-1) to atlas UV range
@@ -920,9 +939,20 @@ FragmentPolygon Box2DPhysics::createFragmentWithUVs(const DestructiblePolygon& p
             u = localU;
             v = localV;
         }
-
         result.uvs[i * 2] = u;
         result.uvs[i * 2 + 1] = v;
+
+        // Calculate normal map UV (may be different atlas or no atlas)
+        float nu, nv;
+        if (props.usesNormalMapAtlas) {
+            nu = props.normalAtlasU0 + localU * (props.normalAtlasU1 - props.normalAtlasU0);
+            nv = props.normalAtlasV0 + localV * (props.normalAtlasV1 - props.normalAtlasV0);
+        } else {
+            nu = localU;
+            nv = localV;
+        }
+        result.normalUvs[i * 2] = nu;
+        result.normalUvs[i * 2 + 1] = nv;
     }
 
     return result;
@@ -1282,19 +1312,18 @@ void Box2DPhysics::processFractures() {
                     layerManager_->setLayerAtlasUV(layerId, props->atlasTextureId,
                                                     props->atlasU0, props->atlasV0,
                                                     props->atlasU1, props->atlasV1);
-                    // Also set normal map atlas UV if available
-                    if (props->atlasNormalMapId > 0) {
-                        // Use same UV coordinates for normal map (they're packed together)
-                        layerManager_->setLayerNormalMapAtlasUV(layerId, props->atlasNormalMapId,
-                                                                 props->atlasU0, props->atlasV0,
-                                                                 props->atlasU1, props->atlasV1);
-                    }
+                }
+                // Set normal map atlas UV coordinates if using normal map atlas
+                if (props->usesNormalMapAtlas) {
+                    layerManager_->setLayerNormalMapAtlasUV(layerId, props->atlasNormalMapId,
+                                                             props->normalAtlasU0, props->normalAtlasV0,
+                                                             props->normalAtlasU1, props->normalAtlasV1);
                 }
 
                 // Apply polygon vertices and UV coordinates for texture clipping
                 const FragmentPolygon& fragPoly = event.fragmentPolygons[fragIdx];
                 if (fragPoly.vertexCount >= 3) {
-                    layerManager_->setLayerPolygon(layerId, fragPoly.vertices, fragPoly.uvs, fragPoly.vertexCount);
+                    layerManager_->setLayerPolygon(layerId, fragPoly.vertices, fragPoly.uvs, fragPoly.normalUvs, fragPoly.vertexCount);
                 }
 
                 // Track fragment layer for cleanup
@@ -1313,10 +1342,16 @@ void Box2DPhysics::processFractures() {
                                    fracture.fragments[i].vertices, fracture.fragments[i].vertexCount,
                                    props->textureId, props->normalMapId, props->pipelineId);
 
-                // Copy atlas info to new fragment
+                // Copy texture atlas info to new fragment
                 if (props->usesAtlas) {
-                    setBodyDestructibleAtlasUV(fragBodyId, props->atlasTextureId, props->atlasNormalMapId,
+                    setBodyDestructibleAtlasUV(fragBodyId, props->atlasTextureId,
                                                 props->atlasU0, props->atlasV0, props->atlasU1, props->atlasV1);
+                }
+                // Copy normal map atlas info to new fragment
+                if (props->usesNormalMapAtlas) {
+                    setBodyDestructibleNormalMapAtlasUV(fragBodyId, props->atlasNormalMapId,
+                                                         props->normalAtlasU0, props->normalAtlasV0,
+                                                         props->normalAtlasU1, props->normalAtlasV1);
                 }
 
                 // Set layer for fragment so it can be destroyed if fragment breaks

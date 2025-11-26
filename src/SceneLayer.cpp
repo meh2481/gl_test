@@ -142,13 +142,15 @@ void SceneLayerManager::setLayerNormalMapAtlasUV(int layerId, uint64_t atlasNorm
     }
 }
 
-void SceneLayerManager::setLayerPolygon(int layerId, const float* vertices, const float* uvs, int vertexCount) {
+void SceneLayerManager::setLayerPolygon(int layerId, const float* vertices, const float* uvs, const float* normalUvs, int vertexCount) {
     auto it = layers_.find(layerId);
     if (it != layers_.end() && vertexCount >= 3 && vertexCount <= 8) {
         it->second.polygonVertexCount = vertexCount;
         for (int i = 0; i < vertexCount * 2; ++i) {
             it->second.polygonVertices[i] = vertices[i];
             it->second.polygonUVs[i] = uvs[i];
+            // Use separate normal map UVs if provided, otherwise same as texture UVs
+            it->second.polygonNormalUVs[i] = normalUvs ? normalUvs[i] : uvs[i];
         }
     }
 }
@@ -221,9 +223,13 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
                 float rx = lx * cosA - ly * sinA;
                 float ry = lx * sinA + ly * cosA;
 
-                // Get UV from polygon UVs
+                // Get texture UV from polygon UVs
                 float u = layer.polygonUVs[i * 2];
                 float v = layer.polygonUVs[i * 2 + 1];
+
+                // Get normal map UV from polygon normal UVs
+                float nu = layer.polygonNormalUVs[i * 2];
+                float nv = layer.polygonNormalUVs[i * 2 + 1];
 
                 // Translate to body position
                 SpriteVertex vert;
@@ -231,8 +237,8 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
                 vert.y = centerY + ry;
                 vert.u = u;
                 vert.v = 1.0f - v;  // Flip V for OpenGL-style coordinates
-                vert.nu = u;  // Use same UVs for normal map
-                vert.nv = 1.0f - v;
+                vert.nu = nu;
+                vert.nv = 1.0f - nv;  // Flip V for OpenGL-style coordinates
 
                 batch.vertices.push_back(vert);
             }

@@ -1338,16 +1338,23 @@ int LuaInterface::b2SetBodyDestructible(lua_State* L) {
     // Check if texture uses atlas and set atlas UV info if so
     AtlasUV atlasUV;
     if (interface->pakResource_.getAtlasUV(textureId, atlasUV)) {
-        AtlasUV normalAtlasUV = {};
-        if (normalMapId > 0) {
-            interface->pakResource_.getAtlasUV(normalMapId, normalAtlasUV);
-        }
         interface->physics_->setBodyDestructibleAtlasUV(
             bodyId,
             atlasUV.atlasId,
-            normalAtlasUV.atlasId,
             atlasUV.u0, atlasUV.v0, atlasUV.u1, atlasUV.v1
         );
+    }
+
+    // Check if normal map uses atlas and set atlas UV info if so
+    if (normalMapId > 0) {
+        AtlasUV normalAtlasUV;
+        if (interface->pakResource_.getAtlasUV(normalMapId, normalAtlasUV)) {
+            interface->physics_->setBodyDestructibleNormalMapAtlasUV(
+                bodyId,
+                normalAtlasUV.atlasId,
+                normalAtlasUV.u0, normalAtlasUV.v0, normalAtlasUV.u1, normalAtlasUV.v1
+            );
+        }
     }
 
     return 0;
@@ -1589,7 +1596,8 @@ int LuaInterface::setLayerPolygon(lua_State* L) {
         lua_pop(L, 1);
     }
 
-    interface->layerManager_->setLayerPolygon(layerId, vertices, uvs, vertexCount);
+    // Use same UVs for normal map (Lua API doesn't support separate normal map UVs yet)
+    interface->layerManager_->setLayerPolygon(layerId, vertices, uvs, nullptr, vertexCount);
     return 0;
 }
 
