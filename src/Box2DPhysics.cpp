@@ -105,7 +105,6 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             b2Vec2 velB = b2Body_GetLinearVelocity(bodyIdB);
             b2Vec2 relativeVel = b2Sub(velA, velB);
             float approachSpeed = -b2Dot(relativeVel, beginEvent.manifold.normal);
-            std::cout << "Begin event " << i << ": calculated approachSpeed=" << approachSpeed << std::endl;
             if (approachSpeed > 0.0f) {
                 // Treat as hit event
                 int internalIdA = findInternalBodyId(bodyIdA);
