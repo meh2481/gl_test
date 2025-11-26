@@ -1303,9 +1303,11 @@ void Box2DPhysics::processFractures() {
                 float fragSize = sqrtf(fracture.fragments[i].area) * 2.0f;
                 if (fragSize < MIN_FRAGMENT_LAYER_SIZE) fragSize = MIN_FRAGMENT_LAYER_SIZE;
 
-                // Create layer with original (non-atlas) texture IDs
-                // This ensures proper descriptor set lookup
-                layerId = layerManager_->createLayer(props->textureId, fragSize, fragSize, props->normalMapId, props->pipelineId);
+                // Create layer with atlas texture IDs if using atlas, otherwise original IDs
+                // This ensures proper descriptor set lookup in the renderer
+                uint64_t layerTexId = props->usesAtlas ? props->atlasTextureId : props->textureId;
+                uint64_t layerNormId = props->usesNormalMapAtlas ? props->atlasNormalMapId : props->normalMapId;
+                layerId = layerManager_->createLayer(layerTexId, fragSize, fragSize, layerNormId, props->pipelineId);
                 layerManager_->attachLayerToBody(layerId, fragBodyId);
 
                 // Set atlas UV coordinates if using atlas
