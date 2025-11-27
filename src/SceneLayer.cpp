@@ -236,9 +236,9 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
                 vert.x = centerX + rx;
                 vert.y = centerY + ry;
                 vert.u = u;
-                vert.v = 1.0f - v;  // Flip V for OpenGL-style coordinates
+                vert.v = v;
                 vert.nu = nu;
-                vert.nv = 1.0f - nv;  // Flip V for OpenGL-style coordinates
+                vert.nv = nv;
 
                 batch.vertices.push_back(vert);
             }

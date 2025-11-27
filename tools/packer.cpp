@@ -204,34 +204,34 @@ uint32_t alignTo4(uint32_t val) {
 bool loadPNG(const string& filename, vector<uint8_t>& imageData, uint32_t& width, uint32_t& height, bool& hasAlpha) {
     FILE* fp = fopen(filename.c_str(), "rb");
     if (!fp) return false;
-    
+
     png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
     if (!png) {
         fclose(fp);
         return false;
     }
-    
+
     png_infop info = png_create_info_struct(png);
     if (!info) {
         png_destroy_read_struct(&png, nullptr, nullptr);
         fclose(fp);
         return false;
     }
-    
+
     if (setjmp(png_jmpbuf(png))) {
         png_destroy_read_struct(&png, &info, nullptr);
         fclose(fp);
         return false;
     }
-    
+
     png_init_io(png, fp);
     png_read_info(png, info);
-    
+
     width = png_get_image_width(png, info);
     height = png_get_image_height(png, info);
     png_byte color_type = png_get_color_type(png, info);
     png_byte bit_depth = png_get_bit_depth(png, info);
-    
+
     // Error out if image is paletted or grayscale
     if (color_type == PNG_COLOR_TYPE_PALETTE) {
         cerr << "Error: Paletted PNG images are not supported: " << filename << endl;
@@ -239,14 +239,14 @@ bool loadPNG(const string& filename, vector<uint8_t>& imageData, uint32_t& width
         fclose(fp);
         return false;
     }
-    
+
     if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA) {
         cerr << "Error: Grayscale PNG images are not supported: " << filename << endl;
         png_destroy_read_struct(&png, &info, nullptr);
         fclose(fp);
         return false;
     }
-    
+
     // Only support RGB and RGBA
     if (color_type != PNG_COLOR_TYPE_RGB && color_type != PNG_COLOR_TYPE_RGBA) {
         cerr << "Error: Unsupported PNG color type: " << filename << endl;
@@ -254,31 +254,31 @@ bool loadPNG(const string& filename, vector<uint8_t>& imageData, uint32_t& width
         fclose(fp);
         return false;
     }
-    
+
     // Strip 16-bit to 8-bit
     if (bit_depth == 16)
         png_set_strip_16(png);
-    
+
     png_read_update_info(png, info);
-    
+
     // Determine if the image has alpha
     hasAlpha = (color_type == PNG_COLOR_TYPE_RGBA);
-    
+
     // Allocate memory for image data
     int bytesPerPixel = hasAlpha ? 4 : 3;
     imageData.resize(width * height * bytesPerPixel);
-    
+
     vector<png_bytep> row_pointers(height);
     for (uint32_t y = 0; y < height; y++) {
         row_pointers[y] = imageData.data() + y * width * bytesPerPixel;
     }
-    
+
     png_read_image(png, row_pointers.data());
     png_read_end(png, nullptr);
-    
+
     png_destroy_read_struct(&png, &info, nullptr);
     fclose(fp);
-    
+
     return true;
 }
 
@@ -456,7 +456,14 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
         atlas.width = tryWidth;
         atlas.height = tryHeight;
         atlas.hasAlpha = atlasHasAlpha;
-        atlas.imageData.resize(tryWidth * tryHeight * 4, 0);  // Initialize to transparent black
+        atlas.imageData.resize(tryWidth * tryHeight * 4);
+        // Initialize to hot pink (255, 0, 255, 255)
+        for (size_t i = 0; i < atlas.imageData.size(); i += 4) {
+            atlas.imageData[i] = 255;     // R
+            atlas.imageData[i + 1] = 0;   // G
+            atlas.imageData[i + 2] = 255; // B
+            atlas.imageData[i + 3] = 255; // A
+        }
 
         // Copy packed images into atlas with edge padding
         const uint32_t EDGE_PADDING = 1;
