@@ -6,6 +6,8 @@
 #include <SDL3/SDL.h>
 #include <functional>
 
+#define LENGTH_UNITS_PER_METER 0.05f  // Define this smaller so box2d doesn't join polygon vertices
+
 // Forward declarations
 class SceneLayerManager;
 

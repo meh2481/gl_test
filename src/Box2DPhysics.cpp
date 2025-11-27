@@ -61,6 +61,8 @@ Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled
     physicsMutex_ = SDL_CreateMutex();
     assert(physicsMutex_ != nullptr);
     SDL_SetAtomicInt(&stepInProgress_, 0);
+
+    b2SetLengthUnitsPerMeter(LENGTH_UNITS_PER_METER);
 }
 
 Box2DPhysics::~Box2DPhysics() {
