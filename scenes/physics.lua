@@ -25,6 +25,28 @@ destructibleLayer = nil
 destructibleStartX = 0.9
 destructibleStartY = -0.3
 
+-- Lightsaber state
+lightsaberHiltBody = nil
+lightsaberBladeBody = nil
+lightsaberHiltLayer = nil
+lightsaberBladeLayer = nil
+lightsaberBladeGlowLayer = nil
+lightsaberTrailLayers = {}
+lightsaberTrailPositions = {}
+lightsaberStartX = 0.0
+lightsaberStartY = 0.2
+lightsaberBladeLength = 0.35
+lightsaberBladeWidth = 0.015
+lightsaberHiltWidth = 0.025
+lightsaberHiltLength = 0.10
+-- Lightsaber color (RGB)
+lightsaberColorR = 0.3
+lightsaberColorG = 0.7
+lightsaberColorB = 1.0
+-- Trail parameters
+TRAIL_MAX_LENGTH = 12
+TRAIL_FADE_RATE = 0.85
+
 function init()
     -- Load the nebula background shader (z-index -2 = background)
     -- Negative z-index = drawn first (background), moves slower than camera
@@ -247,9 +269,58 @@ function init()
     -- Uses new C++ fracture system with strength (Mohs scale) and brittleness
     createDestructibleRock()
 
+    -- Create the lightsaber
+    createLightsaber()
+
     print("Physics demo scene initialized with multiple shader types")
     print("Destructible rock added - hit it hard to break it!")
     print("Using C++ fracture system with strength=5.5 (Mohs scale), brittleness=0.6")
+    print("Lightsaber added - drag it into the destructible box to destroy it!")
+end
+
+-- Helper function to create the lightsaber
+function createLightsaber()
+    -- Create hilt body (dynamic, can be picked up and dragged)
+    lightsaberHiltBody = b2CreateBody(B2_DYNAMIC_BODY, lightsaberStartX, lightsaberStartY, 0)
+    -- Hilt is a small rectangle
+    local hiltHalfW = lightsaberHiltWidth / 2
+    local hiltHalfH = lightsaberHiltLength / 2
+    b2AddBoxFixture(lightsaberHiltBody, hiltHalfW, hiltHalfH, 2.0, 0.5, 0.2)
+    table.insert(bodies, lightsaberHiltBody)
+
+    -- Create blade body (attached to hilt via revolute joint for slight flex)
+    local bladeOffsetY = lightsaberHiltLength / 2 + lightsaberBladeLength / 2
+    lightsaberBladeBody = b2CreateBody(B2_DYNAMIC_BODY, lightsaberStartX, lightsaberStartY + bladeOffsetY, 0)
+    -- Blade is a thin rectangle with higher density for effective impacts
+    local bladeHalfW = lightsaberBladeWidth / 2
+    local bladeHalfH = lightsaberBladeLength / 2
+    b2AddBoxFixture(lightsaberBladeBody, bladeHalfW, bladeHalfH, 5.0, 0.1, 0.0)
+    table.insert(bodies, lightsaberBladeBody)
+
+    -- Connect blade to hilt with a stiff revolute joint (very limited rotation)
+    local bladeJointId = b2CreateRevoluteJoint(
+        lightsaberHiltBody,
+        lightsaberBladeBody,
+        0.0, lightsaberHiltLength / 2,  -- anchor on hilt (top)
+        0.0, -lightsaberBladeLength / 2, -- anchor on blade (bottom)
+        true, -0.1, 0.1  -- slightly more flex for realism
+    )
+    table.insert(joints, bladeJointId)
+
+    -- Hilt layer (use chain texture for metallic look)
+    lightsaberHiltLayer = createLayer(chainTexId, lightsaberHiltLength, chainNormId, phongShaderId)
+    attachLayerToBody(lightsaberHiltLayer, lightsaberHiltBody)
+    table.insert(layers, lightsaberHiltLayer)
+
+    -- Blade core layer (use bloom texture for glow, additive blend)
+    lightsaberBladeLayer = createLayer(bloomTexId, lightsaberBladeLength * 1.2, bloomShaderId)
+    attachLayerToBody(lightsaberBladeLayer, lightsaberBladeBody)
+    table.insert(layers, lightsaberBladeLayer)
+
+    -- Blade glow layer (larger bloom for outer glow)
+    lightsaberBladeGlowLayer = createLayer(bloomTexId, lightsaberBladeLength * 2.5, bloomShaderId)
+    attachLayerToBody(lightsaberBladeGlowLayer, lightsaberBladeBody)
+    table.insert(layers, lightsaberBladeGlowLayer)
 end
 
 -- Helper function to create/recreate the destructible rock object
@@ -295,11 +366,72 @@ function update(deltaTime)
     end
 
     -- Update light position based on the light body at the end of the chain
+    -- Also blend in lightsaber position as a secondary light source
+    local chainLightX, chainLightY = 0.5, 0.5
     if lightBody then
-        local lightX, lightY = b2GetBodyPosition(lightBody)
-        -- Update shader parameters with new light position
-        setShaderParameters(phongShaderId, lightX, lightY, chainLightZ, 0.3, 0.7, 0.8, 32.0)
-        setShaderParameters(toonShaderId, lightX, lightY, chainLightZ, 3.0)
+        chainLightX, chainLightY = b2GetBodyPosition(lightBody)
+    end
+
+    -- Get lightsaber blade position for lighting
+    local bladeX, bladeY = lightsaberStartX, lightsaberStartY
+    if lightsaberBladeBody then
+        bladeX, bladeY = b2GetBodyPosition(lightsaberBladeBody)
+        if bladeX == nil then
+            bladeX, bladeY = lightsaberStartX, lightsaberStartY
+        end
+    end
+
+    -- Blend chain light and saber light (saber contributes ~30% of light)
+    local lightX = chainLightX * 0.7 + bladeX * 0.3
+    local lightY = chainLightY * 0.7 + bladeY * 0.3
+
+    -- Update shader parameters with blended light position
+    setShaderParameters(phongShaderId, lightX, lightY, chainLightZ, 0.35, 0.75, 0.85, 32.0)
+    setShaderParameters(toonShaderId, lightX, lightY, chainLightZ, 3.0)
+
+    -- Update lightsaber trail effect
+    updateLightsaberTrail()
+end
+
+-- Helper function to update lightsaber trail
+function updateLightsaberTrail()
+    if not lightsaberBladeBody then
+        return
+    end
+
+    local bladeX, bladeY = b2GetBodyPosition(lightsaberBladeBody)
+    if bladeX == nil then
+        return
+    end
+
+    local bladeAngle = b2GetBodyAngle(lightsaberBladeBody)
+    if bladeAngle == nil then
+        bladeAngle = 0
+    end
+
+    -- Add current position to trail history
+    table.insert(lightsaberTrailPositions, 1, {x = bladeX, y = bladeY, angle = bladeAngle, alpha = 1.0})
+
+    -- Limit trail length and fade out old positions
+    while #lightsaberTrailPositions > TRAIL_MAX_LENGTH do
+        local lastPos = lightsaberTrailPositions[#lightsaberTrailPositions]
+        if lastPos.layerId then
+            -- Destroy the old trail layer
+            destroyLayer(lastPos.layerId)
+            -- Remove from layers table
+            for i, layerId in ipairs(layers) do
+                if layerId == lastPos.layerId then
+                    table.remove(layers, i)
+                    break
+                end
+            end
+        end
+        table.remove(lightsaberTrailPositions)
+    end
+
+    -- Update alpha values for fading trail
+    for i, pos in ipairs(lightsaberTrailPositions) do
+        pos.alpha = pos.alpha * TRAIL_FADE_RATE
     end
 end
 
@@ -313,6 +445,14 @@ function cleanup()
 
     -- Clean up all fragments created by fractures (C++ handles this)
     b2CleanupAllFragments()
+
+    -- Clean up lightsaber trail layers
+    for i, pos in ipairs(lightsaberTrailPositions) do
+        if pos.layerId then
+            destroyLayer(pos.layerId)
+        end
+    end
+    lightsaberTrailPositions = {}
 
     -- Destroy all scene layers
     for i, layerId in ipairs(layers) do
@@ -338,6 +478,11 @@ function cleanup()
     chainAnchor = nil
     destructibleBody = nil
     destructibleLayer = nil
+    lightsaberHiltBody = nil
+    lightsaberBladeBody = nil
+    lightsaberHiltLayer = nil
+    lightsaberBladeLayer = nil
+    lightsaberBladeGlowLayer = nil
     -- Disable debug drawing
     b2EnableDebugDraw(false)
     print("Physics demo scene cleaned up")
@@ -436,9 +581,33 @@ function onAction(action)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
+            elseif bodyId == lightsaberHiltBody then
+                -- Reset lightsaber hilt
+                b2SetBodyPosition(bodyId, lightsaberStartX, lightsaberStartY)
+                b2SetBodyAngle(bodyId, 0)
+                b2SetBodyLinearVelocity(bodyId, 0, 0)
+                b2SetBodyAngularVelocity(bodyId, 0)
+                b2SetBodyAwake(bodyId, true)
+            elseif bodyId == lightsaberBladeBody then
+                -- Reset lightsaber blade
+                local bladeOffsetY = lightsaberHiltLength / 2 + lightsaberBladeLength / 2
+                b2SetBodyPosition(bodyId, lightsaberStartX, lightsaberStartY + bladeOffsetY)
+                b2SetBodyAngle(bodyId, 0)
+                b2SetBodyLinearVelocity(bodyId, 0, 0)
+                b2SetBodyAngularVelocity(bodyId, 0)
+                b2SetBodyAwake(bodyId, true)
             end
             -- Other bodies (like the destructible when not destroyed) are handled by the else case
         end
+
+        -- Clear trail positions
+        for i, pos in ipairs(lightsaberTrailPositions) do
+            if pos.layerId then
+                destroyLayer(pos.layerId)
+            end
+        end
+        lightsaberTrailPositions = {}
+
         -- Trigger controller vibration: light intensity for 150ms
         vibrate(0.3, 0.3, 150)
     end
