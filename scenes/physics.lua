@@ -271,7 +271,7 @@ function createDestructibleRock()
 
     -- Set body as destructible with properties
     -- The C++ side handles everything: layer destruction, fragment creation, cleanup
-    b2SetBodyDestructible(destructibleBody, 5.5, 0.6, boxVerts, metalwallTexId, metalwallNormId, phongShaderId)
+    b2SetBodyDestructible(destructibleBody, 2.5, 0.6, boxVerts, metalwallTexId, metalwallNormId, phongShaderId)
     b2SetBodyDestructibleLayer(destructibleBody, destructibleLayer)
 end
 
