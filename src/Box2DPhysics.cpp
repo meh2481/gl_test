@@ -1207,18 +1207,24 @@ int Box2DPhysics::createFragmentBody(float x, float y, float angle,
     }
 
     b2Hull hull = b2ComputeHull(points, polygon.vertexCount);
-    if (hull.count >= 3) {
-        b2Polygon poly = b2MakePolygon(&hull, 0.0f);
-
-        b2ShapeDef shapeDef = b2DefaultShapeDef();
-        // Scale density by area ratio to maintain consistent mass behavior
-        shapeDef.density = density;
-        shapeDef.material.friction = friction;
-        shapeDef.material.restitution = restitution;
-        shapeDef.enableContactEvents = true;
-
-        b2CreatePolygonShape(bodyId, &shapeDef, &poly);
+    if (hull.count < 3) {
+        // Invalid hull - destroy the body and return -1 to indicate failure
+        // Bodies without shapes don't respond to gravity and float away
+        b2DestroyBody(bodyId);
+        SDL_UnlockMutex(physicsMutex_);
+        return -1;
     }
+
+    b2Polygon poly = b2MakePolygon(&hull, 0.0f);
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    // Scale density by area ratio to maintain consistent mass behavior
+    shapeDef.density = density;
+    shapeDef.material.friction = friction;
+    shapeDef.material.restitution = restitution;
+    shapeDef.enableContactEvents = true;
+
+    b2CreatePolygonShape(bodyId, &shapeDef, &poly);
 
     int internalId = nextBodyId_++;
     bodies_[internalId] = bodyId;
@@ -1295,6 +1301,9 @@ void Box2DPhysics::processFractures() {
                                                  vel.x, vel.y, angularVel,
                                                  1.0f, 0.3f, 0.3f);
 
+            // Skip fragments that failed to create (e.g., invalid hull)
+            if (fragBodyId < 0) continue;
+
             int fragIdx = event.fragmentCount;
             event.newBodyIds[fragIdx] = fragBodyId;
             event.fragmentAreas[fragIdx] = fracture.fragments[i].area;
@@ -1304,7 +1313,7 @@ void Box2DPhysics::processFractures() {
 
             // Create layer for fragment if layer manager is available
             int layerId = -1;
-            if (layerManager_ && fragBodyId >= 0) {
+            if (layerManager_) {
                 // Calculate layer size from fragment polygon area
                 float fragSize = sqrtf(fracture.fragments[i].area) * 2.0f;
                 if (fragSize < MIN_FRAGMENT_LAYER_SIZE) fragSize = MIN_FRAGMENT_LAYER_SIZE;
@@ -1342,12 +1351,10 @@ void Box2DPhysics::processFractures() {
             event.newLayerIds[fragIdx] = layerId;
 
             // Track fragment body for cleanup
-            if (fragBodyId >= 0) {
-                fragmentBodyIds_.push_back(fragBodyId);
-            }
+            fragmentBodyIds_.push_back(fragBodyId);
 
             // Make fragments also destructible if original was brittle enough and fragment is large enough
-            if (props->brittleness > 0.5f && fragBodyId >= 0 && fracture.fragments[i].area >= MIN_FRAGMENT_AREA * MIN_REFRACTURE_AREA_MULTIPLIER) {
+            if (props->brittleness > 0.5f && fracture.fragments[i].area >= MIN_FRAGMENT_AREA * MIN_REFRACTURE_AREA_MULTIPLIER) {
                 setBodyDestructible(fragBodyId, props->strength, props->brittleness,
                                    fracture.fragments[i].vertices, fracture.fragments[i].vertexCount,
                                    props->textureId, props->normalMapId, props->pipelineId);
