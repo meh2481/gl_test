@@ -42,6 +42,7 @@ struct SceneLayer {
     float offsetX;           // Offset from body center
     float offsetY;           // Offset from body center
     bool enabled;            // Whether this layer is visible
+    bool useLocalUV;         // Whether to use local 0..1 UVs instead of texture atlas UVs
 
     // Atlas UV coordinates for texture
     LayerAtlasUV textureUV;
@@ -94,6 +95,7 @@ public:
 
     // Update a single layer's transform based on physics body
     void updateLayerTransform(int layerId, float bodyX, float bodyY, float bodyAngle);
+    void setLayerUseLocalUV(int layerId, bool useLocalUV);
 
 private:
     std::unordered_map<int, SceneLayer> layers_;

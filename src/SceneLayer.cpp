@@ -47,6 +47,7 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     layer.offsetX = 0.0f;
     layer.offsetY = 0.0f;
     layer.enabled = true;
+    layer.useLocalUV = false;
 
     // Default UV coordinates (full texture)
     layer.textureUV.u0 = 0.0f;
@@ -70,6 +71,13 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
 
     layers_[layerId] = layer;
     return layerId;
+}
+
+void SceneLayerManager::setLayerUseLocalUV(int layerId, bool useLocalUV) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.useLocalUV = useLocalUV;
+    }
 }
 
 void SceneLayerManager::destroyLayer(int layerId) {
@@ -276,13 +284,20 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
             float nu1 = layer.normalMapUV.u1;
             float nv1 = layer.normalMapUV.v1;
 
-            // Texture coordinates using atlas UV or default 0-1
-            float uvs[4][2] = {
-                {u0, v1},  // Bottom-left
-                {u1, v1},  // Bottom-right
-                {u1, v0},  // Top-right
-                {u0, v0}   // Top-left
-            };
+            float uvs[4][2];
+            if (layer.useLocalUV) {
+                // Use local 0..1 coordinates across quad (left->right, bottom->top)
+                uvs[0][0] = 0.0f; uvs[0][1] = 0.0f; // Bottom-left
+                uvs[1][0] = 1.0f; uvs[1][1] = 0.0f; // Bottom-right
+                uvs[2][0] = 1.0f; uvs[2][1] = 1.0f; // Top-right
+                uvs[3][0] = 0.0f; uvs[3][1] = 1.0f; // Top-left
+            } else {
+                // Texture coordinates using atlas UV or default 0-1
+                uvs[0][0] = u0; uvs[0][1] = v1;  // Bottom-left
+                uvs[1][0] = u1; uvs[1][1] = v1;  // Bottom-right
+                uvs[2][0] = u1; uvs[2][1] = v0;  // Top-right
+                uvs[3][0] = u0; uvs[3][1] = v0;  // Top-left
+            }
 
             // Normal map texture coordinates
             float nuvs[4][2] = {

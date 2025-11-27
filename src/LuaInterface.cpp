@@ -48,7 +48,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
-                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerPolygon",
+                                    "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
@@ -456,6 +456,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "detachLayer", detachLayer);
     lua_register(luaState_, "setLayerEnabled", setLayerEnabled);
     lua_register(luaState_, "setLayerOffset", setLayerOffset);
+    lua_register(luaState_, "setLayerUseLocalUV", setLayerUseLocalUV);
     lua_register(luaState_, "setLayerPolygon", setLayerPolygon);
 
     // Register texture loading functions
@@ -1555,6 +1556,22 @@ int LuaInterface::setLayerOffset(lua_State* L) {
     float offsetY = lua_tonumber(L, 3);
 
     interface->layerManager_->setLayerOffset(layerId, offsetX, offsetY);
+    return 0;
+}
+
+int LuaInterface::setLayerUseLocalUV(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isboolean(L, 2));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    bool useLocal = lua_toboolean(L, 2);
+
+    interface->layerManager_->setLayerUseLocalUV(layerId, useLocal);
     return 0;
 }
 

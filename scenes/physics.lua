@@ -329,11 +329,14 @@ function createLightsaber()
     lightsaberBladeLayer = createLayer(bloomTexId, lightsaberBladeLength * BLADE_CORE_SCALE, lightsaberShaderId)
     attachLayerToBody(lightsaberBladeLayer, lightsaberBladeBody)
     table.insert(layers, lightsaberBladeLayer)
+    -- Use local 0..1 UVs so the lightsaber shader centers the glow on the blade
+    setLayerUseLocalUV(lightsaberBladeLayer, true)
 
     -- Blade glow layer (larger bloom for outer glow, also uses lightsaber shader)
-    lightsaberBladeGlowLayer = createLayer(bloomTexId, lightsaberBladeLength * BLADE_GLOW_SCALE, lightsaberShaderId)
-    attachLayerToBody(lightsaberBladeGlowLayer, lightsaberBladeBody)
-    table.insert(layers, lightsaberBladeGlowLayer)
+    -- lightsaberBladeGlowLayer = createLayer(bloomTexId, lightsaberBladeLength * BLADE_GLOW_SCALE, lightsaberShaderId)
+    -- attachLayerToBody(lightsaberBladeGlowLayer, lightsaberBladeBody)
+    -- table.insert(layers, lightsaberBladeGlowLayer)
+    -- setLayerUseLocalUV(lightsaberBladeGlowLayer, true)
 end
 
 -- Helper function to create/recreate the destructible rock object

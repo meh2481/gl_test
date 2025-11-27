@@ -23,7 +23,7 @@ void main() {
     // X = 0.5 is the center of the blade
 
     // Distance from center of blade (X = 0.5)
-    float distFromCenter = abs(fragTexCoord.x - 0.5) * 2.0;
+    float distFromCenter = abs(fragTexCoord.x - 0.5) * 4.0;
 
     // Core of the blade is bright white, edges are colored
     float coreWidth = 0.2;
@@ -35,8 +35,13 @@ void main() {
     // Glow intensity (colored outer glow)
     float glowIntensity = 1.0 - smoothstep(coreWidth, glowWidth, distFromCenter);
 
-    // Fade at the tip
-    float tipFade = smoothstep(0.0, 0.1, fragTexCoord.y) * (1.0 - smoothstep(0.9, 1.0, fragTexCoord.y));
+    // Apply rounded fades using circle math (cosine)
+    float hiltFade = smoothstep(0.0, 0.1, fragTexCoord.y);
+    float tipFadeCore = hiltFade * cos(clamp((fragTexCoord.y - 0.8) / 0.05, 0.0, 1.0) * 3.14159 / 2.0);
+    float tipFadeGlow = hiltFade * cos(clamp((fragTexCoord.y - 0.85) / 0.15, 0.0, 1.0) * 3.14159 / 2.0);
+
+    coreIntensity *= tipFadeCore;
+    glowIntensity *= tipFadeGlow;
 
     // Pulsing effect
     float pulse = 0.9 + 0.1 * sin(pc.time * 8.0);
@@ -50,7 +55,7 @@ void main() {
     vec3 finalColor = mix(glowColor * glowIntensity, coreColor, coreIntensity) * pulse * pc.glowIntensity;
 
     // Apply tip fade and edge fade
-    float alpha = max(coreIntensity, glowIntensity) * tipFade;
+    float alpha = max(coreIntensity, glowIntensity);
 
     // Cut off if too faint
     if (alpha < 0.01) discard;
