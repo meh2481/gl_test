@@ -29,15 +29,20 @@ void main() {
     // Apply parallax offset to texture coordinates
     // Multiply by camera offset to create the parallax pan effect
     // Account for aspect ratio so X and Y panning feel consistent
-    // Scale factor 0.25 converts world coordinates to appropriate texture offset
-    // Scale by zoom: when zoomed out (zoom < 1), pan less; when zoomed in (zoom > 1), pan more
+    // 0.25 scaling converts world coords to texture space (1 world unit = 0.25 texture units)
+    // Multiplying by zoom ensures panning feels proportional at all zoom levels:
+    //   - When zoomed out (zoom < 1), we see more of the world, so pan moves background less
+    //   - When zoomed in (zoom > 1), we see less of the world, so pan moves background more
     float aspect = pc.iResolution.x / pc.iResolution.y;
     vec2 parallaxOffset = vec2(pc.cameraX / aspect, -pc.cameraY) * parallaxFactor * 0.25 * pc.cameraZoom;
 
     // Apply zoom to background: scale texture coordinates around center
     // When zoomed in, the background should also zoom in (show less of the texture)
     // When zoomed out, the background should also zoom out (show more of the texture)
-    // The zoom effect is scaled by parallaxFactor to make distant layers zoom less
+    // The coefficient (1.0 - abs(parallaxFactor)) creates depth-based zoom attenuation:
+    //   - At parallaxFactor=0: full zoom effect (1.0), layer moves with camera
+    //   - At parallaxFactor=±0.5: half zoom effect (0.5), background zooms slower
+    //   - At parallaxFactor=±1: no zoom effect (0.0), infinitely distant layer stays fixed
     float zoomFactor = 1.0 + (pc.cameraZoom - 1.0) * (1.0 - abs(parallaxFactor));
     vec2 centeredTexCoord = inTexCoord - 0.5;
     vec2 scaledTexCoord = centeredTexCoord / zoomFactor + 0.5;
