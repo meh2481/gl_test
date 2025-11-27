@@ -46,6 +46,12 @@ Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;
+    // Increase contact stiffness for faster overlap resolution and reduce sinking
+    // Default is 30 Hz with damping ratio 10, which causes slow overlap recovery
+    // Higher hertz = stiffer contacts = faster overlap resolution
+    worldDef.contactHertz = 120.0f;
+    // Lower damping ratio = more responsive overlap correction (default is 10)
+    worldDef.contactDampingRatio = 5.0f;
     worldId_ = b2CreateWorld(&worldDef);
     assert(b2World_IsValid(worldId_));
 
