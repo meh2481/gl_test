@@ -43,6 +43,11 @@ lightsaberColorR = 0.3
 lightsaberColorG = 0.7
 lightsaberColorB = 1.0
 lightsaberGlowIntensity = 1.5
+-- Blade layer size multipliers
+BLADE_CORE_SCALE = 1.2    -- Core glow is slightly larger than blade physics
+BLADE_GLOW_SCALE = 2.5    -- Outer glow is much larger for dramatic effect
+-- Light blending parameters when saber is active
+SABER_LIGHT_BLEND = 0.3   -- Saber contributes 30% to scene lighting
 -- Trail parameters
 TRAIL_MAX_LENGTH = 12
 TRAIL_FADE_RATE = 0.85
@@ -321,12 +326,12 @@ function createLightsaber()
     table.insert(layers, lightsaberHiltLayer)
 
     -- Blade core layer (use bloom texture with lightsaber shader for colored glow)
-    lightsaberBladeLayer = createLayer(bloomTexId, lightsaberBladeLength * 1.2, lightsaberShaderId)
+    lightsaberBladeLayer = createLayer(bloomTexId, lightsaberBladeLength * BLADE_CORE_SCALE, lightsaberShaderId)
     attachLayerToBody(lightsaberBladeLayer, lightsaberBladeBody)
     table.insert(layers, lightsaberBladeLayer)
 
     -- Blade glow layer (larger bloom for outer glow, also uses lightsaber shader)
-    lightsaberBladeGlowLayer = createLayer(bloomTexId, lightsaberBladeLength * 2.5, lightsaberShaderId)
+    lightsaberBladeGlowLayer = createLayer(bloomTexId, lightsaberBladeLength * BLADE_GLOW_SCALE, lightsaberShaderId)
     attachLayerToBody(lightsaberBladeGlowLayer, lightsaberBladeBody)
     table.insert(layers, lightsaberBladeGlowLayer)
 end
@@ -381,19 +386,22 @@ function update(deltaTime)
     end
 
     -- Get lightsaber blade position for lighting
+    -- b2GetBodyPosition returns nil for both x and y if body is invalid
     local bladeX, bladeY = lightsaberStartX, lightsaberStartY
     if lightsaberBladeBody then
-        bladeX, bladeY = b2GetBodyPosition(lightsaberBladeBody)
-        if bladeX == nil then
-            bladeX, bladeY = lightsaberStartX, lightsaberStartY
+        local bx, by = b2GetBodyPosition(lightsaberBladeBody)
+        if bx ~= nil and by ~= nil then
+            bladeX, bladeY = bx, by
         end
     end
 
-    -- Blend chain light and saber light (saber contributes ~30% of light)
-    local lightX = chainLightX * 0.7 + bladeX * 0.3
-    local lightY = chainLightY * 0.7 + bladeY * 0.3
+    -- Blend chain light and saber light using the configured blend factor
+    local chainBlend = 1.0 - SABER_LIGHT_BLEND
+    local lightX = chainLightX * chainBlend + bladeX * SABER_LIGHT_BLEND
+    local lightY = chainLightY * chainBlend + bladeY * SABER_LIGHT_BLEND
 
     -- Update shader parameters with blended light position
+    -- Slightly increased ambient/diffuse/specular to account for dual light sources
     setShaderParameters(phongShaderId, lightX, lightY, chainLightZ, 0.35, 0.75, 0.85, 32.0)
     setShaderParameters(toonShaderId, lightX, lightY, chainLightZ, 3.0)
 
@@ -407,8 +415,9 @@ function updateLightsaberTrail()
         return
     end
 
+    -- b2GetBodyPosition returns nil for both x and y if body is invalid
     local bladeX, bladeY = b2GetBodyPosition(lightsaberBladeBody)
-    if bladeX == nil then
+    if bladeX == nil or bladeY == nil then
         return
     end
 
