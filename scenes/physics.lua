@@ -31,7 +31,6 @@ lightsaberBladeBody = nil
 lightsaberHiltLayer = nil
 lightsaberBladeLayer = nil
 lightsaberBladeGlowLayer = nil
-lightsaberTrailLayers = {}
 lightsaberTrailPositions = {}
 lightsaberStartX = 0.0
 lightsaberStartY = 0.2
@@ -39,10 +38,11 @@ lightsaberBladeLength = 0.35
 lightsaberBladeWidth = 0.015
 lightsaberHiltWidth = 0.025
 lightsaberHiltLength = 0.10
--- Lightsaber color (RGB)
+-- Lightsaber color (RGB) - used by the lightsaber shader
 lightsaberColorR = 0.3
 lightsaberColorG = 0.7
 lightsaberColorB = 1.0
+lightsaberGlowIntensity = 1.5
 -- Trail parameters
 TRAIL_MAX_LENGTH = 12
 TRAIL_FADE_RATE = 0.85
@@ -64,6 +64,10 @@ function init()
     -- Load additive blending shader for bloom effect (z-index 2, below debug, 1 texture)
     bloomShaderId = loadTexturedShadersAdditive("sprite_vertex.spv", "sprite_fragment.spv", 2, 1)
 
+    -- Load lightsaber shader (z-index 2, additive blend, 1 texture)
+    -- This shader uses extended push constants for glow color and intensity
+    lightsaberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
+
     -- Set shader parameters for Phong shader
     -- Position (0.5, 0.5, chainLightZ) - light position
     -- ambient: 0.3, diffuse: 0.7, specular: 0.8, shininess: 32.0
@@ -73,6 +77,10 @@ function init()
     -- Position (0.5, 0.5, chainLightZ) - light position
     -- levels: 3.0 (3 cel-shading levels)
     setShaderParameters(toonShaderId, 0.5, 0.5, chainLightZ, 3.0)
+
+    -- Set shader parameters for lightsaber shader
+    -- glowColor (R, G, B), glowIntensity
+    setShaderParameters(lightsaberShaderId, lightsaberColorR, lightsaberColorG, lightsaberColorB, lightsaberGlowIntensity)
 
     -- Load debug drawing shader (z-index 3, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 3)
@@ -312,13 +320,13 @@ function createLightsaber()
     attachLayerToBody(lightsaberHiltLayer, lightsaberHiltBody)
     table.insert(layers, lightsaberHiltLayer)
 
-    -- Blade core layer (use bloom texture for glow, additive blend)
-    lightsaberBladeLayer = createLayer(bloomTexId, lightsaberBladeLength * 1.2, bloomShaderId)
+    -- Blade core layer (use bloom texture with lightsaber shader for colored glow)
+    lightsaberBladeLayer = createLayer(bloomTexId, lightsaberBladeLength * 1.2, lightsaberShaderId)
     attachLayerToBody(lightsaberBladeLayer, lightsaberBladeBody)
     table.insert(layers, lightsaberBladeLayer)
 
-    -- Blade glow layer (larger bloom for outer glow)
-    lightsaberBladeGlowLayer = createLayer(bloomTexId, lightsaberBladeLength * 2.5, bloomShaderId)
+    -- Blade glow layer (larger bloom for outer glow, also uses lightsaber shader)
+    lightsaberBladeGlowLayer = createLayer(bloomTexId, lightsaberBladeLength * 2.5, lightsaberShaderId)
     attachLayerToBody(lightsaberBladeGlowLayer, lightsaberBladeBody)
     table.insert(layers, lightsaberBladeGlowLayer)
 end
