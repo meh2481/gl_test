@@ -310,11 +310,20 @@ void ParticleSystemManager::spawnParticle(ParticleSystem& system) {
         float dx = system.posX[i] - emitterWorldCenterX;
         float dy = system.posY[i] - emitterWorldCenterY;
         float dist = sqrtf(dx * dx + dy * dy);
+        float dirX, dirY;
         if (dist > 0.001f) {
-            // Add radial velocity component (positive = away from center, negative = towards)
-            system.velX[i] += (dx / dist) * radialVel;
-            system.velY[i] += (dy / dist) * radialVel;
+            // Use direction from center to particle
+            dirX = dx / dist;
+            dirY = dy / dist;
+        } else {
+            // Particle is at center (point emitter or coincidence) - use random direction
+            float angle = randomRange(0.0f, 2.0f * 3.14159265359f);
+            dirX = cosf(angle);
+            dirY = sinf(angle);
         }
+        // Add radial velocity component (positive = away from center, negative = towards)
+        system.velX[i] += dirX * radialVel;
+        system.velY[i] += dirY * radialVel;
     }
 
     // Acceleration
