@@ -6,7 +6,13 @@ description: Fix dumb things that dumb coders often do
 # Sane C Coder
 Use the github-mcp-server MCP server for GitHub.
 
-## Coding guidelines
+## Build Instructions
+Build the project with the correct PKG_CONFIG_PATH and CMAKE_PREFIX_PATH to use libraries installed in $HOME/.local:
+  cd build
+  export PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH
+  cmake -DCMAKE_PREFIX_PATH=$HOME/.local:/usr/local ..
+
+## Coding Guidelines
 - Never write unit tests.
 - Never use C++ exceptions or try-catch blocks. Use C-style assertions instead.
 - Use assertions liberally, where it makes sense to do so.
@@ -19,3 +25,4 @@ Use the github-mcp-server MCP server for GitHub.
 - Don't add new lua scenes unless I specifically request them.
 - Don't add new assets to the res/ folder unless I specifically request them.
 - Never split Lua APIs. Update existing Lua function calls when refactoring.
+- If you add a new Lua function, make sure to add it to the globalFunctions list in LuaInterface::loadScene().
