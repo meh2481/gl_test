@@ -50,9 +50,29 @@ BLADE_GLOW_SCALE = 2.5    -- Outer glow is much larger for dramatic effect
 TRAIL_MAX_LENGTH = 12
 TRAIL_FADE_RATE = 0.85
 
+-- Red Lightsaber state
+redLightsaberHiltBody = nil
+redLightsaberBladeBody = nil
+redLightsaberHiltLayer = nil
+redLightsaberBladeLayer = nil
+redLightsaberBladeGlowLayer = nil
+redLightsaberTrailPositions = {}
+redLightsaberStartX = 0.5
+redLightsaberStartY = 0.2
+redLightsaberBladeLength = 0.35
+redLightsaberBladeWidth = 0.015
+redLightsaberHiltWidth = 0.025
+redLightsaberHiltLength = 0.10
+-- Red Lightsaber color (RGB)
+redLightsaberColorR = 1.0
+redLightsaberColorG = 0.0
+redLightsaberColorB = 0.0
+redLightsaberGlowIntensity = 1.5
+
 -- Light IDs for the multi-light system
 lanternLightId = nil
 saberLightId = nil
+redSaberLightId = nil
 
 function init()
     -- Load the nebula background shader (z-index -2 = background)
@@ -76,6 +96,9 @@ function init()
     -- This shader uses extended push constants for glow color and intensity
     lightsaberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
 
+    -- Load red lightsaber shader (same shader, different instance for different params)
+    redLightsaberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
+
     -- Set up the multi-light system
     -- Clear any existing lights and set ambient
     clearLights()
@@ -89,6 +112,9 @@ function init()
     -- Position will be updated in the update loop to follow the lightsaber blade
     saberLightId = addLight(lightsaberStartX, lightsaberStartY, chainLightZ, lightsaberColorR, lightsaberColorG, lightsaberColorB, 1.2)
 
+    -- Create the red lightsaber light
+    redSaberLightId = addLight(redLightsaberStartX, redLightsaberStartY, chainLightZ, redLightsaberColorR, redLightsaberColorG, redLightsaberColorB, 1.2)
+
     -- Set shader parameters for Phong multi-light shader
     -- Parameters: ambientStrength, diffuseStrength, specularStrength, shininess
     setShaderParameters(phongShaderId, 0.3, 0.7, 0.5, 32.0)
@@ -101,6 +127,9 @@ function init()
     -- Set shader parameters for lightsaber shader
     -- glowColor (R, G, B), glowIntensity
     setShaderParameters(lightsaberShaderId, lightsaberColorR, lightsaberColorG, lightsaberColorB, lightsaberGlowIntensity)
+
+    -- Set shader parameters for red lightsaber shader
+    setShaderParameters(redLightsaberShaderId, redLightsaberColorR, redLightsaberColorG, redLightsaberColorB, redLightsaberGlowIntensity)
 
     -- Load debug drawing shader (z-index 3, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 3)
@@ -300,10 +329,13 @@ function init()
     -- Create the lightsaber
     createLightsaber()
 
+    -- Create the red lightsaber
+    createRedLightsaber()
+
     print("Physics demo scene initialized with multiple shader types")
     print("Destructible rock added - hit it hard to break it!")
     print("Using C++ fracture system with strength=5.5 (Mohs scale), brittleness=0.6")
-    print("Lightsaber added - drag it into the destructible box to destroy it!")
+    print("Lightsabers added - drag them into the destructible box to destroy it!")
 end
 
 -- Helper function to create the lightsaber
@@ -352,6 +384,54 @@ function createLightsaber()
     -- attachLayerToBody(lightsaberBladeGlowLayer, lightsaberBladeBody)
     -- table.insert(layers, lightsaberBladeGlowLayer)
     -- setLayerUseLocalUV(lightsaberBladeGlowLayer, true)
+end
+
+-- Helper function to create the red lightsaber
+function createRedLightsaber()
+    -- Create hilt body (dynamic, can be picked up and dragged)
+    redLightsaberHiltBody = b2CreateBody(B2_DYNAMIC_BODY, redLightsaberStartX, redLightsaberStartY, 0)
+    -- Hilt is a small rectangle
+    local hiltHalfW = redLightsaberHiltWidth / 2
+    local hiltHalfH = redLightsaberHiltLength / 2
+    b2AddBoxFixture(redLightsaberHiltBody, hiltHalfW, hiltHalfH, 2.0, 0.5, 0.2)
+    table.insert(bodies, redLightsaberHiltBody)
+
+    -- Create blade body (attached to hilt via revolute joint for slight flex)
+    local bladeOffsetY = redLightsaberHiltLength / 2 + redLightsaberBladeLength / 2
+    redLightsaberBladeBody = b2CreateBody(B2_DYNAMIC_BODY, redLightsaberStartX, redLightsaberStartY + bladeOffsetY, 0)
+    -- Blade is a thin rectangle with higher density for effective impacts
+    local bladeHalfW = redLightsaberBladeWidth / 2
+    local bladeHalfH = redLightsaberBladeLength / 2
+    b2AddBoxFixture(redLightsaberBladeBody, bladeHalfW, bladeHalfH, 5.0, 0.1, 0.0)
+    table.insert(bodies, redLightsaberBladeBody)
+
+    -- Connect blade to hilt with a stiff revolute joint (very limited rotation)
+    local bladeJointId = b2CreateRevoluteJoint(
+        redLightsaberHiltBody,
+        redLightsaberBladeBody,
+        0.0, redLightsaberHiltLength / 2,  -- anchor on hilt (top)
+        0.0, -redLightsaberBladeLength / 2, -- anchor on blade (bottom)
+        true, -0.1, 0.1  -- slightly more flex for realism
+    )
+    table.insert(joints, bladeJointId)
+
+    -- Hilt layer (use chain texture for metallic look)
+    redLightsaberHiltLayer = createLayer(chainTexId, redLightsaberHiltLength, chainNormId, phongShaderId)
+    attachLayerToBody(redLightsaberHiltLayer, redLightsaberHiltBody)
+    table.insert(layers, redLightsaberHiltLayer)
+
+    -- Blade core layer (use bloom texture with red lightsaber shader for colored glow)
+    redLightsaberBladeLayer = createLayer(bloomTexId, redLightsaberBladeLength * BLADE_CORE_SCALE, redLightsaberShaderId)
+    attachLayerToBody(redLightsaberBladeLayer, redLightsaberBladeBody)
+    table.insert(layers, redLightsaberBladeLayer)
+    -- Use local 0..1 UVs so the lightsaber shader centers the glow on the blade
+    setLayerUseLocalUV(redLightsaberBladeLayer, true)
+
+    -- Blade glow layer (larger bloom for outer glow, also uses lightsaber shader)
+    -- redLightsaberBladeGlowLayer = createLayer(bloomTexId, redLightsaberBladeLength * BLADE_GLOW_SCALE, redLightsaberShaderId)
+    -- attachLayerToBody(redLightsaberBladeGlowLayer, redLightsaberBladeBody)
+    -- table.insert(layers, redLightsaberBladeGlowLayer)
+    -- setLayerUseLocalUV(redLightsaberBladeGlowLayer, true)
 end
 
 -- Helper function to create/recreate the destructible rock object
@@ -414,6 +494,17 @@ function update(deltaTime)
             bladeX, bladeY = bx, by
             -- Update the lightsaber light (cool blue)
             updateLight(saberLightId, bladeX, bladeY, chainLightZ, lightsaberColorR, lightsaberColorG, lightsaberColorB, 1.2)
+        end
+    end
+
+    -- Update red lightsaber light position based on blade body
+    local redBladeX, redBladeY = redLightsaberStartX, redLightsaberStartY
+    if redLightsaberBladeBody then
+        local rbx, rby = b2GetBodyPosition(redLightsaberBladeBody)
+        if rbx ~= nil and rby ~= nil then
+            redBladeX, redBladeY = rbx, rby
+            -- Update the red lightsaber light
+            updateLight(redSaberLightId, redBladeX, redBladeY, chainLightZ, redLightsaberColorR, redLightsaberColorG, redLightsaberColorB, 1.2)
         end
     end
 
@@ -632,6 +723,21 @@ function onAction(action)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
+            elseif bodyId == redLightsaberHiltBody then
+                -- Reset red lightsaber hilt
+                b2SetBodyPosition(bodyId, redLightsaberStartX, redLightsaberStartY)
+                b2SetBodyAngle(bodyId, 0)
+                b2SetBodyLinearVelocity(bodyId, 0, 0)
+                b2SetBodyAngularVelocity(bodyId, 0)
+                b2SetBodyAwake(bodyId, true)
+            elseif bodyId == redLightsaberBladeBody then
+                -- Reset red lightsaber blade
+                local bladeOffsetY = redLightsaberHiltLength / 2 + redLightsaberBladeLength / 2
+                b2SetBodyPosition(bodyId, redLightsaberStartX, redLightsaberStartY + bladeOffsetY)
+                b2SetBodyAngle(bodyId, 0)
+                b2SetBodyLinearVelocity(bodyId, 0, 0)
+                b2SetBodyAngularVelocity(bodyId, 0)
+                b2SetBodyAwake(bodyId, true)
             end
             -- Other bodies (like the destructible when not destroyed) are handled by the else case
         end
@@ -643,6 +749,14 @@ function onAction(action)
             end
         end
         lightsaberTrailPositions = {}
+
+        -- Clear red lightsaber trail positions
+        for i, pos in ipairs(redLightsaberTrailPositions) do
+            if pos.layerId then
+                destroyLayer(pos.layerId)
+            end
+        end
+        redLightsaberTrailPositions = {}
 
         -- Trigger controller vibration: light intensity for 150ms
         vibrate(0.3, 0.3, 150)
