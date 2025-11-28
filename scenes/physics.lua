@@ -342,8 +342,8 @@ function init()
     -- Create a test particle system
     -- Simple fountain effect with white particles
     local particleConfig = {
-        maxParticles = 200,
-        emissionRate = 50.0,
+        maxParticles = 20,
+        emissionRate = 5.0,
         blendMode = 0,  -- PARTICLE_BLEND_ADDITIVE
 
         -- Position at the top center of the screen
@@ -355,22 +355,28 @@ function init()
         textureCount = 1,
 
         -- Velocity: upward with some spread
-        velocityMinX = -0.5,
-        velocityMaxX = 0.5,
-        velocityMinY = 1.0,
-        velocityMaxY = 2.0,
+        velocityMinX = 0.0,
+        velocityMaxX = 0.0,
+        velocityMinY = 0.0,
+        velocityMaxY = 0.0,
+
+        radialVelocityMin = 0.5,
+        radialVelocityMax = 1.0,
+
+        radialAccelerationMin = 2.0,
+        radialAccelerationMax = 5.0,
 
         -- Acceleration: gravity
         accelerationMinX = 0.0,
         accelerationMaxX = 0.0,
-        accelerationMinY = -5.0,
-        accelerationMaxY = -5.0,
+        accelerationMinY = 0.0,
+        accelerationMaxY = 0.0,
 
         -- Size: small particles that grow
-        startSizeMin = 0.01,
-        startSizeMax = 0.02,
-        endSizeMin = 0.05,
-        endSizeMax = 0.1,
+        startSizeMin = 0.1,
+        startSizeMax = 0.2,
+        endSizeMin = 0.5,
+        endSizeMax = 1.0,
 
         -- Color: white to transparent
         colorMinR = 1.0, colorMaxR = 1.0,
@@ -383,8 +389,8 @@ function init()
         endColorMinA = 0.0, endColorMaxA = 0.0,
 
         -- Lifetime: 2-3 seconds
-        lifetimeMin = 2.0,
-        lifetimeMax = 3.0
+        lifetimeMin = 0.5,
+        lifetimeMax = 1.0
     }
 
     particleSystemId = createParticleSystem(particleConfig, particlePipelineId)
