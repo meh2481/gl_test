@@ -17,6 +17,7 @@ layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in vec3 fragPos;
 layout(location = 2) in vec3 fragLightPos;
 layout(location = 3) in vec3 fragViewPos;
+layout(location = 4) in float fragAlpha;
 
 layout(location = 0) out vec4 outColor;
 
@@ -40,5 +41,5 @@ void main() {
     // Apply toon shading
     vec3 toonColor = texColor.rgb * (0.3 + 0.7 * celDiff);
 
-    outColor = vec4(toonColor, texColor.a);
+    outColor = vec4(toonColor, texColor.a * fragAlpha);
 }

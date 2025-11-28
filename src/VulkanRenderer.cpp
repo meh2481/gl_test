@@ -1488,12 +1488,12 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
     bindingDescription.binding = 0;
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescriptions[3]{};
-    uint32_t numAttributes = 2;
+    VkVertexInputAttributeDescription attributeDescriptions[4]{};
+    uint32_t numAttributes = 3;
 
     if (numTextures == 2) {
-        // Dual texture pipeline (e.g., phong with normal maps): position (vec2) + texCoord (vec2) + normalTexCoord (vec2)
-        bindingDescription.stride = sizeof(float) * 6;
+        // Dual texture pipeline (e.g., phong with normal maps): position (vec2) + texCoord (vec2) + normalTexCoord (vec2) + alpha (float)
+        bindingDescription.stride = sizeof(float) * 7;
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -1510,10 +1510,15 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
         attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;  // normal map texcoord
         attributeDescriptions[2].offset = sizeof(float) * 4;
 
-        numAttributes = 3;
+        attributeDescriptions[3].binding = 0;
+        attributeDescriptions[3].location = 3;
+        attributeDescriptions[3].format = VK_FORMAT_R32_SFLOAT;  // alpha
+        attributeDescriptions[3].offset = sizeof(float) * 6;
+
+        numAttributes = 4;
     } else {
-        // Single texture pipeline: position (vec2) + texCoord (vec2)
-        bindingDescription.stride = sizeof(float) * 6; // Still use 6 floats to match vertex buffer layout
+        // Single texture pipeline: position (vec2) + texCoord (vec2) + alpha (float)
+        bindingDescription.stride = sizeof(float) * 7; // Match vertex buffer layout with alpha
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -1525,7 +1530,12 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
         attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;  // texcoord
         attributeDescriptions[1].offset = sizeof(float) * 2;
 
-        numAttributes = 2;
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 3;
+        attributeDescriptions[2].format = VK_FORMAT_R32_SFLOAT;  // alpha (skip location 2 which is normal map texcoord)
+        attributeDescriptions[2].offset = sizeof(float) * 6;
+
+        numAttributes = 3;
     }
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -1661,12 +1671,12 @@ void VulkanRenderer::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     bindingDescription.binding = 0;
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescriptions[3]{};
-    uint32_t numAttributes = 2;
+    VkVertexInputAttributeDescription attributeDescriptions[4]{};
+    uint32_t numAttributes = 3;
 
     if (numTextures == 2) {
-        // Dual texture pipeline: position (vec2) + texCoord (vec2) + normalTexCoord (vec2)
-        bindingDescription.stride = sizeof(float) * 6;
+        // Dual texture pipeline: position (vec2) + texCoord (vec2) + normalTexCoord (vec2) + alpha (float)
+        bindingDescription.stride = sizeof(float) * 7;
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -1683,10 +1693,15 @@ void VulkanRenderer::createTexturedPipelineAdditive(uint64_t id, const ResourceD
         attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
         attributeDescriptions[2].offset = sizeof(float) * 4;
 
-        numAttributes = 3;
+        attributeDescriptions[3].binding = 0;
+        attributeDescriptions[3].location = 3;
+        attributeDescriptions[3].format = VK_FORMAT_R32_SFLOAT;  // alpha
+        attributeDescriptions[3].offset = sizeof(float) * 6;
+
+        numAttributes = 4;
     } else {
-        // Single texture pipeline: position (vec2) + texCoord (vec2)
-        bindingDescription.stride = sizeof(float) * 6; // Still use 6 floats to match vertex buffer layout
+        // Single texture pipeline: position (vec2) + texCoord (vec2) + alpha (float)
+        bindingDescription.stride = sizeof(float) * 7; // Match vertex buffer layout with alpha
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -1698,7 +1713,12 @@ void VulkanRenderer::createTexturedPipelineAdditive(uint64_t id, const ResourceD
         attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
         attributeDescriptions[1].offset = sizeof(float) * 2;
 
-        numAttributes = 2;
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 3;
+        attributeDescriptions[2].format = VK_FORMAT_R32_SFLOAT;  // alpha (skip location 2)
+        attributeDescriptions[2].offset = sizeof(float) * 6;
+
+        numAttributes = 3;
     }
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -2052,7 +2072,7 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
         drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
 
-        // Add vertex data (6 floats per vertex: x, y, u, v, nu, nv)
+        // Add vertex data (7 floats per vertex: x, y, u, v, nu, nv, alpha)
         for (const auto& v : batch.vertices) {
             allVertexData.push_back(v.x);
             allVertexData.push_back(v.y);
@@ -2060,6 +2080,7 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
             allVertexData.push_back(v.v);
             allVertexData.push_back(v.nu);
             allVertexData.push_back(v.nv);
+            allVertexData.push_back(v.alpha);
         }
 
         // Add indices with offset

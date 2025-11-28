@@ -106,6 +106,7 @@ private:
     static int setLayerUseLocalUV(lua_State* L);
     static int setLayerPolygon(lua_State* L);
     static int setLayerScale(lua_State* L);
+    static int setLayerAlpha(lua_State* L);
     static int setLayerTransform(lua_State* L);
 
     // Texture loading

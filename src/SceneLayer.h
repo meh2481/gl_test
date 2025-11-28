@@ -9,6 +9,7 @@ struct SpriteVertex {
     float x, y;        // Position
     float u, v;        // Texture coordinates (diffuse)
     float nu, nv;      // Normal map texture coordinates
+    float alpha;       // Per-vertex alpha for fading effects
 };
 
 // Sprite batch for a single texture
@@ -42,6 +43,7 @@ struct SceneLayer {
     float offsetX;           // Offset from body center
     float offsetY;           // Offset from body center
     float scale;             // Scale factor for the layer (default 1.0)
+    float alpha;             // Alpha/opacity of the layer (0.0 = transparent, 1.0 = opaque)
     bool enabled;            // Whether this layer is visible
     bool useLocalUV;         // Whether to use local 0..1 UVs instead of texture atlas UVs
     bool manualPosition;     // If true, use cachedX/Y/Angle directly without physics body
@@ -77,6 +79,7 @@ public:
     void setLayerOffset(int layerId, float offsetX, float offsetY);
     void setLayerEnabled(int layerId, bool enabled);
     void setLayerScale(int layerId, float scale);
+    void setLayerAlpha(int layerId, float alpha);
     void setLayerManualPosition(int layerId, bool manual);
 
     // Set atlas UV coordinates for a layer's texture

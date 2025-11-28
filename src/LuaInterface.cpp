@@ -48,7 +48,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
-                                    "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon", "setLayerScale", "setLayerTransform",
+                                    "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon", "setLayerScale", "setLayerAlpha", "setLayerTransform",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
@@ -460,6 +460,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "setLayerUseLocalUV", setLayerUseLocalUV);
     lua_register(luaState_, "setLayerPolygon", setLayerPolygon);
     lua_register(luaState_, "setLayerScale", setLayerScale);
+    lua_register(luaState_, "setLayerAlpha", setLayerAlpha);
     lua_register(luaState_, "setLayerTransform", setLayerTransform);
 
     // Register texture loading functions
@@ -1642,6 +1643,23 @@ int LuaInterface::setLayerScale(lua_State* L) {
     float scale = lua_tonumber(L, 2);
 
     interface->layerManager_->setLayerScale(layerId, scale);
+    return 0;
+}
+
+int LuaInterface::setLayerAlpha(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), alpha (number 0.0-1.0)
+    assert(lua_gettop(L) == 2);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float alpha = lua_tonumber(L, 2);
+
+    interface->layerManager_->setLayerAlpha(layerId, alpha);
     return 0;
 }
 

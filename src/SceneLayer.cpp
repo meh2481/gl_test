@@ -47,6 +47,7 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     layer.offsetX = 0.0f;
     layer.offsetY = 0.0f;
     layer.scale = 1.0f;
+    layer.alpha = 1.0f;
     layer.enabled = true;
     layer.useLocalUV = false;
     layer.manualPosition = false;
@@ -119,6 +120,13 @@ void SceneLayerManager::setLayerScale(int layerId, float scale) {
     auto it = layers_.find(layerId);
     if (it != layers_.end()) {
         it->second.scale = scale;
+    }
+}
+
+void SceneLayerManager::setLayerAlpha(int layerId, float alpha) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.alpha = alpha;
     }
 }
 
@@ -263,6 +271,7 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
                 vert.v = v;
                 vert.nu = nu;
                 vert.nv = nv;
+                vert.alpha = layer.alpha;
 
                 batch.vertices.push_back(vert);
             }
@@ -340,6 +349,7 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
                 vert.v = uvs[i][1];
                 vert.nu = nuvs[i][0];
                 vert.nv = nuvs[i][1];
+                vert.alpha = layer.alpha;
 
                 batch.vertices.push_back(vert);
             }

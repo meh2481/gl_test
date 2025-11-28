@@ -14,6 +14,7 @@ layout(push_constant) uniform PushConstants {
 } pc;
 
 layout(location = 0) in vec2 fragTexCoord;
+layout(location = 1) in float fragAlpha;
 
 layout(location = 0) out vec4 outColor;
 
@@ -54,11 +55,11 @@ void main() {
     // Blend core and glow
     vec3 finalColor = mix(glowColor * glowIntensity, coreColor, coreIntensity) * pulse * pc.glowIntensity;
 
-    // Apply tip fade and edge fade
-    float alpha = max(coreIntensity, glowIntensity);
+    // Apply tip fade and edge fade, then multiply by per-layer alpha for fading
+    float alpha = max(coreIntensity, glowIntensity) * fragAlpha;
 
     // Cut off if too faint
     if (alpha < 0.01) discard;
 
-    outColor = vec4(finalColor, alpha);
+    outColor = vec4(finalColor * fragAlpha, alpha);
 }

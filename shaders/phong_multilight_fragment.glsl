@@ -44,6 +44,7 @@ layout(location = 3) in vec3 fragViewPos;
 layout(location = 4) in vec3 fragTangent;
 layout(location = 5) in vec3 fragBitangent;
 layout(location = 6) in vec2 fragNormalTexCoord;
+layout(location = 7) in float fragAlpha;
 
 layout(location = 0) out vec4 outColor;
 
@@ -112,5 +113,5 @@ void main() {
     }
 
     vec3 result = ambient + lighting;
-    outColor = vec4(result, texColor.a);
+    outColor = vec4(result, texColor.a * fragAlpha);
 }

@@ -533,13 +533,28 @@ function updateLightsaberTrail()
         bladeAngle = 0
     end
 
-    -- Add current position to trail history with a new layer
+    -- Create a new trail layer at the current blade position
+    -- This layer will stay at this position as the blade moves away
     local trailLayerId = createLayer(bloomTexId, lightsaberBladeLength * BLADE_CORE_SCALE, lightsaberShaderId)
     setLayerTransform(trailLayerId, bladeX, bladeY, bladeAngle)
-    table.insert(lightsaberTrailPositions, 1, {x = bladeX, y = bladeY, angle = bladeAngle, alpha = 1.0, layerId = trailLayerId, scale = 1.0})
+    -- Start at full alpha, will fade over time
+    setLayerAlpha(trailLayerId, 1.0)
+    table.insert(lightsaberTrailPositions, 1, {layerId = trailLayerId, age = 0})
     table.insert(layers, trailLayerId)
 
-    -- Limit trail length and destroy old layers
+    -- Update all trail layers: age them and fade them out via alpha
+    for i, pos in ipairs(lightsaberTrailPositions) do
+        pos.age = pos.age + 1
+        if pos.layerId then
+            -- Calculate alpha based on age - older segments fade out
+            local fadeAmount = 1.0 - (pos.age / (TRAIL_MAX_LENGTH + 1))
+            if fadeAmount > 0 then
+                setLayerAlpha(pos.layerId, fadeAmount)
+            end
+        end
+    end
+
+    -- Remove trail segments that are too old
     while #lightsaberTrailPositions > TRAIL_MAX_LENGTH do
         local lastPos = lightsaberTrailPositions[#lightsaberTrailPositions]
         if lastPos.layerId then
@@ -554,16 +569,6 @@ function updateLightsaberTrail()
             end
         end
         table.remove(lightsaberTrailPositions)
-    end
-
-    -- Update alpha values and scale for fading trail effect
-    for i, pos in ipairs(lightsaberTrailPositions) do
-        pos.alpha = pos.alpha * TRAIL_FADE_RATE
-        pos.scale = pos.scale * TRAIL_FADE_RATE
-        -- Update the layer's scale to simulate fading
-        if pos.layerId then
-            setLayerScale(pos.layerId, pos.scale)
-        end
     end
 end
 
@@ -584,13 +589,28 @@ function updateRedLightsaberTrail()
         bladeAngle = 0
     end
 
-    -- Add current position to trail history with a new layer
+    -- Create a new trail layer at the current blade position
+    -- This layer will stay at this position as the blade moves away
     local trailLayerId = createLayer(bloomTexId, redLightsaberBladeLength * BLADE_CORE_SCALE, redLightsaberShaderId)
     setLayerTransform(trailLayerId, bladeX, bladeY, bladeAngle)
-    table.insert(redLightsaberTrailPositions, 1, {x = bladeX, y = bladeY, angle = bladeAngle, alpha = 1.0, layerId = trailLayerId, scale = 1.0})
+    -- Start at full alpha, will fade over time
+    setLayerAlpha(trailLayerId, 1.0)
+    table.insert(redLightsaberTrailPositions, 1, {layerId = trailLayerId, age = 0})
     table.insert(layers, trailLayerId)
 
-    -- Limit trail length and destroy old layers
+    -- Update all trail layers: age them and fade them out via alpha
+    for i, pos in ipairs(redLightsaberTrailPositions) do
+        pos.age = pos.age + 1
+        if pos.layerId then
+            -- Calculate alpha based on age - older segments fade out
+            local fadeAmount = 1.0 - (pos.age / (TRAIL_MAX_LENGTH + 1))
+            if fadeAmount > 0 then
+                setLayerAlpha(pos.layerId, fadeAmount)
+            end
+        end
+    end
+
+    -- Remove trail segments that are too old
     while #redLightsaberTrailPositions > TRAIL_MAX_LENGTH do
         local lastPos = redLightsaberTrailPositions[#redLightsaberTrailPositions]
         if lastPos.layerId then
@@ -605,16 +625,6 @@ function updateRedLightsaberTrail()
             end
         end
         table.remove(redLightsaberTrailPositions)
-    end
-
-    -- Update alpha values and scale for fading trail effect
-    for i, pos in ipairs(redLightsaberTrailPositions) do
-        pos.alpha = pos.alpha * TRAIL_FADE_RATE
-        pos.scale = pos.scale * TRAIL_FADE_RATE
-        -- Update the layer's scale to simulate fading
-        if pos.layerId then
-            setLayerScale(pos.layerId, pos.scale)
-        end
     end
 end
 
