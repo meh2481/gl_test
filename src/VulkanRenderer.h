@@ -12,6 +12,25 @@
 // Forward declarations
 struct SpriteBatch;
 
+// Maximum number of lights supported in the scene
+static const int MAX_LIGHTS = 8;
+
+// Light structure for uniform buffer (must match shader layout)
+struct Light {
+    float posX, posY, posZ;    // Position (12 bytes)
+    float padding1;             // Padding for alignment (4 bytes)
+    float colorR, colorG, colorB; // Color (12 bytes)
+    float intensity;            // Intensity (4 bytes)
+};  // Total: 32 bytes per light
+
+// Light uniform buffer data (must match shader layout)
+struct LightBufferData {
+    Light lights[MAX_LIGHTS];   // 32 * 8 = 256 bytes
+    int numLights;              // 4 bytes
+    float ambientR, ambientG, ambientB; // 12 bytes
+    float padding[3];           // Padding to align to 16 bytes (12 bytes)
+};  // Total: 284 bytes, padded to 288
+
 class VulkanRenderer {
 public:
     VulkanRenderer();
@@ -39,6 +58,13 @@ public:
     void setCameraTransform(float offsetX, float offsetY, float zoom);
     void render(float time);
     void cleanup();
+
+    // Light management
+    int addLight(float x, float y, float z, float r, float g, float b, float intensity);
+    void updateLight(int lightId, float x, float y, float z, float r, float g, float b, float intensity);
+    void removeLight(int lightId);
+    void clearLights();
+    void setAmbientLight(float r, float g, float b);
 
 #ifdef DEBUG
     // ImGui integration - getters for Vulkan handles
@@ -161,6 +187,18 @@ private:
     float m_cameraOffsetY;
     float m_cameraZoom;
 
+    // Light uniform buffer system
+    LightBufferData m_lightBufferData;
+    VkBuffer m_lightUniformBuffer;
+    VkDeviceMemory m_lightUniformBufferMemory;
+    void* m_lightUniformBufferMapped;
+    VkDescriptorSetLayout m_lightDescriptorSetLayout;
+    VkDescriptorPool m_lightDescriptorPool;
+    VkDescriptorSet m_lightDescriptorSet;
+    int m_nextLightId;
+    std::map<int, int> m_lightIdToIndex;  // Maps light ID to index in lights array
+    bool m_lightBufferDirty;  // Track if buffer needs updating
+
     VkSemaphore imageAvailableSemaphores[2];
     VkSemaphore renderFinishedSemaphores[2];
     VkFence inFlightFences[2];
@@ -213,7 +251,14 @@ private:
     void createDualTextureDescriptorPool();
     void createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id);
     void createDualTexturePipelineLayout();
-    
+
+    // Light uniform buffer helpers
+    void createLightUniformBuffer();
+    void createLightDescriptorSetLayout();
+    void createLightDescriptorPool();
+    void createLightDescriptorSet();
+    void updateLightUniformBuffer();
+
     // Helper method to get or create descriptor set lazily
     VkDescriptorSet getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId, uint64_t normalMapId, bool usesDualTexture);
 };

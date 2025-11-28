@@ -59,6 +59,14 @@ VulkanRenderer::VulkanRenderer() :
     m_cameraOffsetX(0.0f),
     m_cameraOffsetY(0.0f),
     m_cameraZoom(1.0f),
+    m_lightUniformBuffer(VK_NULL_HANDLE),
+    m_lightUniformBufferMemory(VK_NULL_HANDLE),
+    m_lightUniformBufferMapped(nullptr),
+    m_lightDescriptorSetLayout(VK_NULL_HANDLE),
+    m_lightDescriptorPool(VK_NULL_HANDLE),
+    m_lightDescriptorSet(VK_NULL_HANDLE),
+    m_nextLightId(1),
+    m_lightBufferDirty(true),
     currentFrame(0),
     graphicsQueueFamilyIndex(0),
     swapchainFramebuffers(nullptr)
@@ -72,6 +80,13 @@ VulkanRenderer::VulkanRenderer() :
         renderFinishedSemaphores[i] = VK_NULL_HANDLE;
         inFlightFences[i] = VK_NULL_HANDLE;
     }
+
+    // Initialize light buffer data
+    memset(&m_lightBufferData, 0, sizeof(m_lightBufferData));
+    m_lightBufferData.numLights = 0;
+    m_lightBufferData.ambientR = 0.1f;
+    m_lightBufferData.ambientG = 0.1f;
+    m_lightBufferData.ambientB = 0.1f;
 
     // Shader parameters are now stored per-pipeline in m_pipelineShaderParams
     // They are set via setShaderParameters(pipelineId, ...) from Lua
@@ -93,8 +108,12 @@ void VulkanRenderer::initialize(SDL_Window* window) {
     createSingleTexturePipelineLayout();
     createSingleTextureDescriptorPool();
     createDualTextureDescriptorSetLayout();
+    createLightDescriptorSetLayout();  // Must be before createDualTexturePipelineLayout
     createDualTexturePipelineLayout();
     createDualTextureDescriptorPool();
+    createLightDescriptorPool();
+    createLightUniformBuffer();
+    createLightDescriptorSet();
     createFramebuffers();
     createVertexBuffer();
     createDebugVertexBuffer();
@@ -302,6 +321,11 @@ void VulkanRenderer::setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds
 void VulkanRenderer::render(float time) {
     vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
+    // Update light uniform buffer if dirty
+    if (m_lightBufferDirty) {
+        updateLightUniformBuffer();
+    }
+
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -441,6 +465,20 @@ void VulkanRenderer::cleanup() {
     }
     if (swapchainImages != nullptr) {
         delete[] swapchainImages;
+    }
+
+    // Clean up light uniform buffer resources
+    if (m_lightUniformBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, m_lightUniformBuffer, nullptr);
+    }
+    if (m_lightUniformBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, m_lightUniformBufferMemory, nullptr);
+    }
+    if (m_lightDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device, m_lightDescriptorPool, nullptr);
+    }
+    if (m_lightDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device, m_lightDescriptorSetLayout, nullptr);
     }
 
     if (device != VK_NULL_HANDLE) {
@@ -1254,8 +1292,16 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     );
 
                     if (descriptorSet != VK_NULL_HANDLE) {
-                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                              info.layout, 0, 1, &descriptorSet, 0, nullptr);
+                        if (info.usesDualTexture) {
+                            // Dual texture pipeline uses two descriptor sets:
+                            // Set 0: texture samplers, Set 1: light uniform buffer
+                            VkDescriptorSet descriptorSets[] = {descriptorSet, m_lightDescriptorSet};
+                            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                                  info.layout, 0, 2, descriptorSets, 0, nullptr);
+                        } else {
+                            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                                  info.layout, 0, 1, &descriptorSet, 0, nullptr);
+                        }
                         vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
                     }
                 }
@@ -2062,10 +2108,13 @@ void VulkanRenderer::createDualTexturePipelineLayout() {
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(float) * 13;  // width, height, time, cameraX, cameraY, cameraZoom, param0-6
 
+    // Two descriptor set layouts: set 0 = textures, set 1 = light uniform buffer
+    VkDescriptorSetLayout setLayouts[] = {m_dualTextureDescriptorSetLayout, m_lightDescriptorSetLayout};
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &m_dualTextureDescriptorSetLayout;
+    pipelineLayoutInfo.setLayoutCount = 2;
+    pipelineLayoutInfo.pSetLayouts = setLayouts;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
@@ -2221,4 +2270,176 @@ VkDescriptorSet VulkanRenderer::getOrCreateDescriptorSet(uint64_t descriptorId, 
     }
 
     return VK_NULL_HANDLE;
+}
+
+// Light uniform buffer management
+void VulkanRenderer::createLightDescriptorSetLayout() {
+    VkDescriptorSetLayoutBinding uboLayoutBinding{};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    uboLayoutBinding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &uboLayoutBinding;
+
+    assert(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_lightDescriptorSetLayout) == VK_SUCCESS);
+}
+
+void VulkanRenderer::createLightDescriptorPool() {
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = 1;
+
+    assert(vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_lightDescriptorPool) == VK_SUCCESS);
+}
+
+void VulkanRenderer::createLightUniformBuffer() {
+    VkDeviceSize bufferSize = sizeof(LightBufferData);
+
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = bufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    assert(vkCreateBuffer(device, &bufferInfo, nullptr, &m_lightUniformBuffer) == VK_SUCCESS);
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, m_lightUniformBuffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    assert(vkAllocateMemory(device, &allocInfo, nullptr, &m_lightUniformBufferMemory) == VK_SUCCESS);
+    vkBindBufferMemory(device, m_lightUniformBuffer, m_lightUniformBufferMemory, 0);
+
+    // Map the buffer memory for persistent updating
+    vkMapMemory(device, m_lightUniformBufferMemory, 0, bufferSize, 0, &m_lightUniformBufferMapped);
+
+    // Initialize with default data
+    updateLightUniformBuffer();
+}
+
+void VulkanRenderer::createLightDescriptorSet() {
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_lightDescriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_lightDescriptorSetLayout;
+
+    assert(vkAllocateDescriptorSets(device, &allocInfo, &m_lightDescriptorSet) == VK_SUCCESS);
+
+    VkDescriptorBufferInfo bufferInfo{};
+    bufferInfo.buffer = m_lightUniformBuffer;
+    bufferInfo.offset = 0;
+    bufferInfo.range = sizeof(LightBufferData);
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = m_lightDescriptorSet;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pBufferInfo = &bufferInfo;
+
+    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+}
+
+void VulkanRenderer::updateLightUniformBuffer() {
+    memcpy(m_lightUniformBufferMapped, &m_lightBufferData, sizeof(LightBufferData));
+    m_lightBufferDirty = false;
+}
+
+int VulkanRenderer::addLight(float x, float y, float z, float r, float g, float b, float intensity) {
+    if (m_lightBufferData.numLights >= MAX_LIGHTS) {
+        return -1;  // No more lights available
+    }
+
+    int lightId = m_nextLightId++;
+    int index = m_lightBufferData.numLights;
+
+    m_lightBufferData.lights[index].posX = x;
+    m_lightBufferData.lights[index].posY = y;
+    m_lightBufferData.lights[index].posZ = z;
+    m_lightBufferData.lights[index].colorR = r;
+    m_lightBufferData.lights[index].colorG = g;
+    m_lightBufferData.lights[index].colorB = b;
+    m_lightBufferData.lights[index].intensity = intensity;
+    m_lightBufferData.numLights++;
+
+    m_lightIdToIndex[lightId] = index;
+    m_lightBufferDirty = true;
+
+    return lightId;
+}
+
+void VulkanRenderer::updateLight(int lightId, float x, float y, float z, float r, float g, float b, float intensity) {
+    auto it = m_lightIdToIndex.find(lightId);
+    if (it == m_lightIdToIndex.end()) {
+        return;  // Light not found
+    }
+
+    int index = it->second;
+    m_lightBufferData.lights[index].posX = x;
+    m_lightBufferData.lights[index].posY = y;
+    m_lightBufferData.lights[index].posZ = z;
+    m_lightBufferData.lights[index].colorR = r;
+    m_lightBufferData.lights[index].colorG = g;
+    m_lightBufferData.lights[index].colorB = b;
+    m_lightBufferData.lights[index].intensity = intensity;
+    m_lightBufferDirty = true;
+}
+
+void VulkanRenderer::removeLight(int lightId) {
+    auto it = m_lightIdToIndex.find(lightId);
+    if (it == m_lightIdToIndex.end()) {
+        return;  // Light not found
+    }
+
+    int indexToRemove = it->second;
+    int lastIndex = m_lightBufferData.numLights - 1;
+
+    // If not the last light, swap with the last one
+    if (indexToRemove != lastIndex) {
+        m_lightBufferData.lights[indexToRemove] = m_lightBufferData.lights[lastIndex];
+
+        // Update the index mapping for the swapped light
+        for (auto& pair : m_lightIdToIndex) {
+            if (pair.second == lastIndex) {
+                pair.second = indexToRemove;
+                break;
+            }
+        }
+    }
+
+    m_lightBufferData.numLights--;
+    m_lightIdToIndex.erase(it);
+    m_lightBufferDirty = true;
+}
+
+void VulkanRenderer::clearLights() {
+    m_lightBufferData.numLights = 0;
+    m_lightIdToIndex.clear();
+    m_lightBufferDirty = true;
+}
+
+void VulkanRenderer::setAmbientLight(float r, float g, float b) {
+    m_lightBufferData.ambientR = r;
+    m_lightBufferData.ambientG = g;
+    m_lightBufferData.ambientB = b;
+    m_lightBufferDirty = true;
 }

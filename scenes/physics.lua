@@ -38,7 +38,7 @@ lightsaberBladeLength = 0.35
 lightsaberBladeWidth = 0.015
 lightsaberHiltWidth = 0.025
 lightsaberHiltLength = 0.10
--- Lightsaber color (RGB) - used by the lightsaber shader
+-- Lightsaber color (RGB) - used by the lightsaber shader and light system
 lightsaberColorR = 0.3
 lightsaberColorG = 0.7
 lightsaberColorB = 1.0
@@ -46,19 +46,22 @@ lightsaberGlowIntensity = 1.5
 -- Blade layer size multipliers
 BLADE_CORE_SCALE = 1.2    -- Core glow is slightly larger than blade physics
 BLADE_GLOW_SCALE = 2.5    -- Outer glow is much larger for dramatic effect
--- Light blending parameters when saber is active
-SABER_LIGHT_BLEND = 0.3   -- Saber contributes 30% to scene lighting
 -- Trail parameters
 TRAIL_MAX_LENGTH = 12
 TRAIL_FADE_RATE = 0.85
+
+-- Light IDs for the multi-light system
+lanternLightId = nil
+saberLightId = nil
 
 function init()
     -- Load the nebula background shader (z-index -2 = background)
     -- Negative z-index = drawn first (background), moves slower than camera
     loadShaders("vertex.spv", "nebula_fragment.spv", -2)
 
-    -- Load Phong shaders (z-index 1, 2 textures)
-    phongShaderId = loadTexturedShadersEx("phong_vertex.spv", "phong_fragment.spv", 1, 2)
+    -- Load multi-light Phong shaders (z-index 1, 2 textures)
+    -- This shader reads lights from uniform buffer and supports multiple colored lights
+    phongShaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)
 
     -- Load toon shader (z-index 1, 1 texture - no normal map)
     toonShaderId = loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, 1)
@@ -73,10 +76,18 @@ function init()
     -- This shader uses extended push constants for glow color and intensity
     lightsaberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
 
-    -- Set shader parameters for Phong shader
-    -- Position (0.5, 0.5, chainLightZ) - light position
-    -- ambient: 0.3, diffuse: 0.7, specular: 0.8, shininess: 32.0
-    setShaderParameters(phongShaderId, 0.5, 0.5, chainLightZ, 0.3, 0.7, 0.8, 32.0)
+    -- Set up the multi-light system
+    -- Clear any existing lights and set ambient
+    clearLights()
+    setAmbientLight(0.15, 0.15, 0.15)
+
+    -- Create the lantern light (warm white)
+    -- Position will be updated in the update loop to follow the lantern body
+    lanternLightId = addLight(0.5, 0.5, chainLightZ, 1.0, 0.95, 0.85, 1.5)
+
+    -- Create the lightsaber light (cool blue)
+    -- Position will be updated in the update loop to follow the lightsaber blade
+    saberLightId = addLight(lightsaberStartX, lightsaberStartY, chainLightZ, lightsaberColorR, lightsaberColorG, lightsaberColorB, 1.2)
 
     -- Set shader parameters for Toon shader (only 4 parameters needed)
     -- Position (0.5, 0.5, chainLightZ) - light position
@@ -381,32 +392,29 @@ function update(deltaTime)
         end
     end
 
-    -- Update light position based on the light body at the end of the chain
-    -- Also blend in lightsaber position as a secondary light source
+    -- Update lantern light position based on the light body at the end of the chain
     local chainLightX, chainLightY = 0.5, 0.5
     if lightBody then
         chainLightX, chainLightY = b2GetBodyPosition(lightBody)
+        if chainLightX ~= nil and chainLightY ~= nil then
+            -- Update the lantern light (warm white)
+            updateLight(lanternLightId, chainLightX, chainLightY, chainLightZ, 1.0, 0.95, 0.85, 1.5)
+        end
     end
 
-    -- Get lightsaber blade position for lighting
-    -- b2GetBodyPosition returns nil for both x and y if body is invalid
+    -- Update lightsaber light position based on blade body
     local bladeX, bladeY = lightsaberStartX, lightsaberStartY
     if lightsaberBladeBody then
         local bx, by = b2GetBodyPosition(lightsaberBladeBody)
         if bx ~= nil and by ~= nil then
             bladeX, bladeY = bx, by
+            -- Update the lightsaber light (cool blue)
+            updateLight(saberLightId, bladeX, bladeY, chainLightZ, lightsaberColorR, lightsaberColorG, lightsaberColorB, 1.2)
         end
     end
 
-    -- Blend chain light and saber light using the configured blend factor
-    local chainBlend = 1.0 - SABER_LIGHT_BLEND
-    local lightX = chainLightX * chainBlend + bladeX * SABER_LIGHT_BLEND
-    local lightY = chainLightY * chainBlend + bladeY * SABER_LIGHT_BLEND
-
-    -- Update shader parameters with blended light position
-    -- Slightly increased ambient/diffuse/specular to account for dual light sources
-    setShaderParameters(phongShaderId, lightX, lightY, chainLightZ, 0.35, 0.75, 0.85, 32.0)
-    setShaderParameters(toonShaderId, lightX, lightY, chainLightZ, 3.0)
+    -- Update toon shader with lantern position (single light)
+    setShaderParameters(toonShaderId, chainLightX, chainLightY, chainLightZ, 3.0)
 
     -- Update lightsaber trail effect
     updateLightsaberTrail()
@@ -503,6 +511,10 @@ function cleanup()
     lightsaberHiltLayer = nil
     lightsaberBladeLayer = nil
     lightsaberBladeGlowLayer = nil
+    -- Clear all lights
+    clearLights()
+    lanternLightId = nil
+    saberLightId = nil
     -- Disable debug drawing
     b2EnableDebugDraw(false)
     print("Physics demo scene cleaned up")

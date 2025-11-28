@@ -149,6 +149,13 @@ private:
     static int getCameraZoom(lua_State* L);
     static int setCameraZoom(lua_State* L);
 
+    // Light management Lua bindings
+    static int addLight(lua_State* L);
+    static int updateLight(lua_State* L);
+    static int removeLight(lua_State* L);
+    static int clearLights(lua_State* L);
+    static int setAmbientLight(lua_State* L);
+
     void registerFunctions();
 
     PakResource& pakResource_;

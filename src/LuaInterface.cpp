@@ -502,6 +502,13 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "getCameraZoom", getCameraZoom);
     lua_register(luaState_, "setCameraZoom", setCameraZoom);
 
+    // Register light management functions
+    lua_register(luaState_, "addLight", addLight);
+    lua_register(luaState_, "updateLight", updateLight);
+    lua_register(luaState_, "removeLight", removeLight);
+    lua_register(luaState_, "clearLights", clearLights);
+    lua_register(luaState_, "setAmbientLight", setAmbientLight);
+
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
     lua_setglobal(luaState_, "B2_STATIC_BODY");
@@ -2348,3 +2355,81 @@ void LuaInterface::applyScrollZoom(float scrollDelta) {
     if (cameraZoom_ > MAX_CAMERA_ZOOM) cameraZoom_ = MAX_CAMERA_ZOOM;
 }
 
+
+// Light management Lua bindings
+int LuaInterface::addLight(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: x, y, z, r, g, b, intensity
+    assert(lua_gettop(L) == 7);
+    float x = (float)lua_tonumber(L, 1);
+    float y = (float)lua_tonumber(L, 2);
+    float z = (float)lua_tonumber(L, 3);
+    float r = (float)lua_tonumber(L, 4);
+    float g = (float)lua_tonumber(L, 5);
+    float b = (float)lua_tonumber(L, 6);
+    float intensity = (float)lua_tonumber(L, 7);
+
+    int lightId = interface->renderer_.addLight(x, y, z, r, g, b, intensity);
+    lua_pushinteger(L, lightId);
+    return 1;
+}
+
+int LuaInterface::updateLight(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: lightId, x, y, z, r, g, b, intensity
+    assert(lua_gettop(L) == 8);
+    int lightId = (int)lua_tointeger(L, 1);
+    float x = (float)lua_tonumber(L, 2);
+    float y = (float)lua_tonumber(L, 3);
+    float z = (float)lua_tonumber(L, 4);
+    float r = (float)lua_tonumber(L, 5);
+    float g = (float)lua_tonumber(L, 6);
+    float b = (float)lua_tonumber(L, 7);
+    float intensity = (float)lua_tonumber(L, 8);
+
+    interface->renderer_.updateLight(lightId, x, y, z, r, g, b, intensity);
+    return 0;
+}
+
+int LuaInterface::removeLight(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: lightId
+    assert(lua_gettop(L) == 1);
+    int lightId = (int)lua_tointeger(L, 1);
+
+    interface->renderer_.removeLight(lightId);
+    return 0;
+}
+
+int LuaInterface::clearLights(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    interface->renderer_.clearLights();
+    return 0;
+}
+
+int LuaInterface::setAmbientLight(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: r, g, b
+    assert(lua_gettop(L) == 3);
+    float r = (float)lua_tonumber(L, 1);
+    float g = (float)lua_tonumber(L, 2);
+    float b = (float)lua_tonumber(L, 3);
+
+    interface->renderer_.setAmbientLight(r, g, b);
+    return 0;
+}
