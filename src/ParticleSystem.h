@@ -39,6 +39,9 @@ struct ParticleEmitterConfig {
     float accelerationMinY, accelerationMaxY;
     float radialAccelerationMin, radialAccelerationMax;  // Towards/away from emission center
 
+    // Initial radial velocity (towards/away from emission center)
+    float radialVelocityMin, radialVelocityMax;
+
     // Size
     float sizeMin, sizeMax;
     float startSizeMin, startSizeMax;

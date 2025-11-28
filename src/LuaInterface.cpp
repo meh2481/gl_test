@@ -2584,6 +2584,14 @@ int LuaInterface::createParticleSystem(lua_State* L) {
     config.radialAccelerationMax = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
     lua_pop(L, 1);
 
+    // Initial radial velocity
+    lua_getfield(L, 1, "radialVelocityMin");
+    config.radialVelocityMin = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "radialVelocityMax");
+    config.radialVelocityMax = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
     // Size
     lua_getfield(L, 1, "startSizeMin");
     config.startSizeMin = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.1f;
