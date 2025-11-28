@@ -392,16 +392,9 @@ bool ParticleSystemManager::updateParticle(ParticleSystem& system, int i, float 
     system.size[i] = system.startSize[i] + (system.endSize[i] - system.startSize[i]) * lifeRatio;
 
     // Interpolate color
-    float startR = system.colorR[i];
-    float startG = system.colorG[i];
-    float startB = system.colorB[i];
-    float startA = system.colorA[i];
-
-    // Store interpolated color back (we use colorR/G/B/A for rendering)
-    // Note: We don't modify the original start colors, we compute the current color in-place
-    // This means colorR/G/B/A represent the CURRENT color, not the start color
-    // startSize/endSize pattern doesn't work here because we need to preserve start colors
-    // Instead, recalculate from start and end each frame
+    // Note: Color interpolation is handled in SceneManager during vertex generation
+    // colorR/G/B/A store the START color, endColorR/G/B/A store the END color
+    // The actual interpolation uses lifeRatio and is done per-frame in the renderer
 
     // Apply rotational acceleration
     system.rotVelX[i] += system.rotAccelX[i] * dt;

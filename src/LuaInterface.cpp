@@ -2644,10 +2644,10 @@ int LuaInterface::createParticleSystem(lua_State* L) {
     config.endColorMaxB = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : config.colorMaxB;
     lua_pop(L, 1);
     lua_getfield(L, 1, "endColorMinA");
-    config.endColorMinA = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    config.endColorMinA = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : config.colorMinA;
     lua_pop(L, 1);
     lua_getfield(L, 1, "endColorMaxA");
-    config.endColorMaxA = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    config.endColorMaxA = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : config.colorMaxA;
     lua_pop(L, 1);
 
     // Lifetime

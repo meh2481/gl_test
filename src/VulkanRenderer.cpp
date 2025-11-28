@@ -1263,6 +1263,13 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 // Check if this is a particle pipeline
                 if (info.isParticlePipeline && particleIndexCount > 0) {
                     // Particle pipeline rendering
+                    // Note: Particles require a texture loaded via loadTexture() before rendering
+                    // The particle system uses the first available texture descriptor
+                    if (m_singleTextureDescriptorSets.empty()) {
+                        // Skip rendering if no textures are loaded
+                        continue;
+                    }
+
                     vkCmdPushConstants(commandBuffer, info.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
 
                     VkBuffer vertexBuffers[] = {particleVertexBuffer};
@@ -1271,14 +1278,11 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     vkCmdBindIndexBuffer(commandBuffer, particleIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
                     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineIt->second);
 
-                    // Get or create a white texture descriptor for particles (if no texture specified)
-                    // For now, we'll use the first texture available or a default
-                    // In a more complete implementation, particles would have their own texture descriptors
-                    if (!m_singleTextureDescriptorSets.empty()) {
-                        VkDescriptorSet descriptorSet = m_singleTextureDescriptorSets.begin()->second;
-                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                              info.layout, 0, 1, &descriptorSet, 0, nullptr);
-                    }
+                    // Use the first loaded texture for particles
+                    // For per-particle textures, extend this to use particle texture IDs
+                    VkDescriptorSet descriptorSet = m_singleTextureDescriptorSets.begin()->second;
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                          info.layout, 0, 1, &descriptorSet, 0, nullptr);
                     vkCmdDrawIndexed(commandBuffer, particleIndexCount, 1, 0, 0, 0);
                 } else if (!m_spriteBatches.empty()) {
                     // Textured sprite pipeline rendering

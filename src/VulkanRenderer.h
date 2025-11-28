@@ -154,16 +154,6 @@ private:
     };
     std::vector<BatchDrawData> m_spriteBatches;
 
-    // Particle batch data
-    struct ParticleBatchData {
-        uint64_t textureId;
-        uint64_t descriptorId;
-        int pipelineId;
-        uint32_t indexCount;
-        uint32_t firstIndex;
-    };
-    std::vector<ParticleBatchData> m_particleBatches;
-
     // Texture support
     struct TextureData {
         VkImage image;
