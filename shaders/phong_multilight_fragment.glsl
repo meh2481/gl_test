@@ -18,20 +18,23 @@ layout(push_constant) uniform PushConstants {
     float param6;
 } pc;
 
-// Light structure matching C++ side
+// Light structure matching C++ side (std140 layout)
+// C++ struct uses: posX, posY, posZ (12 bytes) + padding1 (4 bytes) = 16 bytes
+//                  colorR, colorG, colorB (12 bytes) + intensity (4 bytes) = 16 bytes
+// Total: 32 bytes per light
 struct Light {
-    vec3 position;
-    float padding1;
-    vec3 color;
-    float intensity;
-};
+    vec3 position;      // 12 bytes, aligned to 16
+    float padding1;     // 4 bytes padding
+    vec3 color;         // 12 bytes
+    float intensity;    // 4 bytes
+};  // 32 bytes total
 
-// Light uniform buffer
-layout(set = 1, binding = 0) uniform LightBuffer {
-    Light lights[8];
-    int numLights;
-    vec3 ambient;
-    vec3 padding;
+// Light uniform buffer (std140 layout)
+layout(std140, set = 1, binding = 0) uniform LightBuffer {
+    Light lights[8];    // 32 * 8 = 256 bytes
+    int numLights;      // 4 bytes
+    vec3 ambient;       // 12 bytes (but aligned to 16 in std140)
+    vec3 padding;       // Padding for alignment
 } lightData;
 
 layout(location = 0) in vec2 fragTexCoord;
