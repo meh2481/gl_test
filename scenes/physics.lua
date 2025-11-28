@@ -345,33 +345,33 @@ function init()
         maxParticles = 200,
         emissionRate = 50.0,
         blendMode = 0,  -- PARTICLE_BLEND_ADDITIVE
-        
+
         -- Position at the top center of the screen
         emissionVertices = {0.0, 0.0},  -- Point emitter
         emissionVertexCount = 0,  -- 0 = point emitter
-        
+
         -- Use bloom texture for particles
         textureIds = {bloomTexId},
         textureCount = 1,
-        
+
         -- Velocity: upward with some spread
         velocityMinX = -0.5,
         velocityMaxX = 0.5,
         velocityMinY = 1.0,
         velocityMaxY = 2.0,
-        
+
         -- Acceleration: gravity
         accelerationMinX = 0.0,
         accelerationMaxX = 0.0,
         accelerationMinY = -5.0,
         accelerationMaxY = -5.0,
-        
+
         -- Size: small particles that grow
         startSizeMin = 0.01,
         startSizeMax = 0.02,
         endSizeMin = 0.05,
         endSizeMax = 0.1,
-        
+
         -- Color: white to transparent
         colorMinR = 1.0, colorMaxR = 1.0,
         colorMinG = 1.0, colorMaxG = 1.0,
@@ -381,12 +381,12 @@ function init()
         endColorMinG = 1.0, endColorMaxG = 1.0,
         endColorMinB = 1.0, endColorMaxB = 1.0,
         endColorMinA = 0.0, endColorMaxA = 0.0,
-        
+
         -- Lifetime: 2-3 seconds
         lifetimeMin = 2.0,
         lifetimeMax = 3.0
     }
-    
+
     particleSystemId = createParticleSystem(particleConfig, particlePipelineId)
     -- Position the emitter initially at the top center (will follow the swinging lantern)
     setParticleSystemPosition(particleSystemId, 0.0, 0.8)
@@ -573,7 +573,7 @@ function update(deltaTime)
 
     -- Update particle system position to follow the swinging lantern
     if particleSystemId and lightBody then
-        setParticleSystemPosition(particleSystemId, chainLightX, chainLightY + 0.1)
+        setParticleSystemPosition(particleSystemId, chainLightX, chainLightY)
     end
 
     -- Update lightsaber trail effect
@@ -676,13 +676,13 @@ function cleanup()
     lanternLightId = nil
     saberLightId = nil
     redSaberLightId = nil
-    
+
     -- Destroy particle system
     if particleSystemId then
         destroyParticleSystem(particleSystemId)
         particleSystemId = nil
     end
-    
+
     -- Disable debug drawing
     b2EnableDebugDraw(false)
     print("Physics demo scene cleaned up")
