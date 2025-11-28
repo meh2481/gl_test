@@ -116,6 +116,19 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             ParticleSystem* system = &particleManager.getSystems()[i];
             if (!system || system->liveParticleCount == 0) continue;
 
+            // Get texture UV coordinates (may be atlas or full texture)
+            float texU0 = 0.0f, texV0 = 0.0f, texU1 = 1.0f, texV1 = 1.0f;
+            if (system->config.textureCount > 0) {
+                AtlasUV atlasUV;
+                if (pakResource_.getAtlasUV(system->config.textureIds[0], atlasUV)) {
+                    // Use atlas UV coordinates
+                    texU0 = atlasUV.u0;
+                    texV0 = atlasUV.v0;
+                    texU1 = atlasUV.u1;
+                    texV1 = atlasUV.v1;
+                }
+            }
+
             uint16_t baseVertex = (uint16_t)(particleVertexData.size() / 8);  // 8 floats per vertex
 
             for (int p = 0; p < system->liveParticleCount; ++p) {
@@ -145,12 +158,12 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                     {-halfSize,  halfSize}   // Top-left
                 };
 
-                // UV coordinates
+                // UV coordinates using atlas UVs if available
                 float uvs[4][2] = {
-                    {0.0f, 1.0f},  // Bottom-left
-                    {1.0f, 1.0f},  // Bottom-right
-                    {1.0f, 0.0f},  // Top-right
-                    {0.0f, 0.0f}   // Top-left
+                    {texU0, texV1},  // Bottom-left
+                    {texU1, texV1},  // Bottom-right
+                    {texU1, texV0},  // Top-right
+                    {texU0, texV0}   // Top-left
                 };
 
                 uint16_t vertexBase = (uint16_t)(particleVertexData.size() / 8);
