@@ -57,6 +57,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "vibrate", "vibrateTriggers", "stopVibration",
                                      "getCursorPosition",
                                      "getCameraOffset", "setCameraOffset", "getCameraZoom", "setCameraZoom",
+                                     "addLight", "updateLight", "removeLight", "clearLights", "setAmbientLight",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
