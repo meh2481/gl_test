@@ -32,6 +32,7 @@ lightsaberHiltLayer = nil
 lightsaberBladeLayer = nil
 lightsaberBladeGlowLayer = nil
 lightsaberTrailPositions = {}
+lightsaberTrailLayers = {}
 lightsaberStartX = 0.0
 lightsaberStartY = 0.2
 lightsaberBladeLength = 0.35
@@ -57,6 +58,7 @@ redLightsaberHiltLayer = nil
 redLightsaberBladeLayer = nil
 redLightsaberBladeGlowLayer = nil
 redLightsaberTrailPositions = {}
+redLightsaberTrailLayers = {}
 redLightsaberStartX = 0.5
 redLightsaberStartY = 0.2
 redLightsaberBladeLength = 0.35
@@ -516,6 +518,20 @@ function update(deltaTime)
     updateRedLightsaberTrail()
 end
 
+-- Helper function to get blade tip position from body position and angle
+function getBladeTip(bodyX, bodyY, angle, bladeLength)
+    -- Blade extends in the local +Y direction, so we need to rotate that
+    local tipOffsetX = bladeLength * math.sin(angle)
+    local tipOffsetY = bladeLength * math.cos(angle)
+    return bodyX + tipOffsetX, bodyY + tipOffsetY
+end
+
+-- Helper function to get blade base position (near hilt)
+function getBladeBase(bodyX, bodyY, angle, bladeLength)
+    -- Blade base is at the body position (hilt end)
+    return bodyX, bodyY
+end
+
 -- Helper function to update lightsaber trail
 function updateLightsaberTrail()
     if not lightsaberBladeBody then
@@ -533,42 +549,87 @@ function updateLightsaberTrail()
         bladeAngle = 0
     end
 
-    -- Create a new trail layer at the current blade position
-    -- This layer will stay at this position as the blade moves away
-    local trailLayerId = createLayer(bloomTexId, lightsaberBladeLength * BLADE_CORE_SCALE, lightsaberShaderId)
-    setLayerTransform(trailLayerId, bladeX, bladeY, bladeAngle)
-    -- Start at full alpha, will fade over time
-    setLayerAlpha(trailLayerId, 1.0)
-    table.insert(lightsaberTrailPositions, 1, {layerId = trailLayerId, age = 0})
-    table.insert(layers, trailLayerId)
+    -- Get blade tip and base positions
+    local tipX, tipY = getBladeTip(bladeX, bladeY, bladeAngle, lightsaberBladeLength * 0.5)
+    local baseX, baseY = getBladeBase(bladeX, bladeY, bladeAngle, lightsaberBladeLength * 0.5)
 
-    -- Update all trail layers: age them and fade them out via alpha
+    -- Store the current blade position as historical data
+    table.insert(lightsaberTrailPositions, 1, {
+        tipX = tipX, tipY = tipY,
+        baseX = baseX, baseY = baseY,
+        age = 0
+    })
+
+    -- Age all positions
     for i, pos in ipairs(lightsaberTrailPositions) do
         pos.age = pos.age + 1
-        if pos.layerId then
-            -- Calculate alpha based on age - older segments fade out
-            local fadeAmount = 1.0 - (pos.age / (TRAIL_MAX_LENGTH + 1))
-            if fadeAmount > 0 then
-                setLayerAlpha(pos.layerId, fadeAmount)
-            end
-        end
     end
 
-    -- Remove trail segments that are too old
+    -- Limit trail length
     while #lightsaberTrailPositions > TRAIL_MAX_LENGTH do
-        local lastPos = lightsaberTrailPositions[#lightsaberTrailPositions]
-        if lastPos.layerId then
-            -- Destroy the old trail layer
-            destroyLayer(lastPos.layerId)
-            -- Remove from layers table
-            for i, layerId in ipairs(layers) do
-                if layerId == lastPos.layerId then
+        table.remove(lightsaberTrailPositions)
+    end
+
+    -- Destroy existing trail layers
+    if lightsaberTrailLayers then
+        for _, layerId in ipairs(lightsaberTrailLayers) do
+            destroyLayer(layerId)
+            -- Remove from main layers table
+            for i, lid in ipairs(layers) do
+                if lid == layerId then
                     table.remove(layers, i)
                     break
                 end
             end
         end
-        table.remove(lightsaberTrailPositions)
+    end
+    lightsaberTrailLayers = {}
+
+    -- Create trail segments connecting consecutive historical positions
+    -- Each segment is a quad connecting the tip/base of position i to position i+1
+    for i = 1, #lightsaberTrailPositions - 1 do
+        local pos1 = lightsaberTrailPositions[i]
+        local pos2 = lightsaberTrailPositions[i + 1]
+
+        -- Calculate alpha based on age (older = more transparent)
+        local alpha1 = 1.0 - (pos1.age / (TRAIL_MAX_LENGTH + 1))
+        local alpha2 = 1.0 - (pos2.age / (TRAIL_MAX_LENGTH + 1))
+        local avgAlpha = (alpha1 + alpha2) * 0.5
+
+        if avgAlpha > 0.01 then
+            -- Create a new layer for this trail segment
+            local segmentLayer = createLayer(bloomTexId, 1.0, lightsaberShaderId)
+
+            -- Calculate the center of the quad (average of all 4 corners)
+            local centerX = (pos1.tipX + pos1.baseX + pos2.tipX + pos2.baseX) / 4.0
+            local centerY = (pos1.tipY + pos1.baseY + pos2.tipY + pos2.baseY) / 4.0
+
+            -- Set layer position to center (angle 0, geometry is already in world coords)
+            setLayerTransform(segmentLayer, centerX, centerY, 0.0)
+
+            -- Create polygon vertices relative to center (quad connecting two blade positions)
+            -- Order: pos1.base -> pos1.tip -> pos2.tip -> pos2.base (CCW)
+            local vertices = {
+                pos1.baseX - centerX, pos1.baseY - centerY,
+                pos1.tipX - centerX, pos1.tipY - centerY,
+                pos2.tipX - centerX, pos2.tipY - centerY,
+                pos2.baseX - centerX, pos2.baseY - centerY
+            }
+
+            -- UV coordinates for the quad
+            local uvs = {
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0
+            }
+
+            setLayerPolygon(segmentLayer, vertices, uvs)
+            setLayerAlpha(segmentLayer, avgAlpha)
+
+            table.insert(lightsaberTrailLayers, segmentLayer)
+            table.insert(layers, segmentLayer)
+        end
     end
 end
 
@@ -589,42 +650,87 @@ function updateRedLightsaberTrail()
         bladeAngle = 0
     end
 
-    -- Create a new trail layer at the current blade position
-    -- This layer will stay at this position as the blade moves away
-    local trailLayerId = createLayer(bloomTexId, redLightsaberBladeLength * BLADE_CORE_SCALE, redLightsaberShaderId)
-    setLayerTransform(trailLayerId, bladeX, bladeY, bladeAngle)
-    -- Start at full alpha, will fade over time
-    setLayerAlpha(trailLayerId, 1.0)
-    table.insert(redLightsaberTrailPositions, 1, {layerId = trailLayerId, age = 0})
-    table.insert(layers, trailLayerId)
+    -- Get blade tip and base positions
+    local tipX, tipY = getBladeTip(bladeX, bladeY, bladeAngle, redLightsaberBladeLength * 0.5)
+    local baseX, baseY = getBladeBase(bladeX, bladeY, bladeAngle, redLightsaberBladeLength * 0.5)
 
-    -- Update all trail layers: age them and fade them out via alpha
+    -- Store the current blade position as historical data
+    table.insert(redLightsaberTrailPositions, 1, {
+        tipX = tipX, tipY = tipY,
+        baseX = baseX, baseY = baseY,
+        age = 0
+    })
+
+    -- Age all positions
     for i, pos in ipairs(redLightsaberTrailPositions) do
         pos.age = pos.age + 1
-        if pos.layerId then
-            -- Calculate alpha based on age - older segments fade out
-            local fadeAmount = 1.0 - (pos.age / (TRAIL_MAX_LENGTH + 1))
-            if fadeAmount > 0 then
-                setLayerAlpha(pos.layerId, fadeAmount)
-            end
-        end
     end
 
-    -- Remove trail segments that are too old
+    -- Limit trail length
     while #redLightsaberTrailPositions > TRAIL_MAX_LENGTH do
-        local lastPos = redLightsaberTrailPositions[#redLightsaberTrailPositions]
-        if lastPos.layerId then
-            -- Destroy the old trail layer
-            destroyLayer(lastPos.layerId)
-            -- Remove from layers table
-            for i, layerId in ipairs(layers) do
-                if layerId == lastPos.layerId then
+        table.remove(redLightsaberTrailPositions)
+    end
+
+    -- Destroy existing trail layers
+    if redLightsaberTrailLayers then
+        for _, layerId in ipairs(redLightsaberTrailLayers) do
+            destroyLayer(layerId)
+            -- Remove from main layers table
+            for i, lid in ipairs(layers) do
+                if lid == layerId then
                     table.remove(layers, i)
                     break
                 end
             end
         end
-        table.remove(redLightsaberTrailPositions)
+    end
+    redLightsaberTrailLayers = {}
+
+    -- Create trail segments connecting consecutive historical positions
+    -- Each segment is a quad connecting the tip/base of position i to position i+1
+    for i = 1, #redLightsaberTrailPositions - 1 do
+        local pos1 = redLightsaberTrailPositions[i]
+        local pos2 = redLightsaberTrailPositions[i + 1]
+
+        -- Calculate alpha based on age (older = more transparent)
+        local alpha1 = 1.0 - (pos1.age / (TRAIL_MAX_LENGTH + 1))
+        local alpha2 = 1.0 - (pos2.age / (TRAIL_MAX_LENGTH + 1))
+        local avgAlpha = (alpha1 + alpha2) * 0.5
+
+        if avgAlpha > 0.01 then
+            -- Create a new layer for this trail segment
+            local segmentLayer = createLayer(bloomTexId, 1.0, redLightsaberShaderId)
+
+            -- Calculate the center of the quad (average of all 4 corners)
+            local centerX = (pos1.tipX + pos1.baseX + pos2.tipX + pos2.baseX) / 4.0
+            local centerY = (pos1.tipY + pos1.baseY + pos2.tipY + pos2.baseY) / 4.0
+
+            -- Set layer position to center (angle 0, geometry is already in world coords)
+            setLayerTransform(segmentLayer, centerX, centerY, 0.0)
+
+            -- Create polygon vertices relative to center (quad connecting two blade positions)
+            -- Order: pos1.base -> pos1.tip -> pos2.tip -> pos2.base (CCW)
+            local vertices = {
+                pos1.baseX - centerX, pos1.baseY - centerY,
+                pos1.tipX - centerX, pos1.tipY - centerY,
+                pos2.tipX - centerX, pos2.tipY - centerY,
+                pos2.baseX - centerX, pos2.baseY - centerY
+            }
+
+            -- UV coordinates for the quad
+            local uvs = {
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0
+            }
+
+            setLayerPolygon(segmentLayer, vertices, uvs)
+            setLayerAlpha(segmentLayer, avgAlpha)
+
+            table.insert(redLightsaberTrailLayers, segmentLayer)
+            table.insert(layers, segmentLayer)
+        end
     end
 end
 
