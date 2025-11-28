@@ -1,6 +1,6 @@
 #version 450
 
-// Push constants for camera and basic parameters
+// Push constants for camera and material parameters
 layout(push_constant) uniform PushConstants {
     float width;
     float height;
@@ -8,11 +8,11 @@ layout(push_constant) uniform PushConstants {
     float cameraX;
     float cameraY;
     float cameraZoom;
-    // Additional parameters (not used in multi-light version)
-    float param0;
-    float param1;
-    float param2;
-    float param3;
+    // Material parameters (set from Lua via setShaderParameters)
+    float ambientStrength;   // param0: ambient light contribution
+    float diffuseStrength;   // param1: diffuse light contribution
+    float specularStrength;  // param2: specular highlight contribution
+    float shininess;         // param3: specular shininess exponent
     float param4;
     float param5;
     float param6;
@@ -50,11 +50,6 @@ layout(location = 0) out vec4 outColor;
 layout(set = 0, binding = 0) uniform sampler2D texSampler;
 layout(set = 0, binding = 1) uniform sampler2D normalSampler;
 
-// Lighting parameters
-const float diffuseStrength = 0.8;
-const float specularStrength = 0.5;
-const float shininess = 32.0;
-
 // Calculate lighting contribution from a single light
 vec3 calculateLight(Light light, vec3 normal, vec3 viewDir, vec3 texColor) {
     vec3 lightPos = light.position;
@@ -69,12 +64,12 @@ vec3 calculateLight(Light light, vec3 normal, vec3 viewDir, vec3 texColor) {
 
     // Diffuse
     float diff = max(dot(normal, lightDir), 0.0);
-    vec3 diffuse = diffuseStrength * diff * texColor * lightColor * attenuation;
+    vec3 diffuse = pc.diffuseStrength * diff * texColor * lightColor * attenuation;
 
     // Specular (Blinn-Phong)
     vec3 halfwayDir = normalize(lightDir + viewDir);
-    float spec = pow(max(dot(normal, halfwayDir), 0.0), shininess);
-    vec3 specular = specularStrength * spec * lightColor * attenuation;
+    float spec = pow(max(dot(normal, halfwayDir), 0.0), pc.shininess);
+    vec3 specular = pc.specularStrength * spec * lightColor * attenuation;
 
     return diffuse + specular;
 }
@@ -107,8 +102,8 @@ void main() {
     // View direction
     vec3 viewDir = normalize(fragViewPos - fragPos);
 
-    // Ambient lighting
-    vec3 ambient = lightData.ambient * texColor.rgb;
+    // Ambient lighting (uses ambientStrength from push constants and ambient color from uniform buffer)
+    vec3 ambient = pc.ambientStrength * lightData.ambient * texColor.rgb;
 
     // Accumulate lighting from all active lights
     vec3 lighting = vec3(0.0);

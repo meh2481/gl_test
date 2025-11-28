@@ -89,6 +89,10 @@ function init()
     -- Position will be updated in the update loop to follow the lightsaber blade
     saberLightId = addLight(lightsaberStartX, lightsaberStartY, chainLightZ, lightsaberColorR, lightsaberColorG, lightsaberColorB, 1.2)
 
+    -- Set shader parameters for Phong multi-light shader
+    -- Parameters: ambientStrength, diffuseStrength, specularStrength, shininess
+    setShaderParameters(phongShaderId, 0.3, 0.7, 0.5, 32.0)
+
     -- Set shader parameters for Toon shader (only 4 parameters needed)
     -- Position (0.5, 0.5, chainLightZ) - light position
     -- levels: 3.0 (3 cel-shading levels)
