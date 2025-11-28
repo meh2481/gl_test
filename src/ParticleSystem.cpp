@@ -302,6 +302,21 @@ void ParticleSystemManager::spawnParticle(ParticleSystem& system) {
     system.velX[i] = randomRange(cfg.velocityMinX, cfg.velocityMaxX);
     system.velY[i] = randomRange(cfg.velocityMinY, cfg.velocityMaxY);
 
+    // Apply initial radial velocity (towards/away from emission center)
+    float radialVel = randomRange(cfg.radialVelocityMin, cfg.radialVelocityMax);
+    if (radialVel != 0.0f) {
+        float emitterWorldCenterX = system.emitterX + system.emissionCenterX;
+        float emitterWorldCenterY = system.emitterY + system.emissionCenterY;
+        float dx = system.posX[i] - emitterWorldCenterX;
+        float dy = system.posY[i] - emitterWorldCenterY;
+        float dist = sqrtf(dx * dx + dy * dy);
+        if (dist > 0.001f) {
+            // Add radial velocity component (positive = away from center, negative = towards)
+            system.velX[i] += (dx / dist) * radialVel;
+            system.velY[i] += (dy / dist) * radialVel;
+        }
+    }
+
     // Acceleration
     system.accelX[i] = randomRange(cfg.accelerationMinX, cfg.accelerationMaxX);
     system.accelY[i] = randomRange(cfg.accelerationMinY, cfg.accelerationMaxY);
