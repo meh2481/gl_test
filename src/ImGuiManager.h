@@ -15,8 +15,10 @@ class VulkanRenderer;
 class ParticleSystemManager;
 class PakResource;
 
-// Maximum emission polygon vertices
+// Maximum emission polygon vertices / textures
 static const int EDITOR_MAX_VERTICES = 8;
+static const int EDITOR_MAX_TEXTURES = 8;
+static const int EDITOR_MAX_TEXTURE_NAME_LEN = 64;
 
 // Structure to hold particle editor state
 struct ParticleEditorState {
@@ -32,9 +34,9 @@ struct ParticleEditorState {
     bool isDraggingVertex;
 
     // Texture selection
-    uint64_t selectedTextureIds[8];
+    uint64_t selectedTextureIds[EDITOR_MAX_TEXTURES];
     int selectedTextureCount;
-    char textureNames[8][64];
+    char textureNames[EDITOR_MAX_TEXTURES][EDITOR_MAX_TEXTURE_NAME_LEN];
 
     // Preview camera
     float previewZoom;
@@ -93,6 +95,9 @@ private:
 
     // Particle editor state
     ParticleEditorState editorState_;
+
+    // Initialize particle editor state with defaults
+    void initializeParticleEditorDefaults();
 
     // Helper functions for particle editor
     void showEmissionSettings();

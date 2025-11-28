@@ -14,6 +14,10 @@ static void check_vk_result(VkResult err) {
 }
 
 ImGuiManager::ImGuiManager() : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE) {
+    initializeParticleEditorDefaults();
+}
+
+void ImGuiManager::initializeParticleEditorDefaults() {
     // Initialize particle editor state
     memset(&editorState_, 0, sizeof(editorState_));
     editorState_.isActive = false;
@@ -582,7 +586,8 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource) {
             // Remove this texture
             for (int j = i; j < editorState_.selectedTextureCount - 1; ++j) {
                 editorState_.selectedTextureIds[j] = editorState_.selectedTextureIds[j + 1];
-                strncpy(editorState_.textureNames[j], editorState_.textureNames[j + 1], 63);
+                strncpy(editorState_.textureNames[j], editorState_.textureNames[j + 1], EDITOR_MAX_TEXTURE_NAME_LEN - 1);
+                editorState_.textureNames[j][EDITOR_MAX_TEXTURE_NAME_LEN - 1] = '\0';
             }
             editorState_.selectedTextureCount--;
 
@@ -612,14 +617,15 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource) {
     int numCommonTextures = 5;
 
     for (int i = 0; i < numCommonTextures; ++i) {
-        if (editorState_.selectedTextureCount >= 8) break;
+        if (editorState_.selectedTextureCount >= EDITOR_MAX_TEXTURES) break;
 
         ImGui::PushID(100 + i);
         if (ImGui::Button(commonTextures[i])) {
             // Add texture to selection
             uint64_t texId = std::hash<std::string>{}(commonTextures[i]);
             editorState_.selectedTextureIds[editorState_.selectedTextureCount] = texId;
-            strncpy(editorState_.textureNames[editorState_.selectedTextureCount], commonTextures[i], 63);
+            strncpy(editorState_.textureNames[editorState_.selectedTextureCount], commonTextures[i], EDITOR_MAX_TEXTURE_NAME_LEN - 1);
+            editorState_.textureNames[editorState_.selectedTextureCount][EDITOR_MAX_TEXTURE_NAME_LEN - 1] = '\0';
             editorState_.selectedTextureCount++;
 
             // Update config
@@ -682,7 +688,7 @@ void ImGuiManager::generateLuaExport() {
         pos += snprintf(buf + pos, bufSize - pos, "    textureIds = {");
         for (int i = 0; i < editorState_.selectedTextureCount; ++i) {
             if (i > 0) pos += snprintf(buf + pos, bufSize - pos, ", ");
-            pos += snprintf(buf + pos, bufSize - pos, "%sTexId", editorState_.textureNames[i]);
+            pos += snprintf(buf + pos, bufSize - pos, "%.63sTexId", editorState_.textureNames[i]);
         }
         pos += snprintf(buf + pos, bufSize - pos, "},\n");
     }
