@@ -6,9 +6,6 @@ previewSystemId = nil
 bloomTexId = nil
 
 function init()
-    -- Load the nebula background shader (z-index -1 = background)
-    loadShaders("vertex.spv", "nebula_fragment.spv", -1)
-
     -- Load particle shaders (z-index 1, additive blending)
     particlePipelineId = loadParticleShaders("particle_vertex.spv", "particle_fragment.spv", 1, true)
 
