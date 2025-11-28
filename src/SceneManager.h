@@ -37,6 +37,17 @@ public:
     float getCameraZoom() const;
     void applyScrollZoom(float scrollDelta);
 
+    // Particle editor support (DEBUG only)
+    void setParticleEditorActive(bool active, int pipelineId);
+    bool isParticleEditorActive() const;
+    int getParticleEditorPipelineId() const;
+
+    // Access to LuaInterface for particle system manager
+    LuaInterface* getLuaInterface() { return luaInterface_.get(); }
+
+    // Access to PakResource for texture list
+    PakResource& getPakResource() { return pakResource_; }
+
 private:
     PakResource& pakResource_;
     VulkanRenderer& renderer_;
@@ -45,4 +56,8 @@ private:
     std::unordered_set<uint64_t> loadedScenes_;
     std::unordered_set<uint64_t> initializedScenes_;
     bool pendingPop_;
+
+    // Particle editor state
+    bool particleEditorActive_;
+    int particleEditorPipelineId_;
 };

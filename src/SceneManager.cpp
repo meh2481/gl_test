@@ -6,7 +6,7 @@
 #include <cmath>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false) {
+    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1) {
 }
 
 SceneManager::~SceneManager() {
@@ -298,4 +298,17 @@ float SceneManager::getCameraZoom() const {
 
 void SceneManager::applyScrollZoom(float scrollDelta) {
     luaInterface_->applyScrollZoom(scrollDelta);
+}
+
+void SceneManager::setParticleEditorActive(bool active, int pipelineId) {
+    particleEditorActive_ = active;
+    particleEditorPipelineId_ = pipelineId;
+}
+
+bool SceneManager::isParticleEditorActive() const {
+    return particleEditorActive_;
+}
+
+int SceneManager::getParticleEditorPipelineId() const {
+    return particleEditorPipelineId_;
 }

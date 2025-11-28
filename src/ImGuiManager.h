@@ -7,9 +7,52 @@
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_vulkan.h>
+#include "ParticleSystem.h"
+#include <cstdint>
 
-// Forward declaration
+// Forward declarations
 class VulkanRenderer;
+class ParticleSystemManager;
+class PakResource;
+
+// Maximum emission polygon vertices
+static const int EDITOR_MAX_VERTICES = 8;
+
+// Structure to hold particle editor state
+struct ParticleEditorState {
+    bool isActive;
+    ParticleEmitterConfig config;
+
+    // Preview particle system
+    int previewSystemId;
+    int previewPipelineId;
+
+    // Emission polygon editing
+    int selectedVertexIndex;
+    bool isDraggingVertex;
+
+    // Texture selection
+    uint64_t selectedTextureIds[8];
+    int selectedTextureCount;
+    char textureNames[8][64];
+
+    // Preview camera
+    float previewZoom;
+    float previewOffsetX;
+    float previewOffsetY;
+
+    // Export state
+    bool showExportPopup;
+    char exportBuffer[8192];
+
+    // UI state
+    bool colorsExpanded;
+    bool velocityExpanded;
+    bool accelerationExpanded;
+    bool sizeExpanded;
+    bool rotationExpanded;
+    bool emissionExpanded;
+};
 
 class ImGuiManager {
 public:
@@ -36,10 +79,33 @@ public:
     // Show console window
     void showConsoleWindow();
 
+    // Particle editor functions
+    void setParticleEditorActive(bool active);
+    bool isParticleEditorActive() const;
+    void showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
+                                   int pipelineId, float deltaTime);
+    ParticleEditorState& getEditorState() { return editorState_; }
+
 private:
     bool initialized_;
     VkDevice device_;
     VkDescriptorPool imguiPool_;
+
+    // Particle editor state
+    ParticleEditorState editorState_;
+
+    // Helper functions for particle editor
+    void showEmissionSettings();
+    void showVelocitySettings();
+    void showAccelerationSettings();
+    void showSizeSettings();
+    void showColorSettings();
+    void showRotationSettings();
+    void showEmissionPolygonEditor();
+    void showTextureSelector(PakResource* pakResource);
+    void showLuaExport();
+    void updatePreviewSystem(ParticleSystemManager* particleManager, int pipelineId);
+    void generateLuaExport();
 };
 
 #endif // DEBUG

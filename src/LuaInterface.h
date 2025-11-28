@@ -167,6 +167,9 @@ private:
     static int setParticleSystemEmissionRate(lua_State* L);
     static int loadParticleShaders(lua_State* L);
 
+    // Particle editor Lua bindings (DEBUG only)
+    static int openParticleEditor(lua_State* L);
+
     void registerFunctions();
 
     PakResource& pakResource_;
@@ -186,4 +189,7 @@ private:
     float cameraOffsetX_;
     float cameraOffsetY_;
     float cameraZoom_;
+
+    // Particle editor state (DEBUG only)
+    int particleEditorPipelineId_;
 };

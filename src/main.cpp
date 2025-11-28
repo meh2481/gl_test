@@ -13,6 +13,7 @@
 #include "config.h"
 #include "InputActions.h"
 #include "VibrationManager.h"
+#include "LuaInterface.h"
 
 #ifdef DEBUG
 #include "ImGuiManager.h"
@@ -388,6 +389,20 @@ int main() {
 
         // Show console window
         imguiManager.showConsoleWindow();
+
+        // Show particle editor if active
+        if (sceneManager.isParticleEditorActive()) {
+            LuaInterface* luaInterface = sceneManager.getLuaInterface();
+            if (luaInterface) {
+                imguiManager.setParticleEditorActive(true);
+                imguiManager.showParticleEditorWindow(
+                    &luaInterface->getParticleSystemManager(),
+                    &sceneManager.getPakResource(),
+                    sceneManager.getParticleEditorPipelineId(),
+                    deltaTime
+                );
+            }
+        }
 #endif
 
         renderer.render(currentTime);

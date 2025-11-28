@@ -5,7 +5,7 @@
 #include <algorithm>
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f) {
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), particleEditorPipelineId_(-1) {
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
     physics_ = std::make_unique<Box2DPhysics>();
@@ -60,6 +60,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "getCameraOffset", "setCameraOffset", "getCameraZoom", "setCameraZoom",
                                      "addLight", "updateLight", "removeLight", "clearLights", "setAmbientLight",
                                      "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "setParticleSystemEmissionRate", "loadParticleShaders",
+                                     "openParticleEditor",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -519,6 +520,9 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "setParticleSystemEmissionRate", setParticleSystemEmissionRate);
     lua_register(luaState_, "loadParticleShaders", loadParticleShaders);
 
+    // Register particle editor function (available in DEBUG builds)
+    lua_register(luaState_, "openParticleEditor", openParticleEditor);
+
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
     lua_setglobal(luaState_, "B2_STATIC_BODY");
@@ -536,6 +540,8 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_PHYSICS_DEMO");
     lua_pushinteger(luaState_, ACTION_AUDIO_TEST);
     lua_setglobal(luaState_, "ACTION_AUDIO_TEST");
+    lua_pushinteger(luaState_, ACTION_PARTICLE_EDITOR);
+    lua_setglobal(luaState_, "ACTION_PARTICLE_EDITOR");
     lua_pushinteger(luaState_, ACTION_TOGGLE_FULLSCREEN);
     lua_setglobal(luaState_, "ACTION_TOGGLE_FULLSCREEN");
     lua_pushinteger(luaState_, ACTION_HOTRELOAD);
@@ -2775,5 +2781,27 @@ int LuaInterface::setParticleSystemEmissionRate(lua_State* L) {
     float rate = (float)lua_tonumber(L, 2);
 
     interface->particleManager_->setSystemEmissionRate(systemId, rate);
+    return 0;
+}
+
+int LuaInterface::openParticleEditor(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: pipelineId (integer)
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int pipelineId = lua_tointeger(L, 1);
+    interface->particleEditorPipelineId_ = pipelineId;
+
+#ifdef DEBUG
+    // Get SceneManager to access ImGuiManager
+    if (interface->sceneManager_) {
+        interface->sceneManager_->setParticleEditorActive(true, pipelineId);
+    }
+#endif
+
     return 0;
 }
