@@ -49,6 +49,7 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     layer.scale = 1.0f;
     layer.enabled = true;
     layer.useLocalUV = false;
+    layer.manualPosition = false;
 
     // Default UV coordinates (full texture)
     layer.textureUV.u0 = 0.0f;
@@ -118,6 +119,13 @@ void SceneLayerManager::setLayerScale(int layerId, float scale) {
     auto it = layers_.find(layerId);
     if (it != layers_.end()) {
         it->second.scale = scale;
+    }
+}
+
+void SceneLayerManager::setLayerManualPosition(int layerId, bool manual) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.manualPosition = manual;
     }
 }
 
@@ -191,8 +199,8 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
     for (const auto& pair : layers_) {
         const SceneLayer& layer = pair.second;
 
-        // Skip disabled layers or layers not attached to a body
-        if (!layer.enabled || layer.physicsBodyId < 0) {
+        // Skip disabled layers or layers not attached to a body (unless manually positioned)
+        if (!layer.enabled || (layer.physicsBodyId < 0 && !layer.manualPosition)) {
             continue;
         }
 

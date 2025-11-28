@@ -44,6 +44,7 @@ struct SceneLayer {
     float scale;             // Scale factor for the layer (default 1.0)
     bool enabled;            // Whether this layer is visible
     bool useLocalUV;         // Whether to use local 0..1 UVs instead of texture atlas UVs
+    bool manualPosition;     // If true, use cachedX/Y/Angle directly without physics body
 
     // Atlas UV coordinates for texture
     LayerAtlasUV textureUV;
@@ -76,6 +77,7 @@ public:
     void setLayerOffset(int layerId, float offsetX, float offsetY);
     void setLayerEnabled(int layerId, bool enabled);
     void setLayerScale(int layerId, float scale);
+    void setLayerManualPosition(int layerId, bool manual);
 
     // Set atlas UV coordinates for a layer's texture
     void setLayerAtlasUV(int layerId, uint64_t atlasTextureId, float u0, float v0, float u1, float v1);

@@ -511,8 +511,9 @@ function update(deltaTime)
     -- Update toon shader with lantern position (single light)
     setShaderParameters(toonShaderId, chainLightX, chainLightY, chainLightZ, 3.0)
 
-    -- Update lightsaber trail effect
+    -- Update lightsaber trail effects
     updateLightsaberTrail()
+    updateRedLightsaberTrail()
 end
 
 -- Helper function to update lightsaber trail
@@ -532,10 +533,13 @@ function updateLightsaberTrail()
         bladeAngle = 0
     end
 
-    -- Add current position to trail history
-    table.insert(lightsaberTrailPositions, 1, {x = bladeX, y = bladeY, angle = bladeAngle, alpha = 1.0})
+    -- Add current position to trail history with a new layer
+    local trailLayerId = createLayer(bloomTexId, lightsaberBladeLength * BLADE_CORE_SCALE, lightsaberShaderId)
+    setLayerTransform(trailLayerId, bladeX, bladeY, bladeAngle)
+    table.insert(lightsaberTrailPositions, 1, {x = bladeX, y = bladeY, angle = bladeAngle, alpha = 1.0, layerId = trailLayerId, scale = 1.0})
+    table.insert(layers, trailLayerId)
 
-    -- Limit trail length and fade out old positions
+    -- Limit trail length and destroy old layers
     while #lightsaberTrailPositions > TRAIL_MAX_LENGTH do
         local lastPos = lightsaberTrailPositions[#lightsaberTrailPositions]
         if lastPos.layerId then
@@ -552,9 +556,65 @@ function updateLightsaberTrail()
         table.remove(lightsaberTrailPositions)
     end
 
-    -- Update alpha values for fading trail
+    -- Update alpha values and scale for fading trail effect
     for i, pos in ipairs(lightsaberTrailPositions) do
         pos.alpha = pos.alpha * TRAIL_FADE_RATE
+        pos.scale = pos.scale * TRAIL_FADE_RATE
+        -- Update the layer's scale to simulate fading
+        if pos.layerId then
+            setLayerScale(pos.layerId, pos.scale)
+        end
+    end
+end
+
+-- Helper function to update red lightsaber trail
+function updateRedLightsaberTrail()
+    if not redLightsaberBladeBody then
+        return
+    end
+
+    -- b2GetBodyPosition returns nil for both x and y if body is invalid
+    local bladeX, bladeY = b2GetBodyPosition(redLightsaberBladeBody)
+    if bladeX == nil or bladeY == nil then
+        return
+    end
+
+    local bladeAngle = b2GetBodyAngle(redLightsaberBladeBody)
+    if bladeAngle == nil then
+        bladeAngle = 0
+    end
+
+    -- Add current position to trail history with a new layer
+    local trailLayerId = createLayer(bloomTexId, redLightsaberBladeLength * BLADE_CORE_SCALE, redLightsaberShaderId)
+    setLayerTransform(trailLayerId, bladeX, bladeY, bladeAngle)
+    table.insert(redLightsaberTrailPositions, 1, {x = bladeX, y = bladeY, angle = bladeAngle, alpha = 1.0, layerId = trailLayerId, scale = 1.0})
+    table.insert(layers, trailLayerId)
+
+    -- Limit trail length and destroy old layers
+    while #redLightsaberTrailPositions > TRAIL_MAX_LENGTH do
+        local lastPos = redLightsaberTrailPositions[#redLightsaberTrailPositions]
+        if lastPos.layerId then
+            -- Destroy the old trail layer
+            destroyLayer(lastPos.layerId)
+            -- Remove from layers table
+            for i, layerId in ipairs(layers) do
+                if layerId == lastPos.layerId then
+                    table.remove(layers, i)
+                    break
+                end
+            end
+        end
+        table.remove(redLightsaberTrailPositions)
+    end
+
+    -- Update alpha values and scale for fading trail effect
+    for i, pos in ipairs(redLightsaberTrailPositions) do
+        pos.alpha = pos.alpha * TRAIL_FADE_RATE
+        pos.scale = pos.scale * TRAIL_FADE_RATE
+        -- Update the layer's scale to simulate fading
+        if pos.layerId then
+            setLayerScale(pos.layerId, pos.scale)
+        end
     end
 end
 
@@ -576,6 +636,14 @@ function cleanup()
         end
     end
     lightsaberTrailPositions = {}
+
+    -- Clean up red lightsaber trail layers
+    for i, pos in ipairs(redLightsaberTrailPositions) do
+        if pos.layerId then
+            destroyLayer(pos.layerId)
+        end
+    end
+    redLightsaberTrailPositions = {}
 
     -- Destroy all scene layers
     for i, layerId in ipairs(layers) do

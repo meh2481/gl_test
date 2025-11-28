@@ -1662,6 +1662,8 @@ int LuaInterface::setLayerTransform(lua_State* L) {
     float y = lua_tonumber(L, 3);
     float angle = lua_tonumber(L, 4);
 
+    // Enable manual positioning when transform is set directly
+    interface->layerManager_->setLayerManualPosition(layerId, true);
     interface->layerManager_->updateLayerTransform(layerId, x, y, angle);
     return 0;
 }
