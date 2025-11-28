@@ -329,7 +329,14 @@ int main() {
             }
             // Handle mouse wheel for zoom
             if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+#ifdef DEBUG
+                // Don't zoom if ImGui wants the mouse (e.g., hovering over ImGui window)
+                if (!imguiManager.wantCaptureMouse()) {
+                    sceneManager.applyScrollZoom(event.wheel.y);
+                }
+#else
                 sceneManager.applyScrollZoom(event.wheel.y);
+#endif
             }
             // Handle mouse motion for cursor tracking
             if (event.type == SDL_EVENT_MOUSE_MOTION) {
@@ -355,6 +362,34 @@ int main() {
                 sceneManager.setCursorPosition(worldX, worldY);
             }
         }
+
+#ifdef DEBUG
+        // Sync particle editor preview controls with camera
+        if (sceneManager.isParticleEditorActive()) {
+            ParticleEditorState& editorState = imguiManager.getEditorState();
+
+            // If preview controls were changed by user, update the camera
+            if (editorState.previewCameraChanged) {
+                sceneManager.getLuaInterface()->setCameraOffset(editorState.previewOffsetX, editorState.previewOffsetY);
+                sceneManager.getLuaInterface()->setCameraZoom(editorState.previewZoom);
+                editorState.previewCameraChanged = false;
+            }
+
+            // If reset was requested, also reset the camera
+            if (editorState.previewResetRequested) {
+                sceneManager.getLuaInterface()->setCameraOffset(0.0f, 0.0f);
+                sceneManager.getLuaInterface()->setCameraZoom(1.0f);
+                editorState.previewResetRequested = false;
+            }
+
+            // Otherwise, sync preview controls FROM the camera (mouse zoom/pan updates)
+            imguiManager.syncPreviewWithCamera(
+                sceneManager.getCameraOffsetX(),
+                sceneManager.getCameraOffsetY(),
+                sceneManager.getCameraZoom()
+            );
+        }
+#endif
 
         // Update renderer with current camera transform
         renderer.setCameraTransform(sceneManager.getCameraOffsetX(),

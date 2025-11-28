@@ -42,6 +42,8 @@ struct ParticleEditorState {
     float previewZoom;
     float previewOffsetX;
     float previewOffsetY;
+    bool previewCameraChanged;  // Flag to indicate preview controls were changed by user
+    bool previewResetRequested; // Flag to indicate user wants to reset camera
 
     // Export state
     bool showExportPopup;
@@ -54,6 +56,9 @@ struct ParticleEditorState {
     bool sizeExpanded;
     bool rotationExpanded;
     bool emissionExpanded;
+
+    // System recreation tracking
+    int lastMaxParticles;  // Track changes that require system recreation
 };
 
 class ImGuiManager {
@@ -81,12 +86,19 @@ public:
     // Show console window
     void showConsoleWindow();
 
+    // Check if ImGui wants to capture mouse input
+    bool wantCaptureMouse() const;
+
     // Particle editor functions
     void setParticleEditorActive(bool active);
     bool isParticleEditorActive() const;
     void showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
                                    int pipelineId, float deltaTime);
     ParticleEditorState& getEditorState() { return editorState_; }
+
+    // Sync preview controls with camera
+    void syncPreviewWithCamera(float cameraOffsetX, float cameraOffsetY, float cameraZoom);
+    void getPreviewCameraSettings(float* offsetX, float* offsetY, float* zoom) const;
 
 private:
     bool initialized_;

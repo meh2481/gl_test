@@ -116,19 +116,6 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             ParticleSystem* system = &particleManager.getSystems()[i];
             if (!system || system->liveParticleCount == 0) continue;
 
-            // Get texture UV coordinates (may be atlas or full texture)
-            float texU0 = 0.0f, texV0 = 0.0f, texU1 = 1.0f, texV1 = 1.0f;
-            if (system->config.textureCount > 0) {
-                AtlasUV atlasUV;
-                if (pakResource_.getAtlasUV(system->config.textureIds[0], atlasUV)) {
-                    // Use atlas UV coordinates
-                    texU0 = atlasUV.u0;
-                    texV0 = atlasUV.v0;
-                    texU1 = atlasUV.u1;
-                    texV1 = atlasUV.v1;
-                }
-            }
-
             uint16_t baseVertex = (uint16_t)(particleVertexData.size() / 8);  // 8 floats per vertex
 
             for (int p = 0; p < system->liveParticleCount; ++p) {
@@ -136,6 +123,21 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                 float y = system->posY[p];
                 float size = system->size[p];
                 float halfSize = size * 0.5f;
+
+                // Get texture UV coordinates for this particle's texture
+                float texU0 = 0.0f, texV0 = 0.0f, texU1 = 1.0f, texV1 = 1.0f;
+                if (system->config.textureCount > 0) {
+                    int texIdx = system->textureIndex[p];
+                    if (texIdx >= 0 && texIdx < system->config.textureCount) {
+                        AtlasUV atlasUV;
+                        if (pakResource_.getAtlasUV(system->config.textureIds[texIdx], atlasUV)) {
+                            texU0 = atlasUV.u0;
+                            texV0 = atlasUV.v0;
+                            texU1 = atlasUV.u1;
+                            texV1 = atlasUV.v1;
+                        }
+                    }
+                }
 
                 // Calculate life ratio for color interpolation
                 float lifeRatio = 1.0f - (system->lifetime[p] / system->totalLifetime[p]);

@@ -29,7 +29,10 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.previewZoom = 1.0f;
     editorState_.previewOffsetX = 0.0f;
     editorState_.previewOffsetY = 0.0f;
+    editorState_.previewCameraChanged = false;
+    editorState_.previewResetRequested = false;
     editorState_.showExportPopup = false;
+    editorState_.lastMaxParticles = 100;
 
     // Initialize default particle config
     editorState_.config.maxParticles = 100;
@@ -223,6 +226,23 @@ void ImGuiManager::showConsoleWindow() {
     ImGui::End();
 }
 
+bool ImGuiManager::wantCaptureMouse() const {
+    if (!initialized_) return false;
+    return ImGui::GetIO().WantCaptureMouse;
+}
+
+void ImGuiManager::syncPreviewWithCamera(float cameraOffsetX, float cameraOffsetY, float cameraZoom) {
+    editorState_.previewOffsetX = cameraOffsetX;
+    editorState_.previewOffsetY = cameraOffsetY;
+    editorState_.previewZoom = cameraZoom;
+}
+
+void ImGuiManager::getPreviewCameraSettings(float* offsetX, float* offsetY, float* zoom) const {
+    *offsetX = editorState_.previewOffsetX;
+    *offsetY = editorState_.previewOffsetY;
+    *zoom = editorState_.previewZoom;
+}
+
 void ImGuiManager::setParticleEditorActive(bool active) {
     editorState_.isActive = active;
 }
@@ -290,13 +310,18 @@ void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManag
     // Preview controls at the bottom
     ImGui::Separator();
     ImGui::Text("Preview Controls:");
-    ImGui::SliderFloat("Zoom", &editorState_.previewZoom, 0.1f, 10.0f, "%.2f");
-    ImGui::DragFloat2("Offset", &editorState_.previewOffsetX, 0.01f, -10.0f, 10.0f, "%.2f");
+    if (ImGui::SliderFloat("Zoom", &editorState_.previewZoom, 0.1f, 10.0f, "%.2f")) {
+        editorState_.previewCameraChanged = true;
+    }
+    if (ImGui::DragFloat2("Offset", &editorState_.previewOffsetX, 0.01f, -10.0f, 10.0f, "%.2f")) {
+        editorState_.previewCameraChanged = true;
+    }
 
     if (ImGui::Button("Reset Preview")) {
         editorState_.previewZoom = 1.0f;
         editorState_.previewOffsetX = 0.0f;
         editorState_.previewOffsetY = 0.0f;
+        editorState_.previewResetRequested = true;
     }
 
     ImGui::End();
@@ -782,13 +807,18 @@ void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, i
 
     ParticleEmitterConfig& cfg = editorState_.config;
 
-    // Destroy existing preview system if config changed significantly
-    // For now, we'll just update the emission rate dynamically
+    // Check if maxParticles changed - requires system recreation
+    bool needsRecreation = (cfg.maxParticles != editorState_.lastMaxParticles);
+
+    if (needsRecreation && editorState_.previewSystemId >= 0) {
+        // Destroy existing system and create new one with correct capacity
+        particleManager->destroySystem(editorState_.previewSystemId);
+        editorState_.previewSystemId = -1;
+    }
+
     if (editorState_.previewSystemId >= 0) {
-        // Update the system position to be at the preview offset
-        particleManager->setSystemPosition(editorState_.previewSystemId,
-                                            editorState_.previewOffsetX,
-                                            editorState_.previewOffsetY);
+        // Update the system position
+        particleManager->setSystemPosition(editorState_.previewSystemId, 0.0f, 0.0f);
         particleManager->setSystemEmissionRate(editorState_.previewSystemId, cfg.emissionRate);
 
         // Get the system and update its config
@@ -799,9 +829,8 @@ void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, i
     } else if (pipelineId >= 0) {
         // Create a new preview system
         editorState_.previewSystemId = particleManager->createSystem(cfg, pipelineId);
-        particleManager->setSystemPosition(editorState_.previewSystemId,
-                                            editorState_.previewOffsetX,
-                                            editorState_.previewOffsetY);
+        particleManager->setSystemPosition(editorState_.previewSystemId, 0.0f, 0.0f);
+        editorState_.lastMaxParticles = cfg.maxParticles;
     }
 }
 
