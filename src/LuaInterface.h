@@ -9,6 +9,7 @@
 #include "VulkanRenderer.h"
 #include "Box2DPhysics.h"
 #include "SceneLayer.h"
+#include "ParticleSystem.h"
 #include "InputActions.h"
 #include "AudioManager.h"
 #include "VibrationManager.h"
@@ -40,6 +41,9 @@ public:
 
     // Audio access
     AudioManager& getAudioManager() { return *audioManager_; }
+
+    // Particle system access
+    ParticleSystemManager& getParticleSystemManager() { return *particleManager_; }
 
     // Cursor position for drag operations (in world coordinates)
     void setCursorPosition(float x, float y) { cursorX_ = x; cursorY_ = y; }
@@ -156,6 +160,13 @@ private:
     static int clearLights(lua_State* L);
     static int setAmbientLight(lua_State* L);
 
+    // Particle system Lua bindings
+    static int createParticleSystem(lua_State* L);
+    static int destroyParticleSystem(lua_State* L);
+    static int setParticleSystemPosition(lua_State* L);
+    static int setParticleSystemEmissionRate(lua_State* L);
+    static int loadParticleShaders(lua_State* L);
+
     void registerFunctions();
 
     PakResource& pakResource_;
@@ -168,6 +179,7 @@ private:
     std::unique_ptr<Box2DPhysics> physics_;
     std::unique_ptr<SceneLayerManager> layerManager_;
     std::unique_ptr<AudioManager> audioManager_;
+    std::unique_ptr<ParticleSystemManager> particleManager_;
     VibrationManager* vibrationManager_;
     float cursorX_;
     float cursorY_;

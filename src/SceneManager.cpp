@@ -1,7 +1,9 @@
 #include "SceneManager.h"
 #include "LuaInterface.h"
 #include "SceneLayer.h"
+#include "ParticleSystem.h"
 #include <cassert>
+#include <cmath>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager)
     : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false) {
@@ -101,6 +103,85 @@ bool SceneManager::updateActiveScene(float deltaTime) {
 
         // Send batches to renderer
         renderer_.setSpriteBatches(spriteBatches);
+
+        // Update and render particle systems
+        ParticleSystemManager& particleManager = luaInterface_->getParticleSystemManager();
+        particleManager.update(deltaTime);
+
+        // Generate particle vertex data for all particle systems
+        std::vector<float> particleVertexData;
+        std::vector<uint16_t> particleIndices;
+
+        for (int i = 0; i < particleManager.getSystemCount(); ++i) {
+            ParticleSystem* system = &particleManager.getSystems()[i];
+            if (!system || system->liveParticleCount == 0) continue;
+
+            uint16_t baseVertex = (uint16_t)(particleVertexData.size() / 8);  // 8 floats per vertex
+
+            for (int p = 0; p < system->liveParticleCount; ++p) {
+                float x = system->posX[p];
+                float y = system->posY[p];
+                float size = system->size[p];
+                float halfSize = size * 0.5f;
+
+                // Calculate life ratio for color interpolation
+                float lifeRatio = 1.0f - (system->lifetime[p] / system->totalLifetime[p]);
+
+                // Interpolate color
+                float r = system->colorR[p] + (system->endColorR[p] - system->colorR[p]) * lifeRatio;
+                float g = system->colorG[p] + (system->endColorG[p] - system->colorG[p]) * lifeRatio;
+                float b = system->colorB[p] + (system->endColorB[p] - system->colorB[p]) * lifeRatio;
+                float a = system->colorA[p] + (system->endColorA[p] - system->colorA[p]) * lifeRatio;
+
+                // Apply Z rotation to quad
+                float cosZ = cosf(system->rotZ[p]);
+                float sinZ = sinf(system->rotZ[p]);
+
+                // Quad corners in local space
+                float corners[4][2] = {
+                    {-halfSize, -halfSize},  // Bottom-left
+                    { halfSize, -halfSize},  // Bottom-right
+                    { halfSize,  halfSize},  // Top-right
+                    {-halfSize,  halfSize}   // Top-left
+                };
+
+                // UV coordinates
+                float uvs[4][2] = {
+                    {0.0f, 1.0f},  // Bottom-left
+                    {1.0f, 1.0f},  // Bottom-right
+                    {1.0f, 0.0f},  // Top-right
+                    {0.0f, 0.0f}   // Top-left
+                };
+
+                uint16_t vertexBase = (uint16_t)(particleVertexData.size() / 8);
+
+                for (int v = 0; v < 4; ++v) {
+                    // Rotate
+                    float rx = corners[v][0] * cosZ - corners[v][1] * sinZ;
+                    float ry = corners[v][0] * sinZ + corners[v][1] * cosZ;
+
+                    // Translate
+                    particleVertexData.push_back(x + rx);
+                    particleVertexData.push_back(y + ry);
+                    particleVertexData.push_back(uvs[v][0]);
+                    particleVertexData.push_back(uvs[v][1]);
+                    particleVertexData.push_back(r);
+                    particleVertexData.push_back(g);
+                    particleVertexData.push_back(b);
+                    particleVertexData.push_back(a);
+                }
+
+                // Add indices for two triangles (quad)
+                particleIndices.push_back(vertexBase + 0);
+                particleIndices.push_back(vertexBase + 1);
+                particleIndices.push_back(vertexBase + 2);
+                particleIndices.push_back(vertexBase + 2);
+                particleIndices.push_back(vertexBase + 3);
+                particleIndices.push_back(vertexBase + 0);
+            }
+        }
+
+        renderer_.setParticleDrawData(particleVertexData, particleIndices);
 
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {

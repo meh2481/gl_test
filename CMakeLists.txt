@@ -81,9 +81,9 @@ add_custom_command(
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp src/ImGuiManager.cpp)
+    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp src/ParticleSystem.cpp src/ImGuiManager.cpp)
 else()
-    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp)
+    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp src/ParticleSystem.cpp)
 endif()
 add_dependencies(shader_triangle shaders res_pak)
 

@@ -11,6 +11,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, S
     physics_ = std::make_unique<Box2DPhysics>();
     layerManager_ = std::make_unique<SceneLayerManager>();
     audioManager_ = std::make_unique<AudioManager>();
+    particleManager_ = std::make_unique<ParticleSystemManager>();
     audioManager_->initialize();
 
     // Set layer manager on physics so it can create fragment layers during fracture
@@ -58,6 +59,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "getCursorPosition",
                                      "getCameraOffset", "setCameraOffset", "getCameraZoom", "setCameraZoom",
                                      "addLight", "updateLight", "removeLight", "clearLights", "setAmbientLight",
+                                     "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "setParticleSystemEmissionRate", "loadParticleShaders",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -509,6 +511,13 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "removeLight", removeLight);
     lua_register(luaState_, "clearLights", clearLights);
     lua_register(luaState_, "setAmbientLight", setAmbientLight);
+
+    // Register particle system functions
+    lua_register(luaState_, "createParticleSystem", createParticleSystem);
+    lua_register(luaState_, "destroyParticleSystem", destroyParticleSystem);
+    lua_register(luaState_, "setParticleSystemPosition", setParticleSystemPosition);
+    lua_register(luaState_, "setParticleSystemEmissionRate", setParticleSystemEmissionRate);
+    lua_register(luaState_, "loadParticleShaders", loadParticleShaders);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -2432,5 +2441,331 @@ int LuaInterface::setAmbientLight(lua_State* L) {
     float b = (float)lua_tonumber(L, 3);
 
     interface->renderer_.setAmbientLight(r, g, b);
+    return 0;
+}
+
+// Particle system Lua bindings
+
+int LuaInterface::loadParticleShaders(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), additive (boolean, optional)
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 3 && numArgs <= 4);
+    assert(lua_isstring(L, 1));
+    assert(lua_isstring(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    const char* vertShaderName = lua_tostring(L, 1);
+    const char* fragShaderName = lua_tostring(L, 2);
+    int zIndex = (int)lua_tointeger(L, 3);
+    bool additive = true;  // Default to additive blending
+
+    if (numArgs >= 4) {
+        assert(lua_isboolean(L, 4));
+        additive = lua_toboolean(L, 4);
+    }
+
+    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
+    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+
+    ResourceData vertShader = interface->pakResource_.getResource(vertId);
+    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+
+    assert(vertShader.data != nullptr);
+    assert(fragShader.data != nullptr);
+
+    int pipelineId = interface->pipelineIndex_++;
+    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+
+    // Create particle pipeline
+    interface->renderer_.createParticlePipeline(pipelineId, vertShader, fragShader, additive);
+
+    // Return the pipeline ID so it can be used in createParticleSystem
+    lua_pushinteger(L, pipelineId);
+    return 1;
+}
+
+int LuaInterface::createParticleSystem(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: config table, pipelineId
+    assert(lua_gettop(L) == 2);
+    assert(lua_istable(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int pipelineId = lua_tointeger(L, 2);
+
+    ParticleEmitterConfig config;
+    memset(&config, 0, sizeof(config));
+
+    // Parse config table
+    lua_getfield(L, 1, "maxParticles");
+    config.maxParticles = lua_isinteger(L, -1) ? lua_tointeger(L, -1) : 100;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "emissionRate");
+    config.emissionRate = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 10.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "blendMode");
+    config.blendMode = lua_isinteger(L, -1) ? (ParticleBlendMode)lua_tointeger(L, -1) : PARTICLE_BLEND_ADDITIVE;
+    lua_pop(L, 1);
+
+    // Parse emission area vertices (optional)
+    lua_getfield(L, 1, "emissionVertices");
+    if (lua_istable(L, -1)) {
+        int len = (int)lua_rawlen(L, -1);
+        config.emissionVertexCount = len / 2;
+        if (config.emissionVertexCount > 8) config.emissionVertexCount = 8;
+        for (int i = 0; i < config.emissionVertexCount * 2 && i < 16; ++i) {
+            lua_rawgeti(L, -1, i + 1);
+            config.emissionVertices[i] = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+
+    // Parse texture IDs (optional)
+    lua_getfield(L, 1, "textureIds");
+    if (lua_istable(L, -1)) {
+        int len = (int)lua_rawlen(L, -1);
+        config.textureCount = len > 8 ? 8 : len;
+        for (int i = 0; i < config.textureCount; ++i) {
+            lua_rawgeti(L, -1, i + 1);
+            config.textureIds[i] = lua_isinteger(L, -1) ? (uint64_t)lua_tointeger(L, -1) : 0;
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+
+    // Position variance
+    lua_getfield(L, 1, "positionVariance");
+    config.positionVariance = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    // Velocity
+    lua_getfield(L, 1, "velocityMinX");
+    config.velocityMinX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "velocityMaxX");
+    config.velocityMaxX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "velocityMinY");
+    config.velocityMinY = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "velocityMaxY");
+    config.velocityMaxY = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    // Acceleration
+    lua_getfield(L, 1, "accelerationMinX");
+    config.accelerationMinX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "accelerationMaxX");
+    config.accelerationMaxX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "accelerationMinY");
+    config.accelerationMinY = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "accelerationMaxY");
+    config.accelerationMaxY = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    // Radial acceleration
+    lua_getfield(L, 1, "radialAccelerationMin");
+    config.radialAccelerationMin = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "radialAccelerationMax");
+    config.radialAccelerationMax = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    // Size
+    lua_getfield(L, 1, "startSizeMin");
+    config.startSizeMin = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.1f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "startSizeMax");
+    config.startSizeMax = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.1f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "endSizeMin");
+    config.endSizeMin = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.1f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "endSizeMax");
+    config.endSizeMax = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.1f;
+    lua_pop(L, 1);
+
+    // Color (start)
+    lua_getfield(L, 1, "colorMinR");
+    config.colorMinR = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "colorMaxR");
+    config.colorMaxR = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "colorMinG");
+    config.colorMinG = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "colorMaxG");
+    config.colorMaxG = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "colorMinB");
+    config.colorMinB = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "colorMaxB");
+    config.colorMaxB = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "colorMinA");
+    config.colorMinA = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "colorMaxA");
+    config.colorMaxA = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
+    lua_pop(L, 1);
+
+    // Color (end)
+    lua_getfield(L, 1, "endColorMinR");
+    config.endColorMinR = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : config.colorMinR;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "endColorMaxR");
+    config.endColorMaxR = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : config.colorMaxR;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "endColorMinG");
+    config.endColorMinG = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : config.colorMinG;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "endColorMaxG");
+    config.endColorMaxG = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : config.colorMaxG;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "endColorMinB");
+    config.endColorMinB = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : config.colorMinB;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "endColorMaxB");
+    config.endColorMaxB = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : config.colorMaxB;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "endColorMinA");
+    config.endColorMinA = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "endColorMaxA");
+    config.endColorMaxA = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    // Lifetime
+    lua_getfield(L, 1, "lifetimeMin");
+    config.lifetimeMin = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "lifetimeMax");
+    config.lifetimeMax = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
+    lua_pop(L, 1);
+
+    // Rotation (start)
+    lua_getfield(L, 1, "rotationMinX");
+    config.rotationMinX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotationMaxX");
+    config.rotationMaxX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotationMinY");
+    config.rotationMinY = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotationMaxY");
+    config.rotationMaxY = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotationMinZ");
+    config.rotationMinZ = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotationMaxZ");
+    config.rotationMaxZ = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    // Rotational velocity
+    lua_getfield(L, 1, "rotVelocityMinX");
+    config.rotVelocityMinX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotVelocityMaxX");
+    config.rotVelocityMaxX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotVelocityMinY");
+    config.rotVelocityMinY = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotVelocityMaxY");
+    config.rotVelocityMaxY = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotVelocityMinZ");
+    config.rotVelocityMinZ = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotVelocityMaxZ");
+    config.rotVelocityMaxZ = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    // Rotational acceleration
+    lua_getfield(L, 1, "rotAccelerationMinX");
+    config.rotAccelerationMinX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotAccelerationMaxX");
+    config.rotAccelerationMaxX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotAccelerationMinY");
+    config.rotAccelerationMinY = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotAccelerationMaxY");
+    config.rotAccelerationMaxY = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotAccelerationMinZ");
+    config.rotAccelerationMinZ = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "rotAccelerationMaxZ");
+    config.rotAccelerationMaxZ = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    int systemId = interface->particleManager_->createSystem(config, pipelineId);
+    lua_pushinteger(L, systemId);
+    return 1;
+}
+
+int LuaInterface::destroyParticleSystem(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int systemId = lua_tointeger(L, 1);
+    interface->particleManager_->destroySystem(systemId);
+    return 0;
+}
+
+int LuaInterface::setParticleSystemPosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 3);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    int systemId = lua_tointeger(L, 1);
+    float x = (float)lua_tonumber(L, 2);
+    float y = (float)lua_tonumber(L, 3);
+
+    interface->particleManager_->setSystemPosition(systemId, x, y);
+    return 0;
+}
+
+int LuaInterface::setParticleSystemEmissionRate(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int systemId = lua_tointeger(L, 1);
+    float rate = (float)lua_tonumber(L, 2);
+
+    interface->particleManager_->setSystemEmissionRate(systemId, rate);
     return 0;
 }

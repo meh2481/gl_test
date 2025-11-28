@@ -41,6 +41,7 @@ public:
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
     void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
+    void createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool additive = true);
     void associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId);
     void setCurrentPipeline(uint64_t id);
     void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
@@ -49,6 +50,7 @@ public:
     void setDebugTriangleDrawData(const std::vector<float>& vertexData);
     void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
     void setSpriteBatches(const std::vector<SpriteBatch>& batches);
+    void setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);
     void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
@@ -120,7 +122,7 @@ private:
     VkDeviceMemory debugTriangleVertexBufferMemory;
     size_t debugTriangleVertexBufferSize;
     uint32_t debugTriangleVertexCount;
-    
+
     // Sprite rendering
     VkBuffer spriteVertexBuffer;
     VkDeviceMemory spriteVertexBufferMemory;
@@ -130,7 +132,17 @@ private:
     VkDeviceMemory spriteIndexBufferMemory;
     size_t spriteIndexBufferSize;
     uint32_t spriteIndexCount;
-    
+
+    // Particle rendering
+    VkBuffer particleVertexBuffer;
+    VkDeviceMemory particleVertexBufferMemory;
+    size_t particleVertexBufferSize;
+    uint32_t particleVertexCount;
+    VkBuffer particleIndexBuffer;
+    VkDeviceMemory particleIndexBufferMemory;
+    size_t particleIndexBufferSize;
+    uint32_t particleIndexCount;
+
     // Sprite batch data
     struct BatchDrawData {
         uint64_t textureId;
@@ -141,7 +153,17 @@ private:
         uint32_t firstIndex;
     };
     std::vector<BatchDrawData> m_spriteBatches;
-    
+
+    // Particle batch data
+    struct ParticleBatchData {
+        uint64_t textureId;
+        uint64_t descriptorId;
+        int pipelineId;
+        uint32_t indexCount;
+        uint32_t firstIndex;
+    };
+    std::vector<ParticleBatchData> m_particleBatches;
+
     // Texture support
     struct TextureData {
         VkImage image;
@@ -164,17 +186,18 @@ private:
     VkDescriptorPool m_dualTextureDescriptorPool;
     std::map<uint64_t, VkDescriptorSet> m_dualTextureDescriptorSets;
     VkPipelineLayout m_dualTexturePipelineLayout;
-    
+
     // Pipeline metadata - stores which resources each pipeline uses
     struct PipelineInfo {
         VkPipelineLayout layout;
         VkDescriptorSetLayout descriptorSetLayout;
         bool usesDualTexture;  // true = 2 textures, false = 1 texture
         bool usesExtendedPushConstants;  // true = uses extended push constants with shader parameters
+        bool isParticlePipeline;  // true = particle pipeline (uses vertex colors)
         std::set<uint64_t> descriptorIds;  // Which descriptor sets this pipeline uses
     };
     std::map<uint64_t, PipelineInfo> m_pipelineInfo;
-    
+
     // Per-pipeline shader parameters (e.g., light position, material properties)
     std::map<int, std::array<float, 7>> m_pipelineShaderParams;
     std::map<int, int> m_pipelineShaderParamCount;  // Track how many parameters each pipeline uses
@@ -229,6 +252,8 @@ private:
     void updateDebugTriangleVertexBuffer(const std::vector<float>& vertexData);
     void createSpriteVertexBuffer();
     void updateSpriteVertexBuffer(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
+    void createParticleVertexBuffer();
+    void updateParticleVertexBuffer(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
     void createCommandPool();
     void createCommandBuffers();
     void createSyncObjects();

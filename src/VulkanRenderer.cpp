@@ -50,6 +50,14 @@ VulkanRenderer::VulkanRenderer() :
     spriteIndexBufferMemory(VK_NULL_HANDLE),
     spriteIndexBufferSize(0),
     spriteIndexCount(0),
+    particleVertexBuffer(VK_NULL_HANDLE),
+    particleVertexBufferMemory(VK_NULL_HANDLE),
+    particleVertexBufferSize(0),
+    particleVertexCount(0),
+    particleIndexBuffer(VK_NULL_HANDLE),
+    particleIndexBufferMemory(VK_NULL_HANDLE),
+    particleIndexBufferSize(0),
+    particleIndexCount(0),
     m_singleTextureDescriptorSetLayout(VK_NULL_HANDLE),
     m_singleTextureDescriptorPool(VK_NULL_HANDLE),
     m_singleTexturePipelineLayout(VK_NULL_HANDLE),
@@ -119,6 +127,7 @@ void VulkanRenderer::initialize(SDL_Window* window) {
     createDebugVertexBuffer();
     createDebugTriangleVertexBuffer();
     createSpriteVertexBuffer();
+    createParticleVertexBuffer();
     createCommandPool();
     createCommandBuffers();
     createSyncObjects();
@@ -419,6 +428,19 @@ void VulkanRenderer::cleanup() {
     }
     if (debugTriangleVertexBufferMemory != VK_NULL_HANDLE) {
         vkFreeMemory(device, debugTriangleVertexBufferMemory, nullptr);
+    }
+
+    if (particleVertexBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, particleVertexBuffer, nullptr);
+    }
+    if (particleVertexBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, particleVertexBufferMemory, nullptr);
+    }
+    if (particleIndexBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, particleIndexBuffer, nullptr);
+    }
+    if (particleIndexBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, particleIndexBufferMemory, nullptr);
     }
 
     if (swapchainFramebuffers != nullptr) {
@@ -1235,74 +1257,96 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             auto pipelineIt = m_pipelines.find(pipelineId);
             auto infoIt = m_pipelineInfo.find(pipelineId);
 
-            if (pipelineIt != m_pipelines.end() && infoIt != m_pipelineInfo.end() && !m_spriteBatches.empty()) {
-                // Textured pipeline rendering
+            if (pipelineIt != m_pipelines.end() && infoIt != m_pipelineInfo.end()) {
                 const PipelineInfo& info = infoIt->second;
 
-                // Prepare push constants based on pipeline requirements
-                if (info.usesExtendedPushConstants) {
-                    // Extended push constants with shader parameters
-                    // Get parameters for this pipeline (or use defaults if not set)
-                    const auto& params = m_pipelineShaderParams.count(pipelineId)
-                        ? m_pipelineShaderParams[pipelineId]
-                        : std::array<float, 7>{0, 0, 0, 0, 0, 0, 0};
-
-                    float extPushConstants[13] = {
-                        static_cast<float>(swapchainExtent.width),
-                        static_cast<float>(swapchainExtent.height),
-                        time,
-                        m_cameraOffsetX,
-                        m_cameraOffsetY,
-                        m_cameraZoom,
-                        params[0], params[1], params[2],
-                        params[3], params[4], params[5], params[6]
-                    };
-                    vkCmdPushConstants(commandBuffer, info.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
-                } else {
-                    // Standard push constants
+                // Check if this is a particle pipeline
+                if (info.isParticlePipeline && particleIndexCount > 0) {
+                    // Particle pipeline rendering
                     vkCmdPushConstants(commandBuffer, info.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
-                }
 
-                VkBuffer vertexBuffers[] = {spriteVertexBuffer};
-                VkDeviceSize offsets[] = {0};
-                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                vkCmdBindIndexBuffer(commandBuffer, spriteIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineIt->second);
+                    VkBuffer vertexBuffers[] = {particleVertexBuffer};
+                    VkDeviceSize offsets[] = {0};
+                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                    vkCmdBindIndexBuffer(commandBuffer, particleIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineIt->second);
 
-                // Draw each batch that belongs to this pipeline
-                for (const auto& batch : m_spriteBatches) {
-                    // Only draw batches that explicitly use this pipeline
-                    // If batch has pipelineId == -1, it can be drawn by any pipeline that has a descriptor for it
-                    if (batch.pipelineId != -1 && batch.pipelineId != pipelineId) {
-                        continue;
+                    // Get or create a white texture descriptor for particles (if no texture specified)
+                    // For now, we'll use the first texture available or a default
+                    // In a more complete implementation, particles would have their own texture descriptors
+                    if (!m_singleTextureDescriptorSets.empty()) {
+                        VkDescriptorSet descriptorSet = m_singleTextureDescriptorSets.begin()->second;
+                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                              info.layout, 0, 1, &descriptorSet, 0, nullptr);
+                    }
+                    vkCmdDrawIndexed(commandBuffer, particleIndexCount, 1, 0, 0, 0);
+                } else if (!m_spriteBatches.empty()) {
+                    // Textured sprite pipeline rendering
+                    // Prepare push constants based on pipeline requirements
+                    if (info.usesExtendedPushConstants) {
+                        // Extended push constants with shader parameters
+                        // Get parameters for this pipeline (or use defaults if not set)
+                        const auto& params = m_pipelineShaderParams.count(pipelineId)
+                            ? m_pipelineShaderParams[pipelineId]
+                            : std::array<float, 7>{0, 0, 0, 0, 0, 0, 0};
+
+                        float extPushConstants[13] = {
+                            static_cast<float>(swapchainExtent.width),
+                            static_cast<float>(swapchainExtent.height),
+                            time,
+                            m_cameraOffsetX,
+                            m_cameraOffsetY,
+                            m_cameraZoom,
+                            params[0], params[1], params[2],
+                            params[3], params[4], params[5], params[6]
+                        };
+                        vkCmdPushConstants(commandBuffer, info.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
+                    } else {
+                        // Standard push constants
+                        vkCmdPushConstants(commandBuffer, info.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
                     }
 
-                    // For batches with pipelineId == -1, check if this pipeline has the descriptor
-                    if (batch.pipelineId == -1 && !info.descriptorIds.empty() &&
-                        info.descriptorIds.find(batch.descriptorId) == info.descriptorIds.end()) {
-                        continue;
-                    }
+                    VkBuffer vertexBuffers[] = {spriteVertexBuffer};
+                    VkDeviceSize offsets[] = {0};
+                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                    vkCmdBindIndexBuffer(commandBuffer, spriteIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineIt->second);
 
-                    // Get or create descriptor set lazily
-                    VkDescriptorSet descriptorSet = getOrCreateDescriptorSet(
-                        batch.descriptorId,
-                        batch.textureId,
-                        batch.normalMapId,
-                        info.usesDualTexture
-                    );
-
-                    if (descriptorSet != VK_NULL_HANDLE) {
-                        if (info.usesDualTexture) {
-                            // Dual texture pipeline uses two descriptor sets:
-                            // Set 0: texture samplers, Set 1: light uniform buffer
-                            VkDescriptorSet descriptorSets[] = {descriptorSet, m_lightDescriptorSet};
-                            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                                  info.layout, 0, 2, descriptorSets, 0, nullptr);
-                        } else {
-                            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                                  info.layout, 0, 1, &descriptorSet, 0, nullptr);
+                    // Draw each batch that belongs to this pipeline
+                    for (const auto& batch : m_spriteBatches) {
+                        // Only draw batches that explicitly use this pipeline
+                        // If batch has pipelineId == -1, it can be drawn by any pipeline that has a descriptor for it
+                        if (batch.pipelineId != -1 && batch.pipelineId != pipelineId) {
+                            continue;
                         }
-                        vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+
+                        // For batches with pipelineId == -1, check if this pipeline has the descriptor
+                        if (batch.pipelineId == -1 && !info.descriptorIds.empty() &&
+                            info.descriptorIds.find(batch.descriptorId) == info.descriptorIds.end()) {
+                            continue;
+                        }
+
+                        // Get or create descriptor set lazily
+                        VkDescriptorSet descriptorSet = getOrCreateDescriptorSet(
+                            batch.descriptorId,
+                            batch.textureId,
+                            batch.normalMapId,
+                            info.usesDualTexture
+                        );
+
+                        if (descriptorSet != VK_NULL_HANDLE) {
+                            if (info.usesDualTexture) {
+                                // Dual texture pipeline uses two descriptor sets:
+                                // Set 0: texture samplers, Set 1: light uniform buffer
+                                VkDescriptorSet descriptorSets[] = {descriptorSet, m_lightDescriptorSet};
+                                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                                      info.layout, 0, 2, descriptorSets, 0, nullptr);
+                            } else {
+                                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                                      info.layout, 0, 1, &descriptorSet, 0, nullptr);
+                            }
+                            vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+                        }
                     }
                 }
             } else if (pipelineIt != m_pipelines.end()) {
@@ -1629,6 +1673,7 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
     info.descriptorSetLayout = descriptorSetLayout;
     info.usesDualTexture = usesDualTexture;
     info.usesExtendedPushConstants = false;  // Will be set to true when setShaderParameters is called
+    info.isParticlePipeline = false;
     m_pipelineInfo[id] = info;
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
@@ -1802,6 +1847,7 @@ void VulkanRenderer::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     info.descriptorSetLayout = descriptorSetLayout;
     info.usesDualTexture = usesDualTexture;
     info.usesExtendedPushConstants = false;  // Will be set to true when setShaderParameters is called
+    info.isParticlePipeline = false;
     m_pipelineInfo[id] = info;
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
@@ -2442,4 +2488,287 @@ void VulkanRenderer::setAmbientLight(float r, float g, float b) {
     m_lightBufferData.ambientG = g;
     m_lightBufferData.ambientB = b;
     m_lightBufferDirty = true;
+}
+
+// Particle rendering functions
+
+void VulkanRenderer::createParticleVertexBuffer() {
+    // Start with a reasonable size
+    particleVertexBufferSize = 8192;  // 8KB initial size
+    particleIndexBufferSize = 4096;   // 4KB initial size for indices
+
+    // Create vertex buffer
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = particleVertexBufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    assert(vkCreateBuffer(device, &bufferInfo, nullptr, &particleVertexBuffer) == VK_SUCCESS);
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, particleVertexBuffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    assert(vkAllocateMemory(device, &allocInfo, nullptr, &particleVertexBufferMemory) == VK_SUCCESS);
+    vkBindBufferMemory(device, particleVertexBuffer, particleVertexBufferMemory, 0);
+
+    // Create index buffer
+    bufferInfo.size = particleIndexBufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    assert(vkCreateBuffer(device, &bufferInfo, nullptr, &particleIndexBuffer) == VK_SUCCESS);
+
+    vkGetBufferMemoryRequirements(device, particleIndexBuffer, &memRequirements);
+
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    assert(vkAllocateMemory(device, &allocInfo, nullptr, &particleIndexBufferMemory) == VK_SUCCESS);
+    vkBindBufferMemory(device, particleIndexBuffer, particleIndexBufferMemory, 0);
+
+    particleVertexCount = 0;
+    particleIndexCount = 0;
+}
+
+void VulkanRenderer::updateParticleVertexBuffer(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices) {
+    if (vertexData.empty() || indices.empty()) {
+        particleVertexCount = 0;
+        particleIndexCount = 0;
+        return;
+    }
+
+    size_t vertexDataSize = vertexData.size() * sizeof(float);
+    size_t indexDataSize = indices.size() * sizeof(uint16_t);
+
+    // Reallocate vertex buffer if needed
+    if (vertexDataSize > particleVertexBufferSize) {
+        if (particleVertexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, particleVertexBuffer, nullptr);
+        }
+        if (particleVertexBufferMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, particleVertexBufferMemory, nullptr);
+        }
+
+        particleVertexBufferSize = vertexDataSize * 2;
+
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = particleVertexBufferSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        assert(vkCreateBuffer(device, &bufferInfo, nullptr, &particleVertexBuffer) == VK_SUCCESS);
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device, particleVertexBuffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        assert(vkAllocateMemory(device, &allocInfo, nullptr, &particleVertexBufferMemory) == VK_SUCCESS);
+        vkBindBufferMemory(device, particleVertexBuffer, particleVertexBufferMemory, 0);
+    }
+
+    // Reallocate index buffer if needed
+    if (indexDataSize > particleIndexBufferSize) {
+        if (particleIndexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, particleIndexBuffer, nullptr);
+        }
+        if (particleIndexBufferMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, particleIndexBufferMemory, nullptr);
+        }
+
+        particleIndexBufferSize = indexDataSize * 2;
+
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = particleIndexBufferSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        assert(vkCreateBuffer(device, &bufferInfo, nullptr, &particleIndexBuffer) == VK_SUCCESS);
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device, particleIndexBuffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        assert(vkAllocateMemory(device, &allocInfo, nullptr, &particleIndexBufferMemory) == VK_SUCCESS);
+        vkBindBufferMemory(device, particleIndexBuffer, particleIndexBufferMemory, 0);
+    }
+
+    // Copy vertex data
+    void* data;
+    vkMapMemory(device, particleVertexBufferMemory, 0, vertexDataSize, 0, &data);
+    memcpy(data, vertexData.data(), vertexDataSize);
+    vkUnmapMemory(device, particleVertexBufferMemory);
+
+    // Copy index data
+    vkMapMemory(device, particleIndexBufferMemory, 0, indexDataSize, 0, &data);
+    memcpy(data, indices.data(), indexDataSize);
+    vkUnmapMemory(device, particleIndexBufferMemory);
+
+    // Update counts (8 floats per vertex: x, y, u, v, r, g, b, a)
+    particleVertexCount = vertexData.size() / 8;
+    particleIndexCount = indices.size();
+}
+
+void VulkanRenderer::setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices) {
+    updateParticleVertexBuffer(vertexData, indices);
+}
+
+void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool additive) {
+    m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
+    m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
+
+    VkShaderModule vertShaderModule = createShaderModule(m_vertShaderData);
+    VkShaderModule fragShaderModule = createShaderModule(m_fragShaderData);
+
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertShaderStageInfo.module = vertShaderModule;
+    vertShaderStageInfo.pName = "main";
+
+    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragShaderStageInfo.module = fragShaderModule;
+    fragShaderStageInfo.pName = "main";
+
+    VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+    // Particle vertex: position (vec2) + texCoord (vec2) + color (vec4) = 8 floats
+    VkVertexInputBindingDescription bindingDescription{};
+    bindingDescription.binding = 0;
+    bindingDescription.stride = sizeof(float) * 8;
+    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription attributeDescriptions[3]{};
+
+    attributeDescriptions[0].binding = 0;
+    attributeDescriptions[0].location = 0;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;  // position
+    attributeDescriptions[0].offset = 0;
+
+    attributeDescriptions[1].binding = 0;
+    attributeDescriptions[1].location = 1;
+    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;  // texcoord
+    attributeDescriptions[1].offset = sizeof(float) * 2;
+
+    attributeDescriptions[2].binding = 0;
+    attributeDescriptions[2].location = 2;
+    attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;  // color
+    attributeDescriptions[2].offset = sizeof(float) * 4;
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputInfo.vertexAttributeDescriptionCount = 3;
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float)swapchainExtent.width;
+    viewport.height = (float)swapchainExtent.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = swapchainExtent;
+
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1;
+    viewportState.pScissors = &scissor;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_FALSE;
+
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_TRUE;
+
+    if (additive) {
+        // Additive blending
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    } else {
+        // Standard alpha blending
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    }
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &colorBlendAttachment;
+
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = shaderStages;
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.layout = m_singleTexturePipelineLayout;
+    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.subpass = 0;
+
+    VkPipeline pipeline;
+    assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
+
+    m_pipelines[id] = pipeline;
+
+    // Store pipeline info
+    PipelineInfo info;
+    info.layout = m_singleTexturePipelineLayout;
+    info.descriptorSetLayout = m_singleTextureDescriptorSetLayout;
+    info.usesDualTexture = false;
+    info.usesExtendedPushConstants = false;
+    info.isParticlePipeline = true;
+    m_pipelineInfo[id] = info;
+
+    vkDestroyShaderModule(device, fragShaderModule, nullptr);
+    vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
