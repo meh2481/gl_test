@@ -459,6 +459,8 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "setLayerOffset", setLayerOffset);
     lua_register(luaState_, "setLayerUseLocalUV", setLayerUseLocalUV);
     lua_register(luaState_, "setLayerPolygon", setLayerPolygon);
+    lua_register(luaState_, "setLayerScale", setLayerScale);
+    lua_register(luaState_, "setLayerTransform", setLayerTransform);
 
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
@@ -1623,6 +1625,44 @@ int LuaInterface::setLayerPolygon(lua_State* L) {
 
     // Use same UVs for normal map (Lua API doesn't support separate normal map UVs yet)
     interface->layerManager_->setLayerPolygon(layerId, vertices, uvs, nullptr, vertexCount);
+    return 0;
+}
+
+int LuaInterface::setLayerScale(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), scale (number)
+    assert(lua_gettop(L) == 2);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float scale = lua_tonumber(L, 2);
+
+    interface->layerManager_->setLayerScale(layerId, scale);
+    return 0;
+}
+
+int LuaInterface::setLayerTransform(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), x (number), y (number), angle (number)
+    assert(lua_gettop(L) == 4);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float x = lua_tonumber(L, 2);
+    float y = lua_tonumber(L, 3);
+    float angle = lua_tonumber(L, 4);
+
+    interface->layerManager_->updateLayerTransform(layerId, x, y, angle);
     return 0;
 }
 

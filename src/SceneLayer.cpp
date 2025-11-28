@@ -46,6 +46,7 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     layer.height = height;
     layer.offsetX = 0.0f;
     layer.offsetY = 0.0f;
+    layer.scale = 1.0f;
     layer.enabled = true;
     layer.useLocalUV = false;
 
@@ -110,6 +111,13 @@ void SceneLayerManager::setLayerEnabled(int layerId, bool enabled) {
     auto it = layers_.find(layerId);
     if (it != layers_.end()) {
         it->second.enabled = enabled;
+    }
+}
+
+void SceneLayerManager::setLayerScale(int layerId, float scale) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.scale = scale;
     }
 }
 
@@ -259,9 +267,9 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
             }
         } else {
             // Standard quad rendering
-            // Calculate half-extents
-            float hw = layer.width * 0.5f;
-            float hh = layer.height * 0.5f;
+            // Calculate half-extents with scale applied
+            float hw = layer.width * 0.5f * layer.scale;
+            float hh = layer.height * 0.5f * layer.scale;
 
             // Create quad vertices (4 vertices for a sprite)
             // Vertices in local space (before rotation)
