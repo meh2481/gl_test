@@ -2,7 +2,7 @@
 -- Sparkle effect that follows the swinging lantern in the physics scene
 
 -- Note: textureIds must be set after loading textures in the scene
--- Usage: local config = dofile("lantern_bugs.lua")
+-- Usage: local config = loadParticleConfig("lantern_bugs.lua")
 --        config.textureIds = {bloomTexId}
 --        particleSystemId = createParticleSystem(config, particlePipelineId)
 
