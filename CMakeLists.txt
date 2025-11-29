@@ -71,11 +71,12 @@ target_link_libraries(packer ${LZ4_LIBRARIES} ${PNG_LIBRARIES} squish)
 
 file(GLOB SCENE_FILES "${CMAKE_SOURCE_DIR}/scenes/*.lua")
 file(GLOB RES_FILES "${CMAKE_SOURCE_DIR}/res/*")
+file(GLOB FX_FILES "${CMAKE_SOURCE_DIR}/res/fx/*.lua")
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/res.pak
-    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${SHADER_FILES} ${SCENE_FILES} ${RES_FILES}
-    DEPENDS packer ${SHADER_FILES} ${SCENE_FILES} ${RES_FILES} shaders
+    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${SHADER_FILES} ${SCENE_FILES} ${RES_FILES} ${FX_FILES}
+    DEPENDS packer ${SHADER_FILES} ${SCENE_FILES} ${RES_FILES} ${FX_FILES} shaders
 )
 
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)

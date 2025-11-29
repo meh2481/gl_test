@@ -60,7 +60,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "getCameraOffset", "setCameraOffset", "getCameraZoom", "setCameraZoom",
                                      "addLight", "updateLight", "removeLight", "clearLights", "setAmbientLight",
                                      "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "setParticleSystemEmissionRate", "loadParticleShaders",
-                                     "openParticleEditor",
+                                     "openParticleEditor", "loadParticleConfig",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -522,6 +522,9 @@ void LuaInterface::registerFunctions() {
 
     // Register particle editor function (available in DEBUG builds)
     lua_register(luaState_, "openParticleEditor", openParticleEditor);
+
+    // Register particle config loading function
+    lua_register(luaState_, "loadParticleConfig", loadParticleConfig);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -2804,4 +2807,48 @@ int LuaInterface::openParticleEditor(lua_State* L) {
 #endif
 
     return 0;
+}
+
+int LuaInterface::loadParticleConfig(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: filename (string) - e.g., "lantern_bugs.lua"
+    assert(lua_gettop(L) == 1);
+    assert(lua_isstring(L, 1));
+
+    const char* filename = lua_tostring(L, 1);
+
+    // Hash the filename to get resource ID
+    uint64_t resourceId = std::hash<std::string>{}(filename);
+
+    // Load the Lua file from the pak
+    ResourceData scriptData = interface->pakResource_.getResource(resourceId);
+    if (!scriptData.data || scriptData.size == 0) {
+        std::cerr << "Failed to load particle config: " << filename << std::endl;
+        lua_pushnil(L);
+        return 1;
+    }
+
+    // Load and execute the Lua script, which should return a table
+    if (luaL_loadbuffer(L, (char*)scriptData.data, scriptData.size, filename) != LUA_OK) {
+        const char* errorMsg = lua_tostring(L, -1);
+        std::cerr << "Lua load error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        lua_pop(L, 1);
+        lua_pushnil(L);
+        return 1;
+    }
+
+    // Execute the script - it should return a table
+    if (lua_pcall(L, 0, 1, 0) != LUA_OK) {
+        const char* errorMsg = lua_tostring(L, -1);
+        std::cerr << "Lua exec error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        lua_pop(L, 1);
+        lua_pushnil(L);
+        return 1;
+    }
+
+    // The result (table) is now on top of the stack
+    return 1;
 }

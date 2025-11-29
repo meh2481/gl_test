@@ -20,6 +20,9 @@ static const int EDITOR_MAX_VERTICES = 8;
 static const int EDITOR_MAX_TEXTURES = 8;
 static const int EDITOR_MAX_TEXTURE_NAME_LEN = 64;
 
+// Maximum filename length for save/load
+static const int EDITOR_MAX_FILENAME_LEN = 128;
+
 // Structure to hold particle editor state
 struct ParticleEditorState {
     bool isActive;
@@ -48,6 +51,11 @@ struct ParticleEditorState {
     // Export state
     bool showExportPopup;
     char exportBuffer[8192];
+
+    // Save/Load state
+    char saveFilename[EDITOR_MAX_FILENAME_LEN];
+    char loadFilename[EDITOR_MAX_FILENAME_LEN];
+    char statusMessage[256];  // Status message for save/load operations
 
     // UI state
     bool colorsExpanded;
@@ -121,8 +129,12 @@ private:
     void showEmissionPolygonEditor();
     void showTextureSelector(PakResource* pakResource);
     void showLuaExport();
+    void showSaveLoadSection();
     void updatePreviewSystem(ParticleSystemManager* particleManager, int pipelineId);
     void generateLuaExport();
+    void generateSaveableExport(char* buffer, int bufferSize);
+    bool saveParticleConfig(const char* filename);
+    bool loadParticleConfig(const char* filename, PakResource* pakResource);
 };
 
 #endif // DEBUG
