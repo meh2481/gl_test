@@ -134,7 +134,6 @@ private:
     void generateLuaExport();
     void generateSaveableExport(char* buffer, int bufferSize);
     bool saveParticleConfig(const char* filename);
-    bool loadParticleConfig(const char* filename, PakResource* pakResource);
 };
 
 #endif // DEBUG

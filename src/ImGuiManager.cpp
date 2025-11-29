@@ -870,8 +870,11 @@ void ImGuiManager::showSaveLoadSection() {
 
     // Load section - show available files
     ImGui::Text("Available Particle Systems in res/fx/:");
+    ImGui::TextDisabled("(Note: New files appear after rebuild)");
 
-    // List .lua files in res/fx directory
+    // List known .lua files in res/fx directory
+    // When new files are saved, they will appear here after the project is rebuilt
+    // and the pak file is regenerated
     const char* fxFiles[] = {
         "lantern_bugs.lua"
     };
@@ -879,12 +882,16 @@ void ImGuiManager::showSaveLoadSection() {
 
     for (int i = 0; i < numFxFiles; ++i) {
         ImGui::PushID(200 + i);
-        if (ImGui::Selectable(fxFiles[i], strcmp(editorState_.loadFilename, fxFiles[i]) == 0)) {
-            strncpy(editorState_.loadFilename, fxFiles[i], EDITOR_MAX_FILENAME_LEN - 1);
-            editorState_.loadFilename[EDITOR_MAX_FILENAME_LEN - 1] = '\0';
-        }
+        ImGui::BulletText("%s", fxFiles[i]);
         ImGui::PopID();
     }
+
+    ImGui::Separator();
+
+    ImGui::TextWrapped("To use a particle system in your scene:");
+    ImGui::TextWrapped("1. Save the particle config to res/fx/");
+    ImGui::TextWrapped("2. Rebuild the project (cmake --build build)");
+    ImGui::TextWrapped("3. Load in Lua: local config = loadParticleConfig(\"filename.lua\")");
 
     ImGui::Separator();
 
@@ -990,13 +997,6 @@ bool ImGuiManager::saveParticleConfig(const char* filename) {
     fclose(file);
 
     return true;
-}
-
-bool ImGuiManager::loadParticleConfig(const char* filename, PakResource* pakResource) {
-    // This function would load from the pak file
-    // For now, we indicate that loading from pak is not supported in the editor
-    // (files in pak are read-only)
-    return false;
 }
 
 #endif // DEBUG
