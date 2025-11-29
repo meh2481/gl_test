@@ -7,6 +7,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cmath>
+#include <vector>
 
 // Check Vulkan result callback for ImGui
 static void check_vk_result(VkResult err) {
@@ -39,6 +40,10 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.saveFilename[EDITOR_MAX_FILENAME_LEN - 1] = '\0';
     editorState_.loadFilename[0] = '\0';
     editorState_.statusMessage[0] = '\0';
+
+    // Initialize FX file list
+    editorState_.fxFileCount = 0;
+    editorState_.selectedFxFileIndex = -1;
 
     // Initialize default particle config
     editorState_.config.maxParticles = 100;
@@ -93,6 +98,9 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.sizeExpanded = true;
     editorState_.rotationExpanded = false;
     editorState_.emissionExpanded = true;
+
+    // Refresh FX file list on initialization
+    refreshFxFileList();
 }
 
 ImGuiManager::~ImGuiManager() {
@@ -850,6 +858,65 @@ void ImGuiManager::showSaveLoadSection() {
 
     ImGui::Separator();
 
+    // Load section - show available files with interactive selection
+    ImGui::Text("Load Particle System:");
+
+    if (ImGui::Button("Refresh File List")) {
+        refreshFxFileList();
+    }
+
+    if (editorState_.fxFileCount == 0) {
+        ImGui::TextDisabled("No .lua files found in res/fx/");
+    } else {
+        ImGui::Text("Select a file to load:");
+
+        // Create a listbox with selectable items
+        if (ImGui::BeginListBox("##FxFileList", ImVec2(-1, 150))) {
+            for (int i = 0; i < editorState_.fxFileCount; ++i) {
+                bool isSelected = (editorState_.selectedFxFileIndex == i);
+                if (ImGui::Selectable(editorState_.fxFileList[i], isSelected)) {
+                    editorState_.selectedFxFileIndex = i;
+                }
+
+                // Set initial focus when opening
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndListBox();
+        }
+
+        // Load button - only enabled when a file is selected
+        bool hasSelection = (editorState_.selectedFxFileIndex >= 0 &&
+                            editorState_.selectedFxFileIndex < editorState_.fxFileCount);
+
+        if (!hasSelection) {
+            ImGui::BeginDisabled();
+        }
+
+        if (ImGui::Button("Load Selected")) {
+            if (hasSelection) {
+                const char* selectedFile = editorState_.fxFileList[editorState_.selectedFxFileIndex];
+                if (loadParticleConfigFromFile(selectedFile)) {
+                    snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
+                             "Loaded: %s", selectedFile);
+                    // Copy filename to save field for easy re-save
+                    strncpy(editorState_.saveFilename, selectedFile, EDITOR_MAX_FILENAME_LEN - 1);
+                    editorState_.saveFilename[EDITOR_MAX_FILENAME_LEN - 1] = '\0';
+                } else {
+                    snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
+                             "Error loading: %s", selectedFile);
+                }
+            }
+        }
+
+        if (!hasSelection) {
+            ImGui::EndDisabled();
+        }
+    }
+
+    ImGui::Separator();
+
     // Save section
     ImGui::Text("Save Particle System:");
     ImGui::InputText("Filename##save", editorState_.saveFilename, EDITOR_MAX_FILENAME_LEN);
@@ -860,30 +927,12 @@ void ImGuiManager::showSaveLoadSection() {
         if (saveParticleConfig(editorState_.saveFilename)) {
             snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
                      "Saved: res/fx/%s", editorState_.saveFilename);
+            // Refresh file list to show the newly saved file
+            refreshFxFileList();
         } else {
             snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
                      "Error saving file!");
         }
-    }
-
-    ImGui::Separator();
-
-    // Load section - show available files
-    ImGui::Text("Available Particle Systems in res/fx/:");
-    ImGui::TextDisabled("(Note: New files appear after rebuild)");
-
-    // List known .lua files in res/fx directory
-    // When new files are saved, they will appear here after the project is rebuilt
-    // and the pak file is regenerated
-    const char* fxFiles[] = {
-        "lantern_bugs.lua"
-    };
-    int numFxFiles = 1;
-
-    for (int i = 0; i < numFxFiles; ++i) {
-        ImGui::PushID(200 + i);
-        ImGui::BulletText("%s", fxFiles[i]);
-        ImGui::PopID();
     }
 
     ImGui::Separator();
@@ -995,6 +1044,177 @@ bool ImGuiManager::saveParticleConfig(const char* filename) {
 
     fputs(buffer, file);
     fclose(file);
+
+    return true;
+}
+
+void ImGuiManager::refreshFxFileList() {
+    editorState_.fxFileCount = 0;
+    editorState_.selectedFxFileIndex = -1;
+
+    // Use SDL_EnumerateDirectory to get all files in res/fx/
+    SDL_EnumerateDirectory("res/fx", [](void* userdata, const char* dirname, const char* fname) -> SDL_EnumerationResult {
+        ParticleEditorState* state = (ParticleEditorState*)userdata;
+
+        // Check if it's a .lua file
+        const char* ext = strrchr(fname, '.');
+        if (ext && strcmp(ext, ".lua") == 0) {
+            if (state->fxFileCount < EDITOR_MAX_FX_FILES) {
+                strncpy(state->fxFileList[state->fxFileCount], fname, EDITOR_MAX_FILENAME_LEN - 1);
+                state->fxFileList[state->fxFileCount][EDITOR_MAX_FILENAME_LEN - 1] = '\0';
+                state->fxFileCount++;
+            }
+        }
+
+        return SDL_ENUM_CONTINUE;
+    }, &editorState_);
+}
+
+bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
+    // Build the full path to res/fx/
+    char fullPath[512];
+    snprintf(fullPath, sizeof(fullPath), "res/fx/%s", filename);
+
+    // Read the file
+    FILE* file = fopen(fullPath, "r");
+    if (!file) {
+        return false;
+    }
+
+    // Get file size
+    fseek(file, 0, SEEK_END);
+    long fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    if (fileSize <= 0 || fileSize > 65536) {
+        fclose(file);
+        return false;
+    }
+
+    // Read file content using vector for RAII
+    std::vector<char> content(fileSize + 1);
+    size_t bytesRead = fread(content.data(), 1, fileSize, file);
+    fclose(file);
+    content[bytesRead] = '\0';
+
+    // Parse the Lua config file to extract values
+    // This parser looks for "key = value" patterns at the start of lines or after whitespace
+    ParticleEmitterConfig& cfg = editorState_.config;
+    const char* contentPtr = content.data();
+
+    // Helper lambda to extract a float value with word boundary checking
+    auto extractFloat = [contentPtr](const char* key, float& value) {
+        const char* search = contentPtr;
+        size_t keyLen = strlen(key);
+        while ((search = strstr(search, key)) != nullptr) {
+            // Check if this is at line start or after whitespace/comma (word boundary)
+            bool validStart = (search == contentPtr) ||
+                             (search[-1] == ' ') ||
+                             (search[-1] == '\t') ||
+                             (search[-1] == '\n') ||
+                             (search[-1] == ',');
+            // Check if followed by " = " (not a partial match)
+            const char* after = search + keyLen;
+            bool validEnd = (strncmp(after, " = ", 3) == 0);
+
+            if (validStart && validEnd) {
+                value = (float)atof(after + 3);
+                return;
+            }
+            search++;
+        }
+    };
+
+    // Helper lambda to extract an int value with word boundary checking
+    auto extractInt = [contentPtr](const char* key, int& value) {
+        const char* search = contentPtr;
+        size_t keyLen = strlen(key);
+        while ((search = strstr(search, key)) != nullptr) {
+            // Check if this is at line start or after whitespace/comma (word boundary)
+            bool validStart = (search == contentPtr) ||
+                             (search[-1] == ' ') ||
+                             (search[-1] == '\t') ||
+                             (search[-1] == '\n') ||
+                             (search[-1] == ',');
+            // Check if followed by " = " (not a partial match)
+            const char* after = search + keyLen;
+            bool validEnd = (strncmp(after, " = ", 3) == 0);
+
+            if (validStart && validEnd) {
+                value = atoi(after + 3);
+                return;
+            }
+            search++;
+        }
+    };
+
+    // Extract all particle config values
+    extractInt("maxParticles", cfg.maxParticles);
+    extractFloat("emissionRate", cfg.emissionRate);
+
+    int blendModeInt = (int)cfg.blendMode;
+    extractInt("blendMode", blendModeInt);
+    cfg.blendMode = (ParticleBlendMode)blendModeInt;
+
+    extractInt("emissionVertexCount", cfg.emissionVertexCount);
+
+    // Velocity
+    extractFloat("velocityMinX", cfg.velocityMinX);
+    extractFloat("velocityMaxX", cfg.velocityMaxX);
+    extractFloat("velocityMinY", cfg.velocityMinY);
+    extractFloat("velocityMaxY", cfg.velocityMaxY);
+
+    // Radial velocity
+    extractFloat("radialVelocityMin", cfg.radialVelocityMin);
+    extractFloat("radialVelocityMax", cfg.radialVelocityMax);
+
+    // Acceleration
+    extractFloat("accelerationMinX", cfg.accelerationMinX);
+    extractFloat("accelerationMaxX", cfg.accelerationMaxX);
+    extractFloat("accelerationMinY", cfg.accelerationMinY);
+    extractFloat("accelerationMaxY", cfg.accelerationMaxY);
+
+    // Radial acceleration
+    extractFloat("radialAccelerationMin", cfg.radialAccelerationMin);
+    extractFloat("radialAccelerationMax", cfg.radialAccelerationMax);
+
+    // Size
+    extractFloat("startSizeMin", cfg.startSizeMin);
+    extractFloat("startSizeMax", cfg.startSizeMax);
+    extractFloat("endSizeMin", cfg.endSizeMin);
+    extractFloat("endSizeMax", cfg.endSizeMax);
+
+    // Start color
+    extractFloat("colorMinR", cfg.colorMinR);
+    extractFloat("colorMaxR", cfg.colorMaxR);
+    extractFloat("colorMinG", cfg.colorMinG);
+    extractFloat("colorMaxG", cfg.colorMaxG);
+    extractFloat("colorMinB", cfg.colorMinB);
+    extractFloat("colorMaxB", cfg.colorMaxB);
+    extractFloat("colorMinA", cfg.colorMinA);
+    extractFloat("colorMaxA", cfg.colorMaxA);
+
+    // End color
+    extractFloat("endColorMinR", cfg.endColorMinR);
+    extractFloat("endColorMaxR", cfg.endColorMaxR);
+    extractFloat("endColorMinG", cfg.endColorMinG);
+    extractFloat("endColorMaxG", cfg.endColorMaxG);
+    extractFloat("endColorMinB", cfg.endColorMinB);
+    extractFloat("endColorMaxB", cfg.endColorMaxB);
+    extractFloat("endColorMinA", cfg.endColorMinA);
+    extractFloat("endColorMaxA", cfg.endColorMaxA);
+
+    // Lifetime
+    extractFloat("lifetimeMin", cfg.lifetimeMin);
+    extractFloat("lifetimeMax", cfg.lifetimeMax);
+
+    // Rotation (Z axis is most commonly used for 2D)
+    extractFloat("rotationMinZ", cfg.rotationMinZ);
+    extractFloat("rotationMaxZ", cfg.rotationMaxZ);
+    extractFloat("rotVelocityMinZ", cfg.rotVelocityMinZ);
+    extractFloat("rotVelocityMaxZ", cfg.rotVelocityMaxZ);
+    extractFloat("rotAccelerationMinZ", cfg.rotAccelerationMinZ);
+    extractFloat("rotAccelerationMaxZ", cfg.rotAccelerationMaxZ);
 
     return true;
 }

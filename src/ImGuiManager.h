@@ -23,6 +23,9 @@ static const int EDITOR_MAX_TEXTURE_NAME_LEN = 64;
 // Maximum filename length for save/load
 static const int EDITOR_MAX_FILENAME_LEN = 128;
 
+// Maximum number of FX files to list
+static const int EDITOR_MAX_FX_FILES = 64;
+
 // Structure to hold particle editor state
 struct ParticleEditorState {
     bool isActive;
@@ -56,6 +59,11 @@ struct ParticleEditorState {
     char saveFilename[EDITOR_MAX_FILENAME_LEN];
     char loadFilename[EDITOR_MAX_FILENAME_LEN];
     char statusMessage[256];  // Status message for save/load operations
+
+    // FX file list (dynamically enumerated from res/fx/)
+    char fxFileList[EDITOR_MAX_FX_FILES][EDITOR_MAX_FILENAME_LEN];
+    int fxFileCount;
+    int selectedFxFileIndex;  // Index of currently selected file (-1 if none)
 
     // UI state
     bool colorsExpanded;
@@ -134,6 +142,8 @@ private:
     void generateLuaExport();
     void generateSaveableExport(char* buffer, int bufferSize);
     bool saveParticleConfig(const char* filename);
+    void refreshFxFileList();
+    bool loadParticleConfigFromFile(const char* filename);
 };
 
 #endif // DEBUG
