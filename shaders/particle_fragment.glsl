@@ -9,5 +9,15 @@ layout(binding = 0) uniform sampler2D texSampler;
 
 void main() {
     vec4 texColor = texture(texSampler, fragTexCoord);
-    outColor = texColor * fragColor;
+
+    // Edge antialiasing: compute smooth alpha falloff at geometry edges
+    vec2 fw = fwidth(fragTexCoord);
+    float edgeWidth = max(fw.x, fw.y);
+    float distU = min(fragTexCoord.x, 1.0 - fragTexCoord.x);
+    float distV = min(fragTexCoord.y, 1.0 - fragTexCoord.y);
+    float edgeDist = min(distU, distV);
+    float edgeAlpha = smoothstep(0.0, edgeWidth, edgeDist);
+
+    vec4 finalColor = texColor * fragColor;
+    outColor = vec4(finalColor.rgb, finalColor.a * edgeAlpha);
 }

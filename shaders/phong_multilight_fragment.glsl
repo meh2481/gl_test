@@ -111,6 +111,14 @@ void main() {
         lighting += calculateLight(lightData.lights[i], normal, viewDir, texColor.rgb);
     }
 
+    // Edge antialiasing: compute smooth alpha falloff at geometry edges
+    vec2 fw = fwidth(fragTexCoord);
+    float edgeWidth = max(fw.x, fw.y);
+    float distU = min(fragTexCoord.x, 1.0 - fragTexCoord.x);
+    float distV = min(fragTexCoord.y, 1.0 - fragTexCoord.y);
+    float edgeDist = min(distU, distV);
+    float edgeAlpha = smoothstep(0.0, edgeWidth, edgeDist);
+
     vec3 result = ambient + lighting;
-    outColor = vec4(result, texColor.a);
+    outColor = vec4(result, texColor.a * edgeAlpha);
 }

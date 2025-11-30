@@ -40,5 +40,13 @@ void main() {
     // Apply toon shading
     vec3 toonColor = texColor.rgb * (0.3 + 0.7 * celDiff);
 
-    outColor = vec4(toonColor, texColor.a);
+    // Edge antialiasing: compute smooth alpha falloff at geometry edges
+    vec2 fw = fwidth(fragTexCoord);
+    float edgeWidth = max(fw.x, fw.y);
+    float distU = min(fragTexCoord.x, 1.0 - fragTexCoord.x);
+    float distV = min(fragTexCoord.y, 1.0 - fragTexCoord.y);
+    float edgeDist = min(distU, distV);
+    float edgeAlpha = smoothstep(0.0, edgeWidth, edgeDist);
+
+    outColor = vec4(toonColor, texColor.a * edgeAlpha);
 }
