@@ -661,7 +661,7 @@ int VulkanRenderer::rateDevice(VkPhysicalDevice device)
         default:                                        score = 100; break;
     }
 
-    // Add 1 point per 64MB of device local memory (capped at 4000 points = 256GB)
+    // Add 1 point per 64MB of device local memory (capped at 4096 points = 256GB)
     VkDeviceSize deviceLocalMemory = getDeviceLocalMemory(device);
     VkDeviceSize memoryMB = deviceLocalMemory / (1024 * 1024);
     // Cap at 256GB to ensure safe conversion to int
@@ -715,8 +715,7 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex)
     int selectedIndex = -1;
 
     // If a preferred GPU index is specified and valid, try to use it
-    // Check non-negative first to safely cast to uint32_t for comparison
-    if (preferredGpuIndex >= 0 && static_cast<uint32_t>(preferredGpuIndex) < deviceCount) {
+    if (preferredGpuIndex >= 0 && preferredGpuIndex < static_cast<int>(deviceCount)) {
         if (isDeviceSuitable(devices[preferredGpuIndex])) {
             bestDevice = devices[preferredGpuIndex];
             bestScore = rateDevice(devices[preferredGpuIndex]);
