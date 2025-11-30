@@ -87,7 +87,7 @@ public:
     // Initialize ImGui with Vulkan and SDL3
     void initialize(SDL_Window* window, VkInstance instance, VkPhysicalDevice physicalDevice,
                     VkDevice device, uint32_t queueFamily, VkQueue graphicsQueue,
-                    VkRenderPass renderPass, uint32_t imageCount);
+                    VkRenderPass renderPass, uint32_t imageCount, VkSampleCountFlagBits msaaSamples);
 
     // Cleanup ImGui
     void cleanup();

@@ -78,6 +78,7 @@ public:
     VkRenderPass getRenderPass() const { return renderPass; }
     uint32_t getSwapchainImageCount() const { return swapchainImageCount; }
     VkCommandBuffer getCurrentCommandBuffer() const { return commandBuffers[currentFrame]; }
+    VkSampleCountFlagBits getMsaaSamples() const { return msaaSamples; }
 
     // Get texture data for ImGui rendering
     bool getTextureForImGui(uint64_t textureId, VkImageView* imageView, VkSampler* sampler) const;

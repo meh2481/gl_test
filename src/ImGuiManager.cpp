@@ -120,7 +120,7 @@ ImGuiManager::~ImGuiManager() {
 
 void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysicalDevice physicalDevice,
                               VkDevice device, uint32_t queueFamily, VkQueue graphicsQueue,
-                              VkRenderPass renderPass, uint32_t imageCount) {
+                              VkRenderPass renderPass, uint32_t imageCount, VkSampleCountFlagBits msaaSamples) {
     device_ = device;
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -161,7 +161,7 @@ void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysica
     init_info.PipelineInfoMain.Subpass = 0;
     init_info.MinImageCount = imageCount;
     init_info.ImageCount = imageCount;
-    init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.PipelineInfoMain.MSAASamples = msaaSamples;  // Match render pass MSAA
     init_info.Allocator = nullptr;
     init_info.CheckVkResultFn = check_vk_result;
 
@@ -743,7 +743,7 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
                 // Texture is in an atlas, use the atlas ID
                 lookupTexId = atlasUV.atlasId;
             }
-            
+
             VkImageView imageView;
             VkSampler sampler;
             if (renderer->getTextureForImGui(lookupTexId, &imageView, &sampler)) {
@@ -764,7 +764,7 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
                     // Atlas texture - show with UV coordinates
                     ImVec2 uv0(atlasUV.u0, atlasUV.v0);
                     ImVec2 uv1(atlasUV.u1, atlasUV.v1);
-                    clicked = ImGui::ImageButton(commonTextures[i], (ImTextureID)imguiTexture, 
+                    clicked = ImGui::ImageButton(commonTextures[i], (ImTextureID)imguiTexture,
                                                  ImVec2(thumbnailSize, thumbnailSize), uv0, uv1);
                 } else {
                     // Standalone texture - show full image

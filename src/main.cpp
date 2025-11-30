@@ -192,7 +192,7 @@ int main() {
     imguiManager.initialize(window, renderer.getInstance(), renderer.getPhysicalDevice(),
                            renderer.getDevice(), renderer.getGraphicsQueueFamilyIndex(),
                            renderer.getGraphicsQueue(), renderer.getRenderPass(),
-                           renderer.getSwapchainImageCount());
+                           renderer.getSwapchainImageCount(), renderer.getMsaaSamples());
 
     // Set ImGui render callback in renderer
     renderer.setImGuiRenderCallback(renderImGuiCallback);
