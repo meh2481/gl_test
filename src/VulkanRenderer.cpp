@@ -391,6 +391,18 @@ bool VulkanRenderer::getTextureDimensions(uint64_t textureId, uint32_t* width, u
     return true;
 }
 
+#ifdef DEBUG
+bool VulkanRenderer::getTextureForImGui(uint64_t textureId, VkImageView* imageView, VkSampler* sampler) const {
+    auto it = m_textures.find(textureId);
+    if (it == m_textures.end()) {
+        return false;
+    }
+    if (imageView) *imageView = it->second.imageView;
+    if (sampler) *sampler = it->second.sampler;
+    return true;
+}
+#endif
+
 void VulkanRenderer::cleanup() {
 
     for (size_t i = 0; i < 2; i++) {

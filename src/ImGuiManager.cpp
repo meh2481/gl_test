@@ -1,6 +1,7 @@
 #ifdef DEBUG
 
 #include "ImGuiManager.h"
+#include "VulkanRenderer.h"
 #include "ConsoleBuffer.h"
 #include "resource.h"
 #include <cassert>
@@ -134,13 +135,14 @@ void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysica
     ImGui_ImplSDL3_InitForVulkan(window);
 
     // Create descriptor pool for ImGui
+    // Need extra descriptors for texture previews in the particle editor (up to 10)
     VkDescriptorPoolSize pool_sizes[] = {
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 16 },
     };
     VkDescriptorPoolCreateInfo pool_info = {};
     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    pool_info.maxSets = 1;
+    pool_info.maxSets = 16;
     pool_info.poolSizeCount = 1;
     pool_info.pPoolSizes = pool_sizes;
     VkResult result = vkCreateDescriptorPool(device, &pool_info, nullptr, &imguiPool_);
@@ -172,6 +174,9 @@ void ImGuiManager::cleanup() {
     if (!initialized_) {
         return;
     }
+
+    // Clear texture cache before destroying the descriptor pool
+    imguiTextureCache_.clear();
 
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplSDL3_Shutdown();
@@ -286,7 +291,7 @@ void ImGuiManager::destroyPreviewSystem(ParticleSystemManager* particleManager) 
 }
 
 void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
-                                             int pipelineId, float deltaTime) {
+                                             VulkanRenderer* renderer, int pipelineId, float deltaTime) {
     if (!initialized_ || !editorState_.isActive) {
         return;
     }
@@ -327,7 +332,7 @@ void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManag
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Textures")) {
-            showTextureSelector(pakResource);
+            showTextureSelector(pakResource, renderer);
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Polygon")) {
@@ -631,7 +636,7 @@ void ImGuiManager::showEmissionPolygonEditor() {
     }
 }
 
-void ImGuiManager::showTextureSelector(PakResource* pakResource) {
+void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer* renderer) {
     ParticleEmitterConfig& cfg = editorState_.config;
 
     ImGui::Text("Particle Textures");
@@ -675,9 +680,9 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource) {
 
     ImGui::Separator();
 
-    // Show available textures from pak file
-    ImGui::Text("Available Textures (PNG files in pak):");
-    ImGui::Text("(Textures must be loaded first via loadTexture() in Lua)");
+    // Show available textures from pak file with previews in a grid
+    ImGui::Text("Available Textures:");
+    ImGui::Text("(Click to add to particle system)");
 
     // Common texture names to show
     const char* commonTextures[] = {
@@ -689,25 +694,84 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource) {
     };
     int numCommonTextures = 5;
 
+    // Grid layout settings
+    const float thumbnailSize = 64.0f;
+    const float spacing = 8.0f;
+    float windowWidth = ImGui::GetContentRegionAvail().x;
+    int itemsPerRow = (int)((windowWidth + spacing) / (thumbnailSize + spacing));
+    if (itemsPerRow < 1) itemsPerRow = 1;
+
+    // Helper lambda to add a texture to the selection
+    auto addTextureToSelection = [&](uint64_t texId, const char* texName) {
+        editorState_.selectedTextureIds[editorState_.selectedTextureCount] = texId;
+        strncpy(editorState_.textureNames[editorState_.selectedTextureCount], texName, EDITOR_MAX_TEXTURE_NAME_LEN - 1);
+        editorState_.textureNames[editorState_.selectedTextureCount][EDITOR_MAX_TEXTURE_NAME_LEN - 1] = '\0';
+        editorState_.selectedTextureCount++;
+
+        // Update config
+        cfg.textureCount = editorState_.selectedTextureCount;
+        for (int j = 0; j < cfg.textureCount; ++j) {
+            cfg.textureIds[j] = editorState_.selectedTextureIds[j];
+        }
+    };
+
+    int itemIndex = 0;
     for (int i = 0; i < numCommonTextures; ++i) {
         if (editorState_.selectedTextureCount >= EDITOR_MAX_TEXTURES) break;
 
-        ImGui::PushID(100 + i);
-        if (ImGui::Button(commonTextures[i])) {
-            // Add texture to selection
-            uint64_t texId = std::hash<std::string>{}(commonTextures[i]);
-            editorState_.selectedTextureIds[editorState_.selectedTextureCount] = texId;
-            strncpy(editorState_.textureNames[editorState_.selectedTextureCount], commonTextures[i], EDITOR_MAX_TEXTURE_NAME_LEN - 1);
-            editorState_.textureNames[editorState_.selectedTextureCount][EDITOR_MAX_TEXTURE_NAME_LEN - 1] = '\0';
-            editorState_.selectedTextureCount++;
+        uint64_t texId = std::hash<std::string>{}(commonTextures[i]);
 
-            // Update config
-            cfg.textureCount = editorState_.selectedTextureCount;
-            for (int j = 0; j < cfg.textureCount; ++j) {
-                cfg.textureIds[j] = editorState_.selectedTextureIds[j];
+        // Start new row or add same-line
+        if (itemIndex > 0 && (itemIndex % itemsPerRow) != 0) {
+            ImGui::SameLine();
+        }
+
+        ImGui::PushID(100 + i);
+
+        // Create a child window for each texture item
+        ImGui::BeginGroup();
+
+        // Try to get texture for ImGui preview
+        bool hasPreview = false;
+        bool clicked = false;
+        if (renderer) {
+            VkImageView imageView;
+            VkSampler sampler;
+            if (renderer->getTextureForImGui(texId, &imageView, &sampler)) {
+                // Check if we already have an ImGui descriptor for this texture
+                auto it = imguiTextureCache_.find(texId);
+                VkDescriptorSet imguiTexture;
+                if (it != imguiTextureCache_.end()) {
+                    imguiTexture = it->second;
+                } else {
+                    // Create a new ImGui texture descriptor
+                    imguiTexture = ImGui_ImplVulkan_AddTexture(sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    imguiTextureCache_[texId] = imguiTexture;
+                }
+
+                // Show texture preview as a clickable image button
+                clicked = ImGui::ImageButton(commonTextures[i], (ImTextureID)imguiTexture, ImVec2(thumbnailSize, thumbnailSize));
+                hasPreview = true;
             }
         }
+
+        // Fallback: show a button with placeholder if no preview available
+        if (!hasPreview) {
+            clicked = ImGui::Button("##placeholder", ImVec2(thumbnailSize, thumbnailSize));
+        }
+
+        // Add texture if clicked
+        if (clicked) {
+            addTextureToSelection(texId, commonTextures[i]);
+        }
+
+        // Show filename below the image
+        ImGui::TextWrapped("%s", commonTextures[i]);
+
+        ImGui::EndGroup();
         ImGui::PopID();
+
+        itemIndex++;
     }
 }
 

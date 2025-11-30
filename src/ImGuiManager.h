@@ -9,6 +9,7 @@
 #include <imgui_impl_vulkan.h>
 #include "ParticleSystem.h"
 #include <cstdint>
+#include <map>
 
 // Forward declarations
 class VulkanRenderer;
@@ -110,7 +111,7 @@ public:
     void setParticleEditorActive(bool active);
     bool isParticleEditorActive() const;
     void showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
-                                   int pipelineId, float deltaTime);
+                                   VulkanRenderer* renderer, int pipelineId, float deltaTime);
     ParticleEditorState& getEditorState() { return editorState_; }
     void destroyPreviewSystem(ParticleSystemManager* particleManager);
 
@@ -137,7 +138,7 @@ private:
     void showColorSettings();
     void showRotationSettings();
     void showEmissionPolygonEditor();
-    void showTextureSelector(PakResource* pakResource);
+    void showTextureSelector(PakResource* pakResource, VulkanRenderer* renderer);
     void showLuaExport();
     void showSaveLoadSection();
     void updatePreviewSystem(ParticleSystemManager* particleManager, int pipelineId);
@@ -146,6 +147,9 @@ private:
     bool saveParticleConfig(const char* filename);
     void refreshFxFileList();
     bool loadParticleConfigFromFile(const char* filename);
+
+    // ImGui texture cache for preview images
+    std::map<uint64_t, VkDescriptorSet> imguiTextureCache_;
 };
 
 #endif // DEBUG

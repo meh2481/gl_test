@@ -445,6 +445,7 @@ int main() {
             imguiManager.showParticleEditorWindow(
                 &luaInterface->getParticleSystemManager(),
                 &sceneManager.getPakResource(),
+                &renderer,
                 sceneManager.getParticleEditorPipelineId(),
                 deltaTime
             );
