@@ -920,8 +920,6 @@ void ImGuiManager::showSaveLoadSection() {
     // Save section
     ImGui::Text("Save Particle System:");
     ImGui::InputText("Filename##save", editorState_.saveFilename, EDITOR_MAX_FILENAME_LEN);
-    ImGui::SameLine();
-    ImGui::TextDisabled("(will be saved to res/fx/)");
 
     if (ImGui::Button("Save to File")) {
         if (saveParticleConfig(editorState_.saveFilename)) {
@@ -985,10 +983,8 @@ void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
     pos += snprintf(buffer + pos, bufferSize - pos, "    velocityMinY = %.2f,\n", cfg.velocityMinY);
     pos += snprintf(buffer + pos, bufferSize - pos, "    velocityMaxY = %.2f,\n\n", cfg.velocityMaxY);
 
-    if (cfg.radialVelocityMin != 0.0f || cfg.radialVelocityMax != 0.0f) {
-        pos += snprintf(buffer + pos, bufferSize - pos, "    radialVelocityMin = %.2f,\n", cfg.radialVelocityMin);
-        pos += snprintf(buffer + pos, bufferSize - pos, "    radialVelocityMax = %.2f,\n\n", cfg.radialVelocityMax);
-    }
+    pos += snprintf(buffer + pos, bufferSize - pos, "    radialVelocityMin = %.2f,\n", cfg.radialVelocityMin);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    radialVelocityMax = %.2f,\n\n", cfg.radialVelocityMax);
 
     pos += snprintf(buffer + pos, bufferSize - pos, "    -- Acceleration\n");
     pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMinX = %.2f,\n", cfg.accelerationMinX);
@@ -996,10 +992,8 @@ void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
     pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMinY = %.2f,\n", cfg.accelerationMinY);
     pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMaxY = %.2f,\n\n", cfg.accelerationMaxY);
 
-    if (cfg.radialAccelerationMin != 0.0f || cfg.radialAccelerationMax != 0.0f) {
-        pos += snprintf(buffer + pos, bufferSize - pos, "    radialAccelerationMin = %.2f,\n", cfg.radialAccelerationMin);
-        pos += snprintf(buffer + pos, bufferSize - pos, "    radialAccelerationMax = %.2f,\n\n", cfg.radialAccelerationMax);
-    }
+    pos += snprintf(buffer + pos, bufferSize - pos, "    radialAccelerationMin = %.2f,\n", cfg.radialAccelerationMin);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    radialAccelerationMax = %.2f,\n\n", cfg.radialAccelerationMax);
 
     pos += snprintf(buffer + pos, bufferSize - pos, "    -- Size\n");
     pos += snprintf(buffer + pos, bufferSize - pos, "    startSizeMin = %.3f,\n", cfg.startSizeMin);
