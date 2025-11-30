@@ -347,8 +347,8 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
     });
 
     // Prepare rectangles for all images
-    // Add 4 pixels (2 on each side) for edge padding to prevent texture bleeding with MSAA
-    const uint32_t EDGE_PADDING = 2;
+    // Add 2 pixels (1 on each side) for edge padding to prevent texture bleeding
+    const uint32_t EDGE_PADDING = 1;
     vector<PackRect> rects;
     rects.reserve(images.size());
     for (size_t idx : sortedIndices) {
@@ -466,7 +466,7 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
         }
 
         // Copy packed images into atlas with edge padding
-        const uint32_t EDGE_PADDING = 2;
+        const uint32_t EDGE_PADDING = 1;
         for (size_t i : packedInThisAtlas) {
             PackRect& rect = rects[i];
             PNGImageData& img = images[rect.imageIndex];
