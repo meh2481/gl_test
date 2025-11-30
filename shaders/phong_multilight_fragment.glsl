@@ -78,13 +78,14 @@ vec3 calculateLight(Light light, vec3 normal, vec3 viewDir, vec3 texColor) {
 void main() {
     // Clamp texture coordinates to UV bounds to prevent MSAA bleeding outside sprite region in atlas
     vec2 clampedUV = clamp(fragTexCoord, fragUVBounds.xy, fragUVBounds.zw);
-    vec2 clampedNormalUV = clamp(fragNormalTexCoord, fragUVBounds.xy, fragUVBounds.zw);
+    // Note: Normal map uses its own UV coordinates which may differ from diffuse texture UVs
+    // We don't clamp normal UVs since they have their own valid region in the atlas
 
     // Sample the base texture
     vec4 texColor = texture(texSampler, clampedUV);
 
     // Sample the normal map and convert from [0,1] to [-1,1]
-    vec3 tangentNormal = texture(normalSampler, clampedNormalUV).rgb;
+    vec3 tangentNormal = texture(normalSampler, fragNormalTexCoord).rgb;
     tangentNormal = normalize(tangentNormal * 2.0 - 1.0);
 
     // Compute tangent space basis using screen-space derivatives
