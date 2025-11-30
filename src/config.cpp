@@ -230,15 +230,16 @@ Config loadConfig() {
     if (prefPath) {
         char configFile[1024];
         SDL_snprintf(configFile, sizeof(configFile), "%sconfig.ini", prefPath);
-        
+
         ConfigManager manager;
         if (manager.load(configFile)) {
             config.display = manager.getInt("Display", "display", 0);
             config.fullscreenMode = (SDL_WindowFlags)manager.getInt("Display", "fullscreen", SDL_WINDOW_FULLSCREEN);
             const char* keybindings = manager.getString("Input", "keybindings", "");
             SDL_strlcpy(config.keybindings, keybindings, MAX_KEYBINDING_STRING);
+            config.gpuIndex = manager.getInt("Graphics", "gpu_index", -1);
         }
-        
+
         SDL_free(prefPath);
     }
     return config;
@@ -249,7 +250,7 @@ void saveConfig(const Config& config) {
     if (prefPath) {
         char configFile[1024];
         SDL_snprintf(configFile, sizeof(configFile), "%sconfig.ini", prefPath);
-        
+
         ConfigManager manager;
         manager.load(configFile);  // Load existing config (or initialize path if file doesn't exist)
         manager.setInt("Display", "display", config.display);
@@ -257,8 +258,9 @@ void saveConfig(const Config& config) {
         if (config.keybindings[0] != '\0') {
             manager.setString("Input", "keybindings", config.keybindings);
         }
+        manager.setInt("Graphics", "gpu_index", config.gpuIndex);
         manager.save();
-        
+
         SDL_free(prefPath);
     }
 }

@@ -14,6 +14,7 @@ struct Config {
     int display = 0;
     SDL_WindowFlags fullscreenMode = SDL_WINDOW_FULLSCREEN;
     char keybindings[MAX_KEYBINDING_STRING] = {0};
+    int gpuIndex = -1;  // -1 means auto-select, otherwise use specified GPU index
 };
 
 // Config manager for INI-style configuration files

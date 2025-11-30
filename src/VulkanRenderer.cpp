@@ -81,7 +81,9 @@ VulkanRenderer::VulkanRenderer() :
     msaaSamples(VK_SAMPLE_COUNT_1_BIT),
     msaaColorImage(VK_NULL_HANDLE),
     msaaColorImageMemory(VK_NULL_HANDLE),
-    msaaColorImageView(VK_NULL_HANDLE)
+    msaaColorImageView(VK_NULL_HANDLE),
+    m_selectedGpuIndex(-1),
+    m_preferredGpuIndex(-1)
 #ifdef DEBUG
     , imguiRenderCallback_(nullptr)
 #endif
@@ -107,10 +109,10 @@ VulkanRenderer::VulkanRenderer() :
 VulkanRenderer::~VulkanRenderer() {
 }
 
-void VulkanRenderer::initialize(SDL_Window* window) {
+void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     createInstance(window);
     createSurface(window);
-    pickPhysicalDevice();
+    pickPhysicalDevice(preferredGpuIndex);
     msaaSamples = getMaxUsableSampleCount();
     createLogicalDevice();
     createSwapchain(window);
@@ -622,7 +624,24 @@ bool VulkanRenderer::isDeviceSuitable(VkPhysicalDevice device)
     return true;
 }
 
-// Simple scoring: higher = better
+VkDeviceSize VulkanRenderer::getDeviceLocalMemory(VkPhysicalDevice device)
+{
+    VkPhysicalDeviceMemoryProperties memProps{};
+    vkGetPhysicalDeviceMemoryProperties(device, &memProps);
+
+    VkDeviceSize maxDeviceLocalMemory = 0;
+    for (uint32_t i = 0; i < memProps.memoryHeapCount; ++i) {
+        if (memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+            if (memProps.memoryHeaps[i].size > maxDeviceLocalMemory) {
+                maxDeviceLocalMemory = memProps.memoryHeaps[i].size;
+            }
+        }
+    }
+    return maxDeviceLocalMemory;
+}
+
+// Scoring: higher = better
+// Uses device type, local memory size to differentiate between GPUs
 int VulkanRenderer::rateDevice(VkPhysicalDevice device)
 {
     if (!isDeviceSuitable(device))
@@ -631,18 +650,33 @@ int VulkanRenderer::rateDevice(VkPhysicalDevice device)
     VkPhysicalDeviceProperties props{};
     vkGetPhysicalDeviceProperties(device, &props);
 
+    // Base score from device type
+    int score = 0;
     switch (props.deviceType)
     {
-        case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:      return 10000;  // strongly prefer
-        case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:    return 5000;
-        case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:       return 1000;
-        case VK_PHYSICAL_DEVICE_TYPE_CPU:               return 500;
-        default:                                        return 100;
+        case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:      score = 10000; break;
+        case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:    score = 5000; break;
+        case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:       score = 1000; break;
+        case VK_PHYSICAL_DEVICE_TYPE_CPU:               score = 500; break;
+        default:                                        score = 100; break;
     }
+
+    // Add 1 point per 64MB of device local memory (capped at 4096 points = 256GB)
+    VkDeviceSize deviceLocalMemory = getDeviceLocalMemory(device);
+    VkDeviceSize memoryMB = deviceLocalMemory / (1024 * 1024);
+    // Cap at 256GB to ensure safe conversion to int
+    const VkDeviceSize maxMemoryMB = 256ULL * 1024;
+    if (memoryMB > maxMemoryMB) memoryMB = maxMemoryMB;
+    int memoryScore = static_cast<int>(memoryMB / 64);
+    score += memoryScore;
+
+    return score;
 }
 
-void VulkanRenderer::pickPhysicalDevice()
+void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex)
 {
+    m_preferredGpuIndex = preferredGpuIndex;
+
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
     assert(deviceCount > 0 && "No Vulkan devices found!");
@@ -652,16 +686,58 @@ void VulkanRenderer::pickPhysicalDevice()
 
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
 
+    // Print all available devices
+    std::cout << "Available Vulkan devices:" << std::endl;
+    for (uint32_t i = 0; i < deviceCount; ++i) {
+        VkPhysicalDeviceProperties props{};
+        vkGetPhysicalDeviceProperties(devices[i], &props);
+
+        VkDeviceSize maxDeviceLocalMemory = getDeviceLocalMemory(devices[i]);
+
+        const char* deviceTypeStr = "Unknown";
+        switch (props.deviceType) {
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   deviceTypeStr = "Discrete GPU"; break;
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: deviceTypeStr = "Integrated GPU"; break;
+            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:    deviceTypeStr = "Virtual GPU"; break;
+            case VK_PHYSICAL_DEVICE_TYPE_CPU:            deviceTypeStr = "CPU"; break;
+            default: break;
+        }
+
+        int score = rateDevice(devices[i]);
+        std::cout << "  [" << i << "] " << props.deviceName
+                  << " (" << deviceTypeStr << ")"
+                  << " - " << (maxDeviceLocalMemory / (1024 * 1024)) << " MB"
+                  << " - Score: " << score << std::endl;
+    }
+
     VkPhysicalDevice bestDevice = VK_NULL_HANDLE;
     int bestScore = -1;
+    int selectedIndex = -1;
 
-    for (uint32_t i = 0; i < deviceCount; ++i)
-    {
-        int score = rateDevice(devices[i]);
-        if (score > bestScore)
+    // If a preferred GPU index is specified and valid, try to use it
+    if (preferredGpuIndex >= 0 && preferredGpuIndex < static_cast<int>(deviceCount)) {
+        if (isDeviceSuitable(devices[preferredGpuIndex])) {
+            bestDevice = devices[preferredGpuIndex];
+            bestScore = rateDevice(devices[preferredGpuIndex]);
+            selectedIndex = preferredGpuIndex;
+            std::cout << "Using user-specified GPU at index " << preferredGpuIndex << std::endl;
+        } else {
+            std::cout << "Warning: User-specified GPU at index " << preferredGpuIndex
+                      << " is not suitable, falling back to auto-selection" << std::endl;
+        }
+    }
+
+    // If no device selected yet, auto-select the best one
+    if (bestDevice == VK_NULL_HANDLE) {
+        for (uint32_t i = 0; i < deviceCount; ++i)
         {
-            bestScore = score;
-            bestDevice = devices[i];
+            int score = rateDevice(devices[i]);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestDevice = devices[i];
+                selectedIndex = static_cast<int>(i);
+            }
         }
     }
 
@@ -669,11 +745,12 @@ void VulkanRenderer::pickPhysicalDevice()
 
     assert(bestDevice != VK_NULL_HANDLE && "No suitable Vulkan device found!");
 
-    #ifdef DEBUG
-        VkPhysicalDeviceProperties props{};
-        vkGetPhysicalDeviceProperties(bestDevice, &props);
-        std::cout<< "Vulkan device selected: " << props.deviceName << std::endl;
-    #endif
+    m_selectedGpuIndex = selectedIndex;
+
+    VkPhysicalDeviceProperties props{};
+    vkGetPhysicalDeviceProperties(bestDevice, &props);
+    std::cout << "Selected Vulkan device: " << props.deviceName
+              << " (index " << m_selectedGpuIndex << ")" << std::endl;
 
     physicalDevice = bestDevice;
 }
