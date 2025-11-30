@@ -79,6 +79,9 @@ public:
     uint32_t getSwapchainImageCount() const { return swapchainImageCount; }
     VkCommandBuffer getCurrentCommandBuffer() const { return commandBuffers[currentFrame]; }
 
+    // Get texture data for ImGui rendering
+    bool getTextureForImGui(uint64_t textureId, VkImageView* imageView, VkSampler* sampler) const;
+
     // Set ImGui render callback
     void setImGuiRenderCallback(void (*callback)(VkCommandBuffer)) { imguiRenderCallback_ = callback; }
 #endif

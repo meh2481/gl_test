@@ -1,12 +1,15 @@
 #ifdef DEBUG
 
 #include "ImGuiManager.h"
+#include "VulkanRenderer.h"
 #include "ConsoleBuffer.h"
 #include "resource.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
 #include <cmath>
+#include <vector>
+#include <string>
 
 // Check Vulkan result callback for ImGui
 static void check_vk_result(VkResult err) {
@@ -25,7 +28,6 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.previewPipelineId = -1;
     editorState_.selectedVertexIndex = -1;
     editorState_.isDraggingVertex = false;
-    editorState_.selectedTextureCount = 0;
     editorState_.previewZoom = 1.0f;
     editorState_.previewOffsetX = 0.0f;
     editorState_.previewOffsetY = 0.0f;
@@ -34,12 +36,30 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.showExportPopup = false;
     editorState_.lastMaxParticles = 100;
 
+    // Initialize save/load filenames
+    strncpy(editorState_.saveFilename, "my_particles.lua", EDITOR_MAX_FILENAME_LEN - 1);
+    editorState_.saveFilename[EDITOR_MAX_FILENAME_LEN - 1] = '\0';
+    editorState_.loadFilename[0] = '\0';
+    editorState_.statusMessage[0] = '\0';
+
+    // Initialize FX file list
+    editorState_.fxFileCount = 0;
+    editorState_.selectedFxFileIndex = -1;
+
+    // Initialize default texture (bloom.png) - always start with at least one texture
+    const char* defaultTexture = "bloom.png";
+    editorState_.selectedTextureCount = 1;
+    editorState_.selectedTextureIds[0] = std::hash<std::string>{}(std::string(defaultTexture));
+    strncpy(editorState_.textureNames[0], defaultTexture, EDITOR_MAX_TEXTURE_NAME_LEN - 1);
+    editorState_.textureNames[0][EDITOR_MAX_TEXTURE_NAME_LEN - 1] = '\0';
+
     // Initialize default particle config
     editorState_.config.maxParticles = 100;
     editorState_.config.emissionRate = 10.0f;
     editorState_.config.blendMode = PARTICLE_BLEND_ADDITIVE;
     editorState_.config.emissionVertexCount = 0;
-    editorState_.config.textureCount = 0;
+    editorState_.config.textureCount = 1;
+    editorState_.config.textureIds[0] = editorState_.selectedTextureIds[0];
     editorState_.config.positionVariance = 0.0f;
     editorState_.config.velocityMinX = -0.5f;
     editorState_.config.velocityMaxX = 0.5f;
@@ -87,6 +107,9 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.sizeExpanded = true;
     editorState_.rotationExpanded = false;
     editorState_.emissionExpanded = true;
+
+    // Refresh FX file list on initialization
+    refreshFxFileList();
 }
 
 ImGuiManager::~ImGuiManager() {
@@ -112,13 +135,14 @@ void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysica
     ImGui_ImplSDL3_InitForVulkan(window);
 
     // Create descriptor pool for ImGui
+    // Need extra descriptors for texture previews in the particle editor (up to 10)
     VkDescriptorPoolSize pool_sizes[] = {
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 16 },
     };
     VkDescriptorPoolCreateInfo pool_info = {};
     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    pool_info.maxSets = 1;
+    pool_info.maxSets = 16;
     pool_info.poolSizeCount = 1;
     pool_info.pPoolSizes = pool_sizes;
     VkResult result = vkCreateDescriptorPool(device, &pool_info, nullptr, &imguiPool_);
@@ -150,6 +174,9 @@ void ImGuiManager::cleanup() {
     if (!initialized_) {
         return;
     }
+
+    // Clear texture cache before destroying the descriptor pool
+    imguiTextureCache_.clear();
 
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplSDL3_Shutdown();
@@ -244,6 +271,11 @@ void ImGuiManager::getPreviewCameraSettings(float* offsetX, float* offsetY, floa
 }
 
 void ImGuiManager::setParticleEditorActive(bool active) {
+    // Reset to default state when re-entering the editor (transitioning from inactive to active)
+    if (active && !editorState_.isActive) {
+        // Set flag to signal that preview system needs to be destroyed and reset
+        editorState_.needsReset = true;
+    }
     editorState_.isActive = active;
 }
 
@@ -251,17 +283,24 @@ bool ImGuiManager::isParticleEditorActive() const {
     return editorState_.isActive;
 }
 
+void ImGuiManager::destroyPreviewSystem(ParticleSystemManager* particleManager) {
+    if (particleManager && editorState_.previewSystemId >= 0) {
+        particleManager->destroySystem(editorState_.previewSystemId);
+        editorState_.previewSystemId = -1;
+    }
+}
+
 void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
-                                             int pipelineId, float deltaTime) {
+                                             VulkanRenderer* renderer, int pipelineId, float deltaTime) {
     if (!initialized_ || !editorState_.isActive) {
         return;
     }
 
-    // Create main particle editor window
+    // Create main particle editor window (no close button - editor is controlled by scene)
     ImGui::SetNextWindowSize(ImVec2(450, 700), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
 
-    if (!ImGui::Begin("Particle System Editor", &editorState_.isActive)) {
+    if (!ImGui::Begin("Particle System Editor", nullptr, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
         return;
     }
@@ -293,11 +332,15 @@ void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManag
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Textures")) {
-            showTextureSelector(pakResource);
+            showTextureSelector(pakResource, renderer);
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Polygon")) {
             showEmissionPolygonEditor();
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Save/Load")) {
+            showSaveLoadSection();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Export")) {
@@ -593,7 +636,7 @@ void ImGuiManager::showEmissionPolygonEditor() {
     }
 }
 
-void ImGuiManager::showTextureSelector(PakResource* pakResource) {
+void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer* renderer) {
     ParticleEmitterConfig& cfg = editorState_.config;
 
     ImGui::Text("Particle Textures");
@@ -607,6 +650,11 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource) {
         ImGui::Text("%d: %s (ID: %llu)", i, editorState_.textureNames[i],
                     (unsigned long long)editorState_.selectedTextureIds[i]);
         ImGui::SameLine();
+        // Disable Remove button if this is the last texture (must always have at least one)
+        bool isLastTexture = (editorState_.selectedTextureCount <= 1);
+        if (isLastTexture) {
+            ImGui::BeginDisabled();
+        }
         if (ImGui::Button("Remove")) {
             // Remove this texture
             for (int j = i; j < editorState_.selectedTextureCount - 1; ++j) {
@@ -622,14 +670,19 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource) {
                 cfg.textureIds[j] = editorState_.selectedTextureIds[j];
             }
         }
+        if (isLastTexture) {
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::TextDisabled("(at least one texture required)");
+        }
         ImGui::PopID();
     }
 
     ImGui::Separator();
 
-    // Show available textures from pak file
-    ImGui::Text("Available Textures (PNG files in pak):");
-    ImGui::Text("(Textures must be loaded first via loadTexture() in Lua)");
+    // Show available textures from pak file with previews in a grid
+    ImGui::Text("Available Textures:");
+    ImGui::Text("(Click to add to particle system)");
 
     // Common texture names to show
     const char* commonTextures[] = {
@@ -641,25 +694,103 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource) {
     };
     int numCommonTextures = 5;
 
+    // Grid layout settings
+    const float thumbnailSize = 64.0f;
+    const float spacing = 8.0f;
+    float windowWidth = ImGui::GetContentRegionAvail().x;
+    int itemsPerRow = (int)((windowWidth + spacing) / (thumbnailSize + spacing));
+    if (itemsPerRow < 1) itemsPerRow = 1;
+
+    // Helper lambda to add a texture to the selection
+    auto addTextureToSelection = [&](uint64_t texId, const char* texName) {
+        editorState_.selectedTextureIds[editorState_.selectedTextureCount] = texId;
+        strncpy(editorState_.textureNames[editorState_.selectedTextureCount], texName, EDITOR_MAX_TEXTURE_NAME_LEN - 1);
+        editorState_.textureNames[editorState_.selectedTextureCount][EDITOR_MAX_TEXTURE_NAME_LEN - 1] = '\0';
+        editorState_.selectedTextureCount++;
+
+        // Update config
+        cfg.textureCount = editorState_.selectedTextureCount;
+        for (int j = 0; j < cfg.textureCount; ++j) {
+            cfg.textureIds[j] = editorState_.selectedTextureIds[j];
+        }
+    };
+
+    int itemIndex = 0;
     for (int i = 0; i < numCommonTextures; ++i) {
         if (editorState_.selectedTextureCount >= EDITOR_MAX_TEXTURES) break;
 
-        ImGui::PushID(100 + i);
-        if (ImGui::Button(commonTextures[i])) {
-            // Add texture to selection
-            uint64_t texId = std::hash<std::string>{}(commonTextures[i]);
-            editorState_.selectedTextureIds[editorState_.selectedTextureCount] = texId;
-            strncpy(editorState_.textureNames[editorState_.selectedTextureCount], commonTextures[i], EDITOR_MAX_TEXTURE_NAME_LEN - 1);
-            editorState_.textureNames[editorState_.selectedTextureCount][EDITOR_MAX_TEXTURE_NAME_LEN - 1] = '\0';
-            editorState_.selectedTextureCount++;
+        uint64_t texId = std::hash<std::string>{}(commonTextures[i]);
 
-            // Update config
-            cfg.textureCount = editorState_.selectedTextureCount;
-            for (int j = 0; j < cfg.textureCount; ++j) {
-                cfg.textureIds[j] = editorState_.selectedTextureIds[j];
+        // Start new row or add same-line
+        if (itemIndex > 0 && (itemIndex % itemsPerRow) != 0) {
+            ImGui::SameLine();
+        }
+
+        ImGui::PushID(100 + i);
+
+        // Create a child window for each texture item
+        ImGui::BeginGroup();
+
+        // Try to get texture for ImGui preview
+        // Check if texture is in an atlas - if so, use the atlas ID for lookup
+        bool hasPreview = false;
+        bool clicked = false;
+        if (renderer && pakResource) {
+            AtlasUV atlasUV;
+            uint64_t lookupTexId = texId;
+            bool isAtlasTexture = pakResource->getAtlasUV(texId, atlasUV);
+            if (isAtlasTexture) {
+                // Texture is in an atlas, use the atlas ID
+                lookupTexId = atlasUV.atlasId;
+            }
+            
+            VkImageView imageView;
+            VkSampler sampler;
+            if (renderer->getTextureForImGui(lookupTexId, &imageView, &sampler)) {
+                // Check if we already have an ImGui descriptor for this texture
+                auto it = imguiTextureCache_.find(lookupTexId);
+                VkDescriptorSet imguiTexture;
+                if (it != imguiTextureCache_.end()) {
+                    imguiTexture = it->second;
+                } else {
+                    // Create a new ImGui texture descriptor
+                    imguiTexture = ImGui_ImplVulkan_AddTexture(sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    imguiTextureCache_[lookupTexId] = imguiTexture;
+                }
+
+                // Show texture preview as a clickable image button
+                // For atlas textures, use UV coordinates to show just that portion
+                if (isAtlasTexture) {
+                    // Atlas texture - show with UV coordinates
+                    ImVec2 uv0(atlasUV.u0, atlasUV.v0);
+                    ImVec2 uv1(atlasUV.u1, atlasUV.v1);
+                    clicked = ImGui::ImageButton(commonTextures[i], (ImTextureID)imguiTexture, 
+                                                 ImVec2(thumbnailSize, thumbnailSize), uv0, uv1);
+                } else {
+                    // Standalone texture - show full image
+                    clicked = ImGui::ImageButton(commonTextures[i], (ImTextureID)imguiTexture, ImVec2(thumbnailSize, thumbnailSize));
+                }
+                hasPreview = true;
             }
         }
+
+        // Fallback: show a button with placeholder if no preview available
+        if (!hasPreview) {
+            clicked = ImGui::Button("##placeholder", ImVec2(thumbnailSize, thumbnailSize));
+        }
+
+        // Add texture if clicked
+        if (clicked) {
+            addTextureToSelection(texId, commonTextures[i]);
+        }
+
+        // Show filename below the image
+        ImGui::TextWrapped("%s", commonTextures[i]);
+
+        ImGui::EndGroup();
         ImGui::PopID();
+
+        itemIndex++;
     }
 }
 
@@ -805,6 +936,18 @@ void ImGuiManager::generateLuaExport() {
 void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, int pipelineId) {
     if (!particleManager) return;
 
+    // Handle reset request (from re-entering the editor)
+    if (editorState_.needsReset) {
+        // Destroy existing preview system
+        if (editorState_.previewSystemId >= 0) {
+            particleManager->destroySystem(editorState_.previewSystemId);
+        }
+        // Reset editor state to defaults
+        initializeParticleEditorDefaults();
+        editorState_.needsReset = false;
+        editorState_.isActive = true;  // Keep editor active after reset
+    }
+
     ParticleEmitterConfig& cfg = editorState_.config;
 
     // Check if maxParticles changed - requires system recreation
@@ -832,6 +975,423 @@ void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, i
         particleManager->setSystemPosition(editorState_.previewSystemId, 0.0f, 0.0f);
         editorState_.lastMaxParticles = cfg.maxParticles;
     }
+}
+
+void ImGuiManager::showSaveLoadSection() {
+    ImGui::Text("Save/Load Particle Systems");
+    ImGui::Text("Files are saved to res/fx/ folder");
+
+    ImGui::Separator();
+
+    // Load section - show available files with interactive selection
+    ImGui::Text("Load Particle System:");
+
+    if (ImGui::Button("Refresh File List")) {
+        refreshFxFileList();
+    }
+
+    if (editorState_.fxFileCount == 0) {
+        ImGui::TextDisabled("No .lua files found in res/fx/");
+    } else {
+        ImGui::Text("Select a file to load:");
+
+        // Create a listbox with selectable items
+        if (ImGui::BeginListBox("##FxFileList", ImVec2(-1, 150))) {
+            for (int i = 0; i < editorState_.fxFileCount; ++i) {
+                bool isSelected = (editorState_.selectedFxFileIndex == i);
+                if (ImGui::Selectable(editorState_.fxFileList[i], isSelected)) {
+                    editorState_.selectedFxFileIndex = i;
+                }
+
+                // Set initial focus when opening
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndListBox();
+        }
+
+        // Load button - only enabled when a file is selected
+        bool hasSelection = (editorState_.selectedFxFileIndex >= 0 &&
+                            editorState_.selectedFxFileIndex < editorState_.fxFileCount);
+
+        if (!hasSelection) {
+            ImGui::BeginDisabled();
+        }
+
+        if (ImGui::Button("Load Selected")) {
+            if (hasSelection) {
+                const char* selectedFile = editorState_.fxFileList[editorState_.selectedFxFileIndex];
+                if (loadParticleConfigFromFile(selectedFile)) {
+                    snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
+                             "Loaded: %s", selectedFile);
+                    // Copy filename to save field for easy re-save
+                    strncpy(editorState_.saveFilename, selectedFile, EDITOR_MAX_FILENAME_LEN - 1);
+                    editorState_.saveFilename[EDITOR_MAX_FILENAME_LEN - 1] = '\0';
+                } else {
+                    snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
+                             "Error loading: %s", selectedFile);
+                }
+            }
+        }
+
+        if (!hasSelection) {
+            ImGui::EndDisabled();
+        }
+    }
+
+    ImGui::Separator();
+
+    // Save section
+    ImGui::Text("Save Particle System:");
+    ImGui::InputText("Filename##save", editorState_.saveFilename, EDITOR_MAX_FILENAME_LEN);
+
+    if (ImGui::Button("Save to File")) {
+        if (saveParticleConfig(editorState_.saveFilename)) {
+            snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
+                     "Saved: res/fx/%s", editorState_.saveFilename);
+            // Refresh file list to show the newly saved file
+            refreshFxFileList();
+        } else {
+            snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
+                     "Error saving file!");
+        }
+    }
+
+    ImGui::Separator();
+
+    ImGui::TextWrapped("To use a particle system in your scene:");
+    ImGui::TextWrapped("1. Save the particle config to res/fx/");
+    ImGui::TextWrapped("2. Rebuild the project (cmake --build build)");
+    ImGui::TextWrapped("3. Load in Lua: local config = loadParticleConfig(\"filename.lua\")");
+
+    ImGui::Separator();
+
+    // Status message
+    if (editorState_.statusMessage[0] != '\0') {
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "%s", editorState_.statusMessage);
+    }
+}
+
+void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
+    ParticleEmitterConfig& cfg = editorState_.config;
+
+    int pos = 0;
+
+    pos += snprintf(buffer + pos, bufferSize - pos, "-- Particle System Configuration\n");
+    pos += snprintf(buffer + pos, bufferSize - pos, "-- Generated by Particle System Editor\n\n");
+    pos += snprintf(buffer + pos, bufferSize - pos, "local particleConfig = {\n");
+    pos += snprintf(buffer + pos, bufferSize - pos, "    maxParticles = %d,\n", cfg.maxParticles);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    emissionRate = %.1f,\n", cfg.emissionRate);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    blendMode = %d,  -- %s\n\n", cfg.blendMode,
+                    cfg.blendMode == PARTICLE_BLEND_ADDITIVE ? "PARTICLE_BLEND_ADDITIVE" : "PARTICLE_BLEND_ALPHA");
+
+    // Emission polygon
+    if (cfg.emissionVertexCount > 0) {
+        pos += snprintf(buffer + pos, bufferSize - pos, "    -- Emission polygon (%d vertices)\n", cfg.emissionVertexCount);
+        pos += snprintf(buffer + pos, bufferSize - pos, "    emissionVertices = {");
+        for (int i = 0; i < cfg.emissionVertexCount * 2; ++i) {
+            if (i > 0) pos += snprintf(buffer + pos, bufferSize - pos, ", ");
+            pos += snprintf(buffer + pos, bufferSize - pos, "%.3f", cfg.emissionVertices[i]);
+        }
+        pos += snprintf(buffer + pos, bufferSize - pos, "},\n");
+        pos += snprintf(buffer + pos, bufferSize - pos, "    emissionVertexCount = %d,\n\n", cfg.emissionVertexCount);
+    } else {
+        pos += snprintf(buffer + pos, bufferSize - pos, "    -- Point emitter (no polygon)\n");
+        pos += snprintf(buffer + pos, bufferSize - pos, "    emissionVertices = {0.0, 0.0},\n");
+        pos += snprintf(buffer + pos, bufferSize - pos, "    emissionVertexCount = 0,\n\n");
+    }
+
+    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Velocity\n");
+    pos += snprintf(buffer + pos, bufferSize - pos, "    velocityMinX = %.2f,\n", cfg.velocityMinX);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    velocityMaxX = %.2f,\n", cfg.velocityMaxX);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    velocityMinY = %.2f,\n", cfg.velocityMinY);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    velocityMaxY = %.2f,\n\n", cfg.velocityMaxY);
+
+    pos += snprintf(buffer + pos, bufferSize - pos, "    radialVelocityMin = %.2f,\n", cfg.radialVelocityMin);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    radialVelocityMax = %.2f,\n\n", cfg.radialVelocityMax);
+
+    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Acceleration\n");
+    pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMinX = %.2f,\n", cfg.accelerationMinX);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMaxX = %.2f,\n", cfg.accelerationMaxX);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMinY = %.2f,\n", cfg.accelerationMinY);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMaxY = %.2f,\n\n", cfg.accelerationMaxY);
+
+    pos += snprintf(buffer + pos, bufferSize - pos, "    radialAccelerationMin = %.2f,\n", cfg.radialAccelerationMin);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    radialAccelerationMax = %.2f,\n\n", cfg.radialAccelerationMax);
+
+    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Size\n");
+    pos += snprintf(buffer + pos, bufferSize - pos, "    startSizeMin = %.3f,\n", cfg.startSizeMin);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    startSizeMax = %.3f,\n", cfg.startSizeMax);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    endSizeMin = %.3f,\n", cfg.endSizeMin);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    endSizeMax = %.3f,\n\n", cfg.endSizeMax);
+
+    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Start color\n");
+    pos += snprintf(buffer + pos, bufferSize - pos, "    colorMinR = %.3f, colorMaxR = %.3f,\n", cfg.colorMinR, cfg.colorMaxR);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    colorMinG = %.3f, colorMaxG = %.3f,\n", cfg.colorMinG, cfg.colorMaxG);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    colorMinB = %.3f, colorMaxB = %.3f,\n", cfg.colorMinB, cfg.colorMaxB);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    colorMinA = %.3f, colorMaxA = %.3f,\n\n", cfg.colorMinA, cfg.colorMaxA);
+
+    pos += snprintf(buffer + pos, bufferSize - pos, "    -- End color\n");
+    pos += snprintf(buffer + pos, bufferSize - pos, "    endColorMinR = %.3f, endColorMaxR = %.3f,\n", cfg.endColorMinR, cfg.endColorMaxR);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    endColorMinG = %.3f, endColorMaxG = %.3f,\n", cfg.endColorMinG, cfg.endColorMaxG);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    endColorMinB = %.3f, endColorMaxB = %.3f,\n", cfg.endColorMinB, cfg.endColorMaxB);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    endColorMinA = %.3f, endColorMaxA = %.3f,\n\n", cfg.endColorMinA, cfg.endColorMaxA);
+
+    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Lifetime\n");
+    pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMin = %.2f,\n", cfg.lifetimeMin);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMax = %.2f,\n\n", cfg.lifetimeMax);
+
+    // Textures - store names as strings for editor loading
+    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Textures (stored as names for editor)\n");
+    if (editorState_.selectedTextureCount > 0) {
+        pos += snprintf(buffer + pos, bufferSize - pos, "    textureNames = {");
+        for (int i = 0; i < editorState_.selectedTextureCount; ++i) {
+            if (i > 0) pos += snprintf(buffer + pos, bufferSize - pos, ", ");
+            pos += snprintf(buffer + pos, bufferSize - pos, "\"%s\"", editorState_.textureNames[i]);
+        }
+        pos += snprintf(buffer + pos, bufferSize - pos, "}\n");
+    } else {
+        pos += snprintf(buffer + pos, bufferSize - pos, "    textureNames = {}\n");
+    }
+
+    pos += snprintf(buffer + pos, bufferSize - pos, "}\n\n");
+    pos += snprintf(buffer + pos, bufferSize - pos, "return particleConfig\n");
+}
+
+bool ImGuiManager::saveParticleConfig(const char* filename) {
+    // Build the full path to ../res/fx/
+    char fullPath[512];
+    snprintf(fullPath, sizeof(fullPath), "../res/fx/%s", filename);
+
+    // Generate the Lua config content
+    char buffer[8192];
+    generateSaveableExport(buffer, sizeof(buffer));
+
+    // Write to file
+    FILE* file = fopen(fullPath, "w");
+    if (!file) {
+        return false;
+    }
+
+    fputs(buffer, file);
+    fclose(file);
+
+    return true;
+}
+
+void ImGuiManager::refreshFxFileList() {
+    editorState_.fxFileCount = 0;
+    editorState_.selectedFxFileIndex = -1;
+
+    // Use SDL_EnumerateDirectory to get all files in ../res/fx/
+    SDL_EnumerateDirectory("../res/fx", [](void* userdata, const char* dirname, const char* fname) -> SDL_EnumerationResult {
+        ParticleEditorState* state = (ParticleEditorState*)userdata;
+
+        // Check if it's a .lua file
+        const char* ext = strrchr(fname, '.');
+        if (ext && strcmp(ext, ".lua") == 0) {
+            if (state->fxFileCount < EDITOR_MAX_FX_FILES) {
+                strncpy(state->fxFileList[state->fxFileCount], fname, EDITOR_MAX_FILENAME_LEN - 1);
+                state->fxFileList[state->fxFileCount][EDITOR_MAX_FILENAME_LEN - 1] = '\0';
+                state->fxFileCount++;
+            }
+        }
+
+        return SDL_ENUM_CONTINUE;
+    }, &editorState_);
+}
+
+bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
+    // Build the full path to ../res/fx/
+    char fullPath[512];
+    snprintf(fullPath, sizeof(fullPath), "../res/fx/%s", filename);
+
+    // Read the file
+    FILE* file = fopen(fullPath, "r");
+    if (!file) {
+        return false;
+    }
+
+    // Get file size
+    fseek(file, 0, SEEK_END);
+    long fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    if (fileSize <= 0 || fileSize > 65536) {
+        fclose(file);
+        return false;
+    }
+
+    // Read file content using vector for RAII
+    std::vector<char> content(fileSize + 1);
+    size_t bytesRead = fread(content.data(), 1, fileSize, file);
+    fclose(file);
+    content[bytesRead] = '\0';
+
+    // Parse the Lua config file to extract values
+    // This parser looks for "key = value" patterns at the start of lines or after whitespace
+    ParticleEmitterConfig& cfg = editorState_.config;
+    const char* contentPtr = content.data();
+
+    // Helper lambda to extract a float value with word boundary checking
+    auto extractFloat = [contentPtr](const char* key, float& value) {
+        const char* search = contentPtr;
+        size_t keyLen = strlen(key);
+        while ((search = strstr(search, key)) != nullptr) {
+            // Check if this is at line start or after whitespace/comma (word boundary)
+            bool validStart = (search == contentPtr) ||
+                             (search[-1] == ' ') ||
+                             (search[-1] == '\t') ||
+                             (search[-1] == '\n') ||
+                             (search[-1] == ',');
+            // Check if followed by " = " (not a partial match)
+            const char* after = search + keyLen;
+            bool validEnd = (strncmp(after, " = ", 3) == 0);
+
+            if (validStart && validEnd) {
+                value = (float)atof(after + 3);
+                return;
+            }
+            search++;
+        }
+    };
+
+    // Helper lambda to extract an int value with word boundary checking
+    auto extractInt = [contentPtr](const char* key, int& value) {
+        const char* search = contentPtr;
+        size_t keyLen = strlen(key);
+        while ((search = strstr(search, key)) != nullptr) {
+            // Check if this is at line start or after whitespace/comma (word boundary)
+            bool validStart = (search == contentPtr) ||
+                             (search[-1] == ' ') ||
+                             (search[-1] == '\t') ||
+                             (search[-1] == '\n') ||
+                             (search[-1] == ',');
+            // Check if followed by " = " (not a partial match)
+            const char* after = search + keyLen;
+            bool validEnd = (strncmp(after, " = ", 3) == 0);
+
+            if (validStart && validEnd) {
+                value = atoi(after + 3);
+                return;
+            }
+            search++;
+        }
+    };
+
+    // Extract all particle config values
+    extractInt("maxParticles", cfg.maxParticles);
+    extractFloat("emissionRate", cfg.emissionRate);
+
+    int blendModeInt = (int)cfg.blendMode;
+    extractInt("blendMode", blendModeInt);
+    cfg.blendMode = (ParticleBlendMode)blendModeInt;
+
+    extractInt("emissionVertexCount", cfg.emissionVertexCount);
+
+    // Velocity
+    extractFloat("velocityMinX", cfg.velocityMinX);
+    extractFloat("velocityMaxX", cfg.velocityMaxX);
+    extractFloat("velocityMinY", cfg.velocityMinY);
+    extractFloat("velocityMaxY", cfg.velocityMaxY);
+
+    // Radial velocity
+    extractFloat("radialVelocityMin", cfg.radialVelocityMin);
+    extractFloat("radialVelocityMax", cfg.radialVelocityMax);
+
+    // Acceleration
+    extractFloat("accelerationMinX", cfg.accelerationMinX);
+    extractFloat("accelerationMaxX", cfg.accelerationMaxX);
+    extractFloat("accelerationMinY", cfg.accelerationMinY);
+    extractFloat("accelerationMaxY", cfg.accelerationMaxY);
+
+    // Radial acceleration
+    extractFloat("radialAccelerationMin", cfg.radialAccelerationMin);
+    extractFloat("radialAccelerationMax", cfg.radialAccelerationMax);
+
+    // Size
+    extractFloat("startSizeMin", cfg.startSizeMin);
+    extractFloat("startSizeMax", cfg.startSizeMax);
+    extractFloat("endSizeMin", cfg.endSizeMin);
+    extractFloat("endSizeMax", cfg.endSizeMax);
+
+    // Start color
+    extractFloat("colorMinR", cfg.colorMinR);
+    extractFloat("colorMaxR", cfg.colorMaxR);
+    extractFloat("colorMinG", cfg.colorMinG);
+    extractFloat("colorMaxG", cfg.colorMaxG);
+    extractFloat("colorMinB", cfg.colorMinB);
+    extractFloat("colorMaxB", cfg.colorMaxB);
+    extractFloat("colorMinA", cfg.colorMinA);
+    extractFloat("colorMaxA", cfg.colorMaxA);
+
+    // End color
+    extractFloat("endColorMinR", cfg.endColorMinR);
+    extractFloat("endColorMaxR", cfg.endColorMaxR);
+    extractFloat("endColorMinG", cfg.endColorMinG);
+    extractFloat("endColorMaxG", cfg.endColorMaxG);
+    extractFloat("endColorMinB", cfg.endColorMinB);
+    extractFloat("endColorMaxB", cfg.endColorMaxB);
+    extractFloat("endColorMinA", cfg.endColorMinA);
+    extractFloat("endColorMaxA", cfg.endColorMaxA);
+
+    // Lifetime
+    extractFloat("lifetimeMin", cfg.lifetimeMin);
+    extractFloat("lifetimeMax", cfg.lifetimeMax);
+
+    // Rotation (Z axis is most commonly used for 2D)
+    extractFloat("rotationMinZ", cfg.rotationMinZ);
+    extractFloat("rotationMaxZ", cfg.rotationMaxZ);
+    extractFloat("rotVelocityMinZ", cfg.rotVelocityMinZ);
+    extractFloat("rotVelocityMaxZ", cfg.rotVelocityMaxZ);
+    extractFloat("rotAccelerationMinZ", cfg.rotAccelerationMinZ);
+    extractFloat("rotAccelerationMaxZ", cfg.rotAccelerationMaxZ);
+
+    // Parse texture names array: textureNames = {"name1.png", "name2.png"}
+    editorState_.selectedTextureCount = 0;
+    const char* textureNamesStart = strstr(contentPtr, "textureNames = {");
+    if (textureNamesStart) {
+        textureNamesStart += strlen("textureNames = {");
+        const char* textureNamesEnd = strchr(textureNamesStart, '}');
+        if (textureNamesEnd) {
+            // Parse each quoted string between the braces
+            const char* pos = textureNamesStart;
+            while (pos < textureNamesEnd && editorState_.selectedTextureCount < EDITOR_MAX_TEXTURES) {
+                // Find the next quoted string
+                const char* quoteStart = strchr(pos, '"');
+                if (!quoteStart || quoteStart >= textureNamesEnd) break;
+                quoteStart++; // Skip opening quote
+
+                const char* quoteEnd = strchr(quoteStart, '"');
+                if (!quoteEnd || quoteEnd >= textureNamesEnd) break;
+
+                // Copy the texture name (must have room for null terminator)
+                size_t nameLen = quoteEnd - quoteStart;
+                if (nameLen < EDITOR_MAX_TEXTURE_NAME_LEN) {
+                    strncpy(editorState_.textureNames[editorState_.selectedTextureCount], quoteStart, nameLen);
+                    editorState_.textureNames[editorState_.selectedTextureCount][nameLen] = '\0';
+
+                    // Compute the texture ID from the name hash
+                    std::string texName(editorState_.textureNames[editorState_.selectedTextureCount]);
+                    editorState_.selectedTextureIds[editorState_.selectedTextureCount] =
+                        std::hash<std::string>{}(texName);
+
+                    editorState_.selectedTextureCount++;
+                }
+
+                pos = quoteEnd + 1;
+            }
+
+            // Update config with loaded textures
+            cfg.textureCount = editorState_.selectedTextureCount;
+            for (int i = 0; i < cfg.textureCount; ++i) {
+                cfg.textureIds[i] = editorState_.selectedTextureIds[i];
+            }
+        }
+    }
+
+    return true;
 }
 
 #endif // DEBUG

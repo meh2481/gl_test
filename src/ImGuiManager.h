@@ -9,6 +9,7 @@
 #include <imgui_impl_vulkan.h>
 #include "ParticleSystem.h"
 #include <cstdint>
+#include <map>
 
 // Forward declarations
 class VulkanRenderer;
@@ -20,6 +21,12 @@ static const int EDITOR_MAX_VERTICES = 8;
 static const int EDITOR_MAX_TEXTURES = 8;
 static const int EDITOR_MAX_TEXTURE_NAME_LEN = 64;
 
+// Maximum filename length for save/load
+static const int EDITOR_MAX_FILENAME_LEN = 128;
+
+// Maximum number of FX files to list
+static const int EDITOR_MAX_FX_FILES = 64;
+
 // Structure to hold particle editor state
 struct ParticleEditorState {
     bool isActive;
@@ -28,6 +35,7 @@ struct ParticleEditorState {
     // Preview particle system
     int previewSystemId;
     int previewPipelineId;
+    bool needsReset;  // Flag to signal that preview system needs to be destroyed and reset
 
     // Emission polygon editing
     int selectedVertexIndex;
@@ -48,6 +56,16 @@ struct ParticleEditorState {
     // Export state
     bool showExportPopup;
     char exportBuffer[8192];
+
+    // Save/Load state
+    char saveFilename[EDITOR_MAX_FILENAME_LEN];
+    char loadFilename[EDITOR_MAX_FILENAME_LEN];
+    char statusMessage[256];  // Status message for save/load operations
+
+    // FX file list (dynamically enumerated from res/fx/)
+    char fxFileList[EDITOR_MAX_FX_FILES][EDITOR_MAX_FILENAME_LEN];
+    int fxFileCount;
+    int selectedFxFileIndex;  // Index of currently selected file (-1 if none)
 
     // UI state
     bool colorsExpanded;
@@ -93,8 +111,9 @@ public:
     void setParticleEditorActive(bool active);
     bool isParticleEditorActive() const;
     void showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
-                                   int pipelineId, float deltaTime);
+                                   VulkanRenderer* renderer, int pipelineId, float deltaTime);
     ParticleEditorState& getEditorState() { return editorState_; }
+    void destroyPreviewSystem(ParticleSystemManager* particleManager);
 
     // Sync preview controls with camera
     void syncPreviewWithCamera(float cameraOffsetX, float cameraOffsetY, float cameraZoom);
@@ -119,10 +138,18 @@ private:
     void showColorSettings();
     void showRotationSettings();
     void showEmissionPolygonEditor();
-    void showTextureSelector(PakResource* pakResource);
+    void showTextureSelector(PakResource* pakResource, VulkanRenderer* renderer);
     void showLuaExport();
+    void showSaveLoadSection();
     void updatePreviewSystem(ParticleSystemManager* particleManager, int pipelineId);
     void generateLuaExport();
+    void generateSaveableExport(char* buffer, int bufferSize);
+    bool saveParticleConfig(const char* filename);
+    void refreshFxFileList();
+    bool loadParticleConfigFromFile(const char* filename);
+
+    // ImGui texture cache for preview images
+    std::map<uint64_t, VkDescriptorSet> imguiTextureCache_;
 };
 
 #endif // DEBUG

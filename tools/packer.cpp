@@ -22,6 +22,7 @@ struct FileInfo {
     vector<char> data;
     vector<char> compressedData;
     uint32_t compressionType;
+    uint32_t decompressedSize;
     bool changed;
     uint64_t offset; // for unchanged files
 };
@@ -160,6 +161,7 @@ struct TextureAtlas {
 bool loadFile(const string& filename, vector<char>& data, time_t& mtime) {
     struct stat st;
     if (stat(filename.c_str(), &st) != 0) return false;
+    if (!S_ISREG(st.st_mode)) return false;  // Skip directories and special files
     mtime = st.st_mtime;
     ifstream file(filename, ios::binary | ios::ate);
     if (!file) return false;
@@ -638,6 +640,10 @@ int main(int argc, char* argv[]) {
     // Collect all files and identify PNG images
     for (int i = 2; i < argc; ++i) {
         string filename = argv[i];
+        // Skip directories
+        if (!filesystem::is_regular_file(filename)) {
+            continue;
+        }
         string basename = filesystem::path(filename).filename().string();
         uint64_t id = hash<string>{}(basename);
         files.push_back({filename, id});
@@ -736,7 +742,7 @@ int main(int argc, char* argv[]) {
                 atlasFile.compressedData.resize(comp.compressedSize);
                 pakFile.read(atlasFile.compressedData.data(), comp.compressedSize);
                 atlasFile.compressionType = comp.compressionType;
-                atlasFile.data.resize(comp.decompressedSize);
+                atlasFile.decompressedSize = comp.decompressedSize;
 
                 cout << "Preserving existing atlas with ID " << atlasFile.id << endl;
                 files.push_back(std::move(atlasFile));
@@ -891,7 +897,8 @@ int main(int argc, char* argv[]) {
             }
 
             compressData(atlasFile.data, atlasFile.compressedData, atlasFile.compressionType);
-            cout << "Atlas " << i << " size " << atlasFile.data.size()
+            atlasFile.decompressedSize = atlasFile.data.size();
+            cout << "Atlas " << i << " size " << atlasFile.decompressedSize
                  << " compressed " << atlasFile.compressedData.size() << endl;
 
             files.push_back(std::move(atlasFile));
@@ -910,7 +917,8 @@ int main(int argc, char* argv[]) {
                     cerr << "Warning: Empty data for image " << file.filename << endl;
                 }
                 compressData(file.data, file.compressedData, file.compressionType);
-                cout << "File " << file.filename << " (atlas reference) size " << file.data.size()
+                file.decompressedSize = file.data.size();
+                cout << "File " << file.filename << " (atlas reference) size " << file.decompressedSize
                      << " compressed " << file.compressedData.size() << endl;
             } else {
                 // No PNG changed, load from existing pak file
@@ -920,7 +928,7 @@ int main(int argc, char* argv[]) {
                 file.compressedData.resize(comp.compressedSize);
                 pakFile.read(file.compressedData.data(), comp.compressedSize);
                 file.compressionType = comp.compressionType;
-                file.data.resize(comp.decompressedSize);
+                file.decompressedSize = comp.decompressedSize;
                 cout << "File " << file.filename << " (atlas reference) unchanged, using cached data" << endl;
             }
         } else if (file.filename.find("_atlas_") == 0) {
@@ -933,7 +941,8 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             compressData(file.data, file.compressedData, file.compressionType);
-            cout << "File " << file.filename << " original " << file.data.size()
+            file.decompressedSize = file.data.size();
+            cout << "File " << file.filename << " original " << file.decompressedSize
                  << " compressed " << file.compressedData.size()
                  << " type " << fileType << endl;
         } else {
@@ -944,7 +953,7 @@ int main(int argc, char* argv[]) {
             file.compressedData.resize(comp.compressedSize);
             pakFile.read(file.compressedData.data(), comp.compressedSize);
             file.compressionType = comp.compressionType;
-            file.data.resize(comp.decompressedSize);
+            file.decompressedSize = comp.decompressedSize;
             cout << "File " << file.filename << " unchanged, using cached data" << endl;
         }
     }

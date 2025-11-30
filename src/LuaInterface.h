@@ -170,6 +170,9 @@ private:
     // Particle editor Lua bindings (DEBUG only)
     static int openParticleEditor(lua_State* L);
 
+    // Resource loading Lua bindings
+    static int loadParticleConfig(lua_State* L);
+
     void registerFunctions();
 
     PakResource& pakResource_;
