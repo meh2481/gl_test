@@ -1021,7 +1021,20 @@ void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
 
     pos += snprintf(buffer + pos, bufferSize - pos, "    -- Lifetime\n");
     pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMin = %.2f,\n", cfg.lifetimeMin);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMax = %.2f\n", cfg.lifetimeMax);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMax = %.2f,\n\n", cfg.lifetimeMax);
+
+    // Textures - store names as strings for editor loading
+    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Textures (stored as names for editor)\n");
+    if (editorState_.selectedTextureCount > 0) {
+        pos += snprintf(buffer + pos, bufferSize - pos, "    textureNames = {");
+        for (int i = 0; i < editorState_.selectedTextureCount; ++i) {
+            if (i > 0) pos += snprintf(buffer + pos, bufferSize - pos, ", ");
+            pos += snprintf(buffer + pos, bufferSize - pos, "\"%s\"", editorState_.textureNames[i]);
+        }
+        pos += snprintf(buffer + pos, bufferSize - pos, "}\n");
+    } else {
+        pos += snprintf(buffer + pos, bufferSize - pos, "    textureNames = {}\n");
+    }
 
     pos += snprintf(buffer + pos, bufferSize - pos, "}\n\n");
     pos += snprintf(buffer + pos, bufferSize - pos, "return particleConfig\n");
@@ -1215,6 +1228,49 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     extractFloat("rotVelocityMaxZ", cfg.rotVelocityMaxZ);
     extractFloat("rotAccelerationMinZ", cfg.rotAccelerationMinZ);
     extractFloat("rotAccelerationMaxZ", cfg.rotAccelerationMaxZ);
+
+    // Parse texture names array: textureNames = {"name1.png", "name2.png"}
+    editorState_.selectedTextureCount = 0;
+    const char* textureNamesStart = strstr(contentPtr, "textureNames = {");
+    if (textureNamesStart) {
+        textureNamesStart += strlen("textureNames = {");
+        const char* textureNamesEnd = strchr(textureNamesStart, '}');
+        if (textureNamesEnd) {
+            // Parse each quoted string between the braces
+            const char* pos = textureNamesStart;
+            while (pos < textureNamesEnd && editorState_.selectedTextureCount < EDITOR_MAX_TEXTURES) {
+                // Find the next quoted string
+                const char* quoteStart = strchr(pos, '"');
+                if (!quoteStart || quoteStart >= textureNamesEnd) break;
+                quoteStart++; // Skip opening quote
+
+                const char* quoteEnd = strchr(quoteStart, '"');
+                if (!quoteEnd || quoteEnd >= textureNamesEnd) break;
+
+                // Copy the texture name (must have room for null terminator)
+                size_t nameLen = quoteEnd - quoteStart;
+                if (nameLen < EDITOR_MAX_TEXTURE_NAME_LEN) {
+                    strncpy(editorState_.textureNames[editorState_.selectedTextureCount], quoteStart, nameLen);
+                    editorState_.textureNames[editorState_.selectedTextureCount][nameLen] = '\0';
+
+                    // Compute the texture ID from the name hash
+                    std::string texName(editorState_.textureNames[editorState_.selectedTextureCount]);
+                    editorState_.selectedTextureIds[editorState_.selectedTextureCount] =
+                        std::hash<std::string>{}(texName);
+
+                    editorState_.selectedTextureCount++;
+                }
+
+                pos = quoteEnd + 1;
+            }
+
+            // Update config with loaded textures
+            cfg.textureCount = editorState_.selectedTextureCount;
+            for (int i = 0; i < cfg.textureCount; ++i) {
+                cfg.textureIds[i] = editorState_.selectedTextureIds[i];
+            }
+        }
+    }
 
     return true;
 }
