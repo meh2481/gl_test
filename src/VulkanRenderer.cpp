@@ -624,6 +624,22 @@ bool VulkanRenderer::isDeviceSuitable(VkPhysicalDevice device)
     return true;
 }
 
+VkDeviceSize VulkanRenderer::getDeviceLocalMemory(VkPhysicalDevice device)
+{
+    VkPhysicalDeviceMemoryProperties memProps{};
+    vkGetPhysicalDeviceMemoryProperties(device, &memProps);
+
+    VkDeviceSize maxDeviceLocalMemory = 0;
+    for (uint32_t i = 0; i < memProps.memoryHeapCount; ++i) {
+        if (memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+            if (memProps.memoryHeaps[i].size > maxDeviceLocalMemory) {
+                maxDeviceLocalMemory = memProps.memoryHeaps[i].size;
+            }
+        }
+    }
+    return maxDeviceLocalMemory;
+}
+
 // Scoring: higher = better
 // Uses device type, local memory size to differentiate between GPUs
 int VulkanRenderer::rateDevice(VkPhysicalDevice device)
@@ -633,9 +649,6 @@ int VulkanRenderer::rateDevice(VkPhysicalDevice device)
 
     VkPhysicalDeviceProperties props{};
     vkGetPhysicalDeviceProperties(device, &props);
-
-    VkPhysicalDeviceMemoryProperties memProps{};
-    vkGetPhysicalDeviceMemoryProperties(device, &memProps);
 
     // Base score from device type
     int score = 0;
@@ -648,21 +661,11 @@ int VulkanRenderer::rateDevice(VkPhysicalDevice device)
         default:                                        score = 100; break;
     }
 
-    // Add score based on device local memory (in MB)
-    // Find the largest device-local heap
-    VkDeviceSize maxDeviceLocalMemory = 0;
-    for (uint32_t i = 0; i < memProps.memoryHeapCount; ++i) {
-        if (memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
-            if (memProps.memoryHeaps[i].size > maxDeviceLocalMemory) {
-                maxDeviceLocalMemory = memProps.memoryHeaps[i].size;
-            }
-        }
-    }
-
     // Add 1 point per 64MB of device local memory (capped at 4000 points = 256GB)
-    VkDeviceSize memoryMB = maxDeviceLocalMemory / (1024 * 1024);
+    // Cap memory at 256GB (256 * 1024 MB) before division to prevent overflow
+    VkDeviceSize memoryMB = getDeviceLocalMemory(device) / (1024 * 1024);
+    if (memoryMB > 256 * 1024) memoryMB = 256 * 1024;
     int memoryScore = static_cast<int>(memoryMB / 64);
-    if (memoryScore > 4000) memoryScore = 4000;
     score += memoryScore;
 
     return score;
@@ -687,17 +690,7 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex)
         VkPhysicalDeviceProperties props{};
         vkGetPhysicalDeviceProperties(devices[i], &props);
 
-        VkPhysicalDeviceMemoryProperties memProps{};
-        vkGetPhysicalDeviceMemoryProperties(devices[i], &memProps);
-
-        VkDeviceSize maxDeviceLocalMemory = 0;
-        for (uint32_t j = 0; j < memProps.memoryHeapCount; ++j) {
-            if (memProps.memoryHeaps[j].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
-                if (memProps.memoryHeaps[j].size > maxDeviceLocalMemory) {
-                    maxDeviceLocalMemory = memProps.memoryHeaps[j].size;
-                }
-            }
-        }
+        VkDeviceSize maxDeviceLocalMemory = getDeviceLocalMemory(devices[i]);
 
         const char* deviceTypeStr = "Unknown";
         switch (props.deviceType) {
@@ -720,7 +713,7 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex)
     int selectedIndex = -1;
 
     // If a preferred GPU index is specified and valid, try to use it
-    if (preferredGpuIndex >= 0 && preferredGpuIndex < (int)deviceCount) {
+    if (preferredGpuIndex >= 0 && preferredGpuIndex < static_cast<int>(deviceCount)) {
         if (isDeviceSuitable(devices[preferredGpuIndex])) {
             bestDevice = devices[preferredGpuIndex];
             bestScore = rateDevice(devices[preferredGpuIndex]);
