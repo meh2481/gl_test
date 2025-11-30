@@ -116,7 +116,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             ParticleSystem* system = &particleManager.getSystems()[i];
             if (!system || system->liveParticleCount == 0) continue;
 
-            uint16_t baseVertex = (uint16_t)(particleVertexData.size() / 8);  // 8 floats per vertex
+            uint16_t baseVertex = (uint16_t)(particleVertexData.size() / 12);  // 12 floats per vertex
 
             for (int p = 0; p < system->liveParticleCount; ++p) {
                 float x = system->posX[p];
@@ -168,7 +168,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                     {texU0, texV0}   // Top-left
                 };
 
-                uint16_t vertexBase = (uint16_t)(particleVertexData.size() / 8);
+                uint16_t vertexBase = (uint16_t)(particleVertexData.size() / 12);  // 12 floats per vertex
 
                 for (int v = 0; v < 4; ++v) {
                     // Rotate
@@ -184,6 +184,11 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                     particleVertexData.push_back(g);
                     particleVertexData.push_back(b);
                     particleVertexData.push_back(a);
+                    // UV bounds for atlas clamping (prevents MSAA bleeding)
+                    particleVertexData.push_back(texU0);
+                    particleVertexData.push_back(texV0);
+                    particleVertexData.push_back(texU1);
+                    particleVertexData.push_back(texV1);
                 }
 
                 // Add indices for two triangles (quad)

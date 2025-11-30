@@ -2198,7 +2198,7 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
         drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
 
-        // Add vertex data (6 floats per vertex: x, y, u, v, nu, nv)
+        // Add vertex data (10 floats per vertex: x, y, u, v, nu, nv, uvMinX, uvMinY, uvMaxX, uvMaxY)
         for (const auto& v : batch.vertices) {
             allVertexData.push_back(v.x);
             allVertexData.push_back(v.y);
@@ -2206,6 +2206,10 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
             allVertexData.push_back(v.v);
             allVertexData.push_back(v.nu);
             allVertexData.push_back(v.nv);
+            allVertexData.push_back(v.uvMinX);
+            allVertexData.push_back(v.uvMinY);
+            allVertexData.push_back(v.uvMaxX);
+            allVertexData.push_back(v.uvMaxY);
         }
 
         // Add indices with offset
@@ -2744,13 +2748,13 @@ void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& ver
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-    // Particle vertex: position (vec2) + texCoord (vec2) + color (vec4) = 8 floats
+    // Particle vertex: position (vec2) + texCoord (vec2) + color (vec4) + uvBounds (vec4) = 12 floats
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(float) * 8;
+    bindingDescription.stride = sizeof(float) * 12;
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescriptions[3]{};
+    VkVertexInputAttributeDescription attributeDescriptions[4]{};
 
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
@@ -2767,11 +2771,16 @@ void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& ver
     attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;  // color
     attributeDescriptions[2].offset = sizeof(float) * 4;
 
+    attributeDescriptions[3].binding = 0;
+    attributeDescriptions[3].location = 3;
+    attributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;  // uvBounds (minX, minY, maxX, maxY)
+    attributeDescriptions[3].offset = sizeof(float) * 8;
+
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = 3;
+    vertexInputInfo.vertexAttributeDescriptionCount = 4;
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
