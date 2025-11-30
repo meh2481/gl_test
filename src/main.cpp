@@ -142,7 +142,10 @@ int main() {
     VulkanRenderer renderer;
     VibrationManager vibrationManager;
     SceneManager sceneManager(pakResource, renderer, &vibrationManager);
-    renderer.initialize(window);
+    renderer.initialize(window, config.gpuIndex);
+
+    // Update config with the selected GPU index
+    config.gpuIndex = renderer.getSelectedGpuIndex();
 
     // Initialize keybinding manager
     KeybindingManager keybindings;

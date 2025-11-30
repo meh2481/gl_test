@@ -36,7 +36,8 @@ public:
     VulkanRenderer();
     ~VulkanRenderer();
 
-    void initialize(SDL_Window* window);
+    void initialize(SDL_Window* window, int preferredGpuIndex = -1);
+    int getSelectedGpuIndex() const { return m_selectedGpuIndex; }
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
     void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
@@ -229,6 +230,10 @@ private:
     VkDeviceMemory msaaColorImageMemory;
     VkImageView msaaColorImageView;
 
+    // Selected GPU tracking
+    int m_selectedGpuIndex;
+    int m_preferredGpuIndex;
+
 #ifdef DEBUG
     // ImGui render callback
     void (*imguiRenderCallback_)(VkCommandBuffer);
@@ -237,7 +242,7 @@ private:
     // Helper functions
     void createInstance(SDL_Window* window);
     void createSurface(SDL_Window* window);
-    void pickPhysicalDevice();
+    void pickPhysicalDevice(int preferredGpuIndex);
     void createLogicalDevice();
     void createSwapchain(SDL_Window* window);
     void createImageViews();
