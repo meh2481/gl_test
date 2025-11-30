@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cmath>
 #include <vector>
+#include <string>
 
 // Check Vulkan result callback for ImGui
 static void check_vk_result(VkResult err) {
@@ -26,7 +27,6 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.previewPipelineId = -1;
     editorState_.selectedVertexIndex = -1;
     editorState_.isDraggingVertex = false;
-    editorState_.selectedTextureCount = 0;
     editorState_.previewZoom = 1.0f;
     editorState_.previewOffsetX = 0.0f;
     editorState_.previewOffsetY = 0.0f;
@@ -45,12 +45,20 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.fxFileCount = 0;
     editorState_.selectedFxFileIndex = -1;
 
+    // Initialize default texture (bloom.png) - always start with at least one texture
+    const char* defaultTexture = "bloom.png";
+    editorState_.selectedTextureCount = 1;
+    editorState_.selectedTextureIds[0] = std::hash<std::string>{}(std::string(defaultTexture));
+    strncpy(editorState_.textureNames[0], defaultTexture, EDITOR_MAX_TEXTURE_NAME_LEN - 1);
+    editorState_.textureNames[0][EDITOR_MAX_TEXTURE_NAME_LEN - 1] = '\0';
+
     // Initialize default particle config
     editorState_.config.maxParticles = 100;
     editorState_.config.emissionRate = 10.0f;
     editorState_.config.blendMode = PARTICLE_BLEND_ADDITIVE;
     editorState_.config.emissionVertexCount = 0;
-    editorState_.config.textureCount = 0;
+    editorState_.config.textureCount = 1;
+    editorState_.config.textureIds[0] = editorState_.selectedTextureIds[0];
     editorState_.config.positionVariance = 0.0f;
     editorState_.config.velocityMinX = -0.5f;
     editorState_.config.velocityMaxX = 0.5f;
@@ -258,6 +266,10 @@ void ImGuiManager::getPreviewCameraSettings(float* offsetX, float* offsetY, floa
 }
 
 void ImGuiManager::setParticleEditorActive(bool active) {
+    // Reset to default state when re-entering the editor (transitioning from inactive to active)
+    if (active && !editorState_.isActive) {
+        initializeParticleEditorDefaults();
+    }
     editorState_.isActive = active;
 }
 
@@ -625,6 +637,11 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource) {
         ImGui::Text("%d: %s (ID: %llu)", i, editorState_.textureNames[i],
                     (unsigned long long)editorState_.selectedTextureIds[i]);
         ImGui::SameLine();
+        // Disable Remove button if this is the last texture (must always have at least one)
+        bool isLastTexture = (editorState_.selectedTextureCount <= 1);
+        if (isLastTexture) {
+            ImGui::BeginDisabled();
+        }
         if (ImGui::Button("Remove")) {
             // Remove this texture
             for (int j = i; j < editorState_.selectedTextureCount - 1; ++j) {
@@ -639,6 +656,11 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource) {
             for (int j = 0; j < cfg.textureCount; ++j) {
                 cfg.textureIds[j] = editorState_.selectedTextureIds[j];
             }
+        }
+        if (isLastTexture) {
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::TextDisabled("(at least one texture required)");
         }
         ImGui::PopID();
     }
