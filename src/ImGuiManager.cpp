@@ -1028,9 +1028,9 @@ void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
 }
 
 bool ImGuiManager::saveParticleConfig(const char* filename) {
-    // Build the full path to res/fx/
+    // Build the full path to ../res/fx/
     char fullPath[512];
-    snprintf(fullPath, sizeof(fullPath), "res/fx/%s", filename);
+    snprintf(fullPath, sizeof(fullPath), "../res/fx/%s", filename);
 
     // Generate the Lua config content
     char buffer[8192];
@@ -1052,8 +1052,8 @@ void ImGuiManager::refreshFxFileList() {
     editorState_.fxFileCount = 0;
     editorState_.selectedFxFileIndex = -1;
 
-    // Use SDL_EnumerateDirectory to get all files in res/fx/
-    SDL_EnumerateDirectory("res/fx", [](void* userdata, const char* dirname, const char* fname) -> SDL_EnumerationResult {
+    // Use SDL_EnumerateDirectory to get all files in ../res/fx/
+    SDL_EnumerateDirectory("../res/fx", [](void* userdata, const char* dirname, const char* fname) -> SDL_EnumerationResult {
         ParticleEditorState* state = (ParticleEditorState*)userdata;
 
         // Check if it's a .lua file
@@ -1071,9 +1071,9 @@ void ImGuiManager::refreshFxFileList() {
 }
 
 bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
-    // Build the full path to res/fx/
+    // Build the full path to ../res/fx/
     char fullPath[512];
-    snprintf(fullPath, sizeof(fullPath), "res/fx/%s", filename);
+    snprintf(fullPath, sizeof(fullPath), "../res/fx/%s", filename);
 
     // Read the file
     FILE* file = fopen(fullPath, "r");
