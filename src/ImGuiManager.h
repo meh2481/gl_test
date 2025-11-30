@@ -34,6 +34,7 @@ struct ParticleEditorState {
     // Preview particle system
     int previewSystemId;
     int previewPipelineId;
+    bool needsReset;  // Flag to signal that preview system needs to be destroyed and reset
 
     // Emission polygon editing
     int selectedVertexIndex;

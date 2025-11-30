@@ -268,7 +268,8 @@ void ImGuiManager::getPreviewCameraSettings(float* offsetX, float* offsetY, floa
 void ImGuiManager::setParticleEditorActive(bool active) {
     // Reset to default state when re-entering the editor (transitioning from inactive to active)
     if (active && !editorState_.isActive) {
-        initializeParticleEditorDefaults();
+        // Set flag to signal that preview system needs to be destroyed and reset
+        editorState_.needsReset = true;
     }
     editorState_.isActive = active;
 }
@@ -844,6 +845,18 @@ void ImGuiManager::generateLuaExport() {
 
 void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, int pipelineId) {
     if (!particleManager) return;
+
+    // Handle reset request (from re-entering the editor)
+    if (editorState_.needsReset) {
+        // Destroy existing preview system
+        if (editorState_.previewSystemId >= 0) {
+            particleManager->destroySystem(editorState_.previewSystemId);
+        }
+        // Reset editor state to defaults
+        initializeParticleEditorDefaults();
+        editorState_.needsReset = false;
+        editorState_.isActive = true;  // Keep editor active after reset
+    }
 
     ParticleEmitterConfig& cfg = editorState_.config;
 
