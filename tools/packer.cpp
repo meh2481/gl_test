@@ -355,7 +355,7 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
     rects.reserve(images.size());
     for (size_t idx : sortedIndices) {
         PackRect rect;
-        // Add padding on each side, then align to 4 pixels for DXT block boundaries
+        // Add 2 pixels for edge padding (1 on each side), then align to 4 pixels for DXT block boundaries
         rect.width = alignTo4(images[idx].width + EDGE_PADDING * 2);
         rect.height = alignTo4(images[idx].height + EDGE_PADDING * 2);
         rect.imageIndex = idx;
@@ -513,35 +513,28 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
                 }
             }
 
-            // Duplicate edge pixels for all padding rows/columns (prevents texture bleeding with MSAA)
-            for (uint32_t p = 1; p <= EDGE_PADDING; p++) {
-                // Top edge padding (duplicate first row)
-                for (uint32_t x = 0; x < img.width; x++) {
-                    copyPixel(x, 0, contentX + x, contentY - p);
-                }
-                // Bottom edge padding (duplicate last row)
-                for (uint32_t x = 0; x < img.width; x++) {
-                    copyPixel(x, img.height - 1, contentX + x, contentY + img.height - 1 + p);
-                }
-                // Left edge padding (duplicate first column)
-                for (uint32_t y = 0; y < img.height; y++) {
-                    copyPixel(0, y, contentX - p, contentY + y);
-                }
-                // Right edge padding (duplicate last column)
-                for (uint32_t y = 0; y < img.height; y++) {
-                    copyPixel(img.width - 1, y, contentX + img.width - 1 + p, contentY + y);
-                }
+            // Duplicate edge pixels for padding (prevents texture bleeding)
+            // Top edge padding (duplicate first row)
+            for (uint32_t x = 0; x < img.width; x++) {
+                copyPixel(x, 0, contentX + x, contentY - 1);
             }
-
-            // Corner padding - fill all corner pixels with edge pixel values
-            for (uint32_t py = 1; py <= EDGE_PADDING; py++) {
-                for (uint32_t px = 1; px <= EDGE_PADDING; px++) {
-                    copyPixel(0, 0, contentX - px, contentY - py);  // Top-left
-                    copyPixel(img.width - 1, 0, contentX + img.width - 1 + px, contentY - py);  // Top-right
-                    copyPixel(0, img.height - 1, contentX - px, contentY + img.height - 1 + py);  // Bottom-left
-                    copyPixel(img.width - 1, img.height - 1, contentX + img.width - 1 + px, contentY + img.height - 1 + py);  // Bottom-right
-                }
+            // Bottom edge padding (duplicate last row)
+            for (uint32_t x = 0; x < img.width; x++) {
+                copyPixel(x, img.height - 1, contentX + x, contentY + img.height);
             }
+            // Left edge padding (duplicate first column)
+            for (uint32_t y = 0; y < img.height; y++) {
+                copyPixel(0, y, contentX - 1, contentY + y);
+            }
+            // Right edge padding (duplicate last column)
+            for (uint32_t y = 0; y < img.height; y++) {
+                copyPixel(img.width - 1, y, contentX + img.width, contentY + y);
+            }
+            // Corner padding (duplicate corner pixels)
+            copyPixel(0, 0, contentX - 1, contentY - 1);  // Top-left
+            copyPixel(img.width - 1, 0, contentX + img.width, contentY - 1);  // Top-right
+            copyPixel(0, img.height - 1, contentX - 1, contentY + img.height);  // Bottom-left
+            copyPixel(img.width - 1, img.height - 1, contentX + img.width, contentY + img.height);  // Bottom-right
 
             // Create atlas entry - point to actual content (offset by EDGE_PADDING)
             AtlasEntry entry;
