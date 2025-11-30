@@ -278,17 +278,24 @@ bool ImGuiManager::isParticleEditorActive() const {
     return editorState_.isActive;
 }
 
+void ImGuiManager::destroyPreviewSystem(ParticleSystemManager* particleManager) {
+    if (particleManager && editorState_.previewSystemId >= 0) {
+        particleManager->destroySystem(editorState_.previewSystemId);
+        editorState_.previewSystemId = -1;
+    }
+}
+
 void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
                                              int pipelineId, float deltaTime) {
     if (!initialized_ || !editorState_.isActive) {
         return;
     }
 
-    // Create main particle editor window
+    // Create main particle editor window (no close button - editor is controlled by scene)
     ImGui::SetNextWindowSize(ImVec2(450, 700), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
 
-    if (!ImGui::Begin("Particle System Editor", &editorState_.isActive)) {
+    if (!ImGui::Begin("Particle System Editor", nullptr, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
         return;
     }

@@ -112,6 +112,7 @@ public:
     void showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
                                    int pipelineId, float deltaTime);
     ParticleEditorState& getEditorState() { return editorState_; }
+    void destroyPreviewSystem(ParticleSystemManager* particleManager);
 
     // Sync preview controls with camera
     void syncPreviewWithCamera(float cameraOffsetX, float cameraOffsetY, float cameraZoom);

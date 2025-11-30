@@ -260,6 +260,10 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             // Mark as not initialized so it can be reinitialized if pushed again
             initializedScenes_.erase(poppedSceneId);
 
+            // Deactivate particle editor when exiting a scene
+            particleEditorActive_ = false;
+            particleEditorPipelineId_ = -1;
+
             // Switch to the new active scene's pipeline
             if (!sceneStack_.empty()) {
                 uint64_t newActiveSceneId = sceneStack_.top();
