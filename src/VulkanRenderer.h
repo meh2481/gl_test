@@ -78,10 +78,10 @@ public:
     VkRenderPass getRenderPass() const { return renderPass; }
     uint32_t getSwapchainImageCount() const { return swapchainImageCount; }
     VkCommandBuffer getCurrentCommandBuffer() const { return commandBuffers[currentFrame]; }
-    
+
     // Get texture data for ImGui rendering
     bool getTextureForImGui(uint64_t textureId, VkImageView* imageView, VkSampler* sampler) const;
-    
+
     // Set ImGui render callback
     void setImGuiRenderCallback(void (*callback)(VkCommandBuffer)) { imguiRenderCallback_ = callback; }
 #endif
@@ -167,14 +167,14 @@ private:
         uint32_t height;
     };
     std::map<uint64_t, TextureData> m_textures;
-    
+
     // Generic descriptor set support - keyed by descriptor ID
     // Each descriptor can have 1 or more textures
     VkDescriptorSetLayout m_singleTextureDescriptorSetLayout;
     VkDescriptorPool m_singleTextureDescriptorPool;
     std::map<uint64_t, VkDescriptorSet> m_singleTextureDescriptorSets;
     VkPipelineLayout m_singleTexturePipelineLayout;
-    
+
     VkDescriptorSetLayout m_dualTextureDescriptorSetLayout;
     VkDescriptorPool m_dualTextureDescriptorPool;
     std::map<uint64_t, VkDescriptorSet> m_dualTextureDescriptorSets;
@@ -221,6 +221,12 @@ private:
     size_t currentFrame;
     uint32_t graphicsQueueFamilyIndex;
     VkFramebuffer* swapchainFramebuffers;
+
+    // MSAA (Multisampling Anti-Aliasing) resources
+    VkSampleCountFlagBits msaaSamples;
+    VkImage msaaColorImage;
+    VkDeviceMemory msaaColorImageMemory;
+    VkImageView msaaColorImageView;
 
 #ifdef DEBUG
     // ImGui render callback
@@ -276,6 +282,10 @@ private:
     void createLightDescriptorPool();
     void createLightDescriptorSet();
     void updateLightUniformBuffer();
+
+    // MSAA helpers
+    VkSampleCountFlagBits getMaxUsableSampleCount();
+    void createMsaaColorResources();
 
     // Helper method to get or create descriptor set lazily
     VkDescriptorSet getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId, uint64_t normalMapId, bool usesDualTexture);
