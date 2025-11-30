@@ -161,6 +161,7 @@ struct TextureAtlas {
 bool loadFile(const string& filename, vector<char>& data, time_t& mtime) {
     struct stat st;
     if (stat(filename.c_str(), &st) != 0) return false;
+    if (!S_ISREG(st.st_mode)) return false;  // Skip directories and special files
     mtime = st.st_mtime;
     ifstream file(filename, ios::binary | ios::ate);
     if (!file) return false;
@@ -639,6 +640,10 @@ int main(int argc, char* argv[]) {
     // Collect all files and identify PNG images
     for (int i = 2; i < argc; ++i) {
         string filename = argv[i];
+        // Skip directories
+        if (!filesystem::is_regular_file(filename)) {
+            continue;
+        }
         string basename = filesystem::path(filename).filename().string();
         uint64_t id = hash<string>{}(basename);
         files.push_back({filename, id});
