@@ -111,19 +111,6 @@ void main() {
         lighting += calculateLight(lightData.lights[i], normal, viewDir, texColor.rgb);
     }
 
-    // Edge antialiasing: compute smooth alpha falloff at geometry edges
-    // Using fwidth to get the rate of change of UV coordinates
-    vec2 fw = fwidth(fragTexCoord);
-    float edgeWidth = max(fw.x, fw.y);
-
-    // Distance from UV edges (0 and 1 in both U and V)
-    float distU = min(fragTexCoord.x, 1.0 - fragTexCoord.x);
-    float distV = min(fragTexCoord.y, 1.0 - fragTexCoord.y);
-    float edgeDist = min(distU, distV);
-
-    // Smooth alpha at edges using smoothstep
-    float edgeAlpha = smoothstep(0.0, edgeWidth, edgeDist);
-
     vec3 result = ambient + lighting;
-    outColor = vec4(result, texColor.a * edgeAlpha);
+    outColor = vec4(result, texColor.a);
 }
