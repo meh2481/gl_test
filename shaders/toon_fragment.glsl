@@ -17,14 +17,18 @@ layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in vec3 fragPos;
 layout(location = 2) in vec3 fragLightPos;
 layout(location = 3) in vec3 fragViewPos;
+layout(location = 4) in vec4 fragUVBounds;  // minX, minY, maxX, maxY
 
 layout(location = 0) out vec4 outColor;
 
 layout(binding = 0) uniform sampler2D texSampler;
 
 void main() {
+    // Clamp texture coordinates to UV bounds to prevent MSAA bleeding outside sprite region in atlas
+    vec2 clampedUV = clamp(fragTexCoord, fragUVBounds.xy, fragUVBounds.zw);
+
     // Sample the base texture
-    vec4 texColor = texture(texSampler, fragTexCoord);
+    vec4 texColor = texture(texSampler, clampedUV);
 
     // Normal for 2D sprite (pointing at camera)
     vec3 normal = vec3(0.0, 0.0, 1.0);

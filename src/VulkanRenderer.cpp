@@ -1612,12 +1612,12 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
     bindingDescription.binding = 0;
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescriptions[3]{};
-    uint32_t numAttributes = 2;
+    VkVertexInputAttributeDescription attributeDescriptions[4]{};
+    uint32_t numAttributes = 3;  // position, texcoord, uvBounds (minimum for atlas clamping)
 
     if (numTextures == 2) {
-        // Dual texture pipeline (e.g., phong with normal maps): position (vec2) + texCoord (vec2) + normalTexCoord (vec2)
-        bindingDescription.stride = sizeof(float) * 6;
+        // Dual texture pipeline (e.g., phong with normal maps): position (vec2) + texCoord (vec2) + normalTexCoord (vec2) + uvBounds (vec4)
+        bindingDescription.stride = sizeof(float) * 10;
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -1634,10 +1634,15 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
         attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;  // normal map texcoord
         attributeDescriptions[2].offset = sizeof(float) * 4;
 
-        numAttributes = 3;
+        attributeDescriptions[3].binding = 0;
+        attributeDescriptions[3].location = 3;
+        attributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;  // uvBounds (minX, minY, maxX, maxY)
+        attributeDescriptions[3].offset = sizeof(float) * 6;
+
+        numAttributes = 4;
     } else {
-        // Single texture pipeline: position (vec2) + texCoord (vec2)
-        bindingDescription.stride = sizeof(float) * 6; // Still use 6 floats to match vertex buffer layout
+        // Single texture pipeline: position (vec2) + texCoord (vec2) + uvBounds (vec4)
+        bindingDescription.stride = sizeof(float) * 10; // Match SpriteVertex struct
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -1649,7 +1654,12 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
         attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;  // texcoord
         attributeDescriptions[1].offset = sizeof(float) * 2;
 
-        numAttributes = 2;
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;  // uvBounds (minX, minY, maxX, maxY)
+        attributeDescriptions[2].offset = sizeof(float) * 6;
+
+        numAttributes = 3;
     }
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -1659,7 +1669,7 @@ void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& ver
     vertexInputInfo.vertexAttributeDescriptionCount = numAttributes;
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
 
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};;
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
@@ -1786,12 +1796,12 @@ void VulkanRenderer::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     bindingDescription.binding = 0;
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescriptions[3]{};
-    uint32_t numAttributes = 2;
+    VkVertexInputAttributeDescription attributeDescriptions[4]{};
+    uint32_t numAttributes = 3;  // position, texcoord, uvBounds (minimum for atlas clamping)
 
     if (numTextures == 2) {
-        // Dual texture pipeline: position (vec2) + texCoord (vec2) + normalTexCoord (vec2)
-        bindingDescription.stride = sizeof(float) * 6;
+        // Dual texture pipeline: position (vec2) + texCoord (vec2) + normalTexCoord (vec2) + uvBounds (vec4)
+        bindingDescription.stride = sizeof(float) * 10;
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -1808,10 +1818,15 @@ void VulkanRenderer::createTexturedPipelineAdditive(uint64_t id, const ResourceD
         attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
         attributeDescriptions[2].offset = sizeof(float) * 4;
 
-        numAttributes = 3;
+        attributeDescriptions[3].binding = 0;
+        attributeDescriptions[3].location = 3;
+        attributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;  // uvBounds (minX, minY, maxX, maxY)
+        attributeDescriptions[3].offset = sizeof(float) * 6;
+
+        numAttributes = 4;
     } else {
-        // Single texture pipeline: position (vec2) + texCoord (vec2)
-        bindingDescription.stride = sizeof(float) * 6; // Still use 6 floats to match vertex buffer layout
+        // Single texture pipeline: position (vec2) + texCoord (vec2) + uvBounds (vec4)
+        bindingDescription.stride = sizeof(float) * 10; // Match SpriteVertex struct
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -1823,7 +1838,12 @@ void VulkanRenderer::createTexturedPipelineAdditive(uint64_t id, const ResourceD
         attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
         attributeDescriptions[1].offset = sizeof(float) * 2;
 
-        numAttributes = 2;
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;  // uvBounds (minX, minY, maxX, maxY)
+        attributeDescriptions[2].offset = sizeof(float) * 6;
+
+        numAttributes = 3;
     }
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -2112,7 +2132,7 @@ void VulkanRenderer::createTextureSampler(uint64_t textureId) {
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
     samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     samplerInfo.mipLodBias = 0.0f;
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 0.0f;

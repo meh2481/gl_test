@@ -9,6 +9,7 @@ struct SpriteVertex {
     float x, y;        // Position
     float u, v;        // Texture coordinates (diffuse)
     float nu, nv;      // Normal map texture coordinates
+    float uvMinX, uvMinY, uvMaxX, uvMaxY;  // UV bounds for atlas clamping (prevents MSAA bleeding)
 };
 
 // Sprite batch for a single texture
