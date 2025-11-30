@@ -370,7 +370,7 @@ function createLightsaber()
     b2AddBoxFixture(lightsaberHiltBody, hiltHalfW, hiltHalfH, 2.0, 0.5, 0.2)
     table.insert(bodies, lightsaberHiltBody)
 
-    -- Create blade body (attached to hilt via revolute joint for slight flex)
+    -- Create blade body (attached to hilt via revolute joint)
     local bladeOffsetY = lightsaberHiltLength / 2 + lightsaberBladeLength / 2
     lightsaberBladeBody = b2CreateBody(B2_DYNAMIC_BODY, lightsaberStartX, lightsaberStartY + bladeOffsetY, 0)
     -- Blade is a thin rectangle with higher density for effective impacts
@@ -379,13 +379,13 @@ function createLightsaber()
     b2AddBoxFixture(lightsaberBladeBody, bladeHalfW, bladeHalfH, 5.0, 0.1, 0.0)
     table.insert(bodies, lightsaberBladeBody)
 
-    -- Connect blade to hilt with a stiff revolute joint (very limited rotation)
+    -- Connect blade to hilt with a stiff revolute joint
     local bladeJointId = b2CreateRevoluteJoint(
         lightsaberHiltBody,
         lightsaberBladeBody,
         0.0, lightsaberHiltLength / 2,  -- anchor on hilt (top)
         0.0, -lightsaberBladeLength / 2, -- anchor on blade (bottom)
-        true, -0.1, 0.1  -- slightly more flex for realism
+        true, 0.0, 0.0 -- no flex
     )
     table.insert(joints, bladeJointId)
 
@@ -418,7 +418,7 @@ function createRedLightsaber()
     b2AddBoxFixture(redLightsaberHiltBody, hiltHalfW, hiltHalfH, 2.0, 0.5, 0.2)
     table.insert(bodies, redLightsaberHiltBody)
 
-    -- Create blade body (attached to hilt via revolute joint for slight flex)
+    -- Create blade body (attached to hilt via revolute joint)
     local bladeOffsetY = redLightsaberHiltLength / 2 + redLightsaberBladeLength / 2
     redLightsaberBladeBody = b2CreateBody(B2_DYNAMIC_BODY, redLightsaberStartX, redLightsaberStartY + bladeOffsetY, 0)
     -- Blade is a thin rectangle with higher density for effective impacts
@@ -427,13 +427,13 @@ function createRedLightsaber()
     b2AddBoxFixture(redLightsaberBladeBody, bladeHalfW, bladeHalfH, 5.0, 0.1, 0.0)
     table.insert(bodies, redLightsaberBladeBody)
 
-    -- Connect blade to hilt with a stiff revolute joint (very limited rotation)
+    -- Connect blade to hilt with a stiff revolute joint
     local bladeJointId = b2CreateRevoluteJoint(
         redLightsaberHiltBody,
         redLightsaberBladeBody,
         0.0, redLightsaberHiltLength / 2,  -- anchor on hilt (top)
         0.0, -redLightsaberBladeLength / 2, -- anchor on blade (bottom)
-        true, -0.1, 0.1  -- slightly more flex for realism
+        true, 0.0, 0.0 -- no flex
     )
     table.insert(joints, bladeJointId)
 
