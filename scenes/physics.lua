@@ -367,16 +367,16 @@ function createLightsaber()
     -- Hilt is a small rectangle
     local hiltHalfW = lightsaberHiltWidth / 2
     local hiltHalfH = lightsaberHiltLength / 2
-    b2AddBoxFixture(lightsaberHiltBody, hiltHalfW, hiltHalfH, 2.0, 0.5, 0.2)
+    b2AddBoxFixture(lightsaberHiltBody, hiltHalfW, hiltHalfH, 0.5, 0.5, 0.2)
     table.insert(bodies, lightsaberHiltBody)
 
     -- Create blade body (attached to hilt via revolute joint)
     local bladeOffsetY = lightsaberHiltLength / 2 + lightsaberBladeLength / 2
     lightsaberBladeBody = b2CreateBody(B2_DYNAMIC_BODY, lightsaberStartX, lightsaberStartY + bladeOffsetY, 0)
-    -- Blade is a thin rectangle with higher density for effective impacts
+    -- Blade is a thin rectangle with very low density for lightweight feel
     local bladeHalfW = lightsaberBladeWidth / 2
     local bladeHalfH = lightsaberBladeLength / 2
-    b2AddBoxFixture(lightsaberBladeBody, bladeHalfW, bladeHalfH, 5.0, 0.1, 0.0)
+    b2AddBoxFixture(lightsaberBladeBody, bladeHalfW, bladeHalfH, 0.1, 0.1, 0.0)
     table.insert(bodies, lightsaberBladeBody)
 
     -- Connect blade to hilt with a stiff revolute joint
@@ -415,16 +415,16 @@ function createRedLightsaber()
     -- Hilt is a small rectangle
     local hiltHalfW = redLightsaberHiltWidth / 2
     local hiltHalfH = redLightsaberHiltLength / 2
-    b2AddBoxFixture(redLightsaberHiltBody, hiltHalfW, hiltHalfH, 2.0, 0.5, 0.2)
+    b2AddBoxFixture(redLightsaberHiltBody, hiltHalfW, hiltHalfH, 0.5, 0.5, 0.2)
     table.insert(bodies, redLightsaberHiltBody)
 
     -- Create blade body (attached to hilt via revolute joint)
     local bladeOffsetY = redLightsaberHiltLength / 2 + redLightsaberBladeLength / 2
     redLightsaberBladeBody = b2CreateBody(B2_DYNAMIC_BODY, redLightsaberStartX, redLightsaberStartY + bladeOffsetY, 0)
-    -- Blade is a thin rectangle with higher density for effective impacts
+    -- Blade is a thin rectangle with very low density for lightweight feel
     local bladeHalfW = redLightsaberBladeWidth / 2
     local bladeHalfH = redLightsaberBladeLength / 2
-    b2AddBoxFixture(redLightsaberBladeBody, bladeHalfW, bladeHalfH, 5.0, 0.1, 0.0)
+    b2AddBoxFixture(redLightsaberBladeBody, bladeHalfW, bladeHalfH, 0.1, 0.1, 0.0)
     table.insert(bodies, redLightsaberBladeBody)
 
     -- Connect blade to hilt with a stiff revolute joint
