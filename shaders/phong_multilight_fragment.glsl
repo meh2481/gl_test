@@ -44,6 +44,7 @@ layout(location = 3) in vec3 fragViewPos;
 layout(location = 4) in vec3 fragTangent;
 layout(location = 5) in vec3 fragBitangent;
 layout(location = 6) in vec2 fragNormalTexCoord;
+layout(location = 7) in vec4 fragUVBounds;  // minX, minY, maxX, maxY
 
 layout(location = 0) out vec4 outColor;
 
@@ -75,11 +76,15 @@ vec3 calculateLight(Light light, vec3 normal, vec3 viewDir, vec3 texColor) {
 }
 
 void main() {
+    // Clamp texture coordinates to UV bounds to prevent MSAA bleeding outside sprite region in atlas
+    vec2 clampedUV = clamp(fragTexCoord, fragUVBounds.xy, fragUVBounds.zw);
+    vec2 clampedNormalUV = clamp(fragNormalTexCoord, fragUVBounds.xy, fragUVBounds.zw);
+
     // Sample the base texture
-    vec4 texColor = texture(texSampler, fragTexCoord);
+    vec4 texColor = texture(texSampler, clampedUV);
 
     // Sample the normal map and convert from [0,1] to [-1,1]
-    vec3 tangentNormal = texture(normalSampler, fragNormalTexCoord).rgb;
+    vec3 tangentNormal = texture(normalSampler, clampedNormalUV).rgb;
     tangentNormal = normalize(tangentNormal * 2.0 - 1.0);
 
     // Compute tangent space basis using screen-space derivatives

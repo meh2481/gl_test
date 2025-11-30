@@ -221,6 +221,12 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
 
         // Check if using polygon rendering (for fragment texture clipping)
         if (layer.polygonVertexCount >= 3) {
+            // Get UV bounds for atlas clamping
+            float u0 = layer.textureUV.u0;
+            float v0 = layer.textureUV.v0;
+            float u1 = layer.textureUV.u1;
+            float v1 = layer.textureUV.v1;
+
             // Polygon rendering with per-vertex UVs
             for (int i = 0; i < layer.polygonVertexCount; i++) {
                 // Get local vertex position
@@ -247,6 +253,11 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
                 vert.v = v;
                 vert.nu = nu;
                 vert.nv = nv;
+                // Store UV bounds for atlas clamping (prevents MSAA bleeding)
+                vert.uvMinX = u0;
+                vert.uvMinY = v0;
+                vert.uvMaxX = u1;
+                vert.uvMaxY = v1;
 
                 batch.vertices.push_back(vert);
             }
@@ -324,6 +335,11 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
                 vert.v = uvs[i][1];
                 vert.nu = nuvs[i][0];
                 vert.nv = nuvs[i][1];
+                // Store UV bounds for atlas clamping (prevents MSAA bleeding)
+                vert.uvMinX = u0;
+                vert.uvMinY = v0;
+                vert.uvMaxX = u1;
+                vert.uvMaxY = v1;
 
                 batch.vertices.push_back(vert);
             }
