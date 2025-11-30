@@ -428,29 +428,26 @@ int main() {
         // Show particle editor if scene wants it active
         bool sceneWantsEditor = sceneManager.isParticleEditorActive();
         bool editorWasActive = imguiManager.isParticleEditorActive();
+        LuaInterface* luaInterface = sceneManager.getLuaInterface();
 
         if (sceneWantsEditor && !editorWasActive) {
             // Transitioning from inactive to active - activate the editor
             imguiManager.setParticleEditorActive(true);
         } else if (!sceneWantsEditor && editorWasActive) {
             // Transitioning from active to inactive - deactivate and destroy preview
-            LuaInterface* luaInterface = sceneManager.getLuaInterface();
             if (luaInterface) {
                 imguiManager.destroyPreviewSystem(&luaInterface->getParticleSystemManager());
             }
             imguiManager.setParticleEditorActive(false);
         }
 
-        if (sceneWantsEditor) {
-            LuaInterface* luaInterface = sceneManager.getLuaInterface();
-            if (luaInterface) {
-                imguiManager.showParticleEditorWindow(
-                    &luaInterface->getParticleSystemManager(),
-                    &sceneManager.getPakResource(),
-                    sceneManager.getParticleEditorPipelineId(),
-                    deltaTime
-                );
-            }
+        if (sceneWantsEditor && luaInterface) {
+            imguiManager.showParticleEditorWindow(
+                &luaInterface->getParticleSystemManager(),
+                &sceneManager.getPakResource(),
+                sceneManager.getParticleEditorPipelineId(),
+                deltaTime
+            );
         }
 #endif
 

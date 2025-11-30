@@ -255,6 +255,8 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             uint64_t poppedSceneId = sceneStack_.top();
             // Cleanup the scene before popping
             luaInterface_->cleanupScene(poppedSceneId);
+            // Clear the scene's pipelines so they can be re-registered on re-init
+            luaInterface_->clearScenePipelines(poppedSceneId);
             sceneStack_.pop();
             pendingPop_ = false;
             // Mark as not initialized so it can be reinitialized if pushed again
