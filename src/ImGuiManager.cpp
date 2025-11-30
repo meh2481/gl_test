@@ -732,25 +732,44 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
         ImGui::BeginGroup();
 
         // Try to get texture for ImGui preview
+        // Check if texture is in an atlas - if so, use the atlas ID for lookup
         bool hasPreview = false;
         bool clicked = false;
-        if (renderer) {
+        if (renderer && pakResource) {
+            AtlasUV atlasUV;
+            uint64_t lookupTexId = texId;
+            bool isAtlasTexture = pakResource->getAtlasUV(texId, atlasUV);
+            if (isAtlasTexture) {
+                // Texture is in an atlas, use the atlas ID
+                lookupTexId = atlasUV.atlasId;
+            }
+            
             VkImageView imageView;
             VkSampler sampler;
-            if (renderer->getTextureForImGui(texId, &imageView, &sampler)) {
+            if (renderer->getTextureForImGui(lookupTexId, &imageView, &sampler)) {
                 // Check if we already have an ImGui descriptor for this texture
-                auto it = imguiTextureCache_.find(texId);
+                auto it = imguiTextureCache_.find(lookupTexId);
                 VkDescriptorSet imguiTexture;
                 if (it != imguiTextureCache_.end()) {
                     imguiTexture = it->second;
                 } else {
                     // Create a new ImGui texture descriptor
                     imguiTexture = ImGui_ImplVulkan_AddTexture(sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                    imguiTextureCache_[texId] = imguiTexture;
+                    imguiTextureCache_[lookupTexId] = imguiTexture;
                 }
 
                 // Show texture preview as a clickable image button
-                clicked = ImGui::ImageButton(commonTextures[i], (ImTextureID)imguiTexture, ImVec2(thumbnailSize, thumbnailSize));
+                // For atlas textures, use UV coordinates to show just that portion
+                if (isAtlasTexture) {
+                    // Atlas texture - show with UV coordinates
+                    ImVec2 uv0(atlasUV.u0, atlasUV.v0);
+                    ImVec2 uv1(atlasUV.u1, atlasUV.v1);
+                    clicked = ImGui::ImageButton(commonTextures[i], (ImTextureID)imguiTexture, 
+                                                 ImVec2(thumbnailSize, thumbnailSize), uv0, uv1);
+                } else {
+                    // Standalone texture - show full image
+                    clicked = ImGui::ImageButton(commonTextures[i], (ImTextureID)imguiTexture, ImVec2(thumbnailSize, thumbnailSize));
+                }
                 hasPreview = true;
             }
         }
