@@ -134,7 +134,6 @@ int main() {
     SDL_Window* window = SDL_CreateWindowWithProperties(props);
     SDL_DestroyProperties(props);
 
-    std::cout << "error code: " << SDL_GetError() << std::endl;
     assert(window != nullptr);
 
     PakResource pakResource;
