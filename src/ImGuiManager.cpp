@@ -698,6 +698,7 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
     float windowWidth = ImGui::GetContentRegionAvail().x;
     int itemsPerRow = (int)((windowWidth + spacing) / (thumbnailSize + spacing));
     if (itemsPerRow < 1) itemsPerRow = 1;
+    float itemWidth = (windowWidth + spacing) / itemsPerRow - spacing;
 
     // Helper lambda to add a texture to the selection
     auto addTextureToSelection = [&](uint64_t texId, const char* texName) {
@@ -784,7 +785,8 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
         }
 
         // Show filename below the image
-        ImGui::TextWrapped("%s", texturePath);
+        std::string displayName = truncateTextureName(texturePath, itemWidth + 5.0f);
+        ImGui::TextWrapped("%s", displayName.c_str());
 
         ImGui::EndGroup();
         ImGui::PopID();
@@ -1415,6 +1417,31 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     }
 
     return true;
+}
+
+std::string ImGuiManager::truncateTextureName(const char* fullName, float maxWidth) {
+    std::string name = fullName;
+    ImVec2 fullSize = ImGui::CalcTextSize(name.c_str());
+    if (fullSize.x <= maxWidth) {
+        return name;
+    }
+
+    std::string ellipsis = "~";
+    ImVec2 ellipsisSize = ImGui::CalcTextSize(ellipsis.c_str());
+    float availableWidth = maxWidth - ellipsisSize.x;
+    if (availableWidth <= 0) {
+        return ellipsis;
+    }
+
+    size_t len = name.length();
+    for (size_t suffixLen = len; suffixLen >= 1; --suffixLen) {
+        std::string candidate = name.substr(len - suffixLen);
+        ImVec2 candidateSize = ImGui::CalcTextSize(candidate.c_str());
+        if (candidateSize.x <= availableWidth) {
+            return ellipsis + candidate;
+        }
+    }
+    return ellipsis;
 }
 
 #endif // DEBUG

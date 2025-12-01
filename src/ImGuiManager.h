@@ -10,6 +10,7 @@
 #include "ParticleSystem.h"
 #include <cstdint>
 #include <map>
+#include <string>
 
 // Forward declarations
 class VulkanRenderer;
@@ -153,6 +154,9 @@ private:
     void refreshFxFileList();
     void refreshTextureFileList();
     bool loadParticleConfigFromFile(const char* filename);
+
+    // Helper function to truncate texture names for display
+    std::string truncateTextureName(const char* fullName, float maxWidth);
 
     // ImGui texture cache for preview images
     std::map<uint64_t, VkDescriptorSet> imguiTextureCache_;
