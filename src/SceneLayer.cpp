@@ -65,7 +65,7 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     // Default to quad rendering (no polygon)
     layer.polygonVertexCount = 0;
     // Initialize polygon arrays to zero (defensive against uninitialized reads)
-    for (int i = 0; i < 16; ++i) {
+    for (int i = 0; i < MAX_POLYGON_VERTEX_FLOATS; ++i) {
         layer.polygonVertices[i] = 0.0f;
         layer.polygonUVs[i] = 0.0f;
         layer.polygonNormalUVs[i] = 0.0f;

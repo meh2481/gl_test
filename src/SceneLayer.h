@@ -4,6 +4,9 @@
 #include <vector>
 #include <unordered_map>
 
+// Maximum number of vertices for polygon layers (8 vertices * 2 floats per vertex = 16)
+static const int MAX_POLYGON_VERTEX_FLOATS = 16;
+
 // Sprite vertex structure with position and texture coordinates
 struct SpriteVertex {
     float x, y;        // Position
@@ -51,9 +54,9 @@ struct SceneLayer {
 
     // Polygon vertices for non-quad shapes (fragment rendering)
     // If polygonVertexCount > 0, use polygon rendering instead of quad
-    float polygonVertices[16];  // Max 8 vertices, x/y pairs (local coordinates)
-    float polygonUVs[16];       // UV coordinates for each polygon vertex (texture)
-    float polygonNormalUVs[16]; // UV coordinates for each polygon vertex (normal map)
+    float polygonVertices[MAX_POLYGON_VERTEX_FLOATS];  // Max 8 vertices, x/y pairs (local coordinates)
+    float polygonUVs[MAX_POLYGON_VERTEX_FLOATS];       // UV coordinates for each polygon vertex (texture)
+    float polygonNormalUVs[MAX_POLYGON_VERTEX_FLOATS]; // UV coordinates for each polygon vertex (normal map)
     int polygonVertexCount;     // 0 = use quad, > 0 = use polygon
 
     // Cached transform from physics
