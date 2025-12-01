@@ -30,7 +30,7 @@ uint32_t VulkanBuffer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
             return i;
         }
     }
-    assert(false && "failed to find suitable memory type!");
+    assert(false && "VulkanBuffer: failed to find suitable memory type for buffer allocation!");
     return 0;
 }
 

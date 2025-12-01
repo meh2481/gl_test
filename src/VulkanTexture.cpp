@@ -36,7 +36,7 @@ uint32_t VulkanTexture::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlag
             return i;
         }
     }
-    assert(false && "failed to find suitable memory type!");
+    assert(false && "VulkanTexture: failed to find suitable memory type for texture allocation!");
     return 0;
 }
 
@@ -276,7 +276,7 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
     } else if (format == IMAGE_FORMAT_BC3_DXT5) {
         vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
     } else {
-        assert(false && "Unsupported image format");
+        assert(false && "Unsupported image format (expected BC1/DXT1 or BC3/DXT5)");
         return;
     }
 
@@ -310,7 +310,7 @@ void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlas
     } else if (format == IMAGE_FORMAT_BC3_DXT5) {
         vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
     } else {
-        assert(false && "Unsupported atlas format");
+        assert(false && "Unsupported atlas format (expected BC1/DXT1 or BC3/DXT5)");
         return;
     }
 

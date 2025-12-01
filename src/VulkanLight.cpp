@@ -49,7 +49,7 @@ uint32_t VulkanLight::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags 
             return i;
         }
     }
-    assert(false && "failed to find suitable memory type!");
+    assert(false && "VulkanLight: failed to find suitable memory type for light uniform buffer!");
     return 0;
 }
 
