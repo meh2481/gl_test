@@ -27,3 +27,4 @@ Build the project with the correct PKG_CONFIG_PATH and CMAKE_PREFIX_PATH to use 
 - Never split Lua APIs. Update existing Lua function calls when refactoring.
 - If you add a new Lua function, make sure to add it to the globalFunctions list in LuaInterface::loadScene().
 - Don't add comments that include changes made. Keep comments generic and timeless.
+- Add similarly generic and timeless logging statements to help with debugging. Do not add logging statements that reference specific changes. Do not add logging statements that are not useful for debugging a post-crash application.
