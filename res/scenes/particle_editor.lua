@@ -23,10 +23,6 @@ function update(deltaTime)
     -- This scene just provides a backdrop and the particle shaders
 end
 
-function cleanup()
-    -- Cleanup is handled by the C++ particle editor
-end
-
 function onAction(action)
     if action == ACTION_EXIT then
         popScene()
