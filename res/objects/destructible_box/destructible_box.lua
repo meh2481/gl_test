@@ -79,21 +79,6 @@ function DestructibleBox.create(params)
 end
 
 function DestructibleBox.update(deltaTime)
-    -- Check if the box was destroyed and needs to be recreated
-    if DestructibleBox.body then
-        local x, y = b2GetBodyPosition(DestructibleBox.body)
-        if x == nil then
-            -- Body was destroyed, recreate it
-            DestructibleBox.body = b2CreateBody(B2_DYNAMIC_BODY, config.x, config.y, 0)
-            b2AddPolygonFixture(DestructibleBox.body, boxVerts, 1.0, 0.3, 0.3)
-
-            DestructibleBox.layer = createLayer(DestructibleBox.texId, config.size * 2, DestructibleBox.normId, DestructibleBox.shaderId)
-            attachLayerToBody(DestructibleBox.layer, DestructibleBox.body)
-
-            b2SetBodyDestructible(DestructibleBox.body, config.strength, config.brittleness, boxVerts, DestructibleBox.texId, DestructibleBox.normId, DestructibleBox.shaderId)
-            b2SetBodyDestructibleLayer(DestructibleBox.body, DestructibleBox.layer)
-        end
-    end
 end
 
 function DestructibleBox.getPosition()
