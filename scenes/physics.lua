@@ -31,7 +31,6 @@ lightsaberBladeBody = nil
 lightsaberHiltLayer = nil
 lightsaberBladeLayer = nil
 lightsaberBladeGlowLayer = nil
-lightsaberTrailPositions = {}
 lightsaberStartX = 0.0
 lightsaberStartY = 0.2
 lightsaberBladeLength = 0.35
@@ -46,9 +45,6 @@ lightsaberGlowIntensity = 1.5
 -- Blade layer size multipliers
 BLADE_CORE_SCALE = 1.2    -- Core glow is slightly larger than blade physics
 BLADE_GLOW_SCALE = 2.5    -- Outer glow is much larger for dramatic effect
--- Trail parameters
-TRAIL_MAX_LENGTH = 12
-TRAIL_FADE_RATE = 0.85
 
 -- Red Lightsaber state
 redLightsaberHiltBody = nil
@@ -56,7 +52,6 @@ redLightsaberBladeBody = nil
 redLightsaberHiltLayer = nil
 redLightsaberBladeLayer = nil
 redLightsaberBladeGlowLayer = nil
-redLightsaberTrailPositions = {}
 redLightsaberStartX = 0.5
 redLightsaberStartY = 0.2
 redLightsaberBladeLength = 0.35
@@ -537,54 +532,9 @@ function update(deltaTime)
     if particleSystemId and lightBody then
         setParticleSystemPosition(particleSystemId, chainLightX, chainLightY)
     end
-
-    -- Update lightsaber trail effect
-    updateLightsaberTrail()
 end
 
 -- Helper function to update lightsaber trail
-function updateLightsaberTrail()
-    if not lightsaberBladeBody then
-        return
-    end
-
-    -- b2GetBodyPosition returns nil for both x and y if body is invalid
-    local bladeX, bladeY = b2GetBodyPosition(lightsaberBladeBody)
-    if bladeX == nil or bladeY == nil then
-        return
-    end
-
-    local bladeAngle = b2GetBodyAngle(lightsaberBladeBody)
-    if bladeAngle == nil then
-        bladeAngle = 0
-    end
-
-    -- Add current position to trail history
-    table.insert(lightsaberTrailPositions, 1, {x = bladeX, y = bladeY, angle = bladeAngle, alpha = 1.0})
-
-    -- Limit trail length and fade out old positions
-    while #lightsaberTrailPositions > TRAIL_MAX_LENGTH do
-        local lastPos = lightsaberTrailPositions[#lightsaberTrailPositions]
-        if lastPos.layerId then
-            -- Destroy the old trail layer
-            destroyLayer(lastPos.layerId)
-            -- Remove from layers table
-            for i, layerId in ipairs(layers) do
-                if layerId == lastPos.layerId then
-                    table.remove(layers, i)
-                    break
-                end
-            end
-        end
-        table.remove(lightsaberTrailPositions)
-    end
-
-    -- Update alpha values for fading trail
-    for i, pos in ipairs(lightsaberTrailPositions) do
-        pos.alpha = pos.alpha * TRAIL_FADE_RATE
-    end
-end
-
 function cleanup()
     -- Destroy mouse joint if active
     if mouseJointId then
@@ -595,14 +545,6 @@ function cleanup()
 
     -- Clean up all fragments created by fractures (C++ handles this)
     b2CleanupAllFragments()
-
-    -- Clean up lightsaber trail layers
-    for i, pos in ipairs(lightsaberTrailPositions) do
-        if pos.layerId then
-            destroyLayer(pos.layerId)
-        end
-    end
-    lightsaberTrailPositions = {}
 
     -- Destroy all scene layers
     for i, layerId in ipairs(layers) do
@@ -776,22 +718,6 @@ function onAction(action)
             end
             -- Other bodies (like the destructible when not destroyed) are handled by the else case
         end
-
-        -- Clear trail positions
-        for i, pos in ipairs(lightsaberTrailPositions) do
-            if pos.layerId then
-                destroyLayer(pos.layerId)
-            end
-        end
-        lightsaberTrailPositions = {}
-
-        -- Clear red lightsaber trail positions
-        for i, pos in ipairs(redLightsaberTrailPositions) do
-            if pos.layerId then
-                destroyLayer(pos.layerId)
-            end
-        end
-        redLightsaberTrailPositions = {}
 
         -- Trigger controller vibration: light intensity for 150ms
         vibrate(0.3, 0.3, 150)
