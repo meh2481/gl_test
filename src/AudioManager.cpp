@@ -99,8 +99,6 @@ void AudioManager::initialize() {
     alListener3f(AL_VELOCITY, 0.0f, 0.0f, 0.0f);
     ALfloat listenerOri[] = { 0.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f };
     alListenerfv(AL_ORIENTATION, listenerOri);
-
-    std::cout << "Audio system initialized" << std::endl;
 }
 
 void AudioManager::cleanup() {
@@ -145,8 +143,6 @@ void AudioManager::cleanup() {
         alcCloseDevice(device);
         device = nullptr;
     }
-
-    std::cout << "Audio system cleaned up" << std::endl;
 }
 
 void AudioManager::initializeEFX() {
@@ -166,7 +162,7 @@ void AudioManager::initializeEFX() {
     alIsAuxiliaryEffectSlot = (LPALISAUXILIARYEFFECTSLOT)alGetProcAddress("alIsAuxiliaryEffectSlot");
     alAuxiliaryEffectSloti = (LPALAUXILIARYEFFECTSLOTI)alGetProcAddress("alAuxiliaryEffectSloti");
 
-    if (alGenEffects && alGenAuxiliaryEffectSlots && alGenFilters && 
+    if (alGenEffects && alGenAuxiliaryEffectSlots && alGenFilters &&
         alFilteri && alFilterf && alDeleteFilters && alIsFilter) {
         // Create effect slot
         alGenAuxiliaryEffectSlots(1, &effectSlot);
@@ -179,7 +175,7 @@ void AudioManager::initializeEFX() {
 
         // Check for errors after all object creation
         ALenum error = alGetError();
-        if (error == AL_NO_ERROR && 
+        if (error == AL_NO_ERROR &&
             (alIsAuxiliaryEffectSlot == nullptr || alIsAuxiliaryEffectSlot(effectSlot)) &&
             (alIsEffect == nullptr || alIsEffect(effect)) &&
             (alIsFilter == nullptr || alIsFilter(filter))) {
@@ -304,11 +300,6 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     // Load the PCM data into OpenAL buffer
     int bufferId = loadAudioBufferFromMemory(pcmData.data(), pcmData.size() * sizeof(opus_int16),
                                              sampleRate, channels, 16);
-
-    if (bufferId >= 0) {
-        std::cout << "Successfully loaded OPUS audio: " << pcmData.size() / channels
-                  << " samples, " << channels << " channel(s)" << std::endl;
-    }
 
     return bufferId;
 }
@@ -510,7 +501,7 @@ void AudioManager::applyEffect() {
                 alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_LOWPASS);
                 alFilterf(filter, AL_LOWPASS_GAIN, currentEffectIntensity);
                 alFilterf(filter, AL_LOWPASS_GAINHF, 0.5f * currentEffectIntensity);
-                
+
                 // Apply filter directly to all active sources
                 for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
                     if (sources[i].active) {
@@ -518,7 +509,7 @@ void AudioManager::applyEffect() {
                     }
                 }
             }
-            
+
             // Clear effect slot (not used for lowpass)
             alEffecti(effect, AL_EFFECT_TYPE, AL_EFFECT_NULL);
             if (alAuxiliaryEffectSloti) {
@@ -536,19 +527,19 @@ void AudioManager::applyEffect() {
             alEffecti(effect, AL_EFFECT_TYPE, AL_EFFECT_REVERB);
             alEffectf(effect, AL_REVERB_GAIN, currentEffectIntensity);
             alEffectf(effect, AL_REVERB_DECAY_TIME, 1.5f);
-            
+
             // Apply effect to slot
             if (alAuxiliaryEffectSloti) {
                 alAuxiliaryEffectSloti(effectSlot, AL_EFFECTSLOT_EFFECT, effect);
             }
-            
+
             // Apply effect slot to all active sources
             for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
                 if (sources[i].active) {
                     alSource3i(sources[i].source, AL_AUXILIARY_SEND_FILTER, effectSlot, 0, AL_FILTER_NULL);
                 }
             }
-            
+
             // Clear direct filter (not used for reverb)
             if (alFilteri) {
                 alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_NULL);
@@ -567,14 +558,14 @@ void AudioManager::applyEffect() {
             if (alAuxiliaryEffectSloti) {
                 alAuxiliaryEffectSloti(effectSlot, AL_EFFECTSLOT_EFFECT, effect);
             }
-            
+
             // Clear effect slot from all active sources
             for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
                 if (sources[i].active) {
                     alSource3i(sources[i].source, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL);
                 }
             }
-            
+
             // Disable filter
             if (alFilteri) {
                 alFilteri(filter, AL_FILTER_TYPE, AL_FILTER_NULL);

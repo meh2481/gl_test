@@ -2,6 +2,7 @@
 #include "ResourceTypes.h"
 #include <cstring>
 #include <cassert>
+#include <iostream>
 
 VulkanTexture::VulkanTexture() :
     m_device(VK_NULL_HANDLE),
@@ -256,6 +257,7 @@ bool VulkanTexture::getTextureDimensions(uint64_t textureId, uint32_t* width, ui
 void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageData) {
     // If texture already exists, skip reloading (textures don't change during hot-reload)
     if (m_textures.find(textureId) != m_textures.end()) {
+        std::cout << "Texture " << textureId << ": already in GPU memory (cache hit)" << std::endl;
         return;
     }
 
@@ -271,15 +273,20 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
 
     // Map our format to Vulkan format
     VkFormat vkFormat;
+    const char* formatStr;
     if (format == IMAGE_FORMAT_BC1_DXT1) {
         vkFormat = VK_FORMAT_BC1_RGB_UNORM_BLOCK;
+        formatStr = "BC1/DXT1";
     } else if (format == IMAGE_FORMAT_BC3_DXT5) {
         vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
+        formatStr = "BC3/DXT5";
     } else {
+        std::cerr << "Texture " << textureId << ": unsupported format " << format << std::endl;
         assert(false && "Unsupported image format (expected BC1/DXT1 or BC3/DXT5)");
         return;
     }
 
+    std::cout << "Texture " << textureId << ": uploading to GPU (" << width << "x" << height << ", " << formatStr << ", " << compressedSize << " bytes)" << std::endl;
     createTextureImage(textureId, compressedData, width, height, vkFormat, compressedSize);
     createTextureSampler(textureId);
 }
@@ -287,6 +294,7 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
 void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData) {
     // If atlas texture already exists, skip reloading
     if (m_textures.find(atlasId) != m_textures.end()) {
+        std::cout << "Atlas " << atlasId << ": already in GPU memory (cache hit)" << std::endl;
         return;
     }
 
@@ -305,15 +313,20 @@ void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlas
 
     // Map our format to Vulkan format
     VkFormat vkFormat;
+    const char* formatStr;
     if (format == IMAGE_FORMAT_BC1_DXT1) {
         vkFormat = VK_FORMAT_BC1_RGB_UNORM_BLOCK;
+        formatStr = "BC1/DXT1";
     } else if (format == IMAGE_FORMAT_BC3_DXT5) {
         vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
+        formatStr = "BC3/DXT5";
     } else {
+        std::cerr << "Atlas " << atlasId << ": unsupported format " << format << std::endl;
         assert(false && "Unsupported atlas format (expected BC1/DXT1 or BC3/DXT5)");
         return;
     }
 
+    std::cout << "Atlas " << atlasId << ": uploading to GPU (" << width << "x" << height << ", " << formatStr << ", " << numEntries << " entries, " << compressedSize << " bytes)" << std::endl;
     createTextureImage(atlasId, compressedData, width, height, vkFormat, compressedSize);
     createTextureSampler(atlasId);
 }

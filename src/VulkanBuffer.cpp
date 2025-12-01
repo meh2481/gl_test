@@ -1,6 +1,18 @@
 #include "VulkanBuffer.h"
 #include <cstring>
 #include <cassert>
+#include <iostream>
+
+// Helper function to convert VkResult to readable string for error logging
+static const char* vkResultToString(VkResult result) {
+    switch (result) {
+        case VK_SUCCESS: return "VK_SUCCESS";
+        case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+        case VK_ERROR_MEMORY_MAP_FAILED: return "VK_ERROR_MEMORY_MAP_FAILED";
+        default: return "VK_UNKNOWN_ERROR";
+    }
+}
 
 VulkanBuffer::VulkanBuffer() :
     m_device(VK_NULL_HANDLE),
@@ -30,7 +42,8 @@ uint32_t VulkanBuffer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
             return i;
         }
     }
-    assert(false && "VulkanBuffer: failed to find suitable memory type for buffer allocation!");
+    std::cerr << "VulkanBuffer: failed to find suitable memory type for buffer allocation" << std::endl;
+    assert(false);
     return 0;
 }
 
@@ -41,7 +54,11 @@ void VulkanBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
     bufferInfo.size = size;
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    assert(vkCreateBuffer(m_device, &bufferInfo, nullptr, &buffer) == VK_SUCCESS);
+    VkResult result = vkCreateBuffer(m_device, &bufferInfo, nullptr, &buffer);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreateBuffer failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
 
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(m_device, buffer, &memRequirements);
@@ -50,7 +67,11 @@ void VulkanBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-    assert(vkAllocateMemory(m_device, &allocInfo, nullptr, &bufferMemory) == VK_SUCCESS);
+    result = vkAllocateMemory(m_device, &allocInfo, nullptr, &bufferMemory);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkAllocateMemory failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
     vkBindBufferMemory(m_device, buffer, bufferMemory, 0);
 }
 

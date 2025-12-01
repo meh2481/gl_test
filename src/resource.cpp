@@ -2,6 +2,7 @@
 #include "ResourceTypes.h"
 #include <cstring>
 #include <cassert>
+#include <iostream>
 #include <lz4.h>
 
 #ifdef _WIN32
@@ -109,12 +110,14 @@ ResourceData PakResource::getResource(uint64_t id) {
     SDL_LockMutex(m_mutex);
 
     if (!m_pakData.data) {
+        std::cerr << "Resource pak not loaded, cannot get resource id " << id << std::endl;
         SDL_UnlockMutex(m_mutex);
         return ResourceData{nullptr, 0};
     }
 
     PakFileHeader* header = (PakFileHeader*)m_pakData.data;
     if (memcmp(header->sig, "PAKC", 4) != 0) {
+        std::cerr << "Invalid pak file signature" << std::endl;
         SDL_UnlockMutex(m_mutex);
         return ResourceData{nullptr, 0};
     }
@@ -129,22 +132,30 @@ ResourceData PakResource::getResource(uint64_t id) {
                 SDL_UnlockMutex(m_mutex);
                 return result;
             } else if (comp->compressionType == COMPRESSION_FLAGS_LZ4) {
-                // Check if already decompressed
-                if (m_decompressedData.find(id) == m_decompressedData.end()) {
-                    m_decompressedData[id].resize(comp->decompressedSize);
-                    int result = LZ4_decompress_safe(compressedData, m_decompressedData[id].data(), comp->compressedSize, comp->decompressedSize);
-                    if (result != (int)comp->decompressedSize) {
-                        SDL_UnlockMutex(m_mutex);
-                        return ResourceData{nullptr, 0};
-                    }
+                // Check if already decompressed (cache hit)
+                if (m_decompressedData.find(id) != m_decompressedData.end()) {
+                    std::cout << "Resource " << id << ": cache hit (" << comp->decompressedSize << " bytes)" << std::endl;
+                    ResourceData result = ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize};
+                    SDL_UnlockMutex(m_mutex);
+                    return result;
                 }
-                ResourceData result = ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize};
+                // Cache miss - decompress
+                std::cout << "Resource " << id << ": cache miss, decompressing " << comp->compressedSize << " -> " << comp->decompressedSize << " bytes" << std::endl;
+                m_decompressedData[id].resize(comp->decompressedSize);
+                int result = LZ4_decompress_safe(compressedData, m_decompressedData[id].data(), comp->compressedSize, comp->decompressedSize);
+                if (result != (int)comp->decompressedSize) {
+                    std::cerr << "LZ4 decompression failed for resource " << id << std::endl;
+                    SDL_UnlockMutex(m_mutex);
+                    return ResourceData{nullptr, 0};
+                }
+                ResourceData resData = ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize};
                 SDL_UnlockMutex(m_mutex);
-                return result;
+                return resData;
             }
         }
     }
 
+    std::cerr << "Resource " << id << " not found in pak" << std::endl;
     SDL_UnlockMutex(m_mutex);
     return ResourceData{nullptr, 0};
 }

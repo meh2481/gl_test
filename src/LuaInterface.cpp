@@ -32,7 +32,6 @@ void LuaInterface::executeScript(const ResourceData& scriptData) {
 }
 
 void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
-    std::cout << "Loading scene " << sceneId << " with script size " << scriptData.size << std::endl;
     // Create a table for this scene
     lua_newtable(luaState_);
 
@@ -652,7 +651,7 @@ int LuaInterface::loadShaders(lua_State* L) {
     }
 
     if (alreadyLoaded) {
-        std::cout << "Shader with z-index " << zIndex << " already loaded for scene, skipping: " << vertFile << " and " << fragFile << std::endl;
+        std::cout << "Shader pipeline z-index " << zIndex << ": already loaded (cache hit)" << std::endl;
         return 0; // No return values
     }
 
@@ -660,11 +659,16 @@ int LuaInterface::loadShaders(lua_State* L) {
     uint64_t vertId = std::hash<std::string>{}(vertFile);
     uint64_t fragId = std::hash<std::string>{}(fragFile);
 
+    std::cout << "Loading shaders: " << vertFile << ", " << fragFile << " (z-index: " << zIndex << ")" << std::endl;
+
     // Get shader data from pak file
     ResourceData vertShader = interface->pakResource_.getResource(vertId);
     ResourceData fragShader = interface->pakResource_.getResource(fragId);
 
-    assert(vertShader.size != 0 && fragShader.size != 0);
+    if (vertShader.size == 0 || fragShader.size == 0) {
+        std::cerr << "Failed to load shader: " << vertFile << " or " << fragFile << std::endl;
+        assert(false);
+    }
 
     // Check if this is a debug shader (check for filename, not full path)
     std::string vertFileStr(vertFile);
@@ -682,8 +686,6 @@ int LuaInterface::loadShaders(lua_State* L) {
     // Add to current scene's pipeline list with z-index
     scenePipelines.emplace_back(pipelineId, zIndex);
     interface->pipelineIndex_++;
-
-    std::cout << "Loaded shaders: " << vertFile << " and " << fragFile << " (z-index: " << zIndex << ", parallax: " << parallaxDepth << ")" << std::endl;
 
     return 0; // No return values
 }
@@ -1701,16 +1703,25 @@ int LuaInterface::loadTexture(lua_State* L) {
     // Hash the filename to get texture ID (same as packer)
     uint64_t textureId = std::hash<std::string>{}(filename);
 
+    std::cout << "Loading texture: " << filename << " (id: " << textureId << ")" << std::endl;
+
     // Load the texture from the pak file
     ResourceData imageData = interface->pakResource_.getResource(textureId);
-    assert(imageData.data != nullptr && "Texture not found in pak file");
+    if (imageData.data == nullptr) {
+        std::cerr << "Texture not found in pak file: " << filename << std::endl;
+        assert(false);
+    }
 
     // Check if this is an atlas reference (TextureHeader) or a standalone image (ImageHeader)
     AtlasUV atlasUV;
     if (interface->pakResource_.getAtlasUV(textureId, atlasUV)) {
         // This is an atlas reference - load the atlas texture instead
+        std::cout << "  -> Atlas reference (atlas id: " << atlasUV.atlasId << ", UV: " << atlasUV.u0 << "," << atlasUV.v0 << " - " << atlasUV.u1 << "," << atlasUV.v1 << ")" << std::endl;
         ResourceData atlasData = interface->pakResource_.getResource(atlasUV.atlasId);
-        assert(atlasData.data != nullptr && "Atlas not found in pak file");
+        if (atlasData.data == nullptr) {
+            std::cerr << "Atlas not found in pak file for texture: " << filename << std::endl;
+            assert(false);
+        }
 
         // Load the atlas texture (if not already loaded)
         interface->renderer_.loadAtlasTexture(atlasUV.atlasId, atlasData);
@@ -1719,6 +1730,7 @@ int LuaInterface::loadTexture(lua_State* L) {
         // The UV coordinates are stored in the atlas entry and will be used by SceneLayer
     } else {
         // Standalone image - load directly
+        std::cout << "  -> Standalone texture" << std::endl;
         interface->renderer_.loadTexture(textureId, imageData);
     }
 
@@ -2863,6 +2875,8 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
 
     const char* filename = lua_tostring(L, 1);
 
+    std::cout << "Loading particle config: " << filename << std::endl;
+
     // Hash the filename to get resource ID
     uint64_t resourceId = std::hash<std::string>{}(filename);
 
@@ -2908,6 +2922,8 @@ int LuaInterface::loadObject(lua_State* L) {
     assert(lua_isstring(L, 1));
 
     const char* filename = lua_tostring(L, 1);
+
+    std::cout << "Loading object: " << filename << std::endl;
 
     // Hash the filename to get resource ID
     uint64_t resourceId = std::hash<std::string>{}(filename);

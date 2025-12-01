@@ -103,7 +103,16 @@ static int hotReloadThread(void* data) {
 #endif
 
 int main() {
-    assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD));
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
+        std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
+        assert(false);
+    }
+
+    // Log machine info at startup
+    std::cout << "SDL version: " << SDL_GetVersion() << std::endl;
+    std::cout << "Platform: " << SDL_GetPlatform() << std::endl;
+    std::cout << "CPU count: " << SDL_GetNumLogicalCPUCores() << std::endl;
+    std::cout << "System RAM: " << SDL_GetSystemRAM() << " MB" << std::endl;
 
     Config config = loadConfig();
 
@@ -116,7 +125,10 @@ int main() {
     if (displayMode == nullptr) {
         config.display = primaryDisplay;
         displayMode = SDL_GetDesktopDisplayMode(config.display);
-        assert(displayMode != nullptr);
+        if (displayMode == nullptr) {
+            std::cerr << "SDL_GetDesktopDisplayMode failed: " << SDL_GetError() << std::endl;
+            assert(false);
+        }
     }
 
     std::cout << "Launching on display: " << config.display << std::endl;
@@ -134,10 +146,16 @@ int main() {
     SDL_Window* window = SDL_CreateWindowWithProperties(props);
     SDL_DestroyProperties(props);
 
-    assert(window != nullptr);
+    if (window == nullptr) {
+        std::cerr << "SDL_CreateWindowWithProperties failed: " << SDL_GetError() << std::endl;
+        assert(false);
+    }
 
     PakResource pakResource;
-    pakResource.load(PAK_FILE);
+    if (!pakResource.load(PAK_FILE)) {
+        std::cerr << "Failed to load resource pak: " << PAK_FILE << std::endl;
+        assert(false);
+    }
 
     VulkanRenderer renderer;
     VibrationManager vibrationManager;

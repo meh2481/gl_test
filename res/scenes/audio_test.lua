@@ -15,14 +15,7 @@ function init()
     -- Load the nebula shaders as background (z-index 0)
     loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", 0)
 
-    print("Audio test scene initialized")
-    print("Controls:")
-    print("  1-3: Play test sounds at different positions")
-    print("  4: Toggle lowpass filter effect")
-    print("  5: Toggle reverb effect")
-    print("  6: Clear effects")
-    print("  +/-: Adjust global volume")
-    print("  ESC: Exit scene")
+
 
     -- Set listener at origin
     audioSetListenerPosition(listenerX, listenerY, listenerZ)

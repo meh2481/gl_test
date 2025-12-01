@@ -2,6 +2,19 @@
 #include "VulkanTexture.h"
 #include <cassert>
 #include <vector>
+#include <iostream>
+
+// Helper function to convert VkResult to readable string for error logging
+static const char* vkResultToString(VkResult result) {
+    switch (result) {
+        case VK_SUCCESS: return "VK_SUCCESS";
+        case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+        case VK_ERROR_OUT_OF_POOL_MEMORY: return "VK_ERROR_OUT_OF_POOL_MEMORY";
+        case VK_ERROR_FRAGMENTED_POOL: return "VK_ERROR_FRAGMENTED_POOL";
+        default: return "VK_UNKNOWN_ERROR";
+    }
+}
 
 VulkanDescriptor::VulkanDescriptor() :
     m_device(VK_NULL_HANDLE),
@@ -80,7 +93,11 @@ void VulkanDescriptor::createSingleTextureDescriptorSetLayout() {
     layoutInfo.bindingCount = 1;
     layoutInfo.pBindings = &samplerLayoutBinding;
 
-    assert(vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_singleTextureDescriptorSetLayout) == VK_SUCCESS);
+    VkResult result = vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_singleTextureDescriptorSetLayout);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreateDescriptorSetLayout (single texture) failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
 }
 
 void VulkanDescriptor::createSingleTexturePipelineLayout() {
@@ -96,7 +113,11 @@ void VulkanDescriptor::createSingleTexturePipelineLayout() {
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    assert(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_singleTexturePipelineLayout) == VK_SUCCESS);
+    VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_singleTexturePipelineLayout);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreatePipelineLayout (single texture) failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
 }
 
 void VulkanDescriptor::createSingleTextureDescriptorPool() {
@@ -110,7 +131,11 @@ void VulkanDescriptor::createSingleTextureDescriptorPool() {
     poolInfo.pPoolSizes = &poolSize;
     poolInfo.maxSets = 100;
 
-    assert(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_singleTextureDescriptorPool) == VK_SUCCESS);
+    VkResult result = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_singleTextureDescriptorPool);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreateDescriptorPool (single texture) failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
 }
 
 void VulkanDescriptor::createDualTextureDescriptorSetLayout() {
