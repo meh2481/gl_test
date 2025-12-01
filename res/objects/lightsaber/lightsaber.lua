@@ -40,14 +40,14 @@ Lightsaber.phongShaderId = nil
 Lightsaber.saberShaderId = nil
 
 function Lightsaber.create(params)
+    assert(params ~= nil, "Lightsaber.create requires a params table")
+
     -- Merge params with defaults
-    if params then
-        for k, v in pairs(params) do
-            config[k] = v
-        end
+    for k, v in pairs(params) do
+        config[k] = v
     end
 
-    -- Get shared resources from params
+    -- Get shared resources from params (required)
     Lightsaber.hiltTexId = params.hiltTexId
     Lightsaber.hiltNormId = params.hiltNormId
     Lightsaber.bloomTexId = params.bloomTexId

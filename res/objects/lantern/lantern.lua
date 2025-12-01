@@ -39,14 +39,14 @@ Lantern.bloomShaderId = nil
 Lantern.particlePipelineId = nil
 
 function Lantern.create(params)
+    assert(params ~= nil, "Lantern.create requires a params table")
+
     -- Merge params with defaults
-    if params then
-        for k, v in pairs(params) do
-            config[k] = v
-        end
+    for k, v in pairs(params) do
+        config[k] = v
     end
 
-    -- Get shared resources from params
+    -- Get shared resources from params (required)
     Lantern.lanternTexId = params.lanternTexId
     Lantern.lanternNormId = params.lanternNormId
     Lantern.chainTexId = params.chainTexId
