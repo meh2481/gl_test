@@ -2875,6 +2875,8 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
 
     const char* filename = lua_tostring(L, 1);
 
+    std::cout << "Loading particle config: " << filename << std::endl;
+
     // Hash the filename to get resource ID
     uint64_t resourceId = std::hash<std::string>{}(filename);
 
