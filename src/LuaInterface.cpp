@@ -209,6 +209,25 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
         return;
     }
 
+    // Update all tracked scene objects
+    for (int objRef : sceneObjects_) {
+        lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
+        if (lua_istable(luaState_, -1)) {
+            lua_getfield(luaState_, -1, "update");
+            if (lua_isfunction(luaState_, -1)) {
+                lua_pushnumber(luaState_, deltaTime);
+                if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
+                    const char* errorMsg = lua_tostring(luaState_, -1);
+                    std::cerr << "Object update error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+                    lua_pop(luaState_, 1);
+                }
+            } else {
+                lua_pop(luaState_, 1); // Pop non-function
+            }
+        }
+        lua_pop(luaState_, 1); // Pop object table
+    }
+
     // Update audio manager (cleanup finished sources)
     audioManager_->update();
 
@@ -250,6 +269,26 @@ void LuaInterface::handleAction(uint64_t sceneId, Action action) {
 }
 
 void LuaInterface::cleanupScene(uint64_t sceneId) {
+    // First, cleanup all tracked scene objects
+    for (int objRef : sceneObjects_) {
+        lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
+        if (lua_istable(luaState_, -1)) {
+            lua_getfield(luaState_, -1, "cleanup");
+            if (lua_isfunction(luaState_, -1)) {
+                if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
+                    const char* errorMsg = lua_tostring(luaState_, -1);
+                    std::cerr << "Object cleanup error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+                    lua_pop(luaState_, 1);
+                }
+            } else {
+                lua_pop(luaState_, 1); // Pop non-function
+            }
+        }
+        lua_pop(luaState_, 1); // Pop object table
+        luaL_unref(luaState_, LUA_REGISTRYINDEX, objRef); // Release the reference
+    }
+    sceneObjects_.clear();
+
     // Get the scene table from registry
     lua_pushinteger(luaState_, sceneId);
     lua_gettable(luaState_, LUA_REGISTRYINDEX);
@@ -2899,25 +2938,32 @@ int LuaInterface::loadObject(lua_State* L) {
     }
 
     // The result (module table) is now on top of the stack
-    // If a params table was passed, call the create function with it
-    if (numArgs == 2 && lua_istable(L, 2)) {
-        // Get the create function from the module
-        lua_getfield(L, -1, "create");
-        if (lua_isfunction(L, -1)) {
+    // Call the create function with params (or empty table if none provided)
+    lua_getfield(L, -1, "create");
+    if (lua_isfunction(L, -1)) {
+        if (numArgs == 2 && lua_istable(L, 2)) {
             // Push the params table
             lua_pushvalue(L, 2);
-
-            // Call create(params)
-            if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
-                const char* errorMsg = lua_tostring(L, -1);
-                std::cerr << "Lua object create error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
-                lua_pop(L, 1);
-            }
         } else {
-            lua_pop(L, 1); // Pop non-function value
+            // Push empty table if no params
+            lua_newtable(L);
         }
+
+        // Call create(params)
+        if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+            const char* errorMsg = lua_tostring(L, -1);
+            std::cerr << "Lua object create error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+            lua_pop(L, 1);
+        }
+    } else {
+        lua_pop(L, 1); // Pop non-function value
     }
 
-    // Return the module table (allows scene to access update/cleanup if needed)
+    // Track the object - store a reference in the registry
+    lua_pushvalue(L, -1); // Duplicate the module table
+    int objRef = luaL_ref(L, LUA_REGISTRYINDEX);
+    interface->sceneObjects_.push_back(objRef);
+
+    // Return the module table (allows scene to access if needed, but update/cleanup are automatic)
     return 1;
 }

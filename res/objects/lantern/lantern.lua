@@ -1,5 +1,5 @@
 -- Hanging lantern object
--- A lantern with chain physics, bloom effect, particle system, and dynamic light
+-- A fully self-contained lantern with chain physics, bloom effect, particle system, and dynamic light
 
 local Lantern = {}
 
@@ -12,6 +12,17 @@ Lantern.lightBody = nil
 Lantern.chainAnchor = nil
 Lantern.lightId = nil
 Lantern.particleSystemId = nil
+
+-- Loaded resources (loaded once on first create)
+Lantern.lanternTexId = nil
+Lantern.lanternNormId = nil
+Lantern.chainTexId = nil
+Lantern.chainNormId = nil
+Lantern.bloomTexId = nil
+Lantern.phongShaderId = nil
+Lantern.bloomShaderId = nil
+Lantern.particlePipelineId = nil
+Lantern.resourcesLoaded = false
 
 -- Default configuration
 local config = {
@@ -28,33 +39,41 @@ local config = {
     enableParticles = true
 }
 
--- Shared textures and shaders (must be set by scene before create)
-Lantern.lanternTexId = nil
-Lantern.lanternNormId = nil
-Lantern.chainTexId = nil
-Lantern.chainNormId = nil
-Lantern.bloomTexId = nil
-Lantern.phongShaderId = nil
-Lantern.bloomShaderId = nil
-Lantern.particlePipelineId = nil
+-- Load all required resources internally
+local function loadResources()
+    if Lantern.resourcesLoaded then
+        return
+    end
+
+    -- Load textures
+    Lantern.lanternTexId = loadTexture("objects/lantern/lantern.png")
+    Lantern.lanternNormId = loadTexture("objects/lantern/lantern.norm.png")
+    Lantern.chainTexId = loadTexture("chain.png")
+    Lantern.chainNormId = loadTexture("chain.norm.png")
+    Lantern.bloomTexId = loadTexture("common/bloom.png")
+
+    -- Load shaders
+    Lantern.phongShaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)
+    setShaderParameters(Lantern.phongShaderId, 0.3, 0.7, 0.5, 32.0)
+
+    Lantern.bloomShaderId = loadTexturedShadersAdditive("sprite_vertex.spv", "sprite_fragment.spv", 2, 1)
+
+    -- Load particle pipeline
+    Lantern.particlePipelineId = loadParticleShaders("particle_vertex.spv", "particle_fragment.spv", 1, true)
+
+    Lantern.resourcesLoaded = true
+end
 
 function Lantern.create(params)
-    assert(params ~= nil, "Lantern.create requires a params table")
+    params = params or {}
+
+    -- Load resources if not already loaded
+    loadResources()
 
     -- Merge params with defaults
     for k, v in pairs(params) do
         config[k] = v
     end
-
-    -- Get shared resources from params (required)
-    Lantern.lanternTexId = params.lanternTexId
-    Lantern.lanternNormId = params.lanternNormId
-    Lantern.chainTexId = params.chainTexId
-    Lantern.chainNormId = params.chainNormId
-    Lantern.bloomTexId = params.bloomTexId
-    Lantern.phongShaderId = params.phongShaderId
-    Lantern.bloomShaderId = params.bloomShaderId
-    Lantern.particlePipelineId = params.particlePipelineId
 
     local startX = config.x
     local startY = config.y
@@ -132,7 +151,7 @@ function Lantern.create(params)
     -- Create the light
     Lantern.lightId = addLight(startX, startY, config.lightZ, config.lightR, config.lightG, config.lightB, config.lightIntensity)
 
-    -- Create particle system if enabled and pipeline is provided
+    -- Create particle system if enabled
     if config.enableParticles and Lantern.particlePipelineId then
         local particleConfig = loadParticleConfig("lantern_bugs.lua")
         if particleConfig then

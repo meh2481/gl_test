@@ -196,4 +196,8 @@ private:
 
     // Particle editor state (DEBUG only)
     int particleEditorPipelineId_;
+
+    // Scene objects tracking - objects created via loadObject are tracked here
+    // The C++ side calls update/cleanup on these automatically
+    std::vector<int> sceneObjects_; // Lua registry references to object tables
 };

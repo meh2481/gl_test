@@ -1,122 +1,113 @@
 -- Physics demo scene
+-- A demonstration scene with various physics objects
+
+-- Scene-level state (non-object things)
 bodies = {}
 joints = {}
 layers = {}
 debugDrawEnabled = true
-chainLinks = {}
-lightBody = nil
-circleBody = nil
-chainAnchor = nil
-chainStartX = -0.605
-chainStartY = 0.7
-chainLightZ = 0.25
-chainLinkHeight = 0.04
-chainLength = 10
-CHAIN_OFFSET = 0.0035
 
 -- Mouse drag state
 mouseJointId = nil
 draggedBodyId = nil
 
--- Destructible object state
-destructibleBody = nil
-destructibleLayer = nil
--- Original destructible body position for reset
-destructibleStartX = 0.9
-destructibleStartY = -0.3
+-- Reference to circle body for force application
+circleBody = nil
 
--- Object instances (created via loadObject)
-lanternObj = nil
-blueSaberObj = nil
-redSaberObj = nil
+-- Shader IDs for scene-specific rendering (boxes, rocks, etc.)
+phongShaderId = nil
+toonShaderId = nil
+simpleTexShaderId = nil
 
--- Particle system state
-particleSystemId = nil
-particlePipelineId = nil
+-- Texture IDs for scene-specific objects
+rockTexId = nil
+rockNormId = nil
+metalwallTexId = nil
+metalwallNormId = nil
+chainTexId = nil
+chainNormId = nil
+lanternTexId = nil
+lanternNormId = nil
 
 function init()
     -- Load the nebula background shader (z-index -2 = background)
-    -- Negative z-index = drawn first (background), moves slower than camera
     loadShaders("vertex.spv", "nebula_fragment.spv", -2)
 
-    -- Load multi-light Phong shaders (z-index 1, 2 textures)
-    -- This shader reads lights from uniform buffer and supports multiple colored lights
+    -- Load scene-level shaders for demo boxes and shapes
     phongShaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)
-
-    -- Load toon shader (z-index 1, 1 texture - no normal map)
     toonShaderId = loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, 1)
-
-    -- Load regular textured shaders (no normal mapping) (z-index 1, 1 texture)
     simpleTexShaderId = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, 1)
-
-    -- Load additive blending shader for bloom effect (z-index 2, below debug, 1 texture)
-    bloomShaderId = loadTexturedShadersAdditive("sprite_vertex.spv", "sprite_fragment.spv", 2, 1)
-
-    -- Load lightsaber shader (z-index 2, additive blend, 1 texture)
-    -- This shader uses extended push constants for glow color and intensity
-    blueSaberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
-
-    -- Load red lightsaber shader (same shader, different instance for different params)
-    redSaberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
-
-    -- Set up the multi-light system
-    -- Clear any existing lights and set ambient
-    clearLights()
-    setAmbientLight(0.15, 0.15, 0.15)
-
-    -- Set shader parameters for Phong multi-light shader
-    -- Parameters: ambientStrength, diffuseStrength, specularStrength, shininess
-    setShaderParameters(phongShaderId, 0.3, 0.7, 0.5, 32.0)
-
-    -- Set shader parameters for Toon shader (only 4 parameters needed)
-    -- Position (0.5, 0.5, chainLightZ) - light position
-    -- levels: 3.0 (3 cel-shading levels)
-    setShaderParameters(toonShaderId, 0.5, 0.5, chainLightZ, 3.0)
 
     -- Load debug drawing shader (z-index 3, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 3)
 
+    -- Set shader parameters
+    setShaderParameters(phongShaderId, 0.3, 0.7, 0.5, 32.0)
+    setShaderParameters(toonShaderId, 0.5, 0.5, 0.25, 3.0)
+
+    -- Load textures for scene-level objects
     rockTexId = loadTexture("rock.png")
     rockNormId = loadTexture("rock.norm.png")
     metalwallTexId = loadTexture("metalwall.png")
     metalwallNormId = loadTexture("metalwall.norm.png")
-    lanternTexId = loadTexture("objects/lantern/lantern.png")
-    lanternNormId = loadTexture("objects/lantern/lantern.norm.png")
     chainTexId = loadTexture("chain.png")
     chainNormId = loadTexture("chain.norm.png")
-    bloomTexId = loadTexture("common/bloom.png")
+    lanternTexId = loadTexture("objects/lantern/lantern.png")
+    lanternNormId = loadTexture("objects/lantern/lantern.norm.png")
+
+    -- Set up the multi-light system
+    clearLights()
+    setAmbientLight(0.15, 0.15, 0.15)
 
     -- Enable Box2D debug drawing
     b2EnableDebugDraw(true)
 
-    -- Set gravity (x, y)
+    -- Set gravity
     b2SetGravity(0, -10)
 
-    -- Create ground (static line segment)
+    -- Create static boundaries
+    createBoundaries()
+
+    -- Create demo boxes with various shaders
+    createDemoBoxes()
+
+    -- Create scene-level dynamic objects (rock and lantern polygon)
+    createSceneObjects()
+
+    -- Load abstracted objects - just position, objects handle everything else
+    loadObject("objects/lantern/lantern.lua", { x = -0.605, y = 0.7 })
+    loadObject("objects/lightsaber/lightsaber.lua", { x = 0.0, y = 0.2, colorR = 0.3, colorG = 0.7, colorB = 1.0 })
+    loadObject("objects/lightsaber/lightsaber.lua", { x = 0.5, y = 0.2, colorR = 1.0, colorG = 0.0, colorB = 0.0 })
+    loadObject("objects/destructible_box/destructible_box.lua", { x = 0.9, y = -0.3 })
+
+    print("Physics demo scene initialized")
+    print("Drag objects with the mouse, press R to reset")
+end
+
+function createBoundaries()
+    -- Create ground
     local groundId = b2CreateBody(B2_STATIC_BODY, 0, -0.8, 0)
     b2AddSegmentFixture(groundId, -1.5, 0, 1.5, 0, 0.3, 0.0)
     table.insert(bodies, groundId)
 
-    -- Create left wall (static line segment)
+    -- Create left wall
     local leftWallId = b2CreateBody(B2_STATIC_BODY, -1.5, 0, 0)
     b2AddSegmentFixture(leftWallId, 0, -1.0, 0, 10.0, 0.3, 0.0)
     table.insert(bodies, leftWallId)
 
-    -- Create right wall (static line segment)
+    -- Create right wall
     local rightWallId = b2CreateBody(B2_STATIC_BODY, 1.5, 0, 0)
     b2AddSegmentFixture(rightWallId, 0, -1.0, 0, 10.0, 0.3, 0.0)
     table.insert(bodies, rightWallId)
 
-    -- Create ceiling far above (static line segment)
+    -- Create ceiling
     local ceilingId = b2CreateBody(B2_STATIC_BODY, 0, 10.0, 0)
     b2AddSegmentFixture(ceilingId, -1.5, 0, 1.5, 0, 0.3, 0.0)
     table.insert(bodies, ceilingId)
+end
 
-    -- Create 5 dynamic boxes with different rendering:
-    -- Box 1 & 2: Phong with normal maps (metalwall)
-    -- Box 3: Toon shader (metalwall)
-    -- Box 4: Simple texture, no normal (metalwall)
-    -- Box 5: Display normal map as color (metalwall.norm)
+function createDemoBoxes()
+    -- Create 5 dynamic boxes with different rendering
     for i = 1, 5 do
         local x = -0.5 + (i - 1) * 0.25
         local y = 0.5
@@ -125,167 +116,64 @@ function init()
         table.insert(bodies, bodyId)
 
         local layerId
-        if i <= 1 then
-            layerId = createLayer(metalwallTexId, 0.2, metalwallNormId, phongShaderId)
-        elseif i <= 2 then
-            -- Phong shading with normal maps
+        if i <= 2 then
             layerId = createLayer(metalwallTexId, 0.2, metalwallNormId, phongShaderId)
         elseif i == 3 then
-            -- Toon shader (single texture, no normal map)
             layerId = createLayer(metalwallTexId, 0.2, toonShaderId)
         elseif i == 4 then
-            -- Simple texture, no normal map
             layerId = createLayer(metalwallTexId, 0.2, simpleTexShaderId)
         else
-            -- Show normal map as color
             layerId = createLayer(metalwallNormId, 0.2, simpleTexShaderId)
         end
         attachLayerToBody(layerId, bodyId)
         table.insert(layers, layerId)
     end
 
-    -- Create a rectangle box using chain graphic with proper aspect ratio
+    -- Create a rectangle box using chain graphic
     local chainWidth, chainHeight = getTextureDimensions(chainTexId)
     local chainAspectRatio = chainWidth / chainHeight
-    local boxHeight = 0.2  -- Fixed height
-    local boxWidth = boxHeight * chainAspectRatio  -- Width based on aspect ratio
+    local boxHeight = 0.2
+    local boxWidth = boxHeight * chainAspectRatio
     local chainBoxBody = b2CreateBody(B2_DYNAMIC_BODY, -0.7, 0.3, 0)
     b2AddBoxFixture(chainBoxBody, boxWidth / 2, boxHeight / 2, 1.0, 0.3, 0.3)
     table.insert(bodies, chainBoxBody)
 
-    -- Attach chain sprite layer to the box
     local chainBoxLayerId = createLayer(chainTexId, boxHeight, chainNormId, phongShaderId)
     attachLayerToBody(chainBoxLayerId, chainBoxBody)
     table.insert(layers, chainBoxLayerId)
+end
 
-    -- Create a dynamic circle with rock.png sprite using Phong with normal maps
+function createSceneObjects()
+    -- Create a dynamic circle with rock sprite
     circleBody = b2CreateBody(B2_DYNAMIC_BODY, 0, 0.8, 0)
     b2AddCircleFixture(circleBody, 0.15, 1.0, 0.3, 0.5)
     table.insert(bodies, circleBody)
 
-    -- Attach a sprite layer to the circle
     local layerId = createLayer(rockTexId, 0.3, rockNormId, phongShaderId)
     attachLayerToBody(layerId, circleBody)
     table.insert(layers, layerId)
 
-    -- Create a dynamic polygon with lantern.png sprite using Phong with normal maps
-    circleBody2 = b2CreateBody(B2_DYNAMIC_BODY, 0.5, 0.8, 0)
-    -- Lantern-shaped polygon: narrower at top, wider at bottom
+    -- Create a dynamic polygon with lantern sprite
+    local lanternBody = b2CreateBody(B2_DYNAMIC_BODY, 0.5, 0.8, 0)
     local lanternVerts = {
-        -0.06, -0.146,  -- bottom left
-         0.06, -0.146,  -- bottom right
-         0.085,  -0.1,   -- middle right
-         0.067,  0.045,  -- top right
-         0.0,  0.15,    -- top center
-        -0.067,  0.045,  -- top left
-        -0.085,  -0.1    -- middle left
+        -0.06, -0.146,
+         0.06, -0.146,
+         0.085, -0.1,
+         0.067, 0.045,
+         0.0, 0.15,
+        -0.067, 0.045,
+        -0.085, -0.1
     }
-    b2AddPolygonFixture(circleBody2, lanternVerts, 1.0, 0.3, 0.5)
-    table.insert(bodies, circleBody2)
+    b2AddPolygonFixture(lanternBody, lanternVerts, 1.0, 0.3, 0.5)
+    table.insert(bodies, lanternBody)
 
-    -- Attach a sprite layer to the polygon body
-    local layerId = createLayer(lanternTexId, 0.3, lanternNormId, phongShaderId)
-    attachLayerToBody(layerId, circleBody2)
-    table.insert(layers, layerId)
-
-    -- Create a chain with multiple links
-    -- Load particle shaders before creating lantern (needed for particle system)
-    particlePipelineId = loadParticleShaders("particle_vertex.spv", "particle_fragment.spv", 1, true)
-
-    -- Create hanging lantern using abstracted object
-    lanternObj = loadObject("objects/lantern/lantern.lua", {
-        x = chainStartX,
-        y = chainStartY,
-        chainLength = chainLength,
-        chainLinkHeight = chainLinkHeight,
-        chainOffset = CHAIN_OFFSET,
-        lightZ = chainLightZ,
-        lanternTexId = lanternTexId,
-        lanternNormId = lanternNormId,
-        chainTexId = chainTexId,
-        chainNormId = chainNormId,
-        bloomTexId = bloomTexId,
-        phongShaderId = phongShaderId,
-        bloomShaderId = bloomShaderId,
-        particlePipelineId = particlePipelineId,
-        enableParticles = true
-    })
-    -- Get reference to light body for scene-level tracking
-    lightBody = lanternObj.lightBody
-
-    -- Create a destructible box that breaks when hit hard enough
-    -- Positioned on the right side, uses rock texture
-    -- Uses new C++ fracture system with strength (Mohs scale) and brittleness
-    createDestructibleRock()
-
-    -- Create blue lightsaber using abstracted object
-    blueSaberObj = loadObject("objects/lightsaber/lightsaber.lua", {
-        x = 0.0,
-        y = 0.2,
-        colorR = 0.3,
-        colorG = 0.7,
-        colorB = 1.0,
-        glowIntensity = 1.5,
-        hiltTexId = chainTexId,
-        hiltNormId = chainNormId,
-        bloomTexId = bloomTexId,
-        phongShaderId = phongShaderId,
-        saberShaderId = blueSaberShaderId
-    })
-
-    -- Create red lightsaber using abstracted object
-    redSaberObj = loadObject("objects/lightsaber/lightsaber.lua", {
-        x = 0.5,
-        y = 0.2,
-        colorR = 1.0,
-        colorG = 0.0,
-        colorB = 0.0,
-        glowIntensity = 1.5,
-        hiltTexId = chainTexId,
-        hiltNormId = chainNormId,
-        bloomTexId = bloomTexId,
-        phongShaderId = phongShaderId,
-        saberShaderId = redSaberShaderId
-    })
-
-    print("Physics demo scene initialized with multiple shader types")
-    print("Destructible rock added - hit it hard to break it!")
-    print("Using C++ fracture system with strength=5.5 (Mohs scale), brittleness=0.6")
-    print("Lightsabers added - drag them into the destructible box to destroy it!")
-    print("Particle system added - sparkles following the swinging lantern")
-end
-
--- Helper function to create/recreate the destructible rock object
-function createDestructibleRock()
-    -- Use polygon fixture with explicit vertices for proper fracture calculation
-    local boxVerts = {
-        -0.12, -0.12,
-         0.12, -0.12,
-         0.12,  0.12,
-        -0.12,  0.12
-    }
-
-    destructibleBody = b2CreateBody(B2_DYNAMIC_BODY, destructibleStartX, destructibleStartY, 0)
-    b2AddPolygonFixture(destructibleBody, boxVerts, 1.0, 0.3, 0.3)
-    table.insert(bodies, destructibleBody)
-
-    destructibleLayer = createLayer(metalwallTexId, 0.24, metalwallNormId, phongShaderId)
-    attachLayerToBody(destructibleLayer, destructibleBody)
-    table.insert(layers, destructibleLayer)
-
-    -- Set body as destructible with properties
-    -- The C++ side handles everything: layer destruction, fragment creation, cleanup
-    b2SetBodyDestructible(destructibleBody, 2.5, 0.6, boxVerts, metalwallTexId, metalwallNormId, phongShaderId)
-    b2SetBodyDestructibleLayer(destructibleBody, destructibleLayer)
+    local lanternLayerId = createLayer(lanternTexId, 0.3, lanternNormId, phongShaderId)
+    attachLayerToBody(lanternLayerId, lanternBody)
+    table.insert(layers, lanternLayerId)
 end
 
 function update(deltaTime)
-    -- Step the physics simulation (Box2D 3.x uses subStepCount instead of velocity/position iterations)
-    -- The C++ physics engine handles everything:
-    -- - Processing fracture events
-    -- - Destroying original layers
-    -- - Creating fragment bodies and layers with proper UV clipping
-    -- - Tracking fragments for cleanup
+    -- Step the physics simulation
     b2Step(deltaTime, 4)
 
     -- Update mouse joint target if dragging
@@ -296,30 +184,8 @@ function update(deltaTime)
             b2SetBodyAwake(draggedBodyId, true)
         end
     end
-
-    -- Update lantern object (handles light and particle system updates)
-    local chainLightX, chainLightY = 0.5, 0.5
-    if lanternObj then
-        lanternObj.update(deltaTime)
-        chainLightX, chainLightY = lanternObj.getPosition()
-        if chainLightX == nil then
-            chainLightX, chainLightY = 0.5, 0.5
-        end
-    end
-
-    -- Update lightsaber objects
-    if blueSaberObj then
-        blueSaberObj.update(deltaTime)
-    end
-    if redSaberObj then
-        redSaberObj.update(deltaTime)
-    end
-
-    -- Update toon shader with lantern position (single light)
-    setShaderParameters(toonShaderId, chainLightX, chainLightY, chainLightZ, 3.0)
 end
 
--- Helper function to update lightsaber trail
 function cleanup()
     -- Destroy mouse joint if active
     if mouseJointId then
@@ -328,47 +194,28 @@ function cleanup()
         draggedBodyId = nil
     end
 
-    -- Clean up all fragments created by fractures (C++ handles this)
+    -- Clean up fragments
     b2CleanupAllFragments()
 
-    -- Clean up abstracted objects
-    if lanternObj then
-        lanternObj.cleanup()
-        lanternObj = nil
-    end
-    if blueSaberObj then
-        blueSaberObj.cleanup()
-        blueSaberObj = nil
-    end
-    if redSaberObj then
-        redSaberObj.cleanup()
-        redSaberObj = nil
-    end
-
     -- Destroy all scene layers
-    for i, layerId in ipairs(layers) do
+    for _, layerId in ipairs(layers) do
         destroyLayer(layerId)
     end
     layers = {}
 
     -- Destroy all joints
-    for i, jointId in ipairs(joints) do
+    for _, jointId in ipairs(joints) do
         b2DestroyJoint(jointId)
     end
     joints = {}
 
     -- Destroy all physics bodies
-    for i, bodyId in ipairs(bodies) do
-        b2ClearBodyDestructible(bodyId)  -- Clear destructible state first
+    for _, bodyId in ipairs(bodies) do
+        b2ClearBodyDestructible(bodyId)
         b2DestroyBody(bodyId)
     end
     bodies = {}
-    chainLinks = {}
-    lightBody = nil
     circleBody = nil
-    chainAnchor = nil
-    destructibleBody = nil
-    destructibleLayer = nil
 
     -- Clear all lights
     clearLights()
@@ -378,62 +225,31 @@ function cleanup()
     print("Physics demo scene cleaned up")
 end
 
--- Handle actions
 function onAction(action)
     if action == ACTION_EXIT then
         popScene()
     end
     if action == ACTION_APPLY_FORCE then
-        -- Apply impulse to the circle (rock)
         if circleBody then
             local x, y = b2GetBodyPosition(circleBody)
             b2ApplyForce(circleBody, 0, 50, x, y)
-            -- Trigger controller vibration: medium intensity for 200ms
             vibrate(0.5, 0.5, 200)
         end
     end
     if action == ACTION_RESET_PHYSICS then
-        -- Reset camera to default position
+        -- Reset camera
         setCameraOffset(0, 0)
         setCameraZoom(1.0)
 
-        -- Clean up all fragments created by fractures (C++ handles this)
+        -- Clean up fragments
         b2CleanupAllFragments()
 
-        -- If destructible body was destroyed, recreate it
-        local x, y = b2GetBodyPosition(destructibleBody)
-        if x == nil then
-            createDestructibleRock()
-        else
-            -- Reset the existing destructible body
-            b2SetBodyPosition(destructibleBody, destructibleStartX, destructibleStartY)
-            b2SetBodyAngle(destructibleBody, 0)
-            b2SetBodyLinearVelocity(destructibleBody, 0, 0)
-            b2SetBodyAngularVelocity(destructibleBody, 0)
-            b2SetBodyAwake(destructibleBody, true)
-        end
-
-        -- Reset abstracted objects
-        if lanternObj then
-            lanternObj.reset()
-        end
-        if blueSaberObj then
-            blueSaberObj.reset()
-        end
-        if redSaberObj then
-            redSaberObj.reset()
-        end
-
-        -- Reset all core scene bodies (excluding abstracted objects which handle themselves)
+        -- Reset scene bodies
         for i, bodyId in ipairs(bodies) do
-            -- Skip the destructible body - it's handled separately
-            if bodyId == destructibleBody then
-                -- Already handled above
-            elseif i <= 4 then
-                -- Static bodies (ground, left wall, right wall, ceiling) - keep in place
-                -- No need to reset static bodies
+            if i <= 4 then
+                -- Static bodies, no reset needed
             elseif i <= 9 then
-                -- Boxes (5 dynamic boxes)
+                -- Boxes
                 local x = -0.5 + (i - 5) * 0.25
                 b2SetBodyPosition(bodyId, x, 0.5)
                 b2SetBodyAngle(bodyId, 0)
@@ -455,7 +271,7 @@ function onAction(action)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
             elseif i == 12 then
-                -- Lantern circle
+                -- Lantern polygon
                 b2SetBodyPosition(bodyId, 0.5, 0.8)
                 b2SetBodyAngle(bodyId, 0)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
@@ -464,16 +280,13 @@ function onAction(action)
             end
         end
 
-        -- Trigger controller vibration: light intensity for 150ms
         vibrate(0.3, 0.3, 150)
     end
     if action == ACTION_TOGGLE_DEBUG_DRAW then
-        print("Toggling debug draw")
         debugDrawEnabled = not debugDrawEnabled
         b2EnableDebugDraw(debugDrawEnabled)
     end
     if action == ACTION_DRAG_START then
-        -- Start dragging: find body at cursor position and create mouse joint
         local cursorX, cursorY = getCursorPosition()
         local bodyId = b2QueryBodyAtPoint(cursorX, cursorY)
         if bodyId >= 0 then
@@ -482,7 +295,6 @@ function onAction(action)
         end
     end
     if action == ACTION_DRAG_END then
-        -- End dragging: destroy mouse joint
         if mouseJointId then
             b2DestroyMouseJoint(mouseJointId)
             mouseJointId = nil

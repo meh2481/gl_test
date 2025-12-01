@@ -1,5 +1,5 @@
 -- Lightsaber object
--- A lightsaber with hilt, glowing blade, physics, and dynamic light
+-- A fully self-contained lightsaber with hilt, glowing blade, physics, and dynamic light
 
 local Lightsaber = {}
 
@@ -12,6 +12,14 @@ Lightsaber.lightId = nil
 Lightsaber.bodies = {}
 Lightsaber.layers = {}
 Lightsaber.joints = {}
+
+-- Loaded resources (loaded once on first create)
+Lightsaber.hiltTexId = nil
+Lightsaber.hiltNormId = nil
+Lightsaber.bloomTexId = nil
+Lightsaber.phongShaderId = nil
+Lightsaber.saberShaderId = nil
+Lightsaber.resourcesLoaded = false
 
 -- Default configuration
 local config = {
@@ -32,30 +40,42 @@ local config = {
 -- Constants
 local BLADE_CORE_SCALE = 1.2
 
--- Shared textures and shaders (must be set by scene before create)
-Lightsaber.hiltTexId = nil
-Lightsaber.hiltNormId = nil
-Lightsaber.bloomTexId = nil
-Lightsaber.phongShaderId = nil
-Lightsaber.saberShaderId = nil
+-- Load all required resources internally
+local function loadResources()
+    if Lightsaber.resourcesLoaded then
+        return
+    end
+
+    -- Load textures - using chain texture for hilt (metallic look)
+    Lightsaber.hiltTexId = loadTexture("chain.png")
+    Lightsaber.hiltNormId = loadTexture("chain.norm.png")
+    Lightsaber.bloomTexId = loadTexture("common/bloom.png")
+
+    -- Load shaders
+    Lightsaber.phongShaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)
+    setShaderParameters(Lightsaber.phongShaderId, 0.3, 0.7, 0.5, 32.0)
+
+    Lightsaber.saberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
+
+    Lightsaber.resourcesLoaded = true
+end
 
 function Lightsaber.create(params)
-    assert(params ~= nil, "Lightsaber.create requires a params table")
+    params = params or {}
+
+    -- Load resources if not already loaded
+    loadResources()
 
     -- Merge params with defaults
     for k, v in pairs(params) do
         config[k] = v
     end
 
-    -- Get shared resources from params (required)
-    Lightsaber.hiltTexId = params.hiltTexId
-    Lightsaber.hiltNormId = params.hiltNormId
-    Lightsaber.bloomTexId = params.bloomTexId
-    Lightsaber.phongShaderId = params.phongShaderId
-    Lightsaber.saberShaderId = params.saberShaderId
-
     local startX = config.x
     local startY = config.y
+
+    -- Set shader parameters for this lightsaber's color
+    setShaderParameters(Lightsaber.saberShaderId, config.colorR, config.colorG, config.colorB, config.glowIntensity)
 
     -- Create hilt body (dynamic, can be picked up and dragged)
     Lightsaber.hiltBody = b2CreateBody(B2_DYNAMIC_BODY, startX, startY, 0)
@@ -82,7 +102,7 @@ function Lightsaber.create(params)
     )
     table.insert(Lightsaber.joints, bladeJointId)
 
-    -- Hilt layer (use provided hilt texture)
+    -- Hilt layer
     Lightsaber.hiltLayer = createLayer(Lightsaber.hiltTexId, config.hiltLength, Lightsaber.hiltNormId, Lightsaber.phongShaderId)
     attachLayerToBody(Lightsaber.hiltLayer, Lightsaber.hiltBody)
     table.insert(Lightsaber.layers, Lightsaber.hiltLayer)
@@ -92,9 +112,6 @@ function Lightsaber.create(params)
     attachLayerToBody(Lightsaber.bladeLayer, Lightsaber.bladeBody)
     table.insert(Lightsaber.layers, Lightsaber.bladeLayer)
     setLayerUseLocalUV(Lightsaber.bladeLayer, true)
-
-    -- Set shader parameters for the lightsaber shader
-    setShaderParameters(Lightsaber.saberShaderId, config.colorR, config.colorG, config.colorB, config.glowIntensity)
 
     -- Create the light
     Lightsaber.lightId = addLight(startX, startY + bladeOffsetY, config.lightZ, config.colorR, config.colorG, config.colorB, config.lightIntensity)
