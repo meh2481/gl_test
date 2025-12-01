@@ -617,7 +617,11 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     pipelineCreateInfo.subpass = 0;
 
     VkPipeline pipeline;
-    assert(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline) == VK_SUCCESS);
+    VkResult result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreateGraphicsPipelines (textured additive) failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
 
     m_pipelines[id] = pipeline;
 
@@ -768,7 +772,11 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
     pipelineCreateInfo.subpass = 0;
 
     VkPipeline pipeline;
-    assert(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline) == VK_SUCCESS);
+    VkResult result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreateGraphicsPipelines (particle) failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
 
     m_pipelines[id] = pipeline;
 
