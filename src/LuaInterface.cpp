@@ -666,8 +666,9 @@ int LuaInterface::loadShaders(lua_State* L) {
 
     assert(vertShader.size != 0 && fragShader.size != 0);
 
-    // Check if this is a debug shader
-    bool isDebugPipeline = (std::string(vertFile) == "debug_vertex.spv");
+    // Check if this is a debug shader (check for filename, not full path)
+    std::string vertFileStr(vertFile);
+    bool isDebugPipeline = (vertFileStr.find("debug_vertex.spv") != std::string::npos);
 
     // Create pipeline
     int pipelineId = interface->pipelineIndex_;
