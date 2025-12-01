@@ -2,8 +2,6 @@
 function init()
     -- Load the nebula shaders (z-index 0)
     loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", 0)
-    print("Default scene initialized")
-    print("Press E to open the Particle System Editor")
     time = 0
     menuPushed = false
 end

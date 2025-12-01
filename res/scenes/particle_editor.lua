@@ -16,9 +16,6 @@ function init()
     -- The editor will create its own preview particle system
     openParticleEditor(particlePipelineId)
 
-    print("Particle System Editor initialized")
-    print("Use the ImGui window to edit particle system properties")
-    print("Press ESC to return to the previous scene")
 end
 
 function update(deltaTime)
@@ -28,7 +25,6 @@ end
 
 function cleanup()
     -- Cleanup is handled by the C++ particle editor
-    print("Particle Editor scene cleaned up")
 end
 
 function onAction(action)

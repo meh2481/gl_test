@@ -4,6 +4,7 @@
 #include "ParticleSystem.h"
 #include <cassert>
 #include <cmath>
+#include <iostream>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager)
     : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1) {
@@ -16,9 +17,12 @@ SceneManager::~SceneManager() {
 void SceneManager::pushScene(uint64_t sceneId) {
     // Load the scene if not already loaded
     if (loadedScenes_.find(sceneId) == loadedScenes_.end()) {
+        std::cout << "Loading scene " << sceneId << std::endl;
         ResourceData sceneScript = pakResource_.getResource(sceneId);
         luaInterface_->loadScene(sceneId, sceneScript);
         loadedScenes_.insert(sceneId);
+    } else {
+        std::cout << "Scene " << sceneId << " already loaded (cache hit)" << std::endl;
     }
 
     // Push scene onto stack
@@ -26,6 +30,7 @@ void SceneManager::pushScene(uint64_t sceneId) {
 
     // Initialize the scene if not already initialized
     if (initializedScenes_.find(sceneId) == initializedScenes_.end()) {
+        std::cout << "Initializing scene " << sceneId << std::endl;
         luaInterface_->initScene(sceneId);
         initializedScenes_.insert(sceneId);
     }

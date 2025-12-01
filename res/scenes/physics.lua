@@ -85,8 +85,6 @@ function init()
     table.insert(objects, lightsaber2)
     table.insert(objects, destructibleBox)
 
-    print("Physics demo scene initialized")
-    print("Drag objects with the mouse, press R to reset")
 end
 
 function createBoundaries()
