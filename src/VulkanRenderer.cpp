@@ -7,6 +7,45 @@
 #include <cassert>
 #include <SDL3/SDL_vulkan.h>
 
+// Helper function to convert VkResult to readable string for error logging
+static const char* vkResultToString(VkResult result) {
+    switch (result) {
+        case VK_SUCCESS: return "VK_SUCCESS";
+        case VK_NOT_READY: return "VK_NOT_READY";
+        case VK_TIMEOUT: return "VK_TIMEOUT";
+        case VK_EVENT_SET: return "VK_EVENT_SET";
+        case VK_EVENT_RESET: return "VK_EVENT_RESET";
+        case VK_INCOMPLETE: return "VK_INCOMPLETE";
+        case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+        case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
+        case VK_ERROR_DEVICE_LOST: return "VK_ERROR_DEVICE_LOST";
+        case VK_ERROR_MEMORY_MAP_FAILED: return "VK_ERROR_MEMORY_MAP_FAILED";
+        case VK_ERROR_LAYER_NOT_PRESENT: return "VK_ERROR_LAYER_NOT_PRESENT";
+        case VK_ERROR_EXTENSION_NOT_PRESENT: return "VK_ERROR_EXTENSION_NOT_PRESENT";
+        case VK_ERROR_FEATURE_NOT_PRESENT: return "VK_ERROR_FEATURE_NOT_PRESENT";
+        case VK_ERROR_INCOMPATIBLE_DRIVER: return "VK_ERROR_INCOMPATIBLE_DRIVER";
+        case VK_ERROR_TOO_MANY_OBJECTS: return "VK_ERROR_TOO_MANY_OBJECTS";
+        case VK_ERROR_FORMAT_NOT_SUPPORTED: return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+        case VK_ERROR_FRAGMENTED_POOL: return "VK_ERROR_FRAGMENTED_POOL";
+        case VK_ERROR_SURFACE_LOST_KHR: return "VK_ERROR_SURFACE_LOST_KHR";
+        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+        case VK_SUBOPTIMAL_KHR: return "VK_SUBOPTIMAL_KHR";
+        case VK_ERROR_OUT_OF_DATE_KHR: return "VK_ERROR_OUT_OF_DATE_KHR";
+        default: return "VK_UNKNOWN_ERROR";
+    }
+}
+
+// Macro to check Vulkan result and log errors
+#define VK_CHECK(result, msg) \
+    do { \
+        VkResult res = (result); \
+        if (res != VK_SUCCESS) { \
+            std::cerr << "Vulkan error in " << msg << ": " << vkResultToString(res) << std::endl; \
+            assert(res == VK_SUCCESS); \
+        } \
+    } while(0)
+
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     if (value < min) return min;
     if (value > max) return max;
@@ -146,8 +185,9 @@ void VulkanRenderer::render(float time) {
     VkResult result = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         return;
-    } else {
-        assert(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR);
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        std::cerr << "vkAcquireNextImageKHR failed: " << vkResultToString(result) << std::endl;
+        assert(false);
     }
 
     vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
@@ -170,7 +210,7 @@ void VulkanRenderer::render(float time) {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    assert(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrame]) == VK_SUCCESS);
+    VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrame]), "vkQueueSubmit");
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -306,15 +346,21 @@ void VulkanRenderer::createInstance(SDL_Window* window) {
 
     Uint32 count;
     const char* const* extensions = SDL_Vulkan_GetInstanceExtensions(&count);
-    assert(extensions != nullptr);
+    if (extensions == nullptr) {
+        std::cerr << "SDL_Vulkan_GetInstanceExtensions failed: " << SDL_GetError() << std::endl;
+        assert(false);
+    }
     createInfo.enabledExtensionCount = count;
     createInfo.ppEnabledExtensionNames = extensions;
 
-    assert(vkCreateInstance(&createInfo, nullptr, &m_instance) == VK_SUCCESS);
+    VK_CHECK(vkCreateInstance(&createInfo, nullptr, &m_instance), "vkCreateInstance");
 }
 
 void VulkanRenderer::createSurface(SDL_Window* window) {
-    assert(SDL_Vulkan_CreateSurface(window, m_instance, nullptr, &m_surface));
+    if (!SDL_Vulkan_CreateSurface(window, m_instance, nullptr, &m_surface)) {
+        std::cerr << "SDL_Vulkan_CreateSurface failed: " << SDL_GetError() << std::endl;
+        assert(false);
+    }
 }
 
 bool VulkanRenderer::checkDeviceExtensionSupport(VkPhysicalDevice device) {

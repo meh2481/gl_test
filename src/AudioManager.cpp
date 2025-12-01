@@ -99,8 +99,6 @@ void AudioManager::initialize() {
     alListener3f(AL_VELOCITY, 0.0f, 0.0f, 0.0f);
     ALfloat listenerOri[] = { 0.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f };
     alListenerfv(AL_ORIENTATION, listenerOri);
-
-    std::cout << "Audio system initialized" << std::endl;
 }
 
 void AudioManager::cleanup() {
@@ -145,8 +143,6 @@ void AudioManager::cleanup() {
         alcCloseDevice(device);
         device = nullptr;
     }
-
-    std::cout << "Audio system cleaned up" << std::endl;
 }
 
 void AudioManager::initializeEFX() {
@@ -304,11 +300,6 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     // Load the PCM data into OpenAL buffer
     int bufferId = loadAudioBufferFromMemory(pcmData.data(), pcmData.size() * sizeof(opus_int16),
                                              sampleRate, channels, 16);
-
-    if (bufferId >= 0) {
-        std::cout << "Successfully loaded OPUS audio: " << pcmData.size() / channels
-                  << " samples, " << channels << " channel(s)" << std::endl;
-    }
 
     return bufferId;
 }

@@ -1,6 +1,18 @@
 #include "VulkanPipeline.h"
 #include "VulkanDescriptor.h"
 #include <cassert>
+#include <iostream>
+
+// Helper function to convert VkResult to readable string for error logging
+static const char* vkResultToString(VkResult result) {
+    switch (result) {
+        case VK_SUCCESS: return "VK_SUCCESS";
+        case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+        case VK_ERROR_INVALID_SHADER_NV: return "VK_ERROR_INVALID_SHADER_NV";
+        default: return "VK_UNKNOWN_ERROR";
+    }
+}
 
 VulkanPipeline::VulkanPipeline() :
     m_device(VK_NULL_HANDLE),
@@ -64,7 +76,11 @@ VkShaderModule VulkanPipeline::createShaderModule(const std::vector<char>& code)
     createInfo.codeSize = code.size();
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
     VkShaderModule shaderModule;
-    assert(vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule) == VK_SUCCESS);
+    VkResult result = vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreateShaderModule failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
     return shaderModule;
 }
 
@@ -79,7 +95,11 @@ void VulkanPipeline::createBasePipelineLayout() {
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    assert(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) == VK_SUCCESS);
+    VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreatePipelineLayout failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
 }
 
 void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline) {
@@ -218,17 +238,30 @@ void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader,
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
+    VkResult result;
     if (isDebugPipeline) {
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-        assert(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugLinePipeline) == VK_SUCCESS);
+        result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugLinePipeline);
+        if (result != VK_SUCCESS) {
+            std::cerr << "vkCreateGraphicsPipelines (debug line) failed: " << vkResultToString(result) << std::endl;
+            assert(false);
+        }
 
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        assert(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugTrianglePipeline) == VK_SUCCESS);
+        result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugTrianglePipeline);
+        if (result != VK_SUCCESS) {
+            std::cerr << "vkCreateGraphicsPipelines (debug triangle) failed: " << vkResultToString(result) << std::endl;
+            assert(false);
+        }
 
         m_debugPipelines[id] = true;
     } else {
         VkPipeline pipeline;
-        assert(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) == VK_SUCCESS);
+        result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
+        if (result != VK_SUCCESS) {
+            std::cerr << "vkCreateGraphicsPipelines failed: " << vkResultToString(result) << std::endl;
+            assert(false);
+        }
 
         m_pipelines[id] = pipeline;
         m_debugPipelines[id] = false;
@@ -401,7 +434,11 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
     pipelineCreateInfo.subpass = 0;
 
     VkPipeline pipeline;
-    assert(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline) == VK_SUCCESS);
+    VkResult result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreateGraphicsPipelines (textured) failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
 
     m_pipelines[id] = pipeline;
 

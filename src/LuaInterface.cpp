@@ -32,7 +32,6 @@ void LuaInterface::executeScript(const ResourceData& scriptData) {
 }
 
 void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
-    std::cout << "Loading scene " << sceneId << " with script size " << scriptData.size << std::endl;
     // Create a table for this scene
     lua_newtable(luaState_);
 
@@ -652,7 +651,6 @@ int LuaInterface::loadShaders(lua_State* L) {
     }
 
     if (alreadyLoaded) {
-        std::cout << "Shader with z-index " << zIndex << " already loaded for scene, skipping: " << vertFile << " and " << fragFile << std::endl;
         return 0; // No return values
     }
 
@@ -682,8 +680,6 @@ int LuaInterface::loadShaders(lua_State* L) {
     // Add to current scene's pipeline list with z-index
     scenePipelines.emplace_back(pipelineId, zIndex);
     interface->pipelineIndex_++;
-
-    std::cout << "Loaded shaders: " << vertFile << " and " << fragFile << " (z-index: " << zIndex << ", parallax: " << parallaxDepth << ")" << std::endl;
 
     return 0; // No return values
 }
