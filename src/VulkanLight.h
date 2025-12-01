@@ -16,13 +16,14 @@ struct Light {
     float intensity;            // Intensity (4 bytes)
 };  // Total: 32 bytes per light
 
-// Light uniform buffer data (must match shader layout)
+// Light uniform buffer data (must match shader layout with std140 alignment)
 struct LightBufferData {
-    Light lights[MAX_LIGHTS];   // 32 * 8 = 256 bytes
-    int numLights;              // 4 bytes
-    float ambientR, ambientG, ambientB; // 12 bytes
-    float padding[3];           // Padding to align to 16 bytes (12 bytes)
-};  // Total: 284 bytes, padded to 288
+    Light lights[MAX_LIGHTS];   // 32 * 8 = 256 bytes at offset 0
+    int numLights;              // 4 bytes at offset 256
+    float padding1[3];          // 12 bytes padding to align ambient to 16-byte boundary (std140 requirement for vec3)
+    float ambientR, ambientG, ambientB; // 12 bytes at offset 272 (vec3 requires 16-byte alignment in std140)
+    float padding2;             // 4 bytes padding to complete 16-byte alignment
+};  // Total: 288 bytes
 
 // Helper class for managing Vulkan light system
 class VulkanLight {
