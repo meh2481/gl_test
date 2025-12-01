@@ -60,7 +60,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "getCameraOffset", "setCameraOffset", "getCameraZoom", "setCameraZoom",
                                      "addLight", "updateLight", "removeLight", "clearLights", "setAmbientLight",
                                      "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "setParticleSystemEmissionRate", "loadParticleShaders",
-                                     "openParticleEditor", "loadParticleConfig",
+                                     "openParticleEditor", "loadParticleConfig", "loadObject",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -525,6 +525,9 @@ void LuaInterface::registerFunctions() {
 
     // Register particle config loading function
     lua_register(luaState_, "loadParticleConfig", loadParticleConfig);
+
+    // Register object loading function
+    lua_register(luaState_, "loadObject", loadObject);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -2850,5 +2853,71 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
     }
 
     // The result (table) is now on top of the stack
+    return 1;
+}
+
+int LuaInterface::loadObject(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: filename (string), params table (optional)
+    // The params table typically contains x, y position and any other configuration
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 1 && numArgs <= 2);
+    assert(lua_isstring(L, 1));
+
+    const char* filename = lua_tostring(L, 1);
+
+    // Hash the filename to get resource ID
+    uint64_t resourceId = std::hash<std::string>{}(filename);
+
+    // Load the Lua file from the pak
+    ResourceData scriptData = interface->pakResource_.getResource(resourceId);
+    if (!scriptData.data || scriptData.size == 0) {
+        std::cerr << "Failed to load object: " << filename << std::endl;
+        lua_pushnil(L);
+        return 1;
+    }
+
+    // Load and execute the Lua script, which should return a table (the object module)
+    if (luaL_loadbuffer(L, (char*)scriptData.data, scriptData.size, filename) != LUA_OK) {
+        const char* errorMsg = lua_tostring(L, -1);
+        std::cerr << "Lua load error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        lua_pop(L, 1);
+        lua_pushnil(L);
+        return 1;
+    }
+
+    // Execute the script - it should return a table with create/update/cleanup functions
+    if (lua_pcall(L, 0, 1, 0) != LUA_OK) {
+        const char* errorMsg = lua_tostring(L, -1);
+        std::cerr << "Lua exec error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        lua_pop(L, 1);
+        lua_pushnil(L);
+        return 1;
+    }
+
+    // The result (module table) is now on top of the stack
+    // If a params table was passed, call the create function with it
+    if (numArgs == 2 && lua_istable(L, 2)) {
+        // Get the create function from the module
+        lua_getfield(L, -1, "create");
+        if (lua_isfunction(L, -1)) {
+            // Push the params table
+            lua_pushvalue(L, 2);
+
+            // Call create(params)
+            if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+                const char* errorMsg = lua_tostring(L, -1);
+                std::cerr << "Lua object create error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+                lua_pop(L, 1);
+            }
+        } else {
+            lua_pop(L, 1); // Pop non-function value
+        }
+    }
+
+    // Return the module table (allows scene to access update/cleanup if needed)
     return 1;
 }

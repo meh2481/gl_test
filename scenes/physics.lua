@@ -25,49 +25,10 @@ destructibleLayer = nil
 destructibleStartX = 0.9
 destructibleStartY = -0.3
 
--- Lightsaber state
-lightsaberHiltBody = nil
-lightsaberBladeBody = nil
-lightsaberHiltLayer = nil
-lightsaberBladeLayer = nil
-lightsaberBladeGlowLayer = nil
-lightsaberStartX = 0.0
-lightsaberStartY = 0.2
-lightsaberBladeLength = 0.35
-lightsaberBladeWidth = 0.015
-lightsaberHiltWidth = 0.025
-lightsaberHiltLength = 0.10
--- Lightsaber color (RGB) - used by the lightsaber shader and light system
-lightsaberColorR = 0.3
-lightsaberColorG = 0.7
-lightsaberColorB = 1.0
-lightsaberGlowIntensity = 1.5
--- Blade layer size multipliers
-BLADE_CORE_SCALE = 1.2    -- Core glow is slightly larger than blade physics
-BLADE_GLOW_SCALE = 2.5    -- Outer glow is much larger for dramatic effect
-
--- Red Lightsaber state
-redLightsaberHiltBody = nil
-redLightsaberBladeBody = nil
-redLightsaberHiltLayer = nil
-redLightsaberBladeLayer = nil
-redLightsaberBladeGlowLayer = nil
-redLightsaberStartX = 0.5
-redLightsaberStartY = 0.2
-redLightsaberBladeLength = 0.35
-redLightsaberBladeWidth = 0.015
-redLightsaberHiltWidth = 0.025
-redLightsaberHiltLength = 0.10
--- Red Lightsaber color (RGB)
-redLightsaberColorR = 1.0
-redLightsaberColorG = 0.0
-redLightsaberColorB = 0.0
-redLightsaberGlowIntensity = 1.5
-
--- Light IDs for the multi-light system
-lanternLightId = nil
-saberLightId = nil
-redSaberLightId = nil
+-- Object instances (created via loadObject)
+lanternObj = nil
+blueSaberObj = nil
+redSaberObj = nil
 
 -- Particle system state
 particleSystemId = nil
@@ -93,26 +54,15 @@ function init()
 
     -- Load lightsaber shader (z-index 2, additive blend, 1 texture)
     -- This shader uses extended push constants for glow color and intensity
-    lightsaberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
+    blueSaberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
 
     -- Load red lightsaber shader (same shader, different instance for different params)
-    redLightsaberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
+    redSaberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
 
     -- Set up the multi-light system
     -- Clear any existing lights and set ambient
     clearLights()
     setAmbientLight(0.15, 0.15, 0.15)
-
-    -- Create the lantern light (warm white)
-    -- Position will be updated in the update loop to follow the lantern body
-    lanternLightId = addLight(0.5, 0.5, chainLightZ, 1.0, 0.95, 0.85, 1.5)
-
-    -- Create the lightsaber light (cool blue)
-    -- Position will be updated in the update loop to follow the lightsaber blade
-    saberLightId = addLight(lightsaberStartX, lightsaberStartY, chainLightZ, lightsaberColorR, lightsaberColorG, lightsaberColorB, 1.2)
-
-    -- Create the red lightsaber light
-    redSaberLightId = addLight(redLightsaberStartX, redLightsaberStartY, chainLightZ, redLightsaberColorR, redLightsaberColorG, redLightsaberColorB, 1.2)
 
     -- Set shader parameters for Phong multi-light shader
     -- Parameters: ambientStrength, diffuseStrength, specularStrength, shininess
@@ -123,13 +73,6 @@ function init()
     -- levels: 3.0 (3 cel-shading levels)
     setShaderParameters(toonShaderId, 0.5, 0.5, chainLightZ, 3.0)
 
-    -- Set shader parameters for lightsaber shader
-    -- glowColor (R, G, B), glowIntensity
-    setShaderParameters(lightsaberShaderId, lightsaberColorR, lightsaberColorG, lightsaberColorB, lightsaberGlowIntensity)
-
-    -- Set shader parameters for red lightsaber shader
-    setShaderParameters(redLightsaberShaderId, redLightsaberColorR, redLightsaberColorG, redLightsaberColorB, redLightsaberGlowIntensity)
-
     -- Load debug drawing shader (z-index 3, drawn on top)
     loadShaders("debug_vertex.spv", "debug_fragment.spv", 3)
 
@@ -137,11 +80,11 @@ function init()
     rockNormId = loadTexture("rock.norm.png")
     metalwallTexId = loadTexture("metalwall.png")
     metalwallNormId = loadTexture("metalwall.norm.png")
-    lanternTexId = loadTexture("lantern.png")
-    lanternNormId = loadTexture("lantern.norm.png")
+    lanternTexId = loadTexture("objects/lantern/lantern.png")
+    lanternNormId = loadTexture("objects/lantern/lantern.norm.png")
     chainTexId = loadTexture("chain.png")
     chainNormId = loadTexture("chain.norm.png")
-    bloomTexId = loadTexture("bloom.png")
+    bloomTexId = loadTexture("common/bloom.png")
 
     -- Enable Box2D debug drawing
     b2EnableDebugDraw(true)
@@ -246,197 +189,70 @@ function init()
     table.insert(layers, layerId)
 
     -- Create a chain with multiple links
-    local chainStartX = chainStartX
-    local chainStartY = chainStartY
-    local linkHeight = chainLinkHeight
+    -- Load particle shaders before creating lantern (needed for particle system)
+    particlePipelineId = loadParticleShaders("particle_vertex.spv", "particle_fragment.spv", 1, true)
 
-    -- Create anchor point (static body at the top)
-    chainAnchor = b2CreateBody(B2_STATIC_BODY, chainStartX, chainStartY, 0)
-    b2AddCircleFixture(chainAnchor, 0.02, 1.0, 0.3, 0.0)
-    table.insert(bodies, chainAnchor)
-
-    local prevBodyId = chainAnchor
-
-    -- Create chain links
-    for i = 1, chainLength do
-        local linkY = chainStartY - i * linkHeight
-        local linkId = b2CreateBody(B2_DYNAMIC_BODY, chainStartX, linkY, 0)
-        b2AddBoxFixture(linkId, 0.01, linkHeight / 2, 0.5, 0.3, 0.0)
-        table.insert(bodies, linkId)
-        table.insert(chainLinks, linkId)
-
-        -- Attach sprite layer to chain link
-        local layerId = createLayer(chainTexId, linkHeight, chainNormId, phongShaderId)
-        attachLayerToBody(layerId, linkId)
-        table.insert(layers, layerId)
-
-        -- Create revolute joint to connect to previous link/anchor
-        local jointId = b2CreateRevoluteJoint(
-            prevBodyId,
-            linkId,
-            0.0, -linkHeight / 2 + CHAIN_OFFSET,  -- anchor on previous body (bottom)
-            0.0, linkHeight / 2 - CHAIN_OFFSET,    -- anchor on current body (top)
-            false, 0.0, 0.0         -- no angle limits
-        )
-        table.insert(joints, jointId)
-
-        prevBodyId = linkId
-    end
-
-    -- Create light body at the end of the chain (a small dynamic polygon)
-    lightBody = b2CreateBody(B2_DYNAMIC_BODY, chainStartX, chainStartY - (chainLength + 0.5) * linkHeight, 0)
-    -- Small lantern-shaped polygon for the chain light
-    local smallLanternVerts = {
-        0.02, -0.048,  -- bottom left
-        -0.02, -0.048,  -- bottom right
-        0.03,  -0.035,   -- middle right
-        0.024,  0.015,  -- top right
-        0.0,  0.045,    -- top center
-        -0.024,  0.015,  -- top left
-        -0.03,  -0.035    -- middle left
-    }
-    b2AddPolygonFixture(lightBody, smallLanternVerts, 0.2, 0.3, 0.3)
-    table.insert(bodies, lightBody)
-
-    -- Attach lantern sprite to the light body
-    local layerId = createLayer(lanternTexId, 0.1, lanternNormId, phongShaderId)
-    attachLayerToBody(layerId, lightBody)
-    setLayerOffset(layerId, 0, -0.001)  -- Offset the lantern graphic slightly below the light body center
-    table.insert(layers, layerId)
-
-    -- Add bloom effect to swinging chain light
-    local bloomLayerId = createLayer(bloomTexId, 1.6, bloomShaderId)
-    attachLayerToBody(bloomLayerId, lightBody)
-    setLayerOffset(bloomLayerId, 0, -0.004)
-    table.insert(layers, bloomLayerId)
-
-    -- Connect light to the last chain link
-    local lightJointId = b2CreateRevoluteJoint(
-        prevBodyId,
-        lightBody,
-        0.0, -linkHeight / 2 + CHAIN_OFFSET,  -- anchor on last chain link (bottom)
-        0.0, 0.05 - CHAIN_OFFSET,               -- anchor on light body (top)
-        false, 0.0, 0.0
-    )
-    table.insert(joints, lightJointId)
+    -- Create hanging lantern using abstracted object
+    lanternObj = loadObject("objects/lantern/lantern.lua", {
+        x = chainStartX,
+        y = chainStartY,
+        chainLength = chainLength,
+        chainLinkHeight = chainLinkHeight,
+        chainOffset = CHAIN_OFFSET,
+        lightZ = chainLightZ,
+        lanternTexId = lanternTexId,
+        lanternNormId = lanternNormId,
+        chainTexId = chainTexId,
+        chainNormId = chainNormId,
+        bloomTexId = bloomTexId,
+        phongShaderId = phongShaderId,
+        bloomShaderId = bloomShaderId,
+        particlePipelineId = particlePipelineId,
+        enableParticles = true
+    })
+    -- Get reference to light body for scene-level tracking
+    lightBody = lanternObj.lightBody
 
     -- Create a destructible box that breaks when hit hard enough
     -- Positioned on the right side, uses rock texture
     -- Uses new C++ fracture system with strength (Mohs scale) and brittleness
     createDestructibleRock()
 
-    -- Create the lightsaber
-    createLightsaber()
+    -- Create blue lightsaber using abstracted object
+    blueSaberObj = loadObject("objects/lightsaber/lightsaber.lua", {
+        x = 0.0,
+        y = 0.2,
+        colorR = 0.3,
+        colorG = 0.7,
+        colorB = 1.0,
+        glowIntensity = 1.5,
+        hiltTexId = chainTexId,
+        hiltNormId = chainNormId,
+        bloomTexId = bloomTexId,
+        phongShaderId = phongShaderId,
+        saberShaderId = blueSaberShaderId
+    })
 
-    -- Create the red lightsaber
-    createRedLightsaber()
-
-    -- Load particle shaders (z-index 1, additive blending)
-    particlePipelineId = loadParticleShaders("particle_vertex.spv", "particle_fragment.spv", 1, true)
-
-    -- Load particle config from external file
-    local particleConfig = loadParticleConfig("lantern_bugs.lua")
-    if particleConfig then
-        -- Set the texture ID (loaded earlier in this scene)
-        particleConfig.textureIds = {bloomTexId}
-        particleConfig.textureCount = 1
-
-        particleSystemId = createParticleSystem(particleConfig, particlePipelineId)
-        -- Position the emitter initially at the top center (will follow the swinging lantern)
-        setParticleSystemPosition(particleSystemId, 0.0, 0.8)
-    else
-        print("Warning: Could not load lantern_bugs.lua particle config")
-    end
+    -- Create red lightsaber using abstracted object
+    redSaberObj = loadObject("objects/lightsaber/lightsaber.lua", {
+        x = 0.5,
+        y = 0.2,
+        colorR = 1.0,
+        colorG = 0.0,
+        colorB = 0.0,
+        glowIntensity = 1.5,
+        hiltTexId = chainTexId,
+        hiltNormId = chainNormId,
+        bloomTexId = bloomTexId,
+        phongShaderId = phongShaderId,
+        saberShaderId = redSaberShaderId
+    })
 
     print("Physics demo scene initialized with multiple shader types")
     print("Destructible rock added - hit it hard to break it!")
     print("Using C++ fracture system with strength=5.5 (Mohs scale), brittleness=0.6")
     print("Lightsabers added - drag them into the destructible box to destroy it!")
     print("Particle system added - sparkles following the swinging lantern")
-end
-
--- Helper function to create the lightsaber
-function createLightsaber()
-    -- Create hilt body (dynamic, can be picked up and dragged)
-    lightsaberHiltBody = b2CreateBody(B2_DYNAMIC_BODY, lightsaberStartX, lightsaberStartY, 0)
-    -- Hilt is a small rectangle
-    local hiltHalfW = lightsaberHiltWidth / 2
-    local hiltHalfH = lightsaberHiltLength / 2
-    b2AddBoxFixture(lightsaberHiltBody, hiltHalfW, hiltHalfH, 0.75, 0.5, 0.2)
-    table.insert(bodies, lightsaberHiltBody)
-
-    -- Create blade body (attached to hilt via revolute joint)
-    local bladeOffsetY = lightsaberHiltLength / 2 + lightsaberBladeLength / 2
-    lightsaberBladeBody = b2CreateBody(B2_DYNAMIC_BODY, lightsaberStartX, lightsaberStartY + bladeOffsetY, 0)
-    -- Blade is a thin rectangle with very low density for lightweight feel
-    local bladeHalfW = lightsaberBladeWidth / 2
-    local bladeHalfH = lightsaberBladeLength / 2
-    b2AddBoxFixture(lightsaberBladeBody, bladeHalfW, bladeHalfH, 0.1, 0.1, 0.0)
-    table.insert(bodies, lightsaberBladeBody)
-
-    -- Connect blade to hilt with a stiff revolute joint
-    local bladeJointId = b2CreateRevoluteJoint(
-        lightsaberHiltBody,
-        lightsaberBladeBody,
-        0.0, lightsaberHiltLength / 2,  -- anchor on hilt (top)
-        0.0, -lightsaberBladeLength / 2, -- anchor on blade (bottom)
-        true, 0.0, 0.0 -- no flex
-    )
-    table.insert(joints, bladeJointId)
-
-    -- Hilt layer (use chain texture for metallic look)
-    lightsaberHiltLayer = createLayer(chainTexId, lightsaberHiltLength, chainNormId, phongShaderId)
-    attachLayerToBody(lightsaberHiltLayer, lightsaberHiltBody)
-    table.insert(layers, lightsaberHiltLayer)
-
-    -- Blade core layer (use bloom texture with lightsaber shader for colored glow)
-    lightsaberBladeLayer = createLayer(bloomTexId, lightsaberBladeLength * BLADE_CORE_SCALE, lightsaberShaderId)
-    attachLayerToBody(lightsaberBladeLayer, lightsaberBladeBody)
-    table.insert(layers, lightsaberBladeLayer)
-    -- Use local 0..1 UVs so the lightsaber shader centers the glow on the blade
-    setLayerUseLocalUV(lightsaberBladeLayer, true)
-end
-
--- Helper function to create the red lightsaber
-function createRedLightsaber()
-    -- Create hilt body (dynamic, can be picked up and dragged)
-    redLightsaberHiltBody = b2CreateBody(B2_DYNAMIC_BODY, redLightsaberStartX, redLightsaberStartY, 0)
-    -- Hilt is a small rectangle
-    local hiltHalfW = redLightsaberHiltWidth / 2
-    local hiltHalfH = redLightsaberHiltLength / 2
-    b2AddBoxFixture(redLightsaberHiltBody, hiltHalfW, hiltHalfH, 0.75, 0.5, 0.2)
-    table.insert(bodies, redLightsaberHiltBody)
-
-    -- Create blade body (attached to hilt via revolute joint)
-    local bladeOffsetY = redLightsaberHiltLength / 2 + redLightsaberBladeLength / 2
-    redLightsaberBladeBody = b2CreateBody(B2_DYNAMIC_BODY, redLightsaberStartX, redLightsaberStartY + bladeOffsetY, 0)
-    -- Blade is a thin rectangle with very low density for lightweight feel
-    local bladeHalfW = redLightsaberBladeWidth / 2
-    local bladeHalfH = redLightsaberBladeLength / 2
-    b2AddBoxFixture(redLightsaberBladeBody, bladeHalfW, bladeHalfH, 0.1, 0.1, 0.0)
-    table.insert(bodies, redLightsaberBladeBody)
-
-    -- Connect blade to hilt with a stiff revolute joint
-    local bladeJointId = b2CreateRevoluteJoint(
-        redLightsaberHiltBody,
-        redLightsaberBladeBody,
-        0.0, redLightsaberHiltLength / 2,  -- anchor on hilt (top)
-        0.0, -redLightsaberBladeLength / 2, -- anchor on blade (bottom)
-        true, 0.0, 0.0 -- no flex
-    )
-    table.insert(joints, bladeJointId)
-
-    -- Hilt layer (use chain texture for metallic look)
-    redLightsaberHiltLayer = createLayer(chainTexId, redLightsaberHiltLength, chainNormId, phongShaderId)
-    attachLayerToBody(redLightsaberHiltLayer, redLightsaberHiltBody)
-    table.insert(layers, redLightsaberHiltLayer)
-
-    -- Blade core layer (use bloom texture with red lightsaber shader for colored glow)
-    redLightsaberBladeLayer = createLayer(bloomTexId, redLightsaberBladeLength * BLADE_CORE_SCALE, redLightsaberShaderId)
-    attachLayerToBody(redLightsaberBladeLayer, redLightsaberBladeBody)
-    table.insert(layers, redLightsaberBladeLayer)
-    -- Use local 0..1 UVs so the lightsaber shader centers the glow on the blade
-    setLayerUseLocalUV(redLightsaberBladeLayer, true)
 end
 
 -- Helper function to create/recreate the destructible rock object
@@ -481,45 +297,26 @@ function update(deltaTime)
         end
     end
 
-    -- Update lantern light position based on the light body at the end of the chain
+    -- Update lantern object (handles light and particle system updates)
     local chainLightX, chainLightY = 0.5, 0.5
-    if lightBody then
-        chainLightX, chainLightY = b2GetBodyPosition(lightBody)
-        if chainLightX ~= nil and chainLightY ~= nil then
-            -- Update the lantern light (warm white)
-            updateLight(lanternLightId, chainLightX, chainLightY, chainLightZ, 1.0, 0.95, 0.85, 1.5)
+    if lanternObj then
+        lanternObj.update(deltaTime)
+        chainLightX, chainLightY = lanternObj.getPosition()
+        if chainLightX == nil then
+            chainLightX, chainLightY = 0.5, 0.5
         end
     end
 
-    -- Update lightsaber light position based on blade body
-    local bladeX, bladeY = lightsaberStartX, lightsaberStartY
-    if lightsaberBladeBody then
-        local bx, by = b2GetBodyPosition(lightsaberBladeBody)
-        if bx ~= nil and by ~= nil then
-            bladeX, bladeY = bx, by
-            -- Update the lightsaber light (cool blue)
-            updateLight(saberLightId, bladeX, bladeY, chainLightZ, lightsaberColorR, lightsaberColorG, lightsaberColorB, 1.2)
-        end
+    -- Update lightsaber objects
+    if blueSaberObj then
+        blueSaberObj.update(deltaTime)
     end
-
-    -- Update red lightsaber light position based on blade body
-    local redBladeX, redBladeY = redLightsaberStartX, redLightsaberStartY
-    if redLightsaberBladeBody then
-        local rbx, rby = b2GetBodyPosition(redLightsaberBladeBody)
-        if rbx ~= nil and rby ~= nil then
-            redBladeX, redBladeY = rbx, rby
-            -- Update the red lightsaber light
-            updateLight(redSaberLightId, redBladeX, redBladeY, chainLightZ, redLightsaberColorR, redLightsaberColorG, redLightsaberColorB, 1.2)
-        end
+    if redSaberObj then
+        redSaberObj.update(deltaTime)
     end
 
     -- Update toon shader with lantern position (single light)
     setShaderParameters(toonShaderId, chainLightX, chainLightY, chainLightZ, 3.0)
-
-    -- Update particle system position to follow the swinging lantern
-    if particleSystemId and lightBody then
-        setParticleSystemPosition(particleSystemId, chainLightX, chainLightY)
-    end
 end
 
 -- Helper function to update lightsaber trail
@@ -533,6 +330,20 @@ function cleanup()
 
     -- Clean up all fragments created by fractures (C++ handles this)
     b2CleanupAllFragments()
+
+    -- Clean up abstracted objects
+    if lanternObj then
+        lanternObj.cleanup()
+        lanternObj = nil
+    end
+    if blueSaberObj then
+        blueSaberObj.cleanup()
+        blueSaberObj = nil
+    end
+    if redSaberObj then
+        redSaberObj.cleanup()
+        redSaberObj = nil
+    end
 
     -- Destroy all scene layers
     for i, layerId in ipairs(layers) do
@@ -558,22 +369,9 @@ function cleanup()
     chainAnchor = nil
     destructibleBody = nil
     destructibleLayer = nil
-    lightsaberHiltBody = nil
-    lightsaberBladeBody = nil
-    lightsaberHiltLayer = nil
-    lightsaberBladeLayer = nil
-    lightsaberBladeGlowLayer = nil
+
     -- Clear all lights
     clearLights()
-    lanternLightId = nil
-    saberLightId = nil
-    redSaberLightId = nil
-
-    -- Destroy particle system
-    if particleSystemId then
-        destroyParticleSystem(particleSystemId)
-        particleSystemId = nil
-    end
 
     -- Disable debug drawing
     b2EnableDebugDraw(false)
@@ -615,7 +413,18 @@ function onAction(action)
             b2SetBodyAwake(destructibleBody, true)
         end
 
-        -- Reset all core bodies (excluding fragments which are handled above)
+        -- Reset abstracted objects
+        if lanternObj then
+            lanternObj.reset()
+        end
+        if blueSaberObj then
+            blueSaberObj.reset()
+        end
+        if redSaberObj then
+            redSaberObj.reset()
+        end
+
+        -- Reset all core scene bodies (excluding abstracted objects which handle themselves)
         for i, bodyId in ipairs(bodies) do
             -- Skip the destructible body - it's handled separately
             if bodyId == destructibleBody then
@@ -652,59 +461,7 @@ function onAction(action)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
-            elseif i == 13 then
-                -- Chain anchor - keep it in place (static body)
-                b2SetBodyPosition(bodyId, chainStartX, chainStartY)
-                b2SetBodyAngle(bodyId, 0)
-            elseif i <= 13 + chainLength then
-                -- Chain links
-                local linkIndex = i - 13
-                local linkY = chainStartY - linkIndex * chainLinkHeight
-                b2SetBodyPosition(bodyId, chainStartX, linkY)
-                b2SetBodyAngle(bodyId, 0)
-                b2SetBodyLinearVelocity(bodyId, 0, 0)
-                b2SetBodyAngularVelocity(bodyId, 0)
-                b2SetBodyAwake(bodyId, true)
-            elseif i <= 13 + chainLength + 1 then
-                -- Light body at the end of chain
-                local lightY = chainStartY - (chainLength + 0.5) * chainLinkHeight
-                b2SetBodyPosition(bodyId, chainStartX, lightY)
-                b2SetBodyAngle(bodyId, 0)
-                b2SetBodyLinearVelocity(bodyId, 0, 0)
-                b2SetBodyAngularVelocity(bodyId, 0)
-                b2SetBodyAwake(bodyId, true)
-            elseif bodyId == lightsaberHiltBody then
-                -- Reset lightsaber hilt
-                b2SetBodyPosition(bodyId, lightsaberStartX, lightsaberStartY)
-                b2SetBodyAngle(bodyId, 0)
-                b2SetBodyLinearVelocity(bodyId, 0, 0)
-                b2SetBodyAngularVelocity(bodyId, 0)
-                b2SetBodyAwake(bodyId, true)
-            elseif bodyId == lightsaberBladeBody then
-                -- Reset lightsaber blade
-                local bladeOffsetY = lightsaberHiltLength / 2 + lightsaberBladeLength / 2
-                b2SetBodyPosition(bodyId, lightsaberStartX, lightsaberStartY + bladeOffsetY)
-                b2SetBodyAngle(bodyId, 0)
-                b2SetBodyLinearVelocity(bodyId, 0, 0)
-                b2SetBodyAngularVelocity(bodyId, 0)
-                b2SetBodyAwake(bodyId, true)
-            elseif bodyId == redLightsaberHiltBody then
-                -- Reset red lightsaber hilt
-                b2SetBodyPosition(bodyId, redLightsaberStartX, redLightsaberStartY)
-                b2SetBodyAngle(bodyId, 0)
-                b2SetBodyLinearVelocity(bodyId, 0, 0)
-                b2SetBodyAngularVelocity(bodyId, 0)
-                b2SetBodyAwake(bodyId, true)
-            elseif bodyId == redLightsaberBladeBody then
-                -- Reset red lightsaber blade
-                local bladeOffsetY = redLightsaberHiltLength / 2 + redLightsaberBladeLength / 2
-                b2SetBodyPosition(bodyId, redLightsaberStartX, redLightsaberStartY + bladeOffsetY)
-                b2SetBodyAngle(bodyId, 0)
-                b2SetBodyLinearVelocity(bodyId, 0, 0)
-                b2SetBodyAngularVelocity(bodyId, 0)
-                b2SetBodyAwake(bodyId, true)
             end
-            -- Other bodies (like the destructible when not destroyed) are handled by the else case
         end
 
         -- Trigger controller vibration: light intensity for 150ms

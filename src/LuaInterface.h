@@ -172,6 +172,7 @@ private:
 
     // Resource loading Lua bindings
     static int loadParticleConfig(lua_State* L);
+    static int loadObject(lua_State* L);
 
     void registerFunctions();
 
