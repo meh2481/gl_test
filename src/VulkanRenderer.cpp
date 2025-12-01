@@ -2255,6 +2255,12 @@ void VulkanRenderer::createSingleTextureDescriptorSet(uint64_t textureId) {
 }
 
 void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
+    // Wait for all in-flight frames to complete before modifying shared buffers
+    // This prevents race conditions where the GPU is still reading from buffers
+    // while we're updating them (e.g., when new fragment layers are created)
+    VkFence fences[] = {inFlightFences[0], inFlightFences[1]};
+    vkWaitForFences(device, 2, fences, VK_TRUE, UINT64_MAX);
+
     m_spriteBatches.clear();
 
     // Combine all vertices and indices from all batches
