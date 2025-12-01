@@ -45,12 +45,12 @@ local function loadResources()
         return
     end
 
-    -- Load textures
-    Lantern.lanternTexId = loadTexture("objects/lantern/lantern.png")
-    Lantern.lanternNormId = loadTexture("objects/lantern/lantern.norm.png")
+    -- Load textures (use basenames - packer hashes by filename only)
+    Lantern.lanternTexId = loadTexture("lantern.png")
+    Lantern.lanternNormId = loadTexture("lantern.norm.png")
     Lantern.chainTexId = loadTexture("chain.png")
     Lantern.chainNormId = loadTexture("chain.norm.png")
-    Lantern.bloomTexId = loadTexture("common/bloom.png")
+    Lantern.bloomTexId = loadTexture("bloom.png")
 
     -- Load shaders
     Lantern.phongShaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)

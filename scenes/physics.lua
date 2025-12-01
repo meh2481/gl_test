@@ -52,8 +52,8 @@ function init()
     metalwallNormId = loadTexture("metalwall.norm.png")
     chainTexId = loadTexture("chain.png")
     chainNormId = loadTexture("chain.norm.png")
-    lanternTexId = loadTexture("objects/lantern/lantern.png")
-    lanternNormId = loadTexture("objects/lantern/lantern.norm.png")
+    lanternTexId = loadTexture("lantern.png")
+    lanternNormId = loadTexture("lantern.norm.png")
 
     -- Set up the multi-light system
     clearLights()

@@ -46,10 +46,10 @@ local function loadResources()
         return
     end
 
-    -- Load textures - using chain texture for hilt (metallic look)
+    -- Load textures (use basenames - packer hashes by filename only)
     Lightsaber.hiltTexId = loadTexture("chain.png")
     Lightsaber.hiltNormId = loadTexture("chain.norm.png")
-    Lightsaber.bloomTexId = loadTexture("common/bloom.png")
+    Lightsaber.bloomTexId = loadTexture("bloom.png")
 
     -- Load shaders
     Lightsaber.phongShaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)
