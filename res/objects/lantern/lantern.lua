@@ -48,8 +48,8 @@ local function loadResources()
     -- Load textures (use full relative paths from project root)
     Lantern.lanternTexId = loadTexture("res/objects/lantern/lantern.png")
     Lantern.lanternNormId = loadTexture("res/objects/lantern/lantern.norm.png")
-    Lantern.chainTexId = loadTexture("res/chain.png")
-    Lantern.chainNormId = loadTexture("res/chain.norm.png")
+    Lantern.chainTexId = loadTexture("res/objects/lantern/chain.png")
+    Lantern.chainNormId = loadTexture("res/objects/lantern/chain.norm.png")
     Lantern.bloomTexId = loadTexture("res/common/bloom.png")
 
     -- Load shaders

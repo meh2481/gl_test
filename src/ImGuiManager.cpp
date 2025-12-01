@@ -688,7 +688,7 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
     const char* commonTextures[] = {
         "res/common/bloom.png",
         "res/rock.png",
-        "res/chain.png",
+        "res/objects/lantern/chain.png",
         "res/objects/lantern/lantern.png",
         "res/metalwall.png"
     };
