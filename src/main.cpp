@@ -20,7 +20,7 @@
 #include "ConsoleBuffer.h"
 #endif
 
-#define LUA_SCRIPT_ID 14669932163325785351ULL
+#define LUA_SCRIPT_ID 11832125453070754724ULL
 #define PAK_FILE "res.pak"
 
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {

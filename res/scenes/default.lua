@@ -1,7 +1,7 @@
 -- Scene initialization function
 function init()
     -- Load the nebula shaders (z-index 0)
-    loadShaders("vertex.spv", "nebula_fragment.spv", 0)
+    loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", 0)
     print("Default scene initialized")
     print("Press E to open the Particle System Editor")
     time = 0
@@ -19,15 +19,15 @@ function onAction(action)
         popScene()
     end
     if action == ACTION_MENU then
-        pushScene("menu.lua")
+        pushScene("res/scenes/menu.lua")
     end
     if action == ACTION_PHYSICS_DEMO then
-        pushScene("physics.lua")
+        pushScene("res/scenes/physics.lua")
     end
     if action == ACTION_AUDIO_TEST then
-        pushScene("audio_test.lua")
+        pushScene("res/scenes/audio_test.lua")
     end
     if action == ACTION_PARTICLE_EDITOR then
-        pushScene("particle_editor.lua")
+        pushScene("res/scenes/particle_editor.lua")
     end
 end

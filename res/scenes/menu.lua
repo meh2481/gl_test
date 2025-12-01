@@ -1,9 +1,9 @@
 -- Menu scene initialization
 function init()
     -- Load menu plasma background shader (z-index 0 - drawn first)
-    loadShaders("vertex.spv", "menu_fragment.spv", 0)
+    loadShaders("res/shaders/vertex.spv", "res/shaders/menu_fragment.spv", 0)
     -- Load cloud layer shader (z-index 1 - drawn on top)
-    loadShaders("vertex.spv", "cloud_fragment.spv", 1)
+    loadShaders("res/shaders/vertex.spv", "res/shaders/cloud_fragment.spv", 1)
     print("Menu scene initialized")
     time = 0
 end

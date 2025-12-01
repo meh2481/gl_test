@@ -52,10 +52,10 @@ local function loadResources()
     Lightsaber.bloomTexId = loadTexture("res/common/bloom.png")
 
     -- Load shaders
-    Lightsaber.phongShaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)
+    Lightsaber.phongShaderId = loadTexturedShadersEx("res/shaders/phong_multilight_vertex.spv", "res/shaders/phong_multilight_fragment.spv", 1, 2)
     setShaderParameters(Lightsaber.phongShaderId, 0.3, 0.7, 0.5, 32.0)
 
-    Lightsaber.saberShaderId = loadTexturedShadersAdditive("lightsaber_vertex.spv", "lightsaber_fragment.spv", 2, 1)
+    Lightsaber.saberShaderId = loadTexturedShadersAdditive("res/shaders/lightsaber_vertex.spv", "res/shaders/lightsaber_fragment.spv", 2, 1)
 
     Lightsaber.resourcesLoaded = true
 end

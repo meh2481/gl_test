@@ -53,13 +53,13 @@ local function loadResources()
     Lantern.bloomTexId = loadTexture("res/common/bloom.png")
 
     -- Load shaders
-    Lantern.phongShaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)
+    Lantern.phongShaderId = loadTexturedShadersEx("res/shaders/phong_multilight_vertex.spv", "res/shaders/phong_multilight_fragment.spv", 1, 2)
     setShaderParameters(Lantern.phongShaderId, 0.3, 0.7, 0.5, 32.0)
 
-    Lantern.bloomShaderId = loadTexturedShadersAdditive("sprite_vertex.spv", "sprite_fragment.spv", 2, 1)
+    Lantern.bloomShaderId = loadTexturedShadersAdditive("res/shaders/sprite_vertex.spv", "res/shaders/sprite_fragment.spv", 2, 1)
 
     -- Load particle pipeline
-    Lantern.particlePipelineId = loadParticleShaders("particle_vertex.spv", "particle_fragment.spv", 1, true)
+    Lantern.particlePipelineId = loadParticleShaders("res/shaders/particle_vertex.spv", "res/shaders/particle_fragment.spv", 1, true)
 
     Lantern.resourcesLoaded = true
 end

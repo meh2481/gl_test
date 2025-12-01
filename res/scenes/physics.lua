@@ -31,15 +31,15 @@ lanternNormId = nil
 
 function init()
     -- Load the nebula background shader (z-index -2 = background)
-    loadShaders("vertex.spv", "nebula_fragment.spv", -2)
+    loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", -2)
 
     -- Load scene-level shaders for demo boxes and shapes
-    phongShaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)
-    toonShaderId = loadTexturedShadersEx("toon_vertex.spv", "toon_fragment.spv", 1, 1)
-    simpleTexShaderId = loadTexturedShadersEx("sprite_vertex.spv", "sprite_fragment.spv", 1, 1)
+    phongShaderId = loadTexturedShadersEx("res/shaders/phong_multilight_vertex.spv", "res/shaders/phong_multilight_fragment.spv", 1, 2)
+    toonShaderId = loadTexturedShadersEx("res/shaders/toon_vertex.spv", "res/shaders/toon_fragment.spv", 1, 1)
+    simpleTexShaderId = loadTexturedShadersEx("res/shaders/sprite_vertex.spv", "res/shaders/sprite_fragment.spv", 1, 1)
 
     -- Load debug drawing shader (z-index 3, drawn on top)
-    loadShaders("debug_vertex.spv", "debug_fragment.spv", 3)
+    loadShaders("res/shaders/debug_vertex.spv", "res/shaders/debug_fragment.spv", 3)
 
     -- Set shader parameters
     setShaderParameters(phongShaderId, 0.3, 0.7, 0.5, 32.0)

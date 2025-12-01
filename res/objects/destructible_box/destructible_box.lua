@@ -36,7 +36,7 @@ local function loadResources()
     DestructibleBox.normId = loadTexture("res/metalwall.norm.png")
 
     -- Load shaders
-    DestructibleBox.shaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)
+    DestructibleBox.shaderId = loadTexturedShadersEx("res/shaders/phong_multilight_vertex.spv", "res/shaders/phong_multilight_fragment.spv", 1, 2)
     setShaderParameters(DestructibleBox.shaderId, 0.3, 0.7, 0.5, 32.0)
 
     DestructibleBox.resourcesLoaded = true

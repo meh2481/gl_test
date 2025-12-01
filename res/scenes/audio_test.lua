@@ -13,7 +13,7 @@ local globalVolume = 1.0
 
 function init()
     -- Load the nebula shaders as background (z-index 0)
-    loadShaders("vertex.spv", "nebula_fragment.spv", 0)
+    loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", 0)
 
     print("Audio test scene initialized")
     print("Controls:")
@@ -30,7 +30,7 @@ function init()
 
     -- Load OPUS audio from pak resource
     print("Loading OPUS audio from resource...")
-    audioBuffer = audioLoadOpus("sfx.opus")
+    audioBuffer = audioLoadOpus("res/sfx.opus")
 
     if audioBuffer >= 0 then
         print("Successfully loaded OPUS audio buffer with ID: " .. audioBuffer)
