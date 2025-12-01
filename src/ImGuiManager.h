@@ -20,6 +20,7 @@ class PakResource;
 static const int EDITOR_MAX_VERTICES = 8;
 static const int EDITOR_MAX_TEXTURES = 8;
 static const int EDITOR_MAX_TEXTURE_NAME_LEN = 64;
+static const int EDITOR_MAX_TEXTURE_FILES = 64;
 
 // Maximum filename length for save/load
 static const int EDITOR_MAX_FILENAME_LEN = 128;
@@ -66,6 +67,10 @@ struct ParticleEditorState {
     char fxFileList[EDITOR_MAX_FX_FILES][EDITOR_MAX_FILENAME_LEN];
     int fxFileCount;
     int selectedFxFileIndex;  // Index of currently selected file (-1 if none)
+
+    // Texture file list (dynamically enumerated from res/fx/)
+    char textureFileList[EDITOR_MAX_TEXTURE_FILES][EDITOR_MAX_FILENAME_LEN];
+    int textureFileCount;
 
     // UI state
     bool colorsExpanded;
@@ -146,6 +151,7 @@ private:
     void generateSaveableExport(char* buffer, int bufferSize);
     bool saveParticleConfig(const char* filename);
     void refreshFxFileList();
+    void refreshTextureFileList();
     bool loadParticleConfigFromFile(const char* filename);
 
     // ImGui texture cache for preview images

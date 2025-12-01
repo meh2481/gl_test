@@ -10,7 +10,7 @@ function init()
     particlePipelineId = loadParticleShaders("res/shaders/particle_vertex.spv", "res/shaders/particle_fragment.spv", 1, true)
 
     -- Load bloom texture for default particle texture
-    bloomTexId = loadTexture("res/common/bloom.png")
+    bloomTexId = loadTexture("res/fx/bloom.png")
 
     -- Open the particle editor UI (ImGui-based, DEBUG builds only)
     -- The editor will create its own preview particle system

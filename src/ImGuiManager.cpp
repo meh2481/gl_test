@@ -46,8 +46,11 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.fxFileCount = 0;
     editorState_.selectedFxFileIndex = -1;
 
+    // Initialize texture file list
+    editorState_.textureFileCount = 0;
+
     // Initialize default texture (bloom.png) - always start with at least one texture
-    const char* defaultTexture = "res/common/bloom.png";
+    const char* defaultTexture = "res/fx/bloom.png";
     editorState_.selectedTextureCount = 1;
     editorState_.selectedTextureIds[0] = std::hash<std::string>{}(std::string(defaultTexture));
     strncpy(editorState_.textureNames[0], defaultTexture, EDITOR_MAX_TEXTURE_NAME_LEN - 1);
@@ -110,6 +113,7 @@ void ImGuiManager::initializeParticleEditorDefaults() {
 
     // Refresh FX file list on initialization
     refreshFxFileList();
+    refreshTextureFileList();
 }
 
 ImGuiManager::~ImGuiManager() {
@@ -680,19 +684,13 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
 
     ImGui::Separator();
 
-    // Show available textures from pak file with previews in a grid
+    // Show available textures from res/fx/ folder with previews in a grid
     ImGui::Text("Available Textures:");
     ImGui::Text("(Click to add to particle system)");
 
-    // Common texture names to show (use full res/ paths)
-    const char* commonTextures[] = {
-        "res/common/bloom.png",
-        "res/rock.png",
-        "res/objects/lantern/chain.png",
-        "res/objects/lantern/lantern.png",
-        "res/metalwall.png"
-    };
-    int numCommonTextures = 5;
+    if (ImGui::Button("Refresh Texture List")) {
+        refreshTextureFileList();
+    }
 
     // Grid layout settings
     const float thumbnailSize = 64.0f;
@@ -716,10 +714,11 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
     };
 
     int itemIndex = 0;
-    for (int i = 0; i < numCommonTextures; ++i) {
+    for (int i = 0; i < editorState_.textureFileCount; ++i) {
         if (editorState_.selectedTextureCount >= EDITOR_MAX_TEXTURES) break;
 
-        uint64_t texId = std::hash<std::string>{}(commonTextures[i]);
+        const char* texturePath = editorState_.textureFileList[i];
+        uint64_t texId = std::hash<std::string>{}(std::string(texturePath));
 
         // Start new row or add same-line
         if (itemIndex > 0 && (itemIndex % itemsPerRow) != 0) {
@@ -740,7 +739,7 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
             uint64_t lookupTexId = texId;
             bool isAtlasTexture = pakResource->getAtlasUV(texId, atlasUV);
             if (isAtlasTexture) {
-                // Texture is in an atlas, use the atlas ID
+                // Texture is in atlas, use the atlas ID
                 lookupTexId = atlasUV.atlasId;
             }
 
@@ -764,11 +763,11 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
                     // Atlas texture - show with UV coordinates
                     ImVec2 uv0(atlasUV.u0, atlasUV.v0);
                     ImVec2 uv1(atlasUV.u1, atlasUV.v1);
-                    clicked = ImGui::ImageButton(commonTextures[i], (ImTextureID)imguiTexture,
+                    clicked = ImGui::ImageButton(texturePath, (ImTextureID)imguiTexture,
                                                  ImVec2(thumbnailSize, thumbnailSize), uv0, uv1);
                 } else {
                     // Standalone texture - show full image
-                    clicked = ImGui::ImageButton(commonTextures[i], (ImTextureID)imguiTexture, ImVec2(thumbnailSize, thumbnailSize));
+                    clicked = ImGui::ImageButton(texturePath, (ImTextureID)imguiTexture, ImVec2(thumbnailSize, thumbnailSize));
                 }
                 hasPreview = true;
             }
@@ -781,11 +780,11 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
 
         // Add texture if clicked
         if (clicked) {
-            addTextureToSelection(texId, commonTextures[i]);
+            addTextureToSelection(texId, texturePath);
         }
 
         // Show filename below the image
-        ImGui::TextWrapped("%s", commonTextures[i]);
+        ImGui::TextWrapped("%s", texturePath);
 
         ImGui::EndGroup();
         ImGui::PopID();
@@ -1195,6 +1194,30 @@ void ImGuiManager::refreshFxFileList() {
                 strncpy(state->fxFileList[state->fxFileCount], fname, EDITOR_MAX_FILENAME_LEN - 1);
                 state->fxFileList[state->fxFileCount][EDITOR_MAX_FILENAME_LEN - 1] = '\0';
                 state->fxFileCount++;
+            }
+        }
+
+        return SDL_ENUM_CONTINUE;
+    }, &editorState_);
+}
+
+void ImGuiManager::refreshTextureFileList() {
+    editorState_.textureFileCount = 0;
+
+    // Use SDL_EnumerateDirectory to get all PNG files in ../res/fx/
+    SDL_EnumerateDirectory("../res/fx", [](void* userdata, const char* dirname, const char* fname) -> SDL_EnumerationResult {
+        ParticleEditorState* state = (ParticleEditorState*)userdata;
+
+        // Check if it's a .png file
+        const char* ext = strrchr(fname, '.');
+        if (ext && strcmp(ext, ".png") == 0) {
+            if (state->textureFileCount < EDITOR_MAX_TEXTURE_FILES) {
+                // Store the full path as "res/fx/filename.png"
+                char fullPath[EDITOR_MAX_FILENAME_LEN];
+                snprintf(fullPath, sizeof(fullPath), "res/fx/%s", fname);
+                strncpy(state->textureFileList[state->textureFileCount], fullPath, EDITOR_MAX_FILENAME_LEN - 1);
+                state->textureFileList[state->textureFileCount][EDITOR_MAX_FILENAME_LEN - 1] = '\0';
+                state->textureFileCount++;
             }
         }
 

@@ -54,7 +54,7 @@ local particleConfig = {
     lifetimeMax = 1.0,
 
     -- Textures (stored as names for editor)
-    textureNames = {"res/common/bloom.png"}
+    textureNames = {"res/fx/bloom.png"}
 }
 
 return particleConfig

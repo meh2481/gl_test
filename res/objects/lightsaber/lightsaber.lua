@@ -49,7 +49,7 @@ local function loadResources()
     -- Load textures (use full relative paths from project root)
     Lightsaber.hiltTexId = loadTexture("res/objects/lantern/chain.png")
     Lightsaber.hiltNormId = loadTexture("res/objects/lantern/chain.norm.png")
-    Lightsaber.bloomTexId = loadTexture("res/common/bloom.png")
+    Lightsaber.bloomTexId = loadTexture("res/fx/bloom.png")
 
     -- Load shaders
     Lightsaber.phongShaderId = loadTexturedShadersEx("res/shaders/phong_multilight_vertex.spv", "res/shaders/phong_multilight_fragment.spv", 1, 2)
