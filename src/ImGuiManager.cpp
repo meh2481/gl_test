@@ -47,7 +47,7 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.selectedFxFileIndex = -1;
 
     // Initialize default texture (bloom.png) - always start with at least one texture
-    const char* defaultTexture = "bloom.png";
+    const char* defaultTexture = "res/common/bloom.png";
     editorState_.selectedTextureCount = 1;
     editorState_.selectedTextureIds[0] = std::hash<std::string>{}(std::string(defaultTexture));
     strncpy(editorState_.textureNames[0], defaultTexture, EDITOR_MAX_TEXTURE_NAME_LEN - 1);
@@ -684,13 +684,13 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
     ImGui::Text("Available Textures:");
     ImGui::Text("(Click to add to particle system)");
 
-    // Common texture names to show
+    // Common texture names to show (use full res/ paths)
     const char* commonTextures[] = {
-        "bloom.png",
-        "rock.png",
-        "chain.png",
-        "lantern.png",
-        "metalwall.png"
+        "res/common/bloom.png",
+        "res/rock.png",
+        "res/chain.png",
+        "res/objects/lantern/lantern.png",
+        "res/metalwall.png"
     };
     int numCommonTextures = 5;
 
@@ -928,7 +928,7 @@ void ImGuiManager::generateLuaExport() {
 
     pos += snprintf(buf + pos, bufSize - pos, "}\n\n");
     pos += snprintf(buf + pos, bufSize - pos, "-- Create the particle system:\n");
-    pos += snprintf(buf + pos, bufSize - pos, "-- particlePipelineId = loadParticleShaders(\"particle_vertex.spv\", \"particle_fragment.spv\", 1, true)\n");
+    pos += snprintf(buf + pos, bufSize - pos, "-- particlePipelineId = loadParticleShaders(\"res/shaders/particle_vertex.spv\", \"res/shaders/particle_fragment.spv\", 1, true)\n");
     pos += snprintf(buf + pos, bufSize - pos, "-- particleSystemId = createParticleSystem(particleConfig, particlePipelineId)\n");
     pos += snprintf(buf + pos, bufSize - pos, "-- setParticleSystemPosition(particleSystemId, x, y)\n");
 }
