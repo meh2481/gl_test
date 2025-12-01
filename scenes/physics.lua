@@ -362,7 +362,7 @@ function createLightsaber()
     -- Hilt is a small rectangle
     local hiltHalfW = lightsaberHiltWidth / 2
     local hiltHalfH = lightsaberHiltLength / 2
-    b2AddBoxFixture(lightsaberHiltBody, hiltHalfW, hiltHalfH, 0.5, 0.5, 0.2)
+    b2AddBoxFixture(lightsaberHiltBody, hiltHalfW, hiltHalfH, 0.75, 0.5, 0.2)
     table.insert(bodies, lightsaberHiltBody)
 
     -- Create blade body (attached to hilt via revolute joint)
@@ -395,12 +395,6 @@ function createLightsaber()
     table.insert(layers, lightsaberBladeLayer)
     -- Use local 0..1 UVs so the lightsaber shader centers the glow on the blade
     setLayerUseLocalUV(lightsaberBladeLayer, true)
-
-    -- Blade glow layer (larger bloom for outer glow, also uses lightsaber shader)
-    -- lightsaberBladeGlowLayer = createLayer(bloomTexId, lightsaberBladeLength * BLADE_GLOW_SCALE, lightsaberShaderId)
-    -- attachLayerToBody(lightsaberBladeGlowLayer, lightsaberBladeBody)
-    -- table.insert(layers, lightsaberBladeGlowLayer)
-    -- setLayerUseLocalUV(lightsaberBladeGlowLayer, true)
 end
 
 -- Helper function to create the red lightsaber
@@ -410,7 +404,7 @@ function createRedLightsaber()
     -- Hilt is a small rectangle
     local hiltHalfW = redLightsaberHiltWidth / 2
     local hiltHalfH = redLightsaberHiltLength / 2
-    b2AddBoxFixture(redLightsaberHiltBody, hiltHalfW, hiltHalfH, 0.5, 0.5, 0.2)
+    b2AddBoxFixture(redLightsaberHiltBody, hiltHalfW, hiltHalfH, 0.75, 0.5, 0.2)
     table.insert(bodies, redLightsaberHiltBody)
 
     -- Create blade body (attached to hilt via revolute joint)
@@ -443,12 +437,6 @@ function createRedLightsaber()
     table.insert(layers, redLightsaberBladeLayer)
     -- Use local 0..1 UVs so the lightsaber shader centers the glow on the blade
     setLayerUseLocalUV(redLightsaberBladeLayer, true)
-
-    -- Blade glow layer (larger bloom for outer glow, also uses lightsaber shader)
-    -- redLightsaberBladeGlowLayer = createLayer(bloomTexId, redLightsaberBladeLength * BLADE_GLOW_SCALE, redLightsaberShaderId)
-    -- attachLayerToBody(redLightsaberBladeGlowLayer, redLightsaberBladeBody)
-    -- table.insert(layers, redLightsaberBladeGlowLayer)
-    -- setLayerUseLocalUV(redLightsaberBladeGlowLayer, true)
 end
 
 -- Helper function to create/recreate the destructible rock object
