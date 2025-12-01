@@ -159,6 +159,15 @@ void SceneLayerManager::setLayerNormalMapAtlasUV(int layerId, uint64_t atlasNorm
 void SceneLayerManager::setLayerPolygon(int layerId, const float* vertices, const float* uvs, const float* normalUvs, int vertexCount) {
     auto it = layers_.find(layerId);
     if (it != layers_.end() && vertexCount >= 3 && vertexCount <= 8) {
+        // Validate input data - check for NaN/Inf values
+        for (int i = 0; i < vertexCount * 2; ++i) {
+            assert(std::isfinite(vertices[i]));
+            assert(std::isfinite(uvs[i]));
+            if (normalUvs) {
+                assert(std::isfinite(normalUvs[i]));
+            }
+        }
+
         it->second.polygonVertexCount = vertexCount;
         for (int i = 0; i < vertexCount * 2; ++i) {
             it->second.polygonVertices[i] = vertices[i];
@@ -227,6 +236,9 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
 
         // Check if using polygon rendering (for fragment texture clipping)
         if (layer.polygonVertexCount >= 3) {
+            // Validate polygon vertex count
+            assert(layer.polygonVertexCount <= 8);
+
             // Get UV bounds for atlas clamping
             float u0 = layer.textureUV.u0;
             float v0 = layer.textureUV.v0;
@@ -238,6 +250,9 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
                 // Get local vertex position
                 float lx = layer.polygonVertices[i * 2] + layer.offsetX;
                 float ly = layer.polygonVertices[i * 2 + 1] + layer.offsetY;
+
+                // Validate vertex positions are finite
+                assert(std::isfinite(lx) && std::isfinite(ly));
 
                 // Rotate
                 float rx = lx * cosA - ly * sinA;
@@ -264,6 +279,9 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
                 vert.uvMinY = v0;
                 vert.uvMaxX = u1;
                 vert.uvMaxY = v1;
+
+                // Validate final vertex position is finite
+                assert(std::isfinite(vert.x) && std::isfinite(vert.y));
 
                 batch.vertices.push_back(vert);
             }
