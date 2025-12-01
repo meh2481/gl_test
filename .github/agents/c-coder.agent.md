@@ -26,3 +26,4 @@ Build the project with the correct PKG_CONFIG_PATH and CMAKE_PREFIX_PATH to use 
 - Don't add new assets to the res/ folder unless I specifically request them.
 - Never split Lua APIs. Update existing Lua function calls when refactoring.
 - If you add a new Lua function, make sure to add it to the globalFunctions list in LuaInterface::loadScene().
+- Don't add comments that include changes made. Keep comments generic and timeless.
