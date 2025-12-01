@@ -2,6 +2,7 @@
 #include "SceneLayer.h"
 #include <cassert>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 
 // Default fixed timestep for physics simulation (Box2D recommended value)
@@ -899,7 +900,8 @@ const DestructibleProperties* Box2DPhysics::getDestructibleProperties(int bodyId
 // Convert a DestructiblePolygon to FragmentPolygon with UV coordinates
 FragmentPolygon Box2DPhysics::createFragmentWithUVs(const DestructiblePolygon& poly,
                                                       const DestructibleProperties& props) {
-    FragmentPolygon result = {};  // Zero-initialize all members
+    FragmentPolygon result;
+    memset(&result, 0, sizeof(result));
     result.vertexCount = poly.vertexCount;
     result.area = poly.area;
 
@@ -1079,7 +1081,8 @@ FractureResult Box2DPhysics::calculateFracture(const DestructibleProperties& pro
                                                 float normalX, float normalY,
                                                 float impactSpeed,
                                                 float bodyX, float bodyY, float bodyAngle) {
-    FractureResult result = {};  // Zero-initialize all members
+    FractureResult result;
+    memset(&result, 0, sizeof(result));
     result.fragmentCount = 0;
 
     // Transform impact point to local coordinates
@@ -1098,7 +1101,8 @@ FractureResult Box2DPhysics::calculateFracture(const DestructibleProperties& pro
     float fractureDirY = localNormalX;
 
     // Start with the original polygon
-    DestructiblePolygon currentPoly = {};  // Zero-initialize
+    DestructiblePolygon currentPoly;
+    memset(&currentPoly, 0, sizeof(currentPoly));
     currentPoly.vertexCount = props.originalVertexCount;
     for (int i = 0; i < props.originalVertexCount * 2; ++i) {
         currentPoly.vertices[i] = props.originalVertices[i];
@@ -1106,8 +1110,10 @@ FractureResult Box2DPhysics::calculateFracture(const DestructibleProperties& pro
     currentPoly.area = calculatePolygonArea(currentPoly.vertices, currentPoly.vertexCount);
 
     // Split the polygon along the fracture line
-    DestructiblePolygon poly1 = {};  // Zero-initialize
-    DestructiblePolygon poly2 = {};  // Zero-initialize
+    DestructiblePolygon poly1;
+    DestructiblePolygon poly2;
+    memset(&poly1, 0, sizeof(poly1));
+    memset(&poly2, 0, sizeof(poly2));
     splitPolygon(currentPoly.vertices, currentPoly.vertexCount,
                  localImpactX, localImpactY, fractureDirX, fractureDirY,
                  poly1, poly2);
@@ -1145,8 +1151,10 @@ FractureResult Box2DPhysics::calculateFracture(const DestructibleProperties& pro
             float secondaryDirX = fractureDirX * cosB - fractureDirY * sinB;
             float secondaryDirY = fractureDirX * sinB + fractureDirY * cosB;
 
-            DestructiblePolygon sub1 = {};  // Zero-initialize
-            DestructiblePolygon sub2 = {};  // Zero-initialize
+            DestructiblePolygon sub1;
+            DestructiblePolygon sub2;
+            memset(&sub1, 0, sizeof(sub1));
+            memset(&sub2, 0, sizeof(sub2));
             splitPolygon(largest.vertices, largest.vertexCount,
                         centerX, centerY, secondaryDirX, secondaryDirY,
                         sub1, sub2);
@@ -1274,7 +1282,8 @@ void Box2DPhysics::processFractures() {
         if (fracture.fragmentCount < 2) return;
 
         // Create fracture event
-        FractureEvent event = {};  // Zero-initialize all members
+        FractureEvent event;
+        memset(&event, 0, sizeof(event));
         event.originalBodyId = bodyId;
         event.fragmentCount = 0;  // Count valid fragments
         event.impactPointX = hit.pointX;
