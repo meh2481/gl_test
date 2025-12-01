@@ -45,12 +45,12 @@ local function loadResources()
         return
     end
 
-    -- Load textures (use basenames - packer hashes by filename only)
-    Lantern.lanternTexId = loadTexture("lantern.png")
-    Lantern.lanternNormId = loadTexture("lantern.norm.png")
-    Lantern.chainTexId = loadTexture("chain.png")
-    Lantern.chainNormId = loadTexture("chain.norm.png")
-    Lantern.bloomTexId = loadTexture("bloom.png")
+    -- Load textures (use full relative paths from project root)
+    Lantern.lanternTexId = loadTexture("res/objects/lantern/lantern.png")
+    Lantern.lanternNormId = loadTexture("res/objects/lantern/lantern.norm.png")
+    Lantern.chainTexId = loadTexture("res/chain.png")
+    Lantern.chainNormId = loadTexture("res/chain.norm.png")
+    Lantern.bloomTexId = loadTexture("res/common/bloom.png")
 
     -- Load shaders
     Lantern.phongShaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)
@@ -153,7 +153,7 @@ function Lantern.create(params)
 
     -- Create particle system if enabled
     if config.enableParticles and Lantern.particlePipelineId then
-        local particleConfig = loadParticleConfig("lantern_bugs.lua")
+        local particleConfig = loadParticleConfig("res/fx/lantern_bugs.lua")
         if particleConfig then
             particleConfig.textureIds = {Lantern.bloomTexId}
             particleConfig.textureCount = 1

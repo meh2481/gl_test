@@ -31,9 +31,9 @@ local function loadResources()
         return
     end
 
-    -- Load textures
-    DestructibleBox.texId = loadTexture("metalwall.png")
-    DestructibleBox.normId = loadTexture("metalwall.norm.png")
+    -- Load textures (use full relative paths from project root)
+    DestructibleBox.texId = loadTexture("res/metalwall.png")
+    DestructibleBox.normId = loadTexture("res/metalwall.norm.png")
 
     -- Load shaders
     DestructibleBox.shaderId = loadTexturedShadersEx("phong_multilight_vertex.spv", "phong_multilight_fragment.spv", 1, 2)

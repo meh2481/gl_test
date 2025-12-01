@@ -15,6 +15,31 @@
 
 using namespace std;
 
+// Extract relative path from full path for resource identification
+// Looks for known directory markers (scenes/, res/, or .spv files) and returns
+// the path relative to the project root
+string getRelativePath(const string& fullPath) {
+    filesystem::path p(fullPath);
+    string pathStr = p.string();
+
+    // For .spv shader files in build directory, just use the filename
+    if (p.extension() == ".spv") {
+        return p.filename().string();
+    }
+
+    // Look for known directory markers
+    size_t pos;
+    if ((pos = pathStr.find("/scenes/")) != string::npos) {
+        return pathStr.substr(pos + 1); // Return "scenes/..."
+    }
+    if ((pos = pathStr.find("/res/")) != string::npos) {
+        return pathStr.substr(pos + 1); // Return "res/..."
+    }
+
+    // Fallback to basename
+    return p.filename().string();
+}
+
 struct FileInfo {
     string filename;
     uint64_t id;
@@ -644,8 +669,8 @@ int main(int argc, char* argv[]) {
         if (!filesystem::is_regular_file(filename)) {
             continue;
         }
-        string basename = filesystem::path(filename).filename().string();
-        uint64_t id = hash<string>{}(basename);
+        string relativePath = getRelativePath(filename);
+        uint64_t id = hash<string>{}(relativePath);
         files.push_back({filename, id});
         cout << "Adding file: " << filename << " with ID " << id << endl;
     }
