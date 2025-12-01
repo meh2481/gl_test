@@ -81,7 +81,7 @@ function Lantern.create(params)
 
     -- Create anchor point (static body at the top)
     Lantern.chainAnchor = b2CreateBody(B2_STATIC_BODY, startX, startY, 0)
-    b2AddCircleFixture(Lantern.chainAnchor, 0.02, 1.0, 0.3, 0.0)
+    b2AddCircleFixture(Lantern.chainAnchor, 0.002, 1.0, 0.3, 0.0)
     table.insert(Lantern.bodies, Lantern.chainAnchor)
 
     local prevBodyId = Lantern.chainAnchor
