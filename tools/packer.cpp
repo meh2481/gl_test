@@ -986,7 +986,7 @@ int main(int argc, char* argv[]) {
         }
 
         CompressionHeader comp = {file.compressionType, (uint32_t)file.compressedData.size(),
-                                  (uint32_t)file.data.size(), fileType};
+                                  file.decompressedSize, fileType};
         out.write((char*)&comp, sizeof(comp));
         out.write(file.compressedData.data(), file.compressedData.size());
     }
