@@ -5,6 +5,7 @@
 bodies = {}
 joints = {}
 layers = {}
+objects = {}
 debugDrawEnabled = true
 
 -- Mouse drag state
@@ -75,10 +76,14 @@ function init()
     createSceneObjects()
 
     -- Load abstracted objects - just position, objects handle everything else
-    loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.7 })
-    loadObject("res/objects/lightsaber/lightsaber.lua", { x = 0.0, y = 0.2, colorR = 0.3, colorG = 0.7, colorB = 1.0 })
-    loadObject("res/objects/lightsaber/lightsaber.lua", { x = 0.5, y = 0.2, colorR = 1.0, colorG = 0.0, colorB = 0.0 })
-    loadObject("res/objects/destructible_box/destructible_box.lua", { x = 0.9, y = -0.3 })
+    lantern = loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.7 })
+    lightsaber1 = loadObject("res/objects/lightsaber/lightsaber.lua", { x = 0.0, y = 0.2, colorR = 0.3, colorG = 0.7, colorB = 1.0 })
+    lightsaber2 = loadObject("res/objects/lightsaber/lightsaber.lua", { x = 0.5, y = 0.2, colorR = 1.0, colorG = 0.0, colorB = 0.0 })
+    destructibleBox = loadObject("res/objects/destructible_box/destructible_box.lua", { x = 0.9, y = -0.3 })
+    table.insert(objects, lantern)
+    table.insert(objects, lightsaber1)
+    table.insert(objects, lightsaber2)
+    table.insert(objects, destructibleBox)
 
     print("Physics demo scene initialized")
     print("Drag objects with the mouse, press R to reset")
@@ -277,6 +282,13 @@ function onAction(action)
                 b2SetBodyLinearVelocity(bodyId, 0, 0)
                 b2SetBodyAngularVelocity(bodyId, 0)
                 b2SetBodyAwake(bodyId, true)
+            end
+        end
+
+        -- Reset abstracted objects
+        for _, obj in ipairs(objects) do
+            if obj.reset then
+                obj.reset()
             end
         end
 
