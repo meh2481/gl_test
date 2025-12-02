@@ -63,6 +63,9 @@ struct SceneLayer {
     float cachedX;
     float cachedY;
     float cachedAngle;
+
+    // Parallax depth for layers without physics bodies
+    float parallaxDepth;
 };
 
 // Manager for scene layers
@@ -95,11 +98,22 @@ public:
 
     // Generate vertex data for all layers based on physics body positions
     // Groups sprites by texture for efficient batch rendering
-    void updateLayerVertices(std::vector<SpriteBatch>& batches);
+    void updateLayerVertices(std::vector<SpriteBatch>& batches) {
+        updateLayerVertices(batches, 0.0f, 0.0f, 1.0f);
+    }
 
     // Update a single layer's transform based on physics body
     void updateLayerTransform(int layerId, float bodyX, float bodyY, float bodyAngle);
     void setLayerUseLocalUV(int layerId, bool useLocalUV);
+
+    // Set a layer's position directly (for layers without physics bodies)
+    void setLayerPosition(int layerId, float x, float y, float angle = 0.0f);
+
+    // Set parallax depth for a layer (used for layers without physics bodies)
+    void setLayerParallaxDepth(int layerId, float depth);
+
+    // Update layer vertices with camera info for parallax calculation
+    void updateLayerVertices(std::vector<SpriteBatch>& batches, float cameraX, float cameraY, float cameraZoom);
 
     // Clear all layers (for scene cleanup)
     void clear();

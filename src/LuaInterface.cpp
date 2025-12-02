@@ -50,7 +50,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
                                      "createForceField", "destroyForceField",
                                      "createRadialForceField", "destroyRadialForceField",
-                                    "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon",
+                                    "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon", "setLayerPosition", "setLayerParallaxDepth",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
@@ -522,6 +522,8 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "setLayerOffset", setLayerOffset);
     lua_register(luaState_, "setLayerUseLocalUV", setLayerUseLocalUV);
     lua_register(luaState_, "setLayerPolygon", setLayerPolygon);
+    lua_register(luaState_, "setLayerPosition", setLayerPosition);
+    lua_register(luaState_, "setLayerParallaxDepth", setLayerParallaxDepth);
 
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
@@ -1793,6 +1795,51 @@ int LuaInterface::setLayerPolygon(lua_State* L) {
 
     // Use same UVs for normal map (Lua API doesn't support separate normal map UVs yet)
     interface->layerManager_->setLayerPolygon(layerId, vertices, uvs, nullptr, vertexCount);
+    return 0;
+}
+
+int LuaInterface::setLayerPosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), x (number), y (number), [angle (number)]
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 3 && numArgs <= 4);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float x = (float)lua_tonumber(L, 2);
+    float y = (float)lua_tonumber(L, 3);
+    float angle = 0.0f;
+
+    if (numArgs >= 4) {
+        assert(lua_isnumber(L, 4));
+        angle = (float)lua_tonumber(L, 4);
+    }
+
+    interface->layerManager_->setLayerPosition(layerId, x, y, angle);
+    return 0;
+}
+
+int LuaInterface::setLayerParallaxDepth(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), depth (number)
+    // depth < 0: foreground (moves faster than camera)
+    // depth > 0: background (moves slower than camera)
+    assert(lua_gettop(L) == 2);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float depth = (float)lua_tonumber(L, 2);
+
+    interface->layerManager_->setLayerParallaxDepth(layerId, depth);
     return 0;
 }
 

@@ -74,6 +74,7 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     layer.cachedX = 0.0f;
     layer.cachedY = 0.0f;
     layer.cachedAngle = 0.0f;
+    layer.parallaxDepth = 0.0f;
 
     layers_[layerId] = layer;
     return layerId;
@@ -187,11 +188,27 @@ void SceneLayerManager::updateLayerTransform(int layerId, float bodyX, float bod
     }
 }
 
+void SceneLayerManager::setLayerPosition(int layerId, float x, float y, float angle) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.cachedX = x;
+        it->second.cachedY = y;
+        it->second.cachedAngle = angle;
+    }
+}
+
+void SceneLayerManager::setLayerParallaxDepth(int layerId, float depth) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.parallaxDepth = depth;
+    }
+}
+
 void SceneLayerManager::clear() {
     layers_.clear();
 }
 
-void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
+void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, float cameraX, float cameraY, float cameraZoom) {
     batches.clear();
 
     // Group layers by pipeline ID first, then by descriptor ID
@@ -202,8 +219,13 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
     for (const auto& pair : layers_) {
         const SceneLayer& layer = pair.second;
 
-        // Skip disabled layers or layers not attached to a body
-        if (!layer.enabled || layer.physicsBodyId < 0) {
+        // Skip disabled layers
+        // Allow layers without physics bodies if they have a parallax depth set (static layers)
+        if (!layer.enabled) {
+            continue;
+        }
+        // Skip layers without physics bodies unless they have parallax depth (static layers)
+        if (layer.physicsBodyId < 0 && layer.parallaxDepth == 0.0f) {
             continue;
         }
 
@@ -231,6 +253,18 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
         float centerX = layer.cachedX;
         float centerY = layer.cachedY;
         float angle = layer.cachedAngle;
+
+        // Apply parallax offset for layers without physics bodies
+        if (layer.physicsBodyId < 0 && layer.parallaxDepth != 0.0f) {
+            // Parallax factor: depth / (1.0 + abs(depth))
+            // depth < 0: foreground, moves faster (appears closer)
+            // depth > 0: background, moves slower (appears farther)
+            float absDepth = std::abs(layer.parallaxDepth);
+            float parallaxFactor = layer.parallaxDepth / (1.0f + absDepth);
+            // Apply parallax offset to position based on camera offset
+            centerX += cameraX * parallaxFactor;
+            centerY += cameraY * parallaxFactor;
+        }
 
         // Apply rotation and position
         float cosA = std::cos(angle);

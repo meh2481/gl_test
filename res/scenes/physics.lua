@@ -9,12 +9,26 @@ debugDrawEnabled = true
 mouseJointId = nil
 draggedBodyId = nil
 
+-- Foreground layer
+foregroundLayerId = nil
+foregroundShaderId = nil
+foregroundTexId = nil
+
 function init()
     -- Load the nebula background shader (z-index -2 = background)
     loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", -2)
 
     -- Load debug drawing shader (z-index 3, drawn on top)
     loadShaders("res/shaders/debug_vertex.spv", "res/shaders/debug_fragment.spv", 3)
+
+    -- Load foreground shader (z-index 2, drawn in front of objects but behind debug)
+    foregroundShaderId = loadTexturedShaders("res/shaders/sprite_vertex.spv", "res/shaders/sprite_fragment.spv", 2)
+
+    -- Load foreground texture and create layer
+    foregroundTexId = loadTexture("res/textures/rock1.png")
+    foregroundLayerId = createLayer(foregroundTexId, 0.5, foregroundShaderId)
+    setLayerPosition(foregroundLayerId, 0.3, -0.2)
+    setLayerParallaxDepth(foregroundLayerId, -3.0)  -- Strong negative depth = foreground parallax
 
     -- Set up the multi-light system
     clearLights()

@@ -104,7 +104,10 @@ bool SceneManager::updateActiveScene(float deltaTime) {
 
         // Generate sprite batches grouped by texture
         std::vector<SpriteBatch> spriteBatches;
-        layerManager.updateLayerVertices(spriteBatches);
+        float cameraX = luaInterface_->getCameraOffsetX();
+        float cameraY = luaInterface_->getCameraOffsetY();
+        float cameraZoom = luaInterface_->getCameraZoom();
+        layerManager.updateLayerVertices(spriteBatches, cameraX, cameraY, cameraZoom);
 
         // Send batches to renderer
         renderer_.setSpriteBatches(spriteBatches);
