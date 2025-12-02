@@ -1336,9 +1336,14 @@ void Box2DPhysics::applyForceFields() {
     // Stack-allocated buffer for sensor overlaps
     b2ShapeId overlaps[MAX_FORCE_FIELD_OVERLAPS];
 
+    // Track bodies already processed to avoid applying force multiple times
+    b2BodyId processedBodies[MAX_FORCE_FIELD_OVERLAPS];
+    int processedCount = 0;
+
     // Apply force to all bodies overlapping with force field sensors
     for (auto& pair : forceFields_) {
         ForceField& field = pair.second;
+        processedCount = 0;
 
         // Get overlapping shapes (capped at MAX_FORCE_FIELD_OVERLAPS)
         int overlapCount = b2Shape_GetSensorOverlaps(field.shapeId, overlaps, MAX_FORCE_FIELD_OVERLAPS);
@@ -1347,11 +1352,30 @@ void Box2DPhysics::applyForceFields() {
         for (int i = 0; i < overlapCount; ++i) {
             b2BodyId overlappingBodyId = b2Shape_GetBody(overlaps[i]);
 
+            // Check if we already processed this body (handles multi-shape bodies)
+            bool alreadyProcessed = false;
+            for (int j = 0; j < processedCount; ++j) {
+                if (B2_ID_EQUALS(processedBodies[j], overlappingBodyId)) {
+                    alreadyProcessed = true;
+                    break;
+                }
+            }
+            if (alreadyProcessed) continue;
+
             // Only apply force to dynamic bodies
             b2BodyType bodyType = b2Body_GetType(overlappingBodyId);
             if (bodyType == b2_dynamicBody) {
-                b2Vec2 center = b2Body_GetPosition(overlappingBodyId);
-                b2Body_ApplyForce(overlappingBodyId, (b2Vec2){field.forceX, field.forceY}, center, true);
+                // Apply force proportional to mass (like gravity: F = m * a)
+                float mass = b2Body_GetMass(overlappingBodyId);
+                b2Vec2 force = {field.forceX * mass, field.forceY * mass};
+
+                // Apply at center of mass to avoid causing torque
+                b2Body_ApplyForceToCenter(overlappingBodyId, force, true);
+
+                // Track this body as processed
+                if (processedCount < MAX_FORCE_FIELD_OVERLAPS) {
+                    processedBodies[processedCount++] = overlappingBodyId;
+                }
             }
         }
     }
