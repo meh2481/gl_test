@@ -4,6 +4,9 @@
 #include <vector>
 #include <iostream>
 
+// Animation push constant size: 6 base + 7 params + 22 animation = 35 floats
+static const uint32_t ANIM_PUSH_CONSTANT_FLOAT_COUNT = 35;
+
 // Helper function to convert VkResult to readable string for error logging
 static const char* vkResultToString(VkResult result) {
     switch (result) {
@@ -418,8 +421,7 @@ void VulkanDescriptor::createAnimSingleTexturePipelineLayout() {
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
-    // Animation push constants: 6 base + 7 params + 22 animation = 35 floats = 140 bytes
-    pushConstantRange.size = sizeof(float) * 35;
+    pushConstantRange.size = sizeof(float) * ANIM_PUSH_CONSTANT_FLOAT_COUNT;
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -439,8 +441,7 @@ void VulkanDescriptor::createAnimDualTexturePipelineLayout() {
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
-    // Animation push constants: 6 base + 7 params + 22 animation = 35 floats = 140 bytes
-    pushConstantRange.size = sizeof(float) * 35;
+    pushConstantRange.size = sizeof(float) * ANIM_PUSH_CONSTANT_FLOAT_COUNT;
 
     VkDescriptorSetLayout setLayouts[] = {m_dualTextureDescriptorSetLayout, m_lightDescriptorSetLayout};
 
