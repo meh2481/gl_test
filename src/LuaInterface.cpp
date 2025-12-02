@@ -1495,10 +1495,10 @@ int LuaInterface::createForceField(lua_State* L) {
     int tableLen = (int)lua_rawlen(L, 1);
     assert(tableLen >= 6 && tableLen <= 16); // 3-8 vertices (x,y pairs)
 
-    for (int i = 1; i <= tableLen && i <= 16; ++i) {
-        lua_rawgeti(L, 1, i);
+    for (int i = 0; i < tableLen; ++i) {
+        lua_rawgeti(L, 1, i + 1);
         assert(lua_isnumber(L, -1));
-        vertices[i - 1] = lua_tonumber(L, -1);
+        vertices[i] = lua_tonumber(L, -1);
         lua_pop(L, 1);
     }
 
