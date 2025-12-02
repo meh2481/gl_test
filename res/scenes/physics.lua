@@ -5,6 +5,7 @@
 objects = {}
 debugDrawEnabled = true
 forceFieldId = nil
+radialForceFieldId = nil
 
 -- Mouse drag state
 mouseJointId = nil
@@ -38,6 +39,9 @@ function init()
         -0.3,  0.0    -- top-left
     }
     forceFieldId = createForceField(fieldVertices, 0.0, 15.0)
+
+    -- Create a radial force field that repels objects from the center
+    radialForceFieldId = createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 
     -- Load objects
     table.insert(objects, loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.7 }))
@@ -120,4 +124,6 @@ end
 function cleanup()
     destroyForceField(forceFieldId)
     forceFieldId = nil
+    destroyRadialForceField(radialForceFieldId)
+    radialForceFieldId = nil
 end
