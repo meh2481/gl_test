@@ -101,11 +101,12 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
     // Step the physics simulation in fixed increments
     // This ensures framerate-independent physics behavior
     while (timeAccumulator_ >= fixedTimestep_) {
-        // Apply force fields BEFORE the world step so forces are integrated correctly
-        applyForceFields();
-
         b2World_Step(worldId_, fixedTimestep_, subStepCount);
         timeAccumulator_ -= fixedTimestep_;
+
+        // Apply force fields AFTER the world step using fresh overlap data
+        // Forces will be applied in the next step
+        applyForceFields();
 
         // Process collision hit events after each physics step
         b2ContactEvents contactEvents = b2World_GetContactEvents(worldId_);
@@ -1372,35 +1373,12 @@ void Box2DPhysics::applyForceFields() {
             // Only apply force to dynamic bodies
             b2BodyType bodyType = b2Body_GetType(overlappingBodyId);
             if (bodyType == b2_dynamicBody) {
-                // Skip bodies that are currently in contact with other bodies
-                // This prevents energy accumulation during collision resolution
-                int contactCount = b2Body_GetContactCapacity(overlappingBodyId);
-                if (contactCount > 0) {
-                    // Check if any contacts are actually touching (not just potential)
-                    b2ContactData contactData[16];
-                    int actualContacts = b2Body_GetContactData(overlappingBodyId, contactData, 16);
-                    bool hasTouchingContact = false;
-                    for (int c = 0; c < actualContacts; ++c) {
-                        if (contactData[c].manifold.pointCount > 0) {
-                            hasTouchingContact = true;
-                            break;
-                        }
-                    }
-                    if (hasTouchingContact) {
-                        // Track as processed but don't apply force
-                        if (processedCount < MAX_FORCE_FIELD_OVERLAPS) {
-                            processedBodies[processedCount++] = overlappingBodyId;
-                        }
-                        continue;
-                    }
-                }
-
-                // Apply force proportional to mass (like gravity: F = m * a)
-                float mass = b2Body_GetMass(overlappingBodyId);
-                b2Vec2 force = {field.forceX * mass, field.forceY * mass};
-
-                // Apply at center of mass to avoid causing torque
-                b2Body_ApplyForceToCenter(overlappingBodyId, force, true);
+                // Apply acceleration directly to velocity (a = F/m, but we want constant a)
+                // v_new = v_old + a * dt
+                b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
+                vel.x += field.forceX * fixedTimestep_;
+                vel.y += field.forceY * fixedTimestep_;
+                b2Body_SetLinearVelocity(overlappingBodyId, vel);
 
                 // Track this body as processed
                 if (processedCount < MAX_FORCE_FIELD_OVERLAPS) {
