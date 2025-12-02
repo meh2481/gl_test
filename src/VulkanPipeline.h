@@ -17,7 +17,7 @@ struct PipelineInfo {
     VkDescriptorSetLayout descriptorSetLayout;
     bool usesDualTexture;  // true = 2 textures, false = 1 texture
     bool usesExtendedPushConstants;  // true = uses extended push constants with shader parameters
-    bool usesAnimationPushConstants;  // true = uses animation push constants (35 floats)
+    bool usesAnimationPushConstants;  // true = uses animation push constants (33 floats)
     bool isParticlePipeline;  // true = particle pipeline (uses vertex colors)
     std::set<uint64_t> descriptorIds;  // Which descriptor sets this pipeline uses
 };
