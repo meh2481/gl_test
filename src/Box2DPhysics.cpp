@@ -1345,12 +1345,19 @@ void Box2DPhysics::applyForceFields() {
         ForceField& field = pair.second;
         processedCount = 0;
 
+        // Get the force field's own body to exclude it
+        auto bodyIt = bodies_.find(field.bodyId);
+        b2BodyId forceFieldBodyId = (bodyIt != bodies_.end()) ? bodyIt->second : b2_nullBodyId;
+
         // Get overlapping shapes (capped at MAX_FORCE_FIELD_OVERLAPS)
         int overlapCount = b2Shape_GetSensorOverlaps(field.shapeId, overlaps, MAX_FORCE_FIELD_OVERLAPS);
 
         // Apply force to each overlapping body
         for (int i = 0; i < overlapCount; ++i) {
             b2BodyId overlappingBodyId = b2Shape_GetBody(overlaps[i]);
+
+            // Skip the force field's own body
+            if (B2_ID_EQUALS(overlappingBodyId, forceFieldBodyId)) continue;
 
             // Check if we already processed this body (handles multi-shape bodies)
             bool alreadyProcessed = false;
@@ -1365,6 +1372,29 @@ void Box2DPhysics::applyForceFields() {
             // Only apply force to dynamic bodies
             b2BodyType bodyType = b2Body_GetType(overlappingBodyId);
             if (bodyType == b2_dynamicBody) {
+                // Skip bodies that are currently in contact with other bodies
+                // This prevents energy accumulation during collision resolution
+                int contactCount = b2Body_GetContactCapacity(overlappingBodyId);
+                if (contactCount > 0) {
+                    // Check if any contacts are actually touching (not just potential)
+                    b2ContactData contactData[16];
+                    int actualContacts = b2Body_GetContactData(overlappingBodyId, contactData, 16);
+                    bool hasTouchingContact = false;
+                    for (int c = 0; c < actualContacts; ++c) {
+                        if (contactData[c].manifold.pointCount > 0) {
+                            hasTouchingContact = true;
+                            break;
+                        }
+                    }
+                    if (hasTouchingContact) {
+                        // Track as processed but don't apply force
+                        if (processedCount < MAX_FORCE_FIELD_OVERLAPS) {
+                            processedBodies[processedCount++] = overlappingBodyId;
+                        }
+                        continue;
+                    }
+                }
+
                 // Apply force proportional to mass (like gravity: F = m * a)
                 float mass = b2Body_GetMass(overlappingBodyId);
                 b2Vec2 force = {field.forceX * mass, field.forceY * mass};
