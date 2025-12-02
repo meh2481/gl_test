@@ -22,7 +22,9 @@ function init()
     loadShaders("res/shaders/debug_vertex.spv", "res/shaders/debug_fragment.spv", 3)
 
     -- Load foreground shader (z-index 2, drawn in front of objects but behind debug)
-    foregroundShaderId = loadTexturedShaders("res/shaders/sprite_vertex.spv", "res/shaders/sprite_fragment.spv", 2)
+    -- foregroundShaderId = loadTexturedShaders("res/shaders/sprite_vertex.spv", "res/shaders/sprite_fragment.spv", 2)
+    foregroundShaderId = loadAnimTexturedShaders("res/shaders/anim_sprite_vertex.spv",
+                                   "res/shaders/anim_sprite_fragment.spv", 1, 1)
 
     -- Load foreground texture and create layer
     foregroundTexId = loadTexture("res/textures/rock1.png")
@@ -30,6 +32,11 @@ function init()
     setLayerPosition(foregroundLayerId, 0.3, -3.2, 100)
     setLayerScale(foregroundLayerId, 1.5, 0.75)
     setLayerParallaxDepth(foregroundLayerId, -300.0)
+    setLayerSpin(foregroundLayerId, 45.0)  -- 45 deg/sec
+    -- setLayerBlink(foregroundLayerId, 1.0, 0.5, 0.1, 0.1)  -- 1s on, 0.5s off, 0.1s transitions
+    setLayerWave(foregroundLayerId, 0.5, 2.0, 90.0, 0.1)  -- wavelength, speed, angle, amplitude
+    -- setLayerColor(foregroundLayerId, 1.0, 0.5, 0.5, 1.0)  -- red tint
+    -- setLayerColorCycle(foregroundLayerId, 1,0,0,1, 0,0,1,1, 2.0)  -- red to blue over 2s
 
     -- Set up the multi-light system
     clearLights()
