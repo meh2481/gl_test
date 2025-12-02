@@ -3,6 +3,9 @@
 #include <cassert>
 #include <algorithm>
 
+// Epsilon for parallax depth comparisons
+static const float PARALLAX_EPSILON = 0.001f;
+
 // Hash function for std::pair to use in unordered_map
 struct PairHash {
     template <typename T1, typename T2>
@@ -222,7 +225,7 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
         bool operator==(const BatchKey& other) const {
             return pipelineId == other.pipelineId &&
                    descriptorId == other.descriptorId &&
-                   std::abs(parallaxDepth - other.parallaxDepth) < 0.001f;
+                   std::abs(parallaxDepth - other.parallaxDepth) < PARALLAX_EPSILON;
         }
     };
     struct BatchKeyHash {
@@ -244,7 +247,6 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             continue;
         }
         // Skip layers without physics bodies unless they have parallax depth (static layers)
-        const float PARALLAX_EPSILON = 0.001f;
         if (layer.physicsBodyId < 0 && std::abs(layer.parallaxDepth) < PARALLAX_EPSILON) {
             continue;
         }
@@ -458,7 +460,7 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
     std::sort(batches.begin(), batches.end(), [](const SpriteBatch& a, const SpriteBatch& b) {
         // Sort by parallax depth first (higher depth = background = drawn first)
         // Positive depth = background, negative depth = foreground
-        if (std::abs(a.parallaxDepth - b.parallaxDepth) >= 0.001f) {
+        if (std::abs(a.parallaxDepth - b.parallaxDepth) >= PARALLAX_EPSILON) {
             return a.parallaxDepth > b.parallaxDepth; // Higher depth (background) drawn first
         }
         // Then by pipeline ID
