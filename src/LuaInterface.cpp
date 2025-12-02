@@ -294,29 +294,45 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
     lua_pushinteger(luaState_, sceneId);
     lua_gettable(luaState_, LUA_REGISTRYINDEX);
 
-    if (!lua_istable(luaState_, -1)) {
-        lua_pop(luaState_, 1);
-        return; // Scene not found, silently ignore
+    if (lua_istable(luaState_, -1)) {
+        // Get the cleanup function from the table (optional)
+        lua_getfield(luaState_, -1, "cleanup");
+        if (lua_isfunction(luaState_, -1)) {
+            // Call cleanup()
+            if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
+                const char* errorMsg = lua_tostring(luaState_, -1);
+                std::cerr << "Lua cleanup error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+                lua_pop(luaState_, 1); // Pop error message
+            }
+        } else {
+            lua_pop(luaState_, 1); // Pop nil
+        }
     }
-
-    // Get the cleanup function from the table (optional)
-    lua_getfield(luaState_, -1, "cleanup");
-    if (!lua_isfunction(luaState_, -1)) {
-        lua_pop(luaState_, 2); // Pop nil and table
-        return; // No cleanup function, silently ignore
-    }
-
-    // Call cleanup()
-    if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
-        // Get the error message
-        const char* errorMsg = lua_tostring(luaState_, -1);
-        std::cerr << "Lua cleanup error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
-        lua_pop(luaState_, 2); // Pop error message and table
-        return;
-    }
-
-    // Pop the table
+    // Pop the table (or nil if scene not found)
     lua_pop(luaState_, 1);
+
+    // Automatically cleanup all scene resources
+    std::cout << "Automatic scene cleanup: releasing all resources" << std::endl;
+
+    // Clear all audio sources
+    audioManager_->clearAllSources();
+
+    // Clear all particle systems
+    particleManager_->clearAllSystems();
+
+    // Clear all scene layers
+    layerManager_->clear();
+
+    // Reset physics (bodies, joints, force fields)
+    physics_->reset();
+
+    // Clear all lights
+    renderer_.clearLights();
+
+    // Reset camera
+    cameraOffsetX_ = 0.0f;
+    cameraOffsetY_ = 0.0f;
+    cameraZoom_ = 1.0f;
 }
 
 void LuaInterface::switchToScenePipeline(uint64_t sceneId) {

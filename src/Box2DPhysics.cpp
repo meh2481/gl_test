@@ -1760,3 +1760,107 @@ void Box2DPhysics::processFractures() {
     }
     pendingDestructions_.clear();
 }
+
+void Box2DPhysics::clearAllForceFields() {
+    SDL_LockMutex(physicsMutex_);
+
+    std::vector<int> fieldIds;
+    for (auto& pair : forceFields_) {
+        fieldIds.push_back(pair.first);
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+
+    for (int fieldId : fieldIds) {
+        destroyForceField(fieldId);
+    }
+}
+
+void Box2DPhysics::clearAllRadialForceFields() {
+    SDL_LockMutex(physicsMutex_);
+
+    std::vector<int> fieldIds;
+    for (auto& pair : radialForceFields_) {
+        fieldIds.push_back(pair.first);
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+
+    for (int fieldId : fieldIds) {
+        destroyRadialForceField(fieldId);
+    }
+}
+
+void Box2DPhysics::reset() {
+    SDL_LockMutex(physicsMutex_);
+
+    // Destroy all force fields first (uses bodies)
+    std::vector<int> forceFieldIds;
+    for (auto& pair : forceFields_) {
+        forceFieldIds.push_back(pair.first);
+    }
+    std::vector<int> radialForceFieldIds;
+    for (auto& pair : radialForceFields_) {
+        radialForceFieldIds.push_back(pair.first);
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+
+    for (int fieldId : forceFieldIds) {
+        destroyForceField(fieldId);
+    }
+    for (int fieldId : radialForceFieldIds) {
+        destroyRadialForceField(fieldId);
+    }
+
+    SDL_LockMutex(physicsMutex_);
+
+    // Destroy all joints
+    std::vector<int> jointIds;
+    for (auto& pair : joints_) {
+        jointIds.push_back(pair.first);
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+
+    for (int jointId : jointIds) {
+        destroyJoint(jointId);
+    }
+
+    SDL_LockMutex(physicsMutex_);
+
+    // Destroy all bodies
+    std::vector<int> bodyIds;
+    for (auto& pair : bodies_) {
+        bodyIds.push_back(pair.first);
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+
+    for (int bodyId : bodyIds) {
+        clearBodyDestructible(bodyId);
+        destroyBody(bodyId);
+    }
+
+    SDL_LockMutex(physicsMutex_);
+
+    // Clear fragment tracking
+    fragmentBodyIds_.clear();
+    fragmentLayerIds_.clear();
+
+    // Clear destructible body layers
+    destructibleBodyLayers_.clear();
+
+    // Clear collision events
+    collisionHitEvents_.clear();
+    fractureEvents_.clear();
+    pendingDestructions_.clear();
+
+    // Reset time accumulator
+    timeAccumulator_ = 0.0f;
+
+    // Reset mouse joint ground body
+    mouseJointGroundBody_ = b2_nullBodyId;
+
+    SDL_UnlockMutex(physicsMutex_);
+}

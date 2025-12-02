@@ -260,6 +260,13 @@ public:
     int createRadialForceField(float centerX, float centerY, float radius, float forceAtCenter, float forceAtEdge);
     void destroyRadialForceField(int forceFieldId);
 
+    // Clear all force fields (for scene cleanup)
+    void clearAllForceFields();
+    void clearAllRadialForceFields();
+
+    // Reset physics world (for scene cleanup)
+    void reset();
+
 private:
     // Debug draw callbacks
     static void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context);

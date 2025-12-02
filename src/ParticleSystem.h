@@ -170,6 +170,9 @@ public:
     int getSystemCount() const { return systemCount_; }
     ParticleSystem* getSystems() { return systems_; }
 
+    // Clear all particle systems (for scene cleanup)
+    void clearAllSystems();
+
 private:
     // Allocate particle arrays for a system
     void allocateParticleArrays(ParticleSystem& system, int maxParticles);

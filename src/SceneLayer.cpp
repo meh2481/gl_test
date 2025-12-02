@@ -187,6 +187,10 @@ void SceneLayerManager::updateLayerTransform(int layerId, float bodyX, float bod
     }
 }
 
+void SceneLayerManager::clear() {
+    layers_.clear();
+}
+
 void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches) {
     batches.clear();
 

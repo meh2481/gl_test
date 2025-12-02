@@ -112,6 +112,9 @@ public:
     // Update audio system (call once per frame)
     void update();
 
+    // Release all active audio sources (for scene cleanup)
+    void clearAllSources();
+
 private:
     ALCdevice* device;
     ALCcontext* context;

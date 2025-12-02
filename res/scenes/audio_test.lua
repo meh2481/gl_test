@@ -38,10 +38,6 @@ end
 
 function onAction(action)
     if action == ACTION_EXIT then
-        -- Cleanup audio sources
-        for _, sourceId in ipairs(audioSources) do
-            audioReleaseSource(sourceId)
-        end
         popScene()
     elseif action == ACTION_APPLY_FORCE then
         -- Key 1: Play sound at left position
@@ -113,13 +109,5 @@ function onAction(action)
         globalVolume = math.max(globalVolume - 0.1, 0.0)
         audioSetGlobalVolume(globalVolume)
         print("Global volume: " .. string.format("%.1f", globalVolume))
-    end
-end
-
-function cleanup()
-    print("Audio test scene cleanup")
-    -- Release all audio sources
-    for _, sourceId in ipairs(audioSources) do
-        audioReleaseSource(sourceId)
     end
 end

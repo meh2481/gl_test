@@ -587,3 +587,11 @@ void AudioManager::update() {
         }
     }
 }
+
+void AudioManager::clearAllSources() {
+    for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
+        if (sources[i].active) {
+            releaseSource(i);
+        }
+    }
+}

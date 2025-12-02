@@ -120,10 +120,3 @@ function onAction(action)
         end
     end
 end
-
-function cleanup()
-    destroyForceField(forceFieldId)
-    forceFieldId = nil
-    destroyRadialForceField(radialForceFieldId)
-    radialForceFieldId = nil
-end

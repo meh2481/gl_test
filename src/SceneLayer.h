@@ -101,6 +101,9 @@ public:
     void updateLayerTransform(int layerId, float bodyX, float bodyY, float bodyAngle);
     void setLayerUseLocalUV(int layerId, bool useLocalUV);
 
+    // Clear all layers (for scene cleanup)
+    void clear();
+
 private:
     std::unordered_map<int, SceneLayer> layers_;
     int nextLayerId_;

@@ -503,3 +503,10 @@ void ParticleSystemManager::update(float deltaTime) {
         }
     }
 }
+
+void ParticleSystemManager::clearAllSystems() {
+    for (int i = 0; i < systemCount_; ++i) {
+        freeParticleArrays(systems_[i]);
+    }
+    systemCount_ = 0;
+}
