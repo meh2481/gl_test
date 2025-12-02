@@ -48,6 +48,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
+                                     "createForceField", "destroyForceField",
                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
@@ -490,6 +491,10 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2SetBodyDestructibleLayer", b2SetBodyDestructibleLayer);
     lua_register(luaState_, "b2ClearBodyDestructible", b2ClearBodyDestructible);
     lua_register(luaState_, "b2CleanupAllFragments", b2CleanupAllFragments);
+
+    // Register force field functions
+    lua_register(luaState_, "createForceField", createForceField);
+    lua_register(luaState_, "destroyForceField", destroyForceField);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -1468,6 +1473,54 @@ int LuaInterface::b2CleanupAllFragments(lua_State* L) {
     assert(lua_gettop(L) == 0);
 
     interface->physics_->cleanupAllFragments();
+    return 0;
+}
+
+// Force field Lua binding implementations
+
+int LuaInterface::createForceField(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: vertices table, forceX (number), forceY (number)
+    // vertices table format: {x1, y1, x2, y2, x3, y3, ...} (3-8 vertices)
+    assert(lua_gettop(L) == 3);
+    assert(lua_istable(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    // Get vertices from table
+    float vertices[16]; // Max 8 vertices * 2 coords
+    int tableLen = (int)lua_rawlen(L, 1);
+    assert(tableLen >= 6 && tableLen <= 16); // 3-8 vertices (x,y pairs)
+
+    for (int i = 1; i <= tableLen && i <= 16; ++i) {
+        lua_rawgeti(L, 1, i);
+        assert(lua_isnumber(L, -1));
+        vertices[i - 1] = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+    }
+
+    int vertexCount = tableLen / 2;
+    float forceX = lua_tonumber(L, 2);
+    float forceY = lua_tonumber(L, 3);
+
+    int forceFieldId = interface->physics_->createForceField(vertices, vertexCount, forceX, forceY);
+    lua_pushinteger(L, forceFieldId);
+    return 1;
+}
+
+int LuaInterface::destroyForceField(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int forceFieldId = lua_tointeger(L, 1);
+    interface->physics_->destroyForceField(forceFieldId);
     return 0;
 }
 

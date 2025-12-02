@@ -100,6 +100,10 @@ private:
     static int b2ClearBodyDestructible(lua_State* L);
     static int b2CleanupAllFragments(lua_State* L);
 
+    // Force field Lua bindings
+    static int createForceField(lua_State* L);
+    static int destroyForceField(lua_State* L);
+
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);
     static int destroyLayer(lua_State* L);

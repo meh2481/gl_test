@@ -43,7 +43,8 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
 }
 
 Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
-                                timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId) {
+                                timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
+                                nextForceFieldId_(0) {
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;
@@ -102,6 +103,9 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
     while (timeAccumulator_ >= fixedTimestep_) {
         b2World_Step(worldId_, fixedTimestep_, subStepCount);
         timeAccumulator_ -= fixedTimestep_;
+
+        // Apply force fields to overlapping bodies
+        applyForceFields();
 
         // Process collision hit events after each physics step
         b2ContactEvents contactEvents = b2World_GetContactEvents(worldId_);
@@ -1243,6 +1247,114 @@ int Box2DPhysics::createFragmentBody(float x, float y, float angle,
 
     SDL_UnlockMutex(physicsMutex_);
     return internalId;
+}
+
+// Force field management
+int Box2DPhysics::createForceField(const float* vertices, int vertexCount, float forceX, float forceY) {
+    assert(vertexCount >= 3 && vertexCount <= 8);
+
+    SDL_LockMutex(physicsMutex_);
+
+    // Create a static body for the sensor
+    b2BodyDef bodyDef = b2DefaultBodyDef();
+    bodyDef.type = b2_staticBody;
+
+    // Calculate centroid of the polygon for body position
+    float centroidX = 0.0f, centroidY = 0.0f;
+    for (int i = 0; i < vertexCount; ++i) {
+        centroidX += vertices[i * 2];
+        centroidY += vertices[i * 2 + 1];
+    }
+    centroidX /= vertexCount;
+    centroidY /= vertexCount;
+    bodyDef.position = (b2Vec2){centroidX, centroidY};
+
+    b2BodyId bodyId = b2CreateBody(worldId_, &bodyDef);
+    assert(b2Body_IsValid(bodyId));
+
+    // Convert vertices to local coordinates (relative to centroid)
+    b2Vec2 points[8];
+    for (int i = 0; i < vertexCount; ++i) {
+        points[i] = (b2Vec2){
+            vertices[i * 2] - centroidX,
+            vertices[i * 2 + 1] - centroidY
+        };
+    }
+
+    // Create polygon shape as sensor
+    b2Hull hull = b2ComputeHull(points, vertexCount);
+    b2Polygon polygon = b2MakePolygon(&hull, 0.0f);
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.isSensor = true;
+    shapeDef.enableSensorEvents = true;
+
+    b2ShapeId shapeId = b2CreatePolygonShape(bodyId, &shapeDef, &polygon);
+
+    // Store the body in bodies_ map
+    int internalBodyId = nextBodyId_++;
+    bodies_[internalBodyId] = bodyId;
+
+    // Create force field entry
+    int forceFieldId = nextForceFieldId_++;
+    ForceField field;
+    field.bodyId = internalBodyId;
+    field.shapeId = shapeId;
+    field.forceX = forceX;
+    field.forceY = forceY;
+    forceFields_[forceFieldId] = field;
+
+    std::cout << "Created force field " << forceFieldId << " with force (" << forceX << ", " << forceY << ")" << std::endl;
+
+    SDL_UnlockMutex(physicsMutex_);
+    return forceFieldId;
+}
+
+void Box2DPhysics::destroyForceField(int forceFieldId) {
+    SDL_LockMutex(physicsMutex_);
+
+    auto it = forceFields_.find(forceFieldId);
+    if (it != forceFields_.end()) {
+        // Destroy the body (which also destroys all attached shapes)
+        auto bodyIt = bodies_.find(it->second.bodyId);
+        if (bodyIt != bodies_.end()) {
+            b2DestroyBody(bodyIt->second);
+            bodies_.erase(bodyIt);
+        }
+        forceFields_.erase(it);
+        std::cout << "Destroyed force field " << forceFieldId << std::endl;
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+}
+
+void Box2DPhysics::applyForceFields() {
+    // Apply force to all bodies overlapping with force field sensors
+    for (auto& pair : forceFields_) {
+        ForceField& field = pair.second;
+
+        // Get capacity needed for overlaps
+        int capacity = b2Shape_GetSensorCapacity(field.shapeId);
+        if (capacity <= 0) continue;
+
+        // Allocate array for overlapping shapes
+        b2ShapeId* overlaps = new b2ShapeId[capacity];
+        int overlapCount = b2Shape_GetSensorOverlaps(field.shapeId, overlaps, capacity);
+
+        // Apply force to each overlapping body
+        for (int i = 0; i < overlapCount; ++i) {
+            b2BodyId overlappingBodyId = b2Shape_GetBody(overlaps[i]);
+
+            // Only apply force to dynamic bodies
+            b2BodyType bodyType = b2Body_GetType(overlappingBodyId);
+            if (bodyType == b2_dynamicBody) {
+                b2Vec2 center = b2Body_GetPosition(overlappingBodyId);
+                b2Body_ApplyForce(overlappingBodyId, (b2Vec2){field.forceX, field.forceY}, center, true);
+            }
+        }
+
+        delete[] overlaps;
+    }
 }
 
 // Process fractures for destructible bodies
