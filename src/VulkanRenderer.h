@@ -13,6 +13,7 @@
 
 // Forward declarations
 struct SpriteBatch;
+struct ParticleBatch;
 
 class VulkanRenderer {
 public:
@@ -34,6 +35,7 @@ public:
     void setDebugTriangleDrawData(const std::vector<float>& vertexData);
     void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
     void setSpriteBatches(const std::vector<SpriteBatch>& batches);
+    void setParticleBatches(const std::vector<ParticleBatch>& batches);
     void setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices, uint64_t textureId = 0);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);
@@ -111,10 +113,14 @@ private:
         uint64_t normalMapId;
         uint64_t descriptorId;
         int pipelineId;
+        float parallaxDepth;
         uint32_t indexCount;
         uint32_t firstIndex;
+        bool isParticle;  // true = particle batch, false = sprite batch
     };
     std::vector<BatchDrawData> m_spriteBatches;
+    std::vector<BatchDrawData> m_particleBatches;
+    std::vector<BatchDrawData> m_allBatches;  // Combined and sorted
 
     // Particle texture ID for rendering
     uint64_t m_particleTextureId;

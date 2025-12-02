@@ -26,6 +26,23 @@ struct SpriteBatch {
     std::vector<uint16_t> indices;
 };
 
+// Particle vertex structure with position, texture coordinates, and color
+struct ParticleVertex {
+    float x, y;        // Position
+    float u, v;        // Texture coordinates
+    float r, g, b, a;  // Vertex color
+    float uvMinX, uvMinY, uvMaxX, uvMaxY;  // UV bounds for atlas clamping
+};
+
+// Particle batch for a group of particles at a specific parallax depth
+struct ParticleBatch {
+    uint64_t textureId;      // Atlas texture ID
+    int pipelineId;          // Pipeline ID to use for this batch
+    float parallaxDepth;     // Parallax depth for sorting
+    std::vector<ParticleVertex> vertices;
+    std::vector<uint16_t> indices;
+};
+
 // Atlas UV coordinates for texture
 struct LayerAtlasUV {
     float u0, v0;       // Bottom-left UV

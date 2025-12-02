@@ -116,15 +116,28 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         ParticleSystemManager& particleManager = luaInterface_->getParticleSystemManager();
         particleManager.update(deltaTime);
 
-        // Generate particle vertex data for all particle systems
-        std::vector<float> particleVertexData;
-        std::vector<uint16_t> particleIndices;
+        // Generate particle batches - one per particle system for proper parallax sorting
+        std::vector<ParticleBatch> particleBatches;
 
         for (int i = 0; i < particleManager.getSystemCount(); ++i) {
             ParticleSystem* system = &particleManager.getSystems()[i];
             if (!system || system->liveParticleCount == 0) continue;
 
-            uint16_t baseVertex = (uint16_t)(particleVertexData.size() / 12);  // 12 floats per vertex
+            // Determine the texture ID for this system
+            uint64_t textureId = 0;
+            if (system->config.textureCount > 0) {
+                AtlasUV atlasUV;
+                if (pakResource_.getAtlasUV(system->config.textureIds[0], atlasUV)) {
+                    textureId = atlasUV.atlasId;
+                } else {
+                    textureId = system->config.textureIds[0];
+                }
+            }
+
+            ParticleBatch batch;
+            batch.textureId = textureId;
+            batch.pipelineId = system->pipelineId;
+            batch.parallaxDepth = system->parallaxDepth;
 
             for (int p = 0; p < system->liveParticleCount; ++p) {
                 float x = system->posX[p];
@@ -176,56 +189,44 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                     {texU0, texV0}   // Top-left
                 };
 
-                uint16_t vertexBase = (uint16_t)(particleVertexData.size() / 12);  // 12 floats per vertex
+                uint16_t vertexBase = static_cast<uint16_t>(batch.vertices.size());
 
                 for (int v = 0; v < 4; ++v) {
                     // Rotate
                     float rx = corners[v][0] * cosZ - corners[v][1] * sinZ;
                     float ry = corners[v][0] * sinZ + corners[v][1] * cosZ;
 
-                    // Translate
-                    particleVertexData.push_back(x + rx);
-                    particleVertexData.push_back(y + ry);
-                    particleVertexData.push_back(uvs[v][0]);
-                    particleVertexData.push_back(uvs[v][1]);
-                    particleVertexData.push_back(r);
-                    particleVertexData.push_back(g);
-                    particleVertexData.push_back(b);
-                    particleVertexData.push_back(a);
-                    // UV bounds for atlas clamping (prevents MSAA bleeding)
-                    particleVertexData.push_back(texU0);
-                    particleVertexData.push_back(texV0);
-                    particleVertexData.push_back(texU1);
-                    particleVertexData.push_back(texV1);
+                    ParticleVertex vert;
+                    vert.x = x + rx;
+                    vert.y = y + ry;
+                    vert.u = uvs[v][0];
+                    vert.v = uvs[v][1];
+                    vert.r = r;
+                    vert.g = g;
+                    vert.b = b;
+                    vert.a = a;
+                    vert.uvMinX = texU0;
+                    vert.uvMinY = texV0;
+                    vert.uvMaxX = texU1;
+                    vert.uvMaxY = texV1;
+                    batch.vertices.push_back(vert);
                 }
 
                 // Add indices for two triangles (quad)
-                particleIndices.push_back(vertexBase + 0);
-                particleIndices.push_back(vertexBase + 1);
-                particleIndices.push_back(vertexBase + 2);
-                particleIndices.push_back(vertexBase + 2);
-                particleIndices.push_back(vertexBase + 3);
-                particleIndices.push_back(vertexBase + 0);
+                batch.indices.push_back(vertexBase + 0);
+                batch.indices.push_back(vertexBase + 1);
+                batch.indices.push_back(vertexBase + 2);
+                batch.indices.push_back(vertexBase + 2);
+                batch.indices.push_back(vertexBase + 3);
+                batch.indices.push_back(vertexBase + 0);
+            }
+
+            if (!batch.vertices.empty()) {
+                particleBatches.push_back(std::move(batch));
             }
         }
 
-        // Determine the particle texture atlas ID
-        uint64_t particleTextureId = 0;
-        for (int i = 0; i < particleManager.getSystemCount(); ++i) {
-            ParticleSystem* system = &particleManager.getSystems()[i];
-            if (system && system->config.textureCount > 0) {
-                // Get atlas ID from the first particle texture
-                AtlasUV atlasUV;
-                if (pakResource_.getAtlasUV(system->config.textureIds[0], atlasUV)) {
-                    particleTextureId = atlasUV.atlasId;
-                } else {
-                    particleTextureId = system->config.textureIds[0];
-                }
-                break;
-            }
-        }
-
-        renderer_.setParticleDrawData(particleVertexData, particleIndices, particleTextureId);
+        renderer_.setParticleBatches(particleBatches);
 
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {

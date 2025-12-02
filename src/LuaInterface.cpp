@@ -60,7 +60,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "getCursorPosition",
                                      "getCameraOffset", "setCameraOffset", "getCameraZoom", "setCameraZoom",
                                      "addLight", "updateLight", "removeLight", "clearLights", "setAmbientLight",
-                                     "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "setParticleSystemEmissionRate", "loadParticleShaders",
+                                     "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "setParticleSystemEmissionRate", "setParticleSystemParallaxDepth", "loadParticleShaders",
                                      "openParticleEditor", "loadParticleConfig", "loadObject",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
@@ -580,6 +580,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "destroyParticleSystem", destroyParticleSystem);
     lua_register(luaState_, "setParticleSystemPosition", setParticleSystemPosition);
     lua_register(luaState_, "setParticleSystemEmissionRate", setParticleSystemEmissionRate);
+    lua_register(luaState_, "setParticleSystemParallaxDepth", setParticleSystemParallaxDepth);
     lua_register(luaState_, "loadParticleShaders", loadParticleShaders);
 
     // Register particle editor function (available in DEBUG builds)
@@ -2993,6 +2994,22 @@ int LuaInterface::setParticleSystemEmissionRate(lua_State* L) {
     float rate = (float)lua_tonumber(L, 2);
 
     interface->particleManager_->setSystemEmissionRate(systemId, rate);
+    return 0;
+}
+
+int LuaInterface::setParticleSystemParallaxDepth(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int systemId = lua_tointeger(L, 1);
+    float depth = (float)lua_tonumber(L, 2);
+
+    interface->particleManager_->setSystemParallaxDepth(systemId, depth);
     return 0;
 }
 

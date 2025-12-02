@@ -973,8 +973,10 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
         drawData.normalMapId = batch.normalMapId;
         drawData.descriptorId = batch.descriptorId;
         drawData.pipelineId = batch.pipelineId;
+        drawData.parallaxDepth = batch.parallaxDepth;
         drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        drawData.isParticle = false;
 
         for (const auto& v : batch.vertices) {
             allVertexData.push_back(v.x);
@@ -998,6 +1000,86 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
     }
 
     m_bufferManager.updateIndexedBuffer(m_spriteBuffer, allVertexData, allIndices, 10);
+
+    // Rebuild combined batch list
+    m_allBatches.clear();
+    m_allBatches.reserve(m_spriteBatches.size() + m_particleBatches.size());
+    for (const auto& b : m_spriteBatches) {
+        m_allBatches.push_back(b);
+    }
+    for (const auto& b : m_particleBatches) {
+        m_allBatches.push_back(b);
+    }
+    // Sort by parallax depth (higher = background = drawn first)
+    std::sort(m_allBatches.begin(), m_allBatches.end(), [](const BatchDrawData& a, const BatchDrawData& b) {
+        return a.parallaxDepth > b.parallaxDepth;
+    });
+}
+
+void VulkanRenderer::setParticleBatches(const std::vector<ParticleBatch>& batches) {
+    // Wait for all in-flight frames to complete before modifying shared buffers
+    VkFence fences[] = {m_inFlightFences[0], m_inFlightFences[1]};
+    vkWaitForFences(m_device, 2, fences, VK_TRUE, UINT64_MAX);
+
+    m_particleBatches.clear();
+
+    std::vector<float> allVertexData;
+    std::vector<uint16_t> allIndices;
+    uint32_t baseVertex = 0;
+
+    for (const auto& batch : batches) {
+        if (batch.vertices.empty() || batch.indices.empty()) {
+            continue;
+        }
+
+        BatchDrawData drawData;
+        drawData.textureId = batch.textureId;
+        drawData.normalMapId = 0;
+        drawData.descriptorId = batch.textureId;  // Use texture ID as descriptor ID
+        drawData.pipelineId = batch.pipelineId;
+        drawData.parallaxDepth = batch.parallaxDepth;
+        drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
+        drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        drawData.isParticle = true;
+
+        for (const auto& v : batch.vertices) {
+            allVertexData.push_back(v.x);
+            allVertexData.push_back(v.y);
+            allVertexData.push_back(v.u);
+            allVertexData.push_back(v.v);
+            allVertexData.push_back(v.r);
+            allVertexData.push_back(v.g);
+            allVertexData.push_back(v.b);
+            allVertexData.push_back(v.a);
+            allVertexData.push_back(v.uvMinX);
+            allVertexData.push_back(v.uvMinY);
+            allVertexData.push_back(v.uvMaxX);
+            allVertexData.push_back(v.uvMaxY);
+        }
+
+        for (uint16_t idx : batch.indices) {
+            allIndices.push_back(idx + baseVertex);
+        }
+
+        baseVertex += static_cast<uint32_t>(batch.vertices.size());
+        m_particleBatches.push_back(drawData);
+    }
+
+    m_bufferManager.updateIndexedBuffer(m_particleBuffer, allVertexData, allIndices, 8);
+
+    // Rebuild combined batch list
+    m_allBatches.clear();
+    m_allBatches.reserve(m_spriteBatches.size() + m_particleBatches.size());
+    for (const auto& b : m_spriteBatches) {
+        m_allBatches.push_back(b);
+    }
+    for (const auto& b : m_particleBatches) {
+        m_allBatches.push_back(b);
+    }
+    // Sort by parallax depth (higher = background = drawn first)
+    std::sort(m_allBatches.begin(), m_allBatches.end(), [](const BatchDrawData& a, const BatchDrawData& b) {
+        return a.parallaxDepth > b.parallaxDepth;
+    });
 }
 
 // Light management delegation
@@ -1085,22 +1167,57 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
         }
     }
 
-    // Phase 2: Draw sprite batches in parallax order (sorted by parallax depth)
-    // This draws all textured sprites in order regardless of pipeline
-    if (!m_spriteBatches.empty()) {
-        VkBuffer vertexBuffers[] = {m_spriteBuffer.vertexBuffer};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-
+    // Phase 2: Draw all batches (sprites and particles) in parallax order
+    // m_allBatches is pre-sorted by parallax depth (higher = background = drawn first)
+    if (!m_allBatches.empty()) {
         int currentPipelineId = -1;
+        bool currentIsParticle = false;
+        bool spriteBound = false;
+        bool particleBound = false;
 
-        for (const auto& batch : m_spriteBatches) {
+        for (const auto& batch : m_allBatches) {
             VkPipeline pipeline = m_pipelineManager.getPipeline(batch.pipelineId);
             const PipelineInfo* info = m_pipelineManager.getPipelineInfo(batch.pipelineId);
 
             if (pipeline == VK_NULL_HANDLE || info == nullptr) {
                 continue;
+            }
+
+            // Switch buffers if switching between sprite and particle batches
+            if (batch.isParticle != currentIsParticle) {
+                currentIsParticle = batch.isParticle;
+                currentPipelineId = -1;  // Force pipeline rebind
+
+                if (batch.isParticle) {
+                    VkBuffer vertexBuffers[] = {m_particleBuffer.vertexBuffer};
+                    VkDeviceSize offsets[] = {0};
+                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                    vkCmdBindIndexBuffer(commandBuffer, m_particleBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                    particleBound = true;
+                    spriteBound = false;
+                } else {
+                    VkBuffer vertexBuffers[] = {m_spriteBuffer.vertexBuffer};
+                    VkDeviceSize offsets[] = {0};
+                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                    vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                    spriteBound = true;
+                    particleBound = false;
+                }
+            }
+
+            // Ensure buffers are bound on first batch
+            if (!batch.isParticle && !spriteBound) {
+                VkBuffer vertexBuffers[] = {m_spriteBuffer.vertexBuffer};
+                VkDeviceSize offsets[] = {0};
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                spriteBound = true;
+            } else if (batch.isParticle && !particleBound) {
+                VkBuffer vertexBuffers[] = {m_particleBuffer.vertexBuffer};
+                VkDeviceSize offsets[] = {0};
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                vkCmdBindIndexBuffer(commandBuffer, m_particleBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                particleBound = true;
             }
 
             // Switch pipeline if needed
@@ -1128,69 +1245,47 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 }
             }
 
-            VkDescriptorSet descriptorSet = m_descriptorManager.getOrCreateDescriptorSet(
-                batch.descriptorId,
-                batch.textureId,
-                batch.normalMapId,
-                info->usesDualTexture
-            );
-
-            if (descriptorSet != VK_NULL_HANDLE) {
-                if (info->usesDualTexture) {
-                    VkDescriptorSet descriptorSets[] = {descriptorSet, m_descriptorManager.getLightDescriptorSet()};
-                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                          info->layout, 0, 2, descriptorSets, 0, nullptr);
-                } else {
+            if (batch.isParticle) {
+                // Particle batch - use single texture descriptor set
+                const auto& singleTexDescSets = m_descriptorManager.getSingleTextureDescriptorSets();
+                if (!singleTexDescSets.empty()) {
+                    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+                    auto it = singleTexDescSets.find(batch.textureId);
+                    if (it != singleTexDescSets.end()) {
+                        descriptorSet = it->second;
+                    }
+                    if (descriptorSet == VK_NULL_HANDLE) {
+                        descriptorSet = singleTexDescSets.begin()->second;
+                    }
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                           info->layout, 0, 1, &descriptorSet, 0, nullptr);
+                    vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
                 }
-                vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+            } else {
+                // Sprite batch
+                VkDescriptorSet descriptorSet = m_descriptorManager.getOrCreateDescriptorSet(
+                    batch.descriptorId,
+                    batch.textureId,
+                    batch.normalMapId,
+                    info->usesDualTexture
+                );
+
+                if (descriptorSet != VK_NULL_HANDLE) {
+                    if (info->usesDualTexture) {
+                        VkDescriptorSet descriptorSets[] = {descriptorSet, m_descriptorManager.getLightDescriptorSet()};
+                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                              info->layout, 0, 2, descriptorSets, 0, nullptr);
+                    } else {
+                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                              info->layout, 0, 1, &descriptorSet, 0, nullptr);
+                    }
+                    vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+                }
             }
         }
     }
 
-    // Phase 3: Draw particles
-    for (uint64_t pipelineId : pipelinesToDraw) {
-        if (m_pipelineManager.isDebugPipeline(pipelineId)) {
-            continue;
-        }
-
-        VkPipeline pipeline = m_pipelineManager.getPipeline(pipelineId);
-        const PipelineInfo* info = m_pipelineManager.getPipelineInfo(pipelineId);
-
-        if (pipeline != VK_NULL_HANDLE && info != nullptr && info->isParticlePipeline && m_particleBuffer.indexCount > 0) {
-            const auto& singleTexDescSets = m_descriptorManager.getSingleTextureDescriptorSets();
-            if (singleTexDescSets.empty()) {
-                continue;
-            }
-
-            vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
-
-            VkBuffer vertexBuffers[] = {m_particleBuffer.vertexBuffer};
-            VkDeviceSize offsets[] = {0};
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffer, m_particleBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
-            // Use the particle texture ID to find the correct descriptor set
-            VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
-            if (m_particleTextureId != 0) {
-                auto it = singleTexDescSets.find(m_particleTextureId);
-                if (it != singleTexDescSets.end()) {
-                    descriptorSet = it->second;
-                }
-            }
-            // Fallback to first descriptor set if particle texture not found
-            if (descriptorSet == VK_NULL_HANDLE) {
-                descriptorSet = singleTexDescSets.begin()->second;
-            }
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  info->layout, 0, 1, &descriptorSet, 0, nullptr);
-            vkCmdDrawIndexed(commandBuffer, m_particleBuffer.indexCount, 1, 0, 0, 0);
-        }
-    }
-
-    // Phase 4: Draw debug shader (always last)
+    // Phase 3: Draw debug shader (always last)
     for (uint64_t pipelineId : pipelinesToDraw) {
         if (!m_pipelineManager.isDebugPipeline(pipelineId)) {
             continue;

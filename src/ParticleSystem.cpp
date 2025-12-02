@@ -267,6 +267,13 @@ void ParticleSystemManager::setSystemEmissionRate(int systemId, float rate) {
     }
 }
 
+void ParticleSystemManager::setSystemParallaxDepth(int systemId, float depth) {
+    ParticleSystem* system = getSystem(systemId);
+    if (system) {
+        system->parallaxDepth = depth;
+    }
+}
+
 ParticleSystem* ParticleSystemManager::getSystem(int systemId) {
     for (int i = 0; i < systemCount_; ++i) {
         if (systemIds_[i] == systemId) {

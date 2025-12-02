@@ -139,6 +139,9 @@ struct ParticleSystem {
 
     // Pipeline ID for rendering
     int pipelineId;
+
+    // Parallax depth for draw ordering (0 = inline with sprites)
+    float parallaxDepth;
 };
 
 // Particle system manager - manages all active particle systems
@@ -159,6 +162,9 @@ public:
 
     // Update emission rate
     void setSystemEmissionRate(int systemId, float rate);
+
+    // Set parallax depth for draw ordering
+    void setSystemParallaxDepth(int systemId, float depth);
 
     // Update all particle systems
     void update(float deltaTime);

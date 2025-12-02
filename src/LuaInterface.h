@@ -173,6 +173,7 @@ private:
     static int destroyParticleSystem(lua_State* L);
     static int setParticleSystemPosition(lua_State* L);
     static int setParticleSystemEmissionRate(lua_State* L);
+    static int setParticleSystemParallaxDepth(lua_State* L);
     static int loadParticleShaders(lua_State* L);
 
     // Particle editor Lua bindings (DEBUG only)
