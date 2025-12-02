@@ -26,6 +26,8 @@ VulkanDescriptor::VulkanDescriptor() :
     m_dualTextureDescriptorSetLayout(VK_NULL_HANDLE),
     m_dualTextureDescriptorPool(VK_NULL_HANDLE),
     m_dualTexturePipelineLayout(VK_NULL_HANDLE),
+    m_animSingleTexturePipelineLayout(VK_NULL_HANDLE),
+    m_animDualTexturePipelineLayout(VK_NULL_HANDLE),
     m_lightDescriptorSetLayout(VK_NULL_HANDLE),
     m_lightDescriptorPool(VK_NULL_HANDLE),
     m_lightDescriptorSet(VK_NULL_HANDLE)
@@ -72,6 +74,14 @@ void VulkanDescriptor::cleanup() {
     if (m_lightDescriptorSetLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(m_device, m_lightDescriptorSetLayout, nullptr);
         m_lightDescriptorSetLayout = VK_NULL_HANDLE;
+    }
+    if (m_animSingleTexturePipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(m_device, m_animSingleTexturePipelineLayout, nullptr);
+        m_animSingleTexturePipelineLayout = VK_NULL_HANDLE;
+    }
+    if (m_animDualTexturePipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(m_device, m_animDualTexturePipelineLayout, nullptr);
+        m_animDualTexturePipelineLayout = VK_NULL_HANDLE;
     }
 
     m_singleTextureDescriptorSets.clear();
@@ -402,4 +412,48 @@ VkDescriptorSet VulkanDescriptor::getOrCreateDescriptorSet(uint64_t descriptorId
     }
 
     return VK_NULL_HANDLE;
+}
+
+void VulkanDescriptor::createAnimSingleTexturePipelineLayout() {
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    // Animation push constants: 6 base + 7 params + 22 animation = 35 floats = 140 bytes
+    pushConstantRange.size = sizeof(float) * 35;
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &m_singleTextureDescriptorSetLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+    VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_animSingleTexturePipelineLayout);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreatePipelineLayout (anim single texture) failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
+}
+
+void VulkanDescriptor::createAnimDualTexturePipelineLayout() {
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    // Animation push constants: 6 base + 7 params + 22 animation = 35 floats = 140 bytes
+    pushConstantRange.size = sizeof(float) * 35;
+
+    VkDescriptorSetLayout setLayouts[] = {m_dualTextureDescriptorSetLayout, m_lightDescriptorSetLayout};
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 2;
+    pipelineLayoutInfo.pSetLayouts = setLayouts;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+    VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_animDualTexturePipelineLayout);
+    if (result != VK_SUCCESS) {
+        std::cerr << "vkCreatePipelineLayout (anim dual texture) failed: " << vkResultToString(result) << std::endl;
+        assert(false);
+    }
 }

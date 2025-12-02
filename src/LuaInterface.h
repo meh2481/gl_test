@@ -119,12 +119,20 @@ private:
     static int setLayerParallaxDepth(lua_State* L);
     static int setLayerScale(lua_State* L);
 
+    // Layer animation Lua bindings
+    static int setLayerSpin(lua_State* L);
+    static int setLayerBlink(lua_State* L);
+    static int setLayerWave(lua_State* L);
+    static int setLayerColor(lua_State* L);
+    static int setLayerColorCycle(lua_State* L);
+
     // Texture loading
     static int loadTexture(lua_State* L);
     static int getTextureDimensions(lua_State* L);
     static int loadTexturedShaders(lua_State* L);
     static int loadTexturedShadersEx(lua_State* L);
     static int loadTexturedShadersAdditive(lua_State* L);
+    static int loadAnimTexturedShaders(lua_State* L);
     static int setShaderUniform3f(lua_State* L);
     static int setShaderParameters(lua_State* L);
 

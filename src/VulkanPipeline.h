@@ -17,6 +17,7 @@ struct PipelineInfo {
     VkDescriptorSetLayout descriptorSetLayout;
     bool usesDualTexture;  // true = 2 textures, false = 1 texture
     bool usesExtendedPushConstants;  // true = uses extended push constants with shader parameters
+    bool usesAnimationPushConstants;  // true = uses animation push constants (35 floats)
     bool isParticlePipeline;  // true = particle pipeline (uses vertex colors)
     std::set<uint64_t> descriptorIds;  // Which descriptor sets this pipeline uses
 };
@@ -43,6 +44,7 @@ public:
     void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool additive = true);
+    void createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
 
     // Pipeline access
     VkPipeline getPipeline(uint64_t id) const;

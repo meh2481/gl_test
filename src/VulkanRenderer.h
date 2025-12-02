@@ -26,6 +26,7 @@ public:
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
     void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
+    void createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool additive = true);
     void associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId);
     void setCurrentPipeline(uint64_t id);
@@ -117,6 +118,15 @@ private:
         uint32_t indexCount;
         uint32_t firstIndex;
         bool isParticle;  // true = particle batch, false = sprite batch
+
+        // Animation parameters
+        float spinSpeed;
+        float centerX, centerY;
+        float blinkSecondsOn, blinkSecondsOff, blinkRiseTime, blinkFallTime;
+        float waveWavelength, waveSpeed, waveAngle, waveAmplitude;
+        float colorR, colorG, colorB, colorA;
+        float colorEndR, colorEndG, colorEndB, colorEndA;
+        float colorCycleTime;
     };
     std::vector<BatchDrawData> m_spriteBatches;
     std::vector<BatchDrawData> m_particleBatches;

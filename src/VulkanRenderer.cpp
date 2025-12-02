@@ -130,6 +130,8 @@ void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     m_descriptorManager.createDualTexturePipelineLayout();
     m_descriptorManager.createDualTextureDescriptorPool();
     m_descriptorManager.createLightDescriptorPool();
+    m_descriptorManager.createAnimSingleTexturePipelineLayout();
+    m_descriptorManager.createAnimDualTexturePipelineLayout();
 
     // Create light uniform buffer and descriptor set
     m_lightManager.createLightUniformBuffer();
@@ -907,6 +909,10 @@ void VulkanRenderer::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     m_pipelineManager.createTexturedPipelineAdditive(id, vertShader, fragShader, numTextures);
 }
 
+void VulkanRenderer::createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
+    m_pipelineManager.createAnimTexturedPipeline(id, vertShader, fragShader, numTextures);
+}
+
 void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool additive) {
     m_pipelineManager.createParticlePipeline(id, vertShader, fragShader, additive);
 }
@@ -977,6 +983,28 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
         drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
         drawData.isParticle = false;
+
+        // Copy animation parameters
+        drawData.spinSpeed = batch.spinSpeed;
+        drawData.centerX = batch.centerX;
+        drawData.centerY = batch.centerY;
+        drawData.blinkSecondsOn = batch.blinkSecondsOn;
+        drawData.blinkSecondsOff = batch.blinkSecondsOff;
+        drawData.blinkRiseTime = batch.blinkRiseTime;
+        drawData.blinkFallTime = batch.blinkFallTime;
+        drawData.waveWavelength = batch.waveWavelength;
+        drawData.waveSpeed = batch.waveSpeed;
+        drawData.waveAngle = batch.waveAngle;
+        drawData.waveAmplitude = batch.waveAmplitude;
+        drawData.colorR = batch.colorR;
+        drawData.colorG = batch.colorG;
+        drawData.colorB = batch.colorB;
+        drawData.colorA = batch.colorA;
+        drawData.colorEndR = batch.colorEndR;
+        drawData.colorEndG = batch.colorEndG;
+        drawData.colorEndB = batch.colorEndB;
+        drawData.colorEndA = batch.colorEndA;
+        drawData.colorCycleTime = batch.colorCycleTime;
 
         for (const auto& v : batch.vertices) {
             allVertexData.push_back(v.x);
@@ -1213,25 +1241,61 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             if (batch.pipelineId != currentPipelineId) {
                 currentPipelineId = batch.pipelineId;
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+            }
 
-                // Set push constants for this pipeline
-                if (info->usesExtendedPushConstants) {
-                    const auto& params = m_pipelineManager.getShaderParams(batch.pipelineId);
+            // Set push constants for this batch
+            if (info->usesAnimationPushConstants) {
+                // Animation pipeline with extended push constants (35 floats)
+                const auto& params = m_pipelineManager.getShaderParams(batch.pipelineId);
 
-                    float extPushConstants[13] = {
-                        static_cast<float>(m_swapchainExtent.width),
-                        static_cast<float>(m_swapchainExtent.height),
-                        time,
-                        m_cameraOffsetX,
-                        m_cameraOffsetY,
-                        m_cameraZoom,
-                        params[0], params[1], params[2],
-                        params[3], params[4], params[5], params[6]
-                    };
-                    vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
-                } else {
-                    vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
-                }
+                float animPushConstants[35] = {
+                    static_cast<float>(m_swapchainExtent.width),
+                    static_cast<float>(m_swapchainExtent.height),
+                    time,
+                    m_cameraOffsetX,
+                    m_cameraOffsetY,
+                    m_cameraZoom,
+                    params[0], params[1], params[2],
+                    params[3], params[4], params[5], params[6],
+                    // Animation parameters
+                    batch.spinSpeed,
+                    batch.centerX,
+                    batch.centerY,
+                    batch.blinkSecondsOn,
+                    batch.blinkSecondsOff,
+                    batch.blinkRiseTime,
+                    batch.blinkFallTime,
+                    batch.waveWavelength,
+                    batch.waveSpeed,
+                    batch.waveAngle,
+                    batch.waveAmplitude,
+                    batch.colorR,
+                    batch.colorG,
+                    batch.colorB,
+                    batch.colorA,
+                    batch.colorEndR,
+                    batch.colorEndG,
+                    batch.colorEndB,
+                    batch.colorEndA,
+                    batch.colorCycleTime
+                };
+                vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(animPushConstants), animPushConstants);
+            } else if (info->usesExtendedPushConstants) {
+                const auto& params = m_pipelineManager.getShaderParams(batch.pipelineId);
+
+                float extPushConstants[13] = {
+                    static_cast<float>(m_swapchainExtent.width),
+                    static_cast<float>(m_swapchainExtent.height),
+                    time,
+                    m_cameraOffsetX,
+                    m_cameraOffsetY,
+                    m_cameraZoom,
+                    params[0], params[1], params[2],
+                    params[3], params[4], params[5], params[6]
+                };
+                vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
+            } else {
+                vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
             }
 
             if (batch.isParticle) {

@@ -1,0 +1,27 @@
+#version 450
+
+layout(location = 0) in vec2 fragTexCoord;
+layout(location = 1) in vec4 fragUVBounds;  // minX, minY, maxX, maxY
+layout(location = 2) in float fragBlinkAlpha;
+layout(location = 3) in vec4 fragColor;
+
+layout(location = 0) out vec4 outColor;
+
+layout(binding = 0) uniform sampler2D texSampler;
+
+void main() {
+    // Clamp texture coordinates to UV bounds to prevent MSAA bleeding
+    vec2 clampedUV = clamp(fragTexCoord, fragUVBounds.xy, fragUVBounds.zw);
+    vec4 texColor = texture(texSampler, clampedUV);
+
+    // Apply color modulation
+    vec4 color = texColor * fragColor;
+
+    // Apply blink alpha
+    color.a *= fragBlinkAlpha;
+
+    // Discard fully transparent fragments
+    if (color.a < 0.01) discard;
+
+    outColor = color;
+}

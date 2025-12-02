@@ -39,7 +39,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_newtable(luaState_);
 
     // Copy global functions and tables into the scene table
-    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexturedShadersAdditive", "loadTexture",
+    const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexturedShadersAdditive", "loadAnimTexturedShaders", "loadTexture",
                                      "getTextureDimensions",
                                      "setShaderUniform3f", "setShaderParameters",
                                      "pushScene", "popScene", "print",
@@ -54,6 +54,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "createForceField", "destroyForceField",
                                      "createRadialForceField", "destroyRadialForceField",
                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
+                                     "setLayerSpin", "setLayerBlink", "setLayerWave", "setLayerColor", "setLayerColorCycle",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
@@ -529,12 +530,20 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "setLayerParallaxDepth", setLayerParallaxDepth);
     lua_register(luaState_, "setLayerScale", setLayerScale);
 
+    // Register layer animation functions
+    lua_register(luaState_, "setLayerSpin", setLayerSpin);
+    lua_register(luaState_, "setLayerBlink", setLayerBlink);
+    lua_register(luaState_, "setLayerWave", setLayerWave);
+    lua_register(luaState_, "setLayerColor", setLayerColor);
+    lua_register(luaState_, "setLayerColorCycle", setLayerColorCycle);
+
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
     lua_register(luaState_, "getTextureDimensions", getTextureDimensions);
     lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
     lua_register(luaState_, "loadTexturedShadersEx", loadTexturedShadersEx);
     lua_register(luaState_, "loadTexturedShadersAdditive", loadTexturedShadersAdditive);
+    lua_register(luaState_, "loadAnimTexturedShaders", loadAnimTexturedShaders);
     lua_register(luaState_, "setShaderUniform3f", setShaderUniform3f);
     lua_register(luaState_, "setShaderParameters", setShaderParameters);
 
@@ -1867,6 +1876,125 @@ int LuaInterface::setLayerScale(lua_State* L) {
     return 0;
 }
 
+int LuaInterface::setLayerSpin(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), degreesPerSecond (number)
+    assert(lua_gettop(L) == 2);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float degreesPerSecond = (float)lua_tonumber(L, 2);
+
+    interface->layerManager_->setLayerSpin(layerId, degreesPerSecond);
+    return 0;
+}
+
+int LuaInterface::setLayerBlink(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), secondsOn, secondsOff, riseTime, fallTime
+    assert(lua_gettop(L) == 5);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+    assert(lua_isnumber(L, 5));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float secondsOn = (float)lua_tonumber(L, 2);
+    float secondsOff = (float)lua_tonumber(L, 3);
+    float riseTime = (float)lua_tonumber(L, 4);
+    float fallTime = (float)lua_tonumber(L, 5);
+
+    interface->layerManager_->setLayerBlink(layerId, secondsOn, secondsOff, riseTime, fallTime);
+    return 0;
+}
+
+int LuaInterface::setLayerWave(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), wavelength, speed, angle, amplitude
+    assert(lua_gettop(L) == 5);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+    assert(lua_isnumber(L, 5));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float wavelength = (float)lua_tonumber(L, 2);
+    float speed = (float)lua_tonumber(L, 3);
+    float angle = (float)lua_tonumber(L, 4);
+    float amplitude = (float)lua_tonumber(L, 5);
+
+    interface->layerManager_->setLayerWave(layerId, wavelength, speed, angle, amplitude);
+    return 0;
+}
+
+int LuaInterface::setLayerColor(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), r, g, b, a
+    assert(lua_gettop(L) == 5);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+    assert(lua_isnumber(L, 5));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float r = (float)lua_tonumber(L, 2);
+    float g = (float)lua_tonumber(L, 3);
+    float b = (float)lua_tonumber(L, 4);
+    float a = (float)lua_tonumber(L, 5);
+
+    interface->layerManager_->setLayerColor(layerId, r, g, b, a);
+    return 0;
+}
+
+int LuaInterface::setLayerColorCycle(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), r1, g1, b1, a1, r2, g2, b2, a2, cycleTime
+    assert(lua_gettop(L) == 10);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+    assert(lua_isnumber(L, 5));
+    assert(lua_isnumber(L, 6));
+    assert(lua_isnumber(L, 7));
+    assert(lua_isnumber(L, 8));
+    assert(lua_isnumber(L, 9));
+    assert(lua_isnumber(L, 10));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float r1 = (float)lua_tonumber(L, 2);
+    float g1 = (float)lua_tonumber(L, 3);
+    float b1 = (float)lua_tonumber(L, 4);
+    float a1 = (float)lua_tonumber(L, 5);
+    float r2 = (float)lua_tonumber(L, 6);
+    float g2 = (float)lua_tonumber(L, 7);
+    float b2 = (float)lua_tonumber(L, 8);
+    float a2 = (float)lua_tonumber(L, 9);
+    float cycleTime = (float)lua_tonumber(L, 10);
+
+    interface->layerManager_->setLayerColorCycle(layerId, r1, g1, b1, a1, r2, g2, b2, a2, cycleTime);
+    return 0;
+}
+
 int LuaInterface::loadTexture(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -2052,6 +2180,43 @@ int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
 
     // Create textured pipeline with additive blending
     interface->renderer_.createTexturedPipelineAdditive(pipelineId, vertShader, fragShader, numTextures);
+
+    // Return the pipeline ID so it can be used in createLayer
+    lua_pushinteger(L, pipelineId);
+    return 1;
+}
+
+int LuaInterface::loadAnimTexturedShaders(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), numTextures (integer)
+    assert(lua_gettop(L) == 4);
+    assert(lua_isstring(L, 1));
+    assert(lua_isstring(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+
+    const char* vertShaderName = lua_tostring(L, 1);
+    const char* fragShaderName = lua_tostring(L, 2);
+    int zIndex = (int)lua_tointeger(L, 3);
+    int numTextures = (int)lua_tointeger(L, 4);
+
+    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
+    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+
+    ResourceData vertShader = interface->pakResource_.getResource(vertId);
+    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+
+    assert(vertShader.data != nullptr);
+    assert(fragShader.data != nullptr);
+
+    int pipelineId = interface->pipelineIndex_++;
+    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+
+    // Create animated textured pipeline with extended push constants
+    interface->renderer_.createAnimTexturedPipeline(pipelineId, vertShader, fragShader, numTextures);
 
     // Return the pipeline ID so it can be used in createLayer
     lua_pushinteger(L, pipelineId);

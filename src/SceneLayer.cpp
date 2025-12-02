@@ -81,6 +81,28 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     layer.cachedAngle = 0.0f;
     layer.parallaxDepth = 0.0f;
 
+    // Initialize animation parameters to default (no animation)
+    layer.spinSpeed = 0.0f;
+    layer.blinkSecondsOn = 0.0f;
+    layer.blinkSecondsOff = 0.0f;
+    layer.blinkRiseTime = 0.0f;
+    layer.blinkFallTime = 0.0f;
+    layer.blinkPhase = 0.0f;
+    layer.waveWavelength = 0.0f;
+    layer.waveSpeed = 0.0f;
+    layer.waveAngle = 0.0f;
+    layer.waveAmplitude = 0.0f;
+    layer.colorR = 1.0f;
+    layer.colorG = 1.0f;
+    layer.colorB = 1.0f;
+    layer.colorA = 1.0f;
+    layer.colorEndR = 1.0f;
+    layer.colorEndG = 1.0f;
+    layer.colorEndB = 1.0f;
+    layer.colorEndA = 1.0f;
+    layer.colorCycleTime = 0.0f;
+    layer.colorPhase = 0.0f;
+
     layers_[layerId] = layer;
     return layerId;
 }
@@ -217,6 +239,66 @@ void SceneLayerManager::setLayerScale(int layerId, float scaleX, float scaleY) {
     }
 }
 
+void SceneLayerManager::setLayerSpin(int layerId, float degreesPerSecond) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.spinSpeed = degreesPerSecond;
+    }
+}
+
+void SceneLayerManager::setLayerBlink(int layerId, float secondsOn, float secondsOff, float riseTime, float fallTime) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.blinkSecondsOn = secondsOn;
+        it->second.blinkSecondsOff = secondsOff;
+        it->second.blinkRiseTime = riseTime;
+        it->second.blinkFallTime = fallTime;
+        it->second.blinkPhase = 0.0f;
+    }
+}
+
+void SceneLayerManager::setLayerWave(int layerId, float wavelength, float speed, float angle, float amplitude) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.waveWavelength = wavelength;
+        it->second.waveSpeed = speed;
+        it->second.waveAngle = angle;
+        it->second.waveAmplitude = amplitude;
+    }
+}
+
+void SceneLayerManager::setLayerColor(int layerId, float r, float g, float b, float a) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.colorR = r;
+        it->second.colorG = g;
+        it->second.colorB = b;
+        it->second.colorA = a;
+        it->second.colorEndR = r;
+        it->second.colorEndG = g;
+        it->second.colorEndB = b;
+        it->second.colorEndA = a;
+        it->second.colorCycleTime = 0.0f;
+    }
+}
+
+void SceneLayerManager::setLayerColorCycle(int layerId, float r1, float g1, float b1, float a1,
+                                           float r2, float g2, float b2, float a2, float cycleTime) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.colorR = r1;
+        it->second.colorG = g1;
+        it->second.colorB = b1;
+        it->second.colorA = a1;
+        it->second.colorEndR = r2;
+        it->second.colorEndG = g2;
+        it->second.colorEndB = b2;
+        it->second.colorEndA = a2;
+        it->second.colorCycleTime = cycleTime;
+        it->second.colorPhase = 0.0f;
+    }
+}
+
 void SceneLayerManager::clear() {
     layers_.clear();
 }
@@ -264,10 +346,19 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
         // Create batch key from pipeline ID, descriptor ID, and parallax depth
         BatchKey batchKey{layer.pipelineId, layer.descriptorId, layer.parallaxDepth};
 
+        // Check if layer has any animation effects enabled
+        bool hasAnimation = layer.spinSpeed != 0.0f ||
+                           layer.blinkSecondsOn > 0.0f ||
+                           layer.waveAmplitude != 0.0f ||
+                           layer.colorCycleTime > 0.0f ||
+                           layer.colorR != 1.0f || layer.colorG != 1.0f ||
+                           layer.colorB != 1.0f || layer.colorA != 1.0f;
+
         // Find or create batch for this key
         size_t batchIndex;
         auto batchIt = batchMap.find(batchKey);
-        if (batchIt == batchMap.end()) {
+        if (batchIt == batchMap.end() || hasAnimation) {
+            // Always create new batch for animated layers or if batch doesn't exist
             batchIndex = batches.size();
             batches.push_back(SpriteBatch());
             // Use atlas texture ID if available, otherwise original texture ID
@@ -276,7 +367,35 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             batches[batchIndex].descriptorId = layer.descriptorId;
             batches[batchIndex].pipelineId = layer.pipelineId;
             batches[batchIndex].parallaxDepth = layer.parallaxDepth;
-            batchMap[batchKey] = batchIndex;
+
+            // Copy animation parameters
+            batches[batchIndex].spinSpeed = layer.spinSpeed;
+            batches[batchIndex].blinkSecondsOn = layer.blinkSecondsOn;
+            batches[batchIndex].blinkSecondsOff = layer.blinkSecondsOff;
+            batches[batchIndex].blinkRiseTime = layer.blinkRiseTime;
+            batches[batchIndex].blinkFallTime = layer.blinkFallTime;
+            batches[batchIndex].blinkPhase = layer.blinkPhase;
+            batches[batchIndex].waveWavelength = layer.waveWavelength;
+            batches[batchIndex].waveSpeed = layer.waveSpeed;
+            batches[batchIndex].waveAngle = layer.waveAngle;
+            batches[batchIndex].waveAmplitude = layer.waveAmplitude;
+            batches[batchIndex].colorR = layer.colorR;
+            batches[batchIndex].colorG = layer.colorG;
+            batches[batchIndex].colorB = layer.colorB;
+            batches[batchIndex].colorA = layer.colorA;
+            batches[batchIndex].colorEndR = layer.colorEndR;
+            batches[batchIndex].colorEndG = layer.colorEndG;
+            batches[batchIndex].colorEndB = layer.colorEndB;
+            batches[batchIndex].colorEndA = layer.colorEndA;
+            batches[batchIndex].colorCycleTime = layer.colorCycleTime;
+            batches[batchIndex].colorPhase = layer.colorPhase;
+            batches[batchIndex].centerX = layer.cachedX;
+            batches[batchIndex].centerY = layer.cachedY;
+
+            // Only add to batch map if not animated (animated layers always get unique batches)
+            if (!hasAnimation) {
+                batchMap[batchKey] = batchIndex;
+            }
         } else {
             batchIndex = batchIt->second;
         }

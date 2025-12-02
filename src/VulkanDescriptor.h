@@ -29,6 +29,8 @@ public:
     // Pipeline layout management
     VkPipelineLayout getSingleTexturePipelineLayout() const { return m_singleTexturePipelineLayout; }
     VkPipelineLayout getDualTexturePipelineLayout() const { return m_dualTexturePipelineLayout; }
+    VkPipelineLayout getAnimSingleTexturePipelineLayout() const { return m_animSingleTexturePipelineLayout; }
+    VkPipelineLayout getAnimDualTexturePipelineLayout() const { return m_animDualTexturePipelineLayout; }
 
     // Create layouts and pools
     void createSingleTextureDescriptorSetLayout();
@@ -39,6 +41,8 @@ public:
     void createDualTextureDescriptorPool();
     void createLightDescriptorSetLayout();
     void createLightDescriptorPool();
+    void createAnimSingleTexturePipelineLayout();
+    void createAnimDualTexturePipelineLayout();
 
     // Create descriptor sets
     void createSingleTextureDescriptorSet(uint64_t textureId, VkImageView imageView, VkSampler sampler);
@@ -83,6 +87,10 @@ private:
     VkDescriptorPool m_dualTextureDescriptorPool;
     std::map<uint64_t, VkDescriptorSet> m_dualTextureDescriptorSets;
     VkPipelineLayout m_dualTexturePipelineLayout;
+
+    // Animation pipeline layouts (extended push constants)
+    VkPipelineLayout m_animSingleTexturePipelineLayout;
+    VkPipelineLayout m_animDualTexturePipelineLayout;
 
     // Light descriptors
     VkDescriptorSetLayout m_lightDescriptorSetLayout;

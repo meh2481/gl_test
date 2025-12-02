@@ -24,6 +24,23 @@ struct SpriteBatch {
     float parallaxDepth;     // Parallax depth for sorting (lower = background, higher = foreground)
     std::vector<SpriteVertex> vertices;
     std::vector<uint16_t> indices;
+
+    // Animation parameters for this batch
+    float spinSpeed;         // Degrees per second
+    float blinkSecondsOn;
+    float blinkSecondsOff;
+    float blinkRiseTime;
+    float blinkFallTime;
+    float blinkPhase;
+    float waveWavelength;
+    float waveSpeed;
+    float waveAngle;
+    float waveAmplitude;
+    float colorR, colorG, colorB, colorA;
+    float colorEndR, colorEndG, colorEndB, colorEndA;
+    float colorCycleTime;
+    float colorPhase;
+    float centerX, centerY;  // Center point for spin rotation
 };
 
 // Particle vertex structure with position, texture coordinates, and color
@@ -86,6 +103,29 @@ struct SceneLayer {
 
     // Parallax depth for layers without physics bodies
     float parallaxDepth;
+
+    // Animation parameters
+    // Spin: rotation speed in degrees per second
+    float spinSpeed;
+
+    // Blink: visibility animation
+    float blinkSecondsOn;
+    float blinkSecondsOff;
+    float blinkRiseTime;
+    float blinkFallTime;
+    float blinkPhase;  // Current phase offset in seconds
+
+    // Wave: sine wave displacement
+    float waveWavelength;
+    float waveSpeed;
+    float waveAngle;
+    float waveAmplitude;
+
+    // Color: animated color modulation
+    float colorR, colorG, colorB, colorA;
+    float colorEndR, colorEndG, colorEndB, colorEndA;
+    float colorCycleTime;
+    float colorPhase;
 };
 
 // Manager for scene layers
@@ -134,6 +174,13 @@ public:
 
     // Set scale for a layer
     void setLayerScale(int layerId, float scaleX, float scaleY);
+
+    // Animation effect setters
+    void setLayerSpin(int layerId, float degreesPerSecond);
+    void setLayerBlink(int layerId, float secondsOn, float secondsOff, float riseTime, float fallTime);
+    void setLayerWave(int layerId, float wavelength, float speed, float angle, float amplitude);
+    void setLayerColor(int layerId, float r, float g, float b, float a);
+    void setLayerColorCycle(int layerId, float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float cycleTime);
 
     // Update layer vertices with camera info for parallax calculation
     void updateLayerVertices(std::vector<SpriteBatch>& batches, float cameraX, float cameraY, float cameraZoom);
