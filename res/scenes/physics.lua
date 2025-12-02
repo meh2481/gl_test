@@ -4,8 +4,6 @@
 -- Scene-level state (non-object things)
 objects = {}
 debugDrawEnabled = true
-forceFieldId = nil
-radialForceFieldId = nil
 
 -- Mouse drag state
 mouseJointId = nil
@@ -31,17 +29,15 @@ function init()
     -- Create static boundaries
     createBoundaries()
 
-    -- Create a force field that pushes objects upward
+    -- Create force fields
     local fieldVertices = {
         -0.3, -0.9,   -- bottom-left
          0.3, -0.9,   -- bottom-right
          0.3,  0.0,   -- top-right
         -0.3,  0.0    -- top-left
     }
-    forceFieldId = createForceField(fieldVertices, 0.0, 15.0)
-
-    -- Create a radial force field that repels objects from the center
-    radialForceFieldId = createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
+    createForceField(fieldVertices, 0.0, 15.0)
+    createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 
     -- Load objects
     table.insert(objects, loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.7 }))
