@@ -1267,10 +1267,10 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 
             // Set push constants for this batch
             if (info->usesAnimationPushConstants) {
-                // Animation pipeline with extended push constants (35 floats)
+                // Animation pipeline with extended push constants (33 floats)
                 const auto& params = m_pipelineManager.getShaderParams(batch.pipelineId);
 
-                float animPushConstants[35] = {
+                float animPushConstants[33] = {
                     static_cast<float>(m_swapchainExtent.width),
                     static_cast<float>(m_swapchainExtent.height),
                     time,
