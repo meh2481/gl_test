@@ -327,7 +327,7 @@ int main() {
                 sceneManager.handleAction(ACTION_DRAG_END);
             }
             // Handle middle mouse button press for pan
-            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_MIDDLE) {
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_RIGHT) {
                 int windowWidth, windowHeight;
                 float worldX, worldY;
                 SDL_GetWindowSize(window, &windowWidth, &windowHeight);
@@ -343,7 +343,7 @@ int main() {
                 sceneManager.handleAction(ACTION_PAN_START);
             }
             // Handle middle mouse button release for pan
-            if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_MIDDLE) {
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_RIGHT) {
                 isPanning = false;
                 sceneManager.handleAction(ACTION_PAN_END);
             }

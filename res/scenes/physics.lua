@@ -28,7 +28,7 @@ function init()
     foregroundTexId = loadTexture("res/textures/rock1.png")
     foregroundLayerId = createLayer(foregroundTexId, 0.5, foregroundShaderId)
     setLayerPosition(foregroundLayerId, 0.3, -0.2)
-    setLayerParallaxDepth(foregroundLayerId, -3.0)  -- Strong negative depth = foreground parallax
+    setLayerParallaxDepth(foregroundLayerId, -300.0)  -- Strong negative depth = foreground parallax
 
     -- Set up the multi-light system
     clearLights()
