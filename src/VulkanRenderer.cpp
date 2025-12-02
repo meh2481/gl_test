@@ -1052,142 +1052,168 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 
     const auto& pipelinesToDraw = m_pipelineManager.getPipelinesToDraw();
 
+    // Phase 1: Draw background shaders (non-textured pipelines like nebula)
     for (uint64_t pipelineId : pipelinesToDraw) {
-        bool isDebug = m_pipelineManager.isDebugPipeline(pipelineId);
+        if (m_pipelineManager.isDebugPipeline(pipelineId)) {
+            continue; // Skip debug, draw last
+        }
 
-        if (isDebug) {
+        VkPipeline pipeline = m_pipelineManager.getPipeline(pipelineId);
+        const PipelineInfo* info = m_pipelineManager.getPipelineInfo(pipelineId);
+
+        // Non-textured pipeline (e.g., background shaders)
+        if (pipeline != VK_NULL_HANDLE && info == nullptr) {
+            float parallaxDepth = m_pipelineManager.getPipelineParallaxDepth(static_cast<int>(pipelineId));
+
+            float pipelinePushConstants[7] = {
+                static_cast<float>(m_swapchainExtent.width),
+                static_cast<float>(m_swapchainExtent.height),
+                time,
+                m_cameraOffsetX,
+                m_cameraOffsetY,
+                m_cameraZoom,
+                parallaxDepth
+            };
             vkCmdPushConstants(commandBuffer, m_pipelineManager.getBasePipelineLayout(),
-                              VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
+                              VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pipelinePushConstants), pipelinePushConstants);
 
-            // Draw triangles first
-            if (m_debugTriangleBuffer.count > 0 && m_pipelineManager.getDebugTrianglePipeline() != VK_NULL_HANDLE) {
-                VkBuffer debugBuffers[] = {m_debugTriangleBuffer.buffer};
-                VkDeviceSize offsets[] = {0};
-                vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getDebugTrianglePipeline());
-                vkCmdDraw(commandBuffer, m_debugTriangleBuffer.count, 1, 0, 0);
+            VkBuffer vertexBuffers[] = {m_vertexBuffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+            vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+        }
+    }
+
+    // Phase 2: Draw sprite batches in parallax order (sorted by parallax depth)
+    // This draws all textured sprites in order regardless of pipeline
+    if (!m_spriteBatches.empty()) {
+        VkBuffer vertexBuffers[] = {m_spriteBuffer.vertexBuffer};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+        int currentPipelineId = -1;
+
+        for (const auto& batch : m_spriteBatches) {
+            VkPipeline pipeline = m_pipelineManager.getPipeline(batch.pipelineId);
+            const PipelineInfo* info = m_pipelineManager.getPipelineInfo(batch.pipelineId);
+
+            if (pipeline == VK_NULL_HANDLE || info == nullptr) {
+                continue;
             }
-            // Then draw lines
-            if (m_debugLineBuffer.count > 0 && m_pipelineManager.getDebugLinePipeline() != VK_NULL_HANDLE) {
-                VkBuffer debugBuffers[] = {m_debugLineBuffer.buffer};
-                VkDeviceSize offsets[] = {0};
-                vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getDebugLinePipeline());
-                vkCmdDraw(commandBuffer, m_debugLineBuffer.count, 1, 0, 0);
-            }
-        } else {
-            VkPipeline pipeline = m_pipelineManager.getPipeline(pipelineId);
-            const PipelineInfo* info = m_pipelineManager.getPipelineInfo(pipelineId);
 
-            if (pipeline != VK_NULL_HANDLE && info != nullptr) {
-                // Check if this is a particle pipeline
-                if (info->isParticlePipeline && m_particleBuffer.indexCount > 0) {
-                    const auto& singleTexDescSets = m_descriptorManager.getSingleTextureDescriptorSets();
-                    if (singleTexDescSets.empty()) {
-                        continue;
-                    }
+            // Switch pipeline if needed
+            if (batch.pipelineId != currentPipelineId) {
+                currentPipelineId = batch.pipelineId;
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
+                // Set push constants for this pipeline
+                if (info->usesExtendedPushConstants) {
+                    const auto& params = m_pipelineManager.getShaderParams(batch.pipelineId);
+
+                    float extPushConstants[13] = {
+                        static_cast<float>(m_swapchainExtent.width),
+                        static_cast<float>(m_swapchainExtent.height),
+                        time,
+                        m_cameraOffsetX,
+                        m_cameraOffsetY,
+                        m_cameraZoom,
+                        params[0], params[1], params[2],
+                        params[3], params[4], params[5], params[6]
+                    };
+                    vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
+                } else {
                     vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
+                }
+            }
 
-                    VkBuffer vertexBuffers[] = {m_particleBuffer.vertexBuffer};
-                    VkDeviceSize offsets[] = {0};
-                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                    vkCmdBindIndexBuffer(commandBuffer, m_particleBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+            VkDescriptorSet descriptorSet = m_descriptorManager.getOrCreateDescriptorSet(
+                batch.descriptorId,
+                batch.textureId,
+                batch.normalMapId,
+                info->usesDualTexture
+            );
 
-                    // Use the particle texture ID to find the correct descriptor set
-                    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
-                    if (m_particleTextureId != 0) {
-                        auto it = singleTexDescSets.find(m_particleTextureId);
-                        if (it != singleTexDescSets.end()) {
-                            descriptorSet = it->second;
-                        }
-                    }
-                    // Fallback to first descriptor set if particle texture not found
-                    if (descriptorSet == VK_NULL_HANDLE) {
-                        descriptorSet = singleTexDescSets.begin()->second;
-                    }
+            if (descriptorSet != VK_NULL_HANDLE) {
+                if (info->usesDualTexture) {
+                    VkDescriptorSet descriptorSets[] = {descriptorSet, m_descriptorManager.getLightDescriptorSet()};
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                          info->layout, 0, 2, descriptorSets, 0, nullptr);
+                } else {
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                           info->layout, 0, 1, &descriptorSet, 0, nullptr);
-                    vkCmdDrawIndexed(commandBuffer, m_particleBuffer.indexCount, 1, 0, 0, 0);
-                } else if (!m_spriteBatches.empty()) {
-                    // Textured sprite pipeline rendering
-                    if (info->usesExtendedPushConstants) {
-                        const auto& params = m_pipelineManager.getShaderParams(pipelineId);
-
-                        float extPushConstants[13] = {
-                            static_cast<float>(m_swapchainExtent.width),
-                            static_cast<float>(m_swapchainExtent.height),
-                            time,
-                            m_cameraOffsetX,
-                            m_cameraOffsetY,
-                            m_cameraZoom,
-                            params[0], params[1], params[2],
-                            params[3], params[4], params[5], params[6]
-                        };
-                        vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
-                    } else {
-                        vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
-                    }
-
-                    VkBuffer vertexBuffers[] = {m_spriteBuffer.vertexBuffer};
-                    VkDeviceSize offsets[] = {0};
-                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                    vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
-                    for (const auto& batch : m_spriteBatches) {
-                        if (batch.pipelineId != -1 && batch.pipelineId != static_cast<int>(pipelineId)) {
-                            continue;
-                        }
-
-                        if (batch.pipelineId == -1 && !info->descriptorIds.empty() &&
-                            info->descriptorIds.find(batch.descriptorId) == info->descriptorIds.end()) {
-                            continue;
-                        }
-
-                        VkDescriptorSet descriptorSet = m_descriptorManager.getOrCreateDescriptorSet(
-                            batch.descriptorId,
-                            batch.textureId,
-                            batch.normalMapId,
-                            info->usesDualTexture
-                        );
-
-                        if (descriptorSet != VK_NULL_HANDLE) {
-                            if (info->usesDualTexture) {
-                                VkDescriptorSet descriptorSets[] = {descriptorSet, m_descriptorManager.getLightDescriptorSet()};
-                                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                                      info->layout, 0, 2, descriptorSets, 0, nullptr);
-                            } else {
-                                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                                      info->layout, 0, 1, &descriptorSet, 0, nullptr);
-                            }
-                            vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
-                        }
-                    }
                 }
-            } else if (pipeline != VK_NULL_HANDLE) {
-                // Non-textured pipeline (e.g., background shaders)
-                float parallaxDepth = m_pipelineManager.getPipelineParallaxDepth(static_cast<int>(pipelineId));
-
-                float pipelinePushConstants[7] = {
-                    static_cast<float>(m_swapchainExtent.width),
-                    static_cast<float>(m_swapchainExtent.height),
-                    time,
-                    m_cameraOffsetX,
-                    m_cameraOffsetY,
-                    m_cameraZoom,
-                    parallaxDepth
-                };
-                vkCmdPushConstants(commandBuffer, m_pipelineManager.getBasePipelineLayout(),
-                                  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pipelinePushConstants), pipelinePushConstants);
-
-                VkBuffer vertexBuffers[] = {m_vertexBuffer};
-                VkDeviceSize offsets[] = {0};
-                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-                vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+                vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
             }
+        }
+    }
+
+    // Phase 3: Draw particles
+    for (uint64_t pipelineId : pipelinesToDraw) {
+        if (m_pipelineManager.isDebugPipeline(pipelineId)) {
+            continue;
+        }
+
+        VkPipeline pipeline = m_pipelineManager.getPipeline(pipelineId);
+        const PipelineInfo* info = m_pipelineManager.getPipelineInfo(pipelineId);
+
+        if (pipeline != VK_NULL_HANDLE && info != nullptr && info->isParticlePipeline && m_particleBuffer.indexCount > 0) {
+            const auto& singleTexDescSets = m_descriptorManager.getSingleTextureDescriptorSets();
+            if (singleTexDescSets.empty()) {
+                continue;
+            }
+
+            vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
+
+            VkBuffer vertexBuffers[] = {m_particleBuffer.vertexBuffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, m_particleBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+            // Use the particle texture ID to find the correct descriptor set
+            VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+            if (m_particleTextureId != 0) {
+                auto it = singleTexDescSets.find(m_particleTextureId);
+                if (it != singleTexDescSets.end()) {
+                    descriptorSet = it->second;
+                }
+            }
+            // Fallback to first descriptor set if particle texture not found
+            if (descriptorSet == VK_NULL_HANDLE) {
+                descriptorSet = singleTexDescSets.begin()->second;
+            }
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  info->layout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdDrawIndexed(commandBuffer, m_particleBuffer.indexCount, 1, 0, 0, 0);
+        }
+    }
+
+    // Phase 4: Draw debug shader (always last)
+    for (uint64_t pipelineId : pipelinesToDraw) {
+        if (!m_pipelineManager.isDebugPipeline(pipelineId)) {
+            continue;
+        }
+
+        vkCmdPushConstants(commandBuffer, m_pipelineManager.getBasePipelineLayout(),
+                          VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstants), pushConstants);
+
+        // Draw triangles first
+        if (m_debugTriangleBuffer.count > 0 && m_pipelineManager.getDebugTrianglePipeline() != VK_NULL_HANDLE) {
+            VkBuffer debugBuffers[] = {m_debugTriangleBuffer.buffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getDebugTrianglePipeline());
+            vkCmdDraw(commandBuffer, m_debugTriangleBuffer.count, 1, 0, 0);
+        }
+        // Then draw lines
+        if (m_debugLineBuffer.count > 0 && m_pipelineManager.getDebugLinePipeline() != VK_NULL_HANDLE) {
+            VkBuffer debugBuffers[] = {m_debugLineBuffer.buffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getDebugLinePipeline());
+            vkCmdDraw(commandBuffer, m_debugLineBuffer.count, 1, 0, 0);
         }
     }
 
