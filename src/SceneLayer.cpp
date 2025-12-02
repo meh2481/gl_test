@@ -225,7 +225,8 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             continue;
         }
         // Skip layers without physics bodies unless they have parallax depth (static layers)
-        if (layer.physicsBodyId < 0 && layer.parallaxDepth == 0.0f) {
+        const float PARALLAX_EPSILON = 0.001f;
+        if (layer.physicsBodyId < 0 && std::abs(layer.parallaxDepth) < PARALLAX_EPSILON) {
             continue;
         }
 
@@ -255,7 +256,7 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
         float angle = layer.cachedAngle;
 
         // Apply parallax offset for layers without physics bodies
-        if (layer.physicsBodyId < 0 && layer.parallaxDepth != 0.0f) {
+        if (layer.physicsBodyId < 0 && std::abs(layer.parallaxDepth) >= PARALLAX_EPSILON) {
             // Parallax factor: depth / (1.0 + abs(depth))
             // depth < 0: foreground, moves faster (appears closer)
             // depth > 0: background, moves slower (appears farther)
