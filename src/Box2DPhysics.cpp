@@ -1350,6 +1350,9 @@ void Box2DPhysics::applyForceFields() {
         auto bodyIt = bodies_.find(field.bodyId);
         b2BodyId forceFieldBodyId = (bodyIt != bodies_.end()) ? bodyIt->second : b2_nullBodyId;
 
+        // Get the force field's AABB for intersection calculation
+        b2AABB fieldAABB = b2Shape_GetAABB(field.shapeId);
+
         // Get overlapping shapes (capped at MAX_FORCE_FIELD_OVERLAPS)
         int overlapCount = b2Shape_GetSensorOverlaps(field.shapeId, overlaps, MAX_FORCE_FIELD_OVERLAPS);
 
@@ -1373,12 +1376,25 @@ void Box2DPhysics::applyForceFields() {
             // Only apply force to dynamic bodies
             b2BodyType bodyType = b2Body_GetType(overlappingBodyId);
             if (bodyType == b2_dynamicBody) {
-                // Apply acceleration directly to velocity (a = F/m, but we want constant a)
-                // v_new = v_old + a * dt
-                b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
-                vel.x += field.forceX * fixedTimestep_;
-                vel.y += field.forceY * fixedTimestep_;
-                b2Body_SetLinearVelocity(overlappingBodyId, vel);
+                // Get the overlapping shape's AABB
+                b2AABB shapeAABB = b2Shape_GetAABB(overlaps[i]);
+
+                // Calculate intersection of the two AABBs
+                b2AABB intersection;
+                intersection.lowerBound.x = (fieldAABB.lowerBound.x > shapeAABB.lowerBound.x) ? fieldAABB.lowerBound.x : shapeAABB.lowerBound.x;
+                intersection.lowerBound.y = (fieldAABB.lowerBound.y > shapeAABB.lowerBound.y) ? fieldAABB.lowerBound.y : shapeAABB.lowerBound.y;
+                intersection.upperBound.x = (fieldAABB.upperBound.x < shapeAABB.upperBound.x) ? fieldAABB.upperBound.x : shapeAABB.upperBound.x;
+                intersection.upperBound.y = (fieldAABB.upperBound.y < shapeAABB.upperBound.y) ? fieldAABB.upperBound.y : shapeAABB.upperBound.y;
+
+                // Calculate centroid of the intersection
+                b2Vec2 applicationPoint = b2AABB_Center(intersection);
+
+                // Apply force proportional to mass (like gravity: F = m * a)
+                float mass = b2Body_GetMass(overlappingBodyId);
+                b2Vec2 force = {field.forceX * mass, field.forceY * mass};
+
+                // Apply force at the overlap centroid (may cause torque if not at center of mass)
+                b2Body_ApplyForce(overlappingBodyId, force, applicationPoint, true);
 
                 // Track this body as processed
                 if (processedCount < MAX_FORCE_FIELD_OVERLAPS) {
