@@ -21,6 +21,7 @@ struct SpriteBatch {
     uint64_t normalMapId;    // Normal map texture ID (0 if none)
     uint64_t descriptorId;   // Descriptor set ID to use for this batch
     int pipelineId;          // Pipeline ID to use for this batch
+    float parallaxDepth;     // Parallax depth for sorting (lower = background, higher = foreground)
     std::vector<SpriteVertex> vertices;
     std::vector<uint16_t> indices;
 };

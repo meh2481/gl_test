@@ -209,7 +209,23 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             }
         }
 
-        renderer_.setParticleDrawData(particleVertexData, particleIndices);
+        // Determine the particle texture atlas ID
+        uint64_t particleTextureId = 0;
+        for (int i = 0; i < particleManager.getSystemCount(); ++i) {
+            ParticleSystem* system = &particleManager.getSystems()[i];
+            if (system && system->config.textureCount > 0) {
+                // Get atlas ID from the first particle texture
+                AtlasUV atlasUV;
+                if (pakResource_.getAtlasUV(system->config.textureIds[0], atlasUV)) {
+                    particleTextureId = atlasUV.atlasId;
+                } else {
+                    particleTextureId = system->config.textureIds[0];
+                }
+                break;
+            }
+        }
+
+        renderer_.setParticleDrawData(particleVertexData, particleIndices, particleTextureId);
 
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {

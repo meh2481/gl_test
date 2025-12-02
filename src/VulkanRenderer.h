@@ -34,7 +34,7 @@ public:
     void setDebugTriangleDrawData(const std::vector<float>& vertexData);
     void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
     void setSpriteBatches(const std::vector<SpriteBatch>& batches);
-    void setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
+    void setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices, uint64_t textureId = 0);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);
     void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
@@ -115,6 +115,9 @@ private:
         uint32_t firstIndex;
     };
     std::vector<BatchDrawData> m_spriteBatches;
+
+    // Particle texture ID for rendering
+    uint64_t m_particleTextureId;
 
     // Camera transform
     float m_cameraOffsetX;

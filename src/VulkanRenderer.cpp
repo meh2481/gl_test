@@ -69,6 +69,7 @@ VulkanRenderer::VulkanRenderer() :
     m_commandBuffers(nullptr),
     m_vertexBuffer(VK_NULL_HANDLE),
     m_vertexBufferMemory(VK_NULL_HANDLE),
+    m_particleTextureId(0),
     m_cameraOffsetX(0.0f),
     m_cameraOffsetY(0.0f),
     m_cameraZoom(1.0f),
@@ -946,8 +947,9 @@ void VulkanRenderer::setSpriteDrawData(const std::vector<float>& vertexData, con
     m_bufferManager.updateIndexedBuffer(m_spriteBuffer, vertexData, indices, 6);
 }
 
-void VulkanRenderer::setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices) {
+void VulkanRenderer::setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices, uint64_t textureId) {
     m_bufferManager.updateIndexedBuffer(m_particleBuffer, vertexData, indices, 8);
+    m_particleTextureId = textureId;
 }
 
 void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
@@ -1093,7 +1095,18 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     vkCmdBindIndexBuffer(commandBuffer, m_particleBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
                     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-                    VkDescriptorSet descriptorSet = singleTexDescSets.begin()->second;
+                    // Use the particle texture ID to find the correct descriptor set
+                    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+                    if (m_particleTextureId != 0) {
+                        auto it = singleTexDescSets.find(m_particleTextureId);
+                        if (it != singleTexDescSets.end()) {
+                            descriptorSet = it->second;
+                        }
+                    }
+                    // Fallback to first descriptor set if particle texture not found
+                    if (descriptorSet == VK_NULL_HANDLE) {
+                        descriptorSet = singleTexDescSets.begin()->second;
+                    }
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                           info->layout, 0, 1, &descriptorSet, 0, nullptr);
                     vkCmdDrawIndexed(commandBuffer, m_particleBuffer.indexCount, 1, 0, 0, 0);

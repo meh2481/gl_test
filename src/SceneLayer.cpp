@@ -211,10 +211,29 @@ void SceneLayerManager::clear() {
 void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, float cameraX, float cameraY, float cameraZoom) {
     batches.clear();
 
-    // Group layers by pipeline ID first, then by descriptor ID
-    // Use a pair<pipelineId, descriptorId> as the batch map key
+    // Group layers by pipeline ID, descriptor ID, AND parallax depth
+    // Use a tuple<pipelineId, descriptorId, parallaxDepth> as the batch map key
     // Map to batch index instead of pointer to avoid invalidation during sorting
-    std::unordered_map<std::pair<int, uint64_t>, size_t, PairHash> batchMap;
+    struct BatchKey {
+        int pipelineId;
+        uint64_t descriptorId;
+        float parallaxDepth;
+
+        bool operator==(const BatchKey& other) const {
+            return pipelineId == other.pipelineId &&
+                   descriptorId == other.descriptorId &&
+                   std::abs(parallaxDepth - other.parallaxDepth) < 0.001f;
+        }
+    };
+    struct BatchKeyHash {
+        std::size_t operator()(const BatchKey& k) const {
+            auto h1 = std::hash<int>{}(k.pipelineId);
+            auto h2 = std::hash<uint64_t>{}(k.descriptorId);
+            auto h3 = std::hash<int>{}(static_cast<int>(k.parallaxDepth * 1000));
+            return h1 ^ (h2 << 1) ^ (h3 << 2);
+        }
+    };
+    std::unordered_map<BatchKey, size_t, BatchKeyHash> batchMap;
 
     for (const auto& pair : layers_) {
         const SceneLayer& layer = pair.second;
@@ -230,8 +249,8 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             continue;
         }
 
-        // Create batch key from pipeline ID and descriptor ID
-        auto batchKey = std::make_pair(layer.pipelineId, layer.descriptorId);
+        // Create batch key from pipeline ID, descriptor ID, and parallax depth
+        BatchKey batchKey{layer.pipelineId, layer.descriptorId, layer.parallaxDepth};
 
         // Find or create batch for this key
         size_t batchIndex;
@@ -244,6 +263,7 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             batches[batchIndex].normalMapId = layer.normalMapUV.isAtlas ? layer.atlasNormalMapId : layer.normalMapId;
             batches[batchIndex].descriptorId = layer.descriptorId;
             batches[batchIndex].pipelineId = layer.pipelineId;
+            batches[batchIndex].parallaxDepth = layer.parallaxDepth;
             batchMap[batchKey] = batchIndex;
         } else {
             batchIndex = batchIt->second;
@@ -254,6 +274,21 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
         float centerX = layer.cachedX;
         float centerY = layer.cachedY;
         float angle = layer.cachedAngle;
+
+        // Calculate scale factor for parallax effect
+        // Negative parallax (foreground) = larger scale (closer)
+        // Positive parallax (background) = smaller scale (farther)
+        // Zero parallax = normal scale (1.0)
+        float scaleFactor = 1.0f;
+        if (std::abs(layer.parallaxDepth) >= PARALLAX_EPSILON) {
+            // Scale factor: 1 + (-depth * 0.2)
+            // depth = -3 -> scale = 1 + 0.6 = 1.6 (foreground, larger)
+            // depth = 0 -> scale = 1.0 (normal)
+            // depth = 3 -> scale = 1 - 0.6 = 0.4 (background, smaller)
+            scaleFactor = 1.0f + (-layer.parallaxDepth * 0.2f);
+            if (scaleFactor < 0.1f) scaleFactor = 0.1f; // Minimum scale
+            if (scaleFactor > 5.0f) scaleFactor = 5.0f; // Maximum scale
+        }
 
         // Apply parallax offset for layers without physics bodies
         if (layer.physicsBodyId < 0 && std::abs(layer.parallaxDepth) >= PARALLAX_EPSILON) {
@@ -333,9 +368,9 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             }
         } else {
             // Standard quad rendering
-            // Calculate half-extents
-            float hw = layer.width * 0.5f;
-            float hh = layer.height * 0.5f;
+            // Calculate half-extents with scale factor applied
+            float hw = layer.width * 0.5f * scaleFactor;
+            float hh = layer.height * 0.5f * scaleFactor;
 
             // Create quad vertices (4 vertices for a sprite)
             // Vertices in local space (before rotation)
@@ -382,9 +417,9 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             };
 
             for (int i = 0; i < 4; i++) {
-                // Apply offset
-                float lx = localVerts[i][0] + layer.offsetX;
-                float ly = localVerts[i][1] + layer.offsetY;
+                // Apply offset (scaled)
+                float lx = localVerts[i][0] + layer.offsetX * scaleFactor;
+                float ly = localVerts[i][1] + layer.offsetY * scaleFactor;
 
                 // Rotate
                 float rx = lx * cosA - ly * sinA;
@@ -418,11 +453,19 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
         }
     }
 
-    // Sort batches by pipeline ID first, then by descriptor ID for deterministic rendering order
+    // Sort batches by parallax depth (lower/positive = background = drawn first, higher/negative = foreground = drawn last)
+    // Within same parallax depth, sort by pipeline ID then descriptor ID for deterministic order
     std::sort(batches.begin(), batches.end(), [](const SpriteBatch& a, const SpriteBatch& b) {
+        // Sort by parallax depth first (higher depth = background = drawn first)
+        // Positive depth = background, negative depth = foreground
+        if (std::abs(a.parallaxDepth - b.parallaxDepth) >= 0.001f) {
+            return a.parallaxDepth > b.parallaxDepth; // Higher depth (background) drawn first
+        }
+        // Then by pipeline ID
         if (a.pipelineId != b.pipelineId) {
             return a.pipelineId < b.pipelineId;
         }
+        // Then by descriptor ID
         return a.descriptorId < b.descriptorId;
     });
 }
