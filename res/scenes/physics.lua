@@ -37,7 +37,7 @@ function init()
          0.3,  0.0,   -- top-right
         -0.3,  0.0    -- top-left
     }
-    forceFieldId = createForceField(fieldVertices, 0.0, -15.0)
+    forceFieldId = createForceField(fieldVertices, 0.0, 15.0)
 
     -- Load objects
     table.insert(objects, loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.7 }))
