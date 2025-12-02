@@ -312,8 +312,6 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
     lua_pop(luaState_, 1);
 
     // Automatically cleanup all scene resources
-    std::cout << "Automatic scene cleanup: releasing all resources" << std::endl;
-
     // Clear all audio sources
     audioManager_->clearAllSources();
 
