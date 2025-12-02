@@ -3,6 +3,9 @@
 #include <iostream>
 #include <cassert>
 #include <algorithm>
+#ifndef M_PI
+    #define M_PI 3.14159265358979323846
+#endif
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager, VibrationManager* vibrationManager)
     : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), particleEditorPipelineId_(-1) {
@@ -1822,7 +1825,7 @@ int LuaInterface::setLayerPosition(lua_State* L) {
         angle = (float)lua_tonumber(L, 4);
     }
 
-    interface->layerManager_->setLayerPosition(layerId, x, y, angle);
+    interface->layerManager_->setLayerPosition(layerId, x, y, angle * M_PI / 180.0f);
     return 0;
 }
 
