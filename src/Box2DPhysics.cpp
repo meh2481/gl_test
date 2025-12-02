@@ -1304,8 +1304,6 @@ int Box2DPhysics::createForceField(const float* vertices, int vertexCount, float
     field.forceY = forceY;
     forceFields_[forceFieldId] = field;
 
-    std::cout << "Created force field " << forceFieldId << " with force (" << forceX << ", " << forceY << ")" << std::endl;
-
     SDL_UnlockMutex(physicsMutex_);
     return forceFieldId;
 }
@@ -1322,24 +1320,24 @@ void Box2DPhysics::destroyForceField(int forceFieldId) {
             bodies_.erase(bodyIt);
         }
         forceFields_.erase(it);
-        std::cout << "Destroyed force field " << forceFieldId << std::endl;
     }
 
     SDL_UnlockMutex(physicsMutex_);
 }
 
+// Maximum number of overlapping shapes to process per force field
+static constexpr int MAX_FORCE_FIELD_OVERLAPS = 64;
+
 void Box2DPhysics::applyForceFields() {
+    // Stack-allocated buffer for sensor overlaps
+    b2ShapeId overlaps[MAX_FORCE_FIELD_OVERLAPS];
+
     // Apply force to all bodies overlapping with force field sensors
     for (auto& pair : forceFields_) {
         ForceField& field = pair.second;
 
-        // Get capacity needed for overlaps
-        int capacity = b2Shape_GetSensorCapacity(field.shapeId);
-        if (capacity <= 0) continue;
-
-        // Allocate array for overlapping shapes
-        b2ShapeId* overlaps = new b2ShapeId[capacity];
-        int overlapCount = b2Shape_GetSensorOverlaps(field.shapeId, overlaps, capacity);
+        // Get overlapping shapes (capped at MAX_FORCE_FIELD_OVERLAPS)
+        int overlapCount = b2Shape_GetSensorOverlaps(field.shapeId, overlaps, MAX_FORCE_FIELD_OVERLAPS);
 
         // Apply force to each overlapping body
         for (int i = 0; i < overlapCount; ++i) {
@@ -1352,8 +1350,6 @@ void Box2DPhysics::applyForceFields() {
                 b2Body_ApplyForce(overlappingBodyId, (b2Vec2){field.forceX, field.forceY}, center, true);
             }
         }
-
-        delete[] overlaps;
     }
 }
 
