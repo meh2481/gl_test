@@ -355,6 +355,7 @@ void Box2DPhysics::addBoxFixture(int bodyId, float halfWidth, float halfHeight, 
     shapeDef.material.friction = friction;
     shapeDef.material.restitution = restitution;
     shapeDef.enableContactEvents = true;
+    shapeDef.enableSensorEvents = true;
 
     b2CreatePolygonShape(it->second, &shapeDef, &box);
 }
@@ -372,6 +373,7 @@ void Box2DPhysics::addCircleFixture(int bodyId, float radius, float density, flo
     shapeDef.material.friction = friction;
     shapeDef.material.restitution = restitution;
     shapeDef.enableContactEvents = true;
+    shapeDef.enableSensorEvents = true;
 
     b2CreateCircleShape(it->second, &shapeDef, &circle);
 }
@@ -394,6 +396,7 @@ void Box2DPhysics::addPolygonFixture(int bodyId, const float* vertices, int vert
     shapeDef.material.friction = friction;
     shapeDef.material.restitution = restitution;
     shapeDef.enableContactEvents = true;
+    shapeDef.enableSensorEvents = true;
 
     b2CreatePolygonShape(it->second, &shapeDef, &polygon);
 }
@@ -1239,6 +1242,7 @@ int Box2DPhysics::createFragmentBody(float x, float y, float angle,
     shapeDef.material.friction = friction;
     shapeDef.material.restitution = restitution;
     shapeDef.enableContactEvents = true;
+    shapeDef.enableSensorEvents = true;
 
     b2CreatePolygonShape(bodyId, &shapeDef, &poly);
 
