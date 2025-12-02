@@ -1350,6 +1350,9 @@ void Box2DPhysics::applyForceFields() {
         auto bodyIt = bodies_.find(field.bodyId);
         b2BodyId forceFieldBodyId = (bodyIt != bodies_.end()) ? bodyIt->second : b2_nullBodyId;
 
+        // Get the force field's AABB for center-of-mass containment check
+        b2AABB fieldAABB = b2Shape_GetAABB(field.shapeId);
+
         // Get overlapping shapes (capped at MAX_FORCE_FIELD_OVERLAPS)
         int overlapCount = b2Shape_GetSensorOverlaps(field.shapeId, overlaps, MAX_FORCE_FIELD_OVERLAPS);
 
@@ -1373,12 +1376,23 @@ void Box2DPhysics::applyForceFields() {
             // Only apply force to dynamic bodies
             b2BodyType bodyType = b2Body_GetType(overlappingBodyId);
             if (bodyType == b2_dynamicBody) {
-                // Apply acceleration directly to velocity (a = F/m, but we want constant a)
-                // v_new = v_old + a * dt
-                b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
-                vel.x += field.forceX * fixedTimestep_;
-                vel.y += field.forceY * fixedTimestep_;
-                b2Body_SetLinearVelocity(overlappingBodyId, vel);
+                // Get the body's center of mass position
+                b2Vec2 centerOfMass = b2Body_GetPosition(overlappingBodyId);
+
+                // Only apply force if the center of mass is inside the force field
+                bool centerInField = (centerOfMass.x >= fieldAABB.lowerBound.x &&
+                                      centerOfMass.x <= fieldAABB.upperBound.x &&
+                                      centerOfMass.y >= fieldAABB.lowerBound.y &&
+                                      centerOfMass.y <= fieldAABB.upperBound.y);
+
+                if (centerInField) {
+                    // Apply acceleration directly to velocity (a = F/m, but we want constant a)
+                    // v_new = v_old + a * dt
+                    b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
+                    vel.x += field.forceX * fixedTimestep_;
+                    vel.y += field.forceY * fixedTimestep_;
+                    b2Body_SetLinearVelocity(overlappingBodyId, vel);
+                }
 
                 // Track this body as processed
                 if (processedCount < MAX_FORCE_FIELD_OVERLAPS) {
