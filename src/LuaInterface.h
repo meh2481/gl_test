@@ -117,6 +117,7 @@ private:
     static int setLayerPolygon(lua_State* L);
     static int setLayerPosition(lua_State* L);
     static int setLayerParallaxDepth(lua_State* L);
+    static int setLayerScale(lua_State* L);
 
     // Texture loading
     static int loadTexture(lua_State* L);

@@ -63,6 +63,8 @@ struct SceneLayer {
     float height;            // Height of sprite in world units
     float offsetX;           // Offset from body center
     float offsetY;           // Offset from body center
+    float scaleX;            // X scale factor (default 1.0)
+    float scaleY;            // Y scale factor (default 1.0)
     bool enabled;            // Whether this layer is visible
     bool useLocalUV;         // Whether to use local 0..1 UVs instead of texture atlas UVs
 
@@ -129,6 +131,9 @@ public:
 
     // Set parallax depth for a layer (used for layers without physics bodies)
     void setLayerParallaxDepth(int layerId, float depth);
+
+    // Set scale for a layer
+    void setLayerScale(int layerId, float scaleX, float scaleY);
 
     // Update layer vertices with camera info for parallax calculation
     void updateLayerVertices(std::vector<SpriteBatch>& batches, float cameraX, float cameraY, float cameraZoom);

@@ -50,7 +50,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
                                      "createForceField", "destroyForceField",
                                      "createRadialForceField", "destroyRadialForceField",
-                                    "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon", "setLayerPosition", "setLayerParallaxDepth",
+                                    "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
                                      "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
@@ -524,6 +524,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "setLayerPolygon", setLayerPolygon);
     lua_register(luaState_, "setLayerPosition", setLayerPosition);
     lua_register(luaState_, "setLayerParallaxDepth", setLayerParallaxDepth);
+    lua_register(luaState_, "setLayerScale", setLayerScale);
 
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
@@ -1841,6 +1842,25 @@ int LuaInterface::setLayerParallaxDepth(lua_State* L) {
     float depth = (float)lua_tonumber(L, 2);
 
     interface->layerManager_->setLayerParallaxDepth(layerId, depth);
+    return 0;
+}
+
+int LuaInterface::setLayerScale(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId (integer), scaleX (number), scaleY (number)
+    assert(lua_gettop(L) == 3);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    int layerId = (int)lua_tointeger(L, 1);
+    float scaleX = (float)lua_tonumber(L, 2);
+    float scaleY = (float)lua_tonumber(L, 3);
+
+    interface->layerManager_->setLayerScale(layerId, scaleX, scaleY);
     return 0;
 }
 

@@ -49,6 +49,8 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     layer.height = height;
     layer.offsetX = 0.0f;
     layer.offsetY = 0.0f;
+    layer.scaleX = 1.0f;
+    layer.scaleY = 1.0f;
     layer.enabled = true;
     layer.useLocalUV = false;
 
@@ -207,6 +209,14 @@ void SceneLayerManager::setLayerParallaxDepth(int layerId, float depth) {
     }
 }
 
+void SceneLayerManager::setLayerScale(int layerId, float scaleX, float scaleY) {
+    auto it = layers_.find(layerId);
+    if (it != layers_.end()) {
+        it->second.scaleX = scaleX;
+        it->second.scaleY = scaleY;
+    }
+}
+
 void SceneLayerManager::clear() {
     layers_.clear();
 }
@@ -276,21 +286,6 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
         float centerX = layer.cachedX;
         float centerY = layer.cachedY;
         float angle = layer.cachedAngle;
-
-        // Calculate scale factor for parallax effect
-        // Negative parallax (foreground) = larger scale (closer)
-        // Positive parallax (background) = smaller scale (farther)
-        // Zero parallax = normal scale (1.0)
-        float scaleFactor = 1.0f;
-        if (std::abs(layer.parallaxDepth) >= PARALLAX_EPSILON) {
-            // Scale factor: 1 + (-depth * 0.2)
-            // depth = -3 -> scale = 1 + 0.6 = 1.6 (foreground, larger)
-            // depth = 0 -> scale = 1.0 (normal)
-            // depth = 3 -> scale = 1 - 0.6 = 0.4 (background, smaller)
-            scaleFactor = 1.0f + (-layer.parallaxDepth * 0.2f);
-            if (scaleFactor < 0.1f) scaleFactor = 0.1f; // Minimum scale
-            if (scaleFactor > 5.0f) scaleFactor = 5.0f; // Maximum scale
-        }
 
         // Apply parallax offset for layers without physics bodies
         if (layer.physicsBodyId < 0 && std::abs(layer.parallaxDepth) >= PARALLAX_EPSILON) {
@@ -370,9 +365,9 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             }
         } else {
             // Standard quad rendering
-            // Calculate half-extents with scale factor applied
-            float hw = layer.width * 0.5f * scaleFactor;
-            float hh = layer.height * 0.5f * scaleFactor;
+            // Calculate half-extents with user-defined scale applied
+            float hw = layer.width * 0.5f * layer.scaleX;
+            float hh = layer.height * 0.5f * layer.scaleY;
 
             // Create quad vertices (4 vertices for a sprite)
             // Vertices in local space (before rotation)
@@ -419,9 +414,9 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             };
 
             for (int i = 0; i < 4; i++) {
-                // Apply offset (scaled)
-                float lx = localVerts[i][0] + layer.offsetX * scaleFactor;
-                float ly = localVerts[i][1] + layer.offsetY * scaleFactor;
+                // Apply offset
+                float lx = localVerts[i][0] + layer.offsetX;
+                float ly = localVerts[i][1] + layer.offsetY;
 
                 // Rotate
                 float rx = lx * cosA - ly * sinA;
