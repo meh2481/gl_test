@@ -101,11 +101,11 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
     // Step the physics simulation in fixed increments
     // This ensures framerate-independent physics behavior
     while (timeAccumulator_ >= fixedTimestep_) {
+        // Apply force fields BEFORE the world step so forces are integrated correctly
+        applyForceFields();
+
         b2World_Step(worldId_, fixedTimestep_, subStepCount);
         timeAccumulator_ -= fixedTimestep_;
-
-        // Apply force fields to overlapping bodies
-        applyForceFields();
 
         // Process collision hit events after each physics step
         b2ContactEvents contactEvents = b2World_GetContactEvents(worldId_);
