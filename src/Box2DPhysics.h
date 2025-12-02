@@ -98,6 +98,16 @@ struct ForceField {
     float forceX, forceY; // Force vector to apply
 };
 
+// Radial force field that applies force based on distance from center
+struct RadialForceField {
+    int bodyId;           // The static body holding the sensor shape
+    b2ShapeId shapeId;    // The sensor shape ID
+    float centerX, centerY; // Center position of the field
+    float radius;         // Radius of the field
+    float forceAtCenter;  // Force magnitude at center (positive = outward, negative = inward)
+    float forceAtEdge;    // Force magnitude at edge
+};
+
 class Box2DPhysics {
 public:
     Box2DPhysics();
@@ -240,6 +250,16 @@ public:
     int createForceField(const float* vertices, int vertexCount, float forceX, float forceY);
     void destroyForceField(int forceFieldId);
 
+    // Radial force field management
+    // Creates a circular force field that applies radial force based on distance from center
+    // centerX, centerY: center position of the field
+    // radius: radius of the field
+    // forceAtCenter: force magnitude at center (positive = outward, negative = inward)
+    // forceAtEdge: force magnitude at edge
+    // Returns the radial force field ID
+    int createRadialForceField(float centerX, float centerY, float radius, float forceAtCenter, float forceAtEdge);
+    void destroyRadialForceField(int forceFieldId);
+
 private:
     // Debug draw callbacks
     static void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context);
@@ -308,6 +328,7 @@ private:
 
     // Force field tracking
     std::unordered_map<int, ForceField> forceFields_;
+    std::unordered_map<int, RadialForceField> radialForceFields_;
     int nextForceFieldId_;
 
     // Helper to convert b2BodyId to internal ID
@@ -315,6 +336,9 @@ private:
 
     // Apply force fields to all overlapping bodies
     void applyForceFields();
+
+    // Apply radial force fields to all overlapping bodies
+    void applyRadialForceFields();
 
     // Calculate required force to break based on Moh's hardness
     float calculateBreakForce(float strength, float impactSpeed) const;

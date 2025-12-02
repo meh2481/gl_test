@@ -49,6 +49,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
                                      "createForceField", "destroyForceField",
+                                     "createRadialForceField", "destroyRadialForceField",
                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
                                      "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
@@ -495,6 +496,8 @@ void LuaInterface::registerFunctions() {
     // Register force field functions
     lua_register(luaState_, "createForceField", createForceField);
     lua_register(luaState_, "destroyForceField", destroyForceField);
+    lua_register(luaState_, "createRadialForceField", createRadialForceField);
+    lua_register(luaState_, "destroyRadialForceField", destroyRadialForceField);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -1521,6 +1524,43 @@ int LuaInterface::destroyForceField(lua_State* L) {
 
     int forceFieldId = lua_tointeger(L, 1);
     interface->physics_->destroyForceField(forceFieldId);
+    return 0;
+}
+
+int LuaInterface::createRadialForceField(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: centerX, centerY, radius, forceAtCenter, forceAtEdge
+    assert(lua_gettop(L) == 5);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+    assert(lua_isnumber(L, 4));
+    assert(lua_isnumber(L, 5));
+
+    float centerX = lua_tonumber(L, 1);
+    float centerY = lua_tonumber(L, 2);
+    float radius = lua_tonumber(L, 3);
+    float forceAtCenter = lua_tonumber(L, 4);
+    float forceAtEdge = lua_tonumber(L, 5);
+
+    int forceFieldId = interface->physics_->createRadialForceField(centerX, centerY, radius, forceAtCenter, forceAtEdge);
+    lua_pushinteger(L, forceFieldId);
+    return 1;
+}
+
+int LuaInterface::destroyRadialForceField(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int forceFieldId = lua_tointeger(L, 1);
+    interface->physics_->destroyRadialForceField(forceFieldId);
     return 0;
 }
 

@@ -107,6 +107,7 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
         // Apply force fields AFTER the world step using fresh overlap data
         // Forces will be applied in the next step
         applyForceFields();
+        applyRadialForceFields();
 
         // Process collision hit events after each physics step
         b2ContactEvents contactEvents = b2World_GetContactEvents(worldId_);
@@ -1330,6 +1331,68 @@ void Box2DPhysics::destroyForceField(int forceFieldId) {
     SDL_UnlockMutex(physicsMutex_);
 }
 
+// Radial force field management
+int Box2DPhysics::createRadialForceField(float centerX, float centerY, float radius, float forceAtCenter, float forceAtEdge) {
+    assert(radius > 0.0f);
+
+    SDL_LockMutex(physicsMutex_);
+
+    // Create a static body for the sensor at the center
+    b2BodyDef bodyDef = b2DefaultBodyDef();
+    bodyDef.type = b2_staticBody;
+    bodyDef.position = (b2Vec2){centerX, centerY};
+
+    b2BodyId bodyId = b2CreateBody(worldId_, &bodyDef);
+    assert(b2Body_IsValid(bodyId));
+
+    // Create circle shape as sensor
+    b2Circle circle;
+    circle.center = (b2Vec2){0.0f, 0.0f};
+    circle.radius = radius;
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.isSensor = true;
+    shapeDef.enableSensorEvents = true;
+
+    b2ShapeId shapeId = b2CreateCircleShape(bodyId, &shapeDef, &circle);
+
+    // Store the body in bodies_ map
+    int internalBodyId = nextBodyId_++;
+    bodies_[internalBodyId] = bodyId;
+
+    // Create radial force field entry
+    int forceFieldId = nextForceFieldId_++;
+    RadialForceField field;
+    field.bodyId = internalBodyId;
+    field.shapeId = shapeId;
+    field.centerX = centerX;
+    field.centerY = centerY;
+    field.radius = radius;
+    field.forceAtCenter = forceAtCenter;
+    field.forceAtEdge = forceAtEdge;
+    radialForceFields_[forceFieldId] = field;
+
+    SDL_UnlockMutex(physicsMutex_);
+    return forceFieldId;
+}
+
+void Box2DPhysics::destroyRadialForceField(int forceFieldId) {
+    SDL_LockMutex(physicsMutex_);
+
+    auto it = radialForceFields_.find(forceFieldId);
+    if (it != radialForceFields_.end()) {
+        // Destroy the body (which also destroys all attached shapes)
+        auto bodyIt = bodies_.find(it->second.bodyId);
+        if (bodyIt != bodies_.end()) {
+            b2DestroyBody(bodyIt->second);
+            bodies_.erase(bodyIt);
+        }
+        radialForceFields_.erase(it);
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+}
+
 // Maximum number of overlapping shapes to process per force field
 static constexpr int MAX_FORCE_FIELD_OVERLAPS = 64;
 
@@ -1391,6 +1454,87 @@ void Box2DPhysics::applyForceFields() {
                     b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
                     vel.x += field.forceX * fixedTimestep_;
                     vel.y += field.forceY * fixedTimestep_;
+                    b2Body_SetLinearVelocity(overlappingBodyId, vel);
+                }
+
+                // Track this body as processed
+                if (processedCount < MAX_FORCE_FIELD_OVERLAPS) {
+                    processedBodies[processedCount++] = overlappingBodyId;
+                }
+            }
+        }
+    }
+}
+
+void Box2DPhysics::applyRadialForceFields() {
+    // Stack-allocated buffer for sensor overlaps
+    b2ShapeId overlaps[MAX_FORCE_FIELD_OVERLAPS];
+
+    // Track bodies already processed to avoid applying force multiple times
+    b2BodyId processedBodies[MAX_FORCE_FIELD_OVERLAPS];
+    int processedCount = 0;
+
+    // Apply force to all bodies overlapping with radial force field sensors
+    for (auto& pair : radialForceFields_) {
+        RadialForceField& field = pair.second;
+        processedCount = 0;
+
+        // Get the force field's own body to exclude it
+        auto bodyIt = bodies_.find(field.bodyId);
+        b2BodyId forceFieldBodyId = (bodyIt != bodies_.end()) ? bodyIt->second : b2_nullBodyId;
+
+        // Get overlapping shapes (capped at MAX_FORCE_FIELD_OVERLAPS)
+        int overlapCount = b2Shape_GetSensorOverlaps(field.shapeId, overlaps, MAX_FORCE_FIELD_OVERLAPS);
+
+        // Apply force to each overlapping body
+        for (int i = 0; i < overlapCount; ++i) {
+            b2BodyId overlappingBodyId = b2Shape_GetBody(overlaps[i]);
+
+            // Skip the force field's own body
+            if (B2_ID_EQUALS(overlappingBodyId, forceFieldBodyId)) continue;
+
+            // Check if we already processed this body (handles multi-shape bodies)
+            bool alreadyProcessed = false;
+            for (int j = 0; j < processedCount; ++j) {
+                if (B2_ID_EQUALS(processedBodies[j], overlappingBodyId)) {
+                    alreadyProcessed = true;
+                    break;
+                }
+            }
+            if (alreadyProcessed) continue;
+
+            // Only apply force to dynamic bodies
+            b2BodyType bodyType = b2Body_GetType(overlappingBodyId);
+            if (bodyType == b2_dynamicBody) {
+                // Get the body's center of mass position
+                b2Vec2 bodyPos = b2Body_GetPosition(overlappingBodyId);
+
+                // Calculate distance from center
+                float dx = bodyPos.x - field.centerX;
+                float dy = bodyPos.y - field.centerY;
+                float distance = sqrtf(dx * dx + dy * dy);
+
+                // Only apply force if the center of mass is inside the field
+                if (distance <= field.radius) {
+                    // Interpolate force based on distance (t=0 at center, t=1 at edge)
+                    float t = distance / field.radius;
+                    float forceMagnitude = field.forceAtCenter + t * (field.forceAtEdge - field.forceAtCenter);
+
+                    // Calculate direction (radial, from center outward)
+                    float dirX, dirY;
+                    if (distance > 0.0001f) {
+                        dirX = dx / distance;
+                        dirY = dy / distance;
+                    } else {
+                        // At center, no direction - apply no force
+                        dirX = 0.0f;
+                        dirY = 0.0f;
+                    }
+
+                    // Apply acceleration directly to velocity (like gravity)
+                    b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
+                    vel.x += dirX * forceMagnitude * fixedTimestep_;
+                    vel.y += dirY * forceMagnitude * fixedTimestep_;
                     b2Body_SetLinearVelocity(overlappingBodyId, vel);
                 }
 
