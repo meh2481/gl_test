@@ -220,6 +220,7 @@ int ParticleSystemManager::createSystem(const ParticleEmitterConfig& config, int
     // Copy configuration
     system.config = config;
     system.pipelineId = pipelineId;
+    system.parallaxDepth = 0.0f;  // Default: inline with sprites at depth 0
     system.emitterX = 0.0f;
     system.emitterY = 0.0f;
     system.emissionAccumulator = 0.0f;

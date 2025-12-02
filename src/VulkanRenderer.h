@@ -122,6 +122,9 @@ private:
     std::vector<BatchDrawData> m_particleBatches;
     std::vector<BatchDrawData> m_allBatches;  // Combined and sorted
 
+    // Helper to rebuild combined batch list from sprite and particle batches
+    void rebuildAllBatches();
+
     // Particle texture ID for rendering
     uint64_t m_particleTextureId;
 

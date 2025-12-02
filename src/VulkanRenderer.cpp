@@ -1000,20 +1000,7 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
     }
 
     m_bufferManager.updateIndexedBuffer(m_spriteBuffer, allVertexData, allIndices, 10);
-
-    // Rebuild combined batch list
-    m_allBatches.clear();
-    m_allBatches.reserve(m_spriteBatches.size() + m_particleBatches.size());
-    for (const auto& b : m_spriteBatches) {
-        m_allBatches.push_back(b);
-    }
-    for (const auto& b : m_particleBatches) {
-        m_allBatches.push_back(b);
-    }
-    // Sort by parallax depth (higher = background = drawn first)
-    std::sort(m_allBatches.begin(), m_allBatches.end(), [](const BatchDrawData& a, const BatchDrawData& b) {
-        return a.parallaxDepth > b.parallaxDepth;
-    });
+    rebuildAllBatches();
 }
 
 void VulkanRenderer::setParticleBatches(const std::vector<ParticleBatch>& batches) {
@@ -1066,8 +1053,10 @@ void VulkanRenderer::setParticleBatches(const std::vector<ParticleBatch>& batche
     }
 
     m_bufferManager.updateIndexedBuffer(m_particleBuffer, allVertexData, allIndices, 8);
+    rebuildAllBatches();
+}
 
-    // Rebuild combined batch list
+void VulkanRenderer::rebuildAllBatches() {
     m_allBatches.clear();
     m_allBatches.reserve(m_spriteBatches.size() + m_particleBatches.size());
     for (const auto& b : m_spriteBatches) {
