@@ -347,6 +347,8 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
         BatchKey batchKey{layer.pipelineId, layer.descriptorId, layer.parallaxDepth};
 
         // Check if layer has any animation effects enabled
+        // Layers with animation need separate batches as they have per-batch push constants
+        // This includes: spin, blink, wave, color cycling, or static color modulation
         bool hasAnimation = layer.spinSpeed != 0.0f ||
                            layer.blinkSecondsOn > 0.0f ||
                            layer.waveAmplitude != 0.0f ||

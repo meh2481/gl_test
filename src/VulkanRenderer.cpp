@@ -1057,6 +1057,28 @@ void VulkanRenderer::setParticleBatches(const std::vector<ParticleBatch>& batche
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
         drawData.isParticle = true;
 
+        // Initialize animation parameters to defaults (no animation for particles)
+        drawData.spinSpeed = 0.0f;
+        drawData.centerX = 0.0f;
+        drawData.centerY = 0.0f;
+        drawData.blinkSecondsOn = 0.0f;
+        drawData.blinkSecondsOff = 0.0f;
+        drawData.blinkRiseTime = 0.0f;
+        drawData.blinkFallTime = 0.0f;
+        drawData.waveWavelength = 0.0f;
+        drawData.waveSpeed = 0.0f;
+        drawData.waveAngle = 0.0f;
+        drawData.waveAmplitude = 0.0f;
+        drawData.colorR = 1.0f;
+        drawData.colorG = 1.0f;
+        drawData.colorB = 1.0f;
+        drawData.colorA = 1.0f;
+        drawData.colorEndR = 1.0f;
+        drawData.colorEndG = 1.0f;
+        drawData.colorEndB = 1.0f;
+        drawData.colorEndA = 1.0f;
+        drawData.colorCycleTime = 0.0f;
+
         for (const auto& v : batch.vertices) {
             allVertexData.push_back(v.x);
             allVertexData.push_back(v.y);
