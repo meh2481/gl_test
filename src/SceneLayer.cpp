@@ -391,8 +391,6 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             batches[batchIndex].colorEndA = layer.colorEndA;
             batches[batchIndex].colorCycleTime = layer.colorCycleTime;
             batches[batchIndex].colorPhase = layer.colorPhase;
-            batches[batchIndex].centerX = layer.cachedX;
-            batches[batchIndex].centerY = layer.cachedY;
 
             // Only add to batch map if not animated (animated layers always get unique batches)
             if (!hasAnimation) {
@@ -419,6 +417,10 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
             centerX += cameraX * parallaxFactor;
             centerY += cameraY * parallaxFactor;
         }
+
+        // Update batch spin center to match the parallax-adjusted position
+        batch.centerX = centerX;
+        batch.centerY = centerY;
 
         // Apply rotation and position
         float cosA = std::cos(angle);
