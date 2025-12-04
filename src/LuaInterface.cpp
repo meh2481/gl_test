@@ -15,6 +15,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, S
     layerManager_ = std::make_unique<SceneLayerManager>();
     audioManager_ = std::make_unique<AudioManager>();
     particleManager_ = std::make_unique<ParticleSystemManager>();
+    waterEffectManager_ = std::make_unique<WaterEffectManager>();
     audioManager_->initialize();
 
     // Set layer manager on physics so it can create fragment layers during fracture
@@ -53,6 +54,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
                                      "createForceField", "destroyForceField",
                                      "createRadialForceField", "destroyRadialForceField",
+                                     "createWaterForceField", "destroyWaterForceField", "loadWaterShaders",
                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
                                      "setLayerSpin", "setLayerBlink", "setLayerWave", "setLayerColor", "setLayerColorCycle",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
@@ -322,6 +324,9 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
     // Clear all particle systems
     particleManager_->clearAllSystems();
 
+    // Clear all water effects
+    waterEffectManager_->clear();
+
     // Clear all scene layers
     layerManager_->clear();
 
@@ -516,6 +521,11 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "destroyForceField", destroyForceField);
     lua_register(luaState_, "createRadialForceField", createRadialForceField);
     lua_register(luaState_, "destroyRadialForceField", destroyRadialForceField);
+
+    // Register water force field functions
+    lua_register(luaState_, "createWaterForceField", createWaterForceField);
+    lua_register(luaState_, "destroyWaterForceField", destroyWaterForceField);
+    lua_register(luaState_, "loadWaterShaders", loadWaterShaders);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -1592,6 +1602,127 @@ int LuaInterface::destroyRadialForceField(lua_State* L) {
     int forceFieldId = lua_tointeger(L, 1);
     interface->physics_->destroyRadialForceField(forceFieldId);
     return 0;
+}
+
+// Water force field Lua binding implementations
+
+int LuaInterface::createWaterForceField(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: vertices table, forceX, forceY, [alpha], [rippleAmplitude], [rippleSpeed]
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 3 && numArgs <= 6);
+    assert(lua_istable(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    // Get vertices from table
+    float vertices[16];
+    int tableLen = (int)lua_rawlen(L, 1);
+    assert(tableLen >= 6 && tableLen <= 16);
+
+    for (int i = 0; i < tableLen; ++i) {
+        lua_rawgeti(L, 1, i + 1);
+        assert(lua_isnumber(L, -1));
+        vertices[i] = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+    }
+
+    int vertexCount = tableLen / 2;
+    float forceX = lua_tonumber(L, 2);
+    float forceY = lua_tonumber(L, 3);
+
+    // Optional water visual parameters
+    float alpha = (numArgs >= 4) ? lua_tonumber(L, 4) : 0.6f;
+    float rippleAmplitude = (numArgs >= 5) ? lua_tonumber(L, 5) : 0.005f;
+    float rippleSpeed = (numArgs >= 6) ? lua_tonumber(L, 6) : 3.0f;
+
+    // Calculate bounds from vertices
+    float minX = vertices[0], maxX = vertices[0];
+    float minY = vertices[1], maxY = vertices[1];
+    for (int i = 1; i < vertexCount; ++i) {
+        float x = vertices[i * 2];
+        float y = vertices[i * 2 + 1];
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+    }
+
+    // Create physics force field
+    int physicsFieldId = interface->physics_->createForceField(vertices, vertexCount, forceX, forceY);
+
+    // Create water visual effect
+    int waterFieldId = interface->waterEffectManager_->createWaterForceField(
+        physicsFieldId, minX, minY, maxX, maxY, alpha, rippleAmplitude, rippleSpeed);
+
+    // Return both IDs as a table
+    lua_newtable(L);
+    lua_pushinteger(L, physicsFieldId);
+    lua_setfield(L, -2, "forceFieldId");
+    lua_pushinteger(L, waterFieldId);
+    lua_setfield(L, -2, "waterFieldId");
+
+    return 1;
+}
+
+int LuaInterface::destroyWaterForceField(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: table with forceFieldId and waterFieldId
+    assert(lua_gettop(L) == 1);
+    assert(lua_istable(L, 1));
+
+    lua_getfield(L, 1, "forceFieldId");
+    int forceFieldId = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "waterFieldId");
+    int waterFieldId = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+
+    interface->physics_->destroyForceField(forceFieldId);
+    interface->waterEffectManager_->destroyWaterForceField(waterFieldId);
+
+    return 0;
+}
+
+int LuaInterface::loadWaterShaders(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer)
+    assert(lua_gettop(L) == 3);
+    assert(lua_isstring(L, 1));
+    assert(lua_isstring(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    const char* vertShaderName = lua_tostring(L, 1);
+    const char* fragShaderName = lua_tostring(L, 2);
+    int zIndex = (int)lua_tointeger(L, 3);
+
+    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
+    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+
+    ResourceData vertShader = interface->pakResource_.getResource(vertId);
+    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+
+    assert(vertShader.data != nullptr);
+    assert(fragShader.data != nullptr);
+
+    int pipelineId = interface->pipelineIndex_++;
+    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+
+    // Create textured pipeline with alpha blending for water
+    interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader, 1);
+
+    lua_pushinteger(L, pipelineId);
+    return 1;
 }
 
 // Scene layer Lua binding implementations

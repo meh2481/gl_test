@@ -14,6 +14,11 @@ foregroundLayerId = nil
 foregroundShaderId = nil
 foregroundTexId = nil
 
+-- Water layer
+waterLayerId = nil
+waterShaderId = nil
+waterField = nil
+
 function init()
     -- Load the nebula background shader (z-index -2 = background)
     loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", -2)
@@ -51,14 +56,26 @@ function init()
     -- Create static boundaries
     createBoundaries()
 
-    -- Create force fields
-    local fieldVertices = {
+    -- Create water force field (with visual effect)
+    local waterVertices = {
         -0.3, -0.9,   -- bottom-left
          0.3, -0.9,   -- bottom-right
-         0.3,  0.0,   -- top-right
-        -0.3,  0.0    -- top-left
+         0.3,  0.0,   -- top-right (surface)
+        -0.3,  0.0    -- top-left (surface)
     }
-    createForceField(fieldVertices, 0.0, 15.0)
+    -- Create water with: vertices, forceX, forceY, alpha, rippleAmplitude, rippleSpeed
+    waterField = createWaterForceField(waterVertices, 0.0, 15.0, 0.6, 0.01, 3.0)
+
+    -- Create a visual layer for the water
+    waterShaderId = loadTexturedShadersEx("res/shaders/water_vertex.spv", "res/shaders/water_fragment.spv", 1, 1)
+    local waterTexId = loadTexture("res/textures/rock1.png")  -- Use any texture as base
+    waterLayerId = createLayer(waterTexId, 0.6, waterShaderId)
+    setLayerPosition(waterLayerId, 0.0, -0.45, 0)
+    setLayerScale(waterLayerId, 1.0, 1.5)
+    setLayerParallaxDepth(waterLayerId, -0.1)
+    -- Set water shader parameters: alpha, rippleAmplitude, rippleSpeed, unused, minX, minY, maxX
+    setShaderParameters(waterShaderId, 0.6, 0.01, 3.0, 0.0, -0.3, -0.9, 0.3)
+
     createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 
     -- Load objects

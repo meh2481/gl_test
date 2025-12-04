@@ -13,6 +13,7 @@
 #include "InputActions.h"
 #include "AudioManager.h"
 #include "VibrationManager.h"
+#include "WaterEffect.h"
 
 class SceneManager;
 
@@ -44,6 +45,9 @@ public:
 
     // Particle system access
     ParticleSystemManager& getParticleSystemManager() { return *particleManager_; }
+
+    // Water effect access
+    WaterEffectManager& getWaterEffectManager() { return *waterEffectManager_; }
 
     // Cursor position for drag operations (in world coordinates)
     void setCursorPosition(float x, float y) { cursorX_ = x; cursorY_ = y; }
@@ -105,6 +109,11 @@ private:
     static int destroyForceField(lua_State* L);
     static int createRadialForceField(lua_State* L);
     static int destroyRadialForceField(lua_State* L);
+
+    // Water force field Lua bindings
+    static int createWaterForceField(lua_State* L);
+    static int destroyWaterForceField(lua_State* L);
+    static int loadWaterShaders(lua_State* L);
 
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);
@@ -205,6 +214,7 @@ private:
     std::unique_ptr<SceneLayerManager> layerManager_;
     std::unique_ptr<AudioManager> audioManager_;
     std::unique_ptr<ParticleSystemManager> particleManager_;
+    std::unique_ptr<WaterEffectManager> waterEffectManager_;
     VibrationManager* vibrationManager_;
     float cursorX_;
     float cursorY_;
