@@ -8,6 +8,9 @@ static const int MAX_WATER_RIPPLES = 8;
 // Maximum number of water force fields
 static const int MAX_WATER_FORCE_FIELDS = 16;
 
+// Maximum number of tracked bodies per water field
+static const int MAX_TRACKED_BODIES = 64;
+
 // Ripple data for GPU
 struct WaterRipple {
     float x, y;        // Position of ripple center
@@ -35,8 +38,8 @@ struct WaterForceField {
     int rippleCount;
 
     // Tracked bodies for splash detection
-    int trackedBodies[64];          // Body IDs currently in water
-    float trackedBodyLastY[64];     // Last Y position for each body
+    int trackedBodies[MAX_TRACKED_BODIES];
+    float trackedBodyLastY[MAX_TRACKED_BODIES];
     int trackedBodyCount;
 
     bool active;

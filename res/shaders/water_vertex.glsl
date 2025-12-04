@@ -10,7 +10,7 @@ layout(push_constant) uniform PushConstants {
     float param0;           // Water alpha
     float param1;           // Ripple amplitude
     float param2;           // Ripple speed
-    float param3;           // Unused
+    float param3;           // Max Y in world space (surface)
     float param4;           // Min X in world space
     float param5;           // Min Y in world space
     float param6;           // Max X in world space
@@ -41,6 +41,5 @@ void main() {
 
     // Water bounds are passed via params
     fragWaterBounds = vec2(pc.param4, pc.param5);
-    // Max X is param6, Max Y is calculated from the layer position + height
-    fragWaterBoundsMax = vec2(pc.param6, pc.param5 + 0.9);  // Height estimate
+    fragWaterBoundsMax = vec2(pc.param6, pc.param3);
 }

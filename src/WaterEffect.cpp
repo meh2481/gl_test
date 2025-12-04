@@ -123,7 +123,7 @@ void WaterEffectManager::onBodyEnterWater(int waterFieldId, int bodyId, float x,
         WaterForceField& field = fields_[i];
 
         // Add body to tracked list
-        if (field.trackedBodyCount < 64) {
+        if (field.trackedBodyCount < MAX_TRACKED_BODIES) {
             field.trackedBodies[field.trackedBodyCount] = bodyId;
             field.trackedBodyLastY[field.trackedBodyCount] = y;
             ++field.trackedBodyCount;
