@@ -4,10 +4,13 @@
 #include <cmath>
 #include <iostream>
 
-WaterEffectManager::WaterEffectManager() : activeFieldCount_(0), nextFieldId_(0) {
+static const float PHYSICS_TIMESTEP = 1.0f / 60.0f;
+
+WaterEffectManager::WaterEffectManager() : activeFieldCount_(0), nextFieldId_(1) {
     memset(fields_, 0, sizeof(fields_));
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
         fields_[i].active = false;
+        fields_[i].waterFieldId = -1;
     }
 }
 
@@ -31,9 +34,12 @@ int WaterEffectManager::createWaterForceField(int physicsForceFieldId,
         return -1;
     }
 
+    int waterFieldId = nextFieldId_++;
+
     WaterForceField& field = fields_[slot];
     memset(&field, 0, sizeof(field));
 
+    field.waterFieldId = waterFieldId;
     field.forceFieldId = physicsForceFieldId;
     field.config.minX = minX;
     field.config.minY = minY;
@@ -48,21 +54,21 @@ int WaterEffectManager::createWaterForceField(int physicsForceFieldId,
     field.active = true;
 
     ++activeFieldCount_;
-    int fieldId = nextFieldId_++;
 
-    std::cout << "Created water force field " << fieldId << " at slot " << slot << std::endl;
+    std::cout << "Created water force field " << waterFieldId << " at slot " << slot << std::endl;
 
-    return fieldId;
+    return waterFieldId;
 }
 
 void WaterEffectManager::destroyWaterForceField(int waterFieldId) {
-    if (waterFieldId < 0 || waterFieldId >= nextFieldId_) {
+    if (waterFieldId < 0) {
         return;
     }
 
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
-        if (fields_[i].active && fields_[i].forceFieldId == waterFieldId) {
+        if (fields_[i].active && fields_[i].waterFieldId == waterFieldId) {
             fields_[i].active = false;
+            fields_[i].waterFieldId = -1;
             --activeFieldCount_;
             return;
         }
@@ -94,7 +100,7 @@ void WaterEffectManager::update(float deltaTime) {
 
 void WaterEffectManager::addSplash(int waterFieldId, float x, float y, float amplitude) {
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
-        if (!fields_[i].active) continue;
+        if (!fields_[i].active || fields_[i].waterFieldId != waterFieldId) continue;
 
         WaterForceField& field = fields_[i];
 
@@ -106,12 +112,13 @@ void WaterEffectManager::addSplash(int waterFieldId, float x, float y, float amp
             ripple.amplitude = amplitude;
             ++field.rippleCount;
         }
+        return;
     }
 }
 
 void WaterEffectManager::onBodyEnterWater(int waterFieldId, int bodyId, float x, float y, float velocity) {
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
-        if (!fields_[i].active) continue;
+        if (!fields_[i].active || fields_[i].waterFieldId != waterFieldId) continue;
 
         WaterForceField& field = fields_[i];
 
@@ -127,12 +134,13 @@ void WaterEffectManager::onBodyEnterWater(int waterFieldId, int bodyId, float x,
         if (splashAmplitude > 0.01f) {
             addSplash(waterFieldId, x, field.config.surfaceY, splashAmplitude);
         }
+        return;
     }
 }
 
 void WaterEffectManager::onBodyExitWater(int waterFieldId, int bodyId, float x, float y, float velocity) {
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
-        if (!fields_[i].active) continue;
+        if (!fields_[i].active || fields_[i].waterFieldId != waterFieldId) continue;
 
         WaterForceField& field = fields_[i];
 
@@ -152,12 +160,13 @@ void WaterEffectManager::onBodyExitWater(int waterFieldId, int bodyId, float x, 
         if (splashAmplitude > 0.01f) {
             addSplash(waterFieldId, x, field.config.surfaceY, splashAmplitude);
         }
+        return;
     }
 }
 
 void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x, float y) {
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
-        if (!fields_[i].active) continue;
+        if (!fields_[i].active || fields_[i].waterFieldId != waterFieldId) continue;
 
         WaterForceField& field = fields_[i];
 
@@ -171,7 +180,7 @@ void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
                 bool isAboveSurface = y > surfaceY;
 
                 if (wasAboveSurface != isAboveSurface) {
-                    float velocity = (y - lastY) / 0.016f;
+                    float velocity = (y - lastY) / PHYSICS_TIMESTEP;
                     float splashAmplitude = fabsf(velocity) * 0.1f;
                     if (splashAmplitude > 0.02f) {
                         addSplash(waterFieldId, x, surfaceY, splashAmplitude);
@@ -179,15 +188,16 @@ void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
                 }
 
                 field.trackedBodyLastY[j] = y;
-                break;
+                return;
             }
         }
+        return;
     }
 }
 
 const WaterForceField* WaterEffectManager::getWaterForceField(int waterFieldId) const {
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
-        if (fields_[i].active) {
+        if (fields_[i].active && fields_[i].waterFieldId == waterFieldId) {
             return &fields_[i];
         }
     }
@@ -202,7 +212,7 @@ bool WaterEffectManager::isBodyInWater(int bodyId, int* outWaterFieldId) const {
         for (int j = 0; j < field.trackedBodyCount; ++j) {
             if (field.trackedBodies[j] == bodyId) {
                 if (outWaterFieldId) {
-                    *outWaterFieldId = i;
+                    *outWaterFieldId = field.waterFieldId;
                 }
                 return true;
             }
@@ -214,7 +224,7 @@ bool WaterEffectManager::isBodyInWater(int bodyId, int* outWaterFieldId) const {
 int WaterEffectManager::findByPhysicsForceField(int physicsForceFieldId) const {
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
         if (fields_[i].active && fields_[i].forceFieldId == physicsForceFieldId) {
-            return i;
+            return fields_[i].waterFieldId;
         }
     }
     return -1;
@@ -223,6 +233,7 @@ int WaterEffectManager::findByPhysicsForceField(int physicsForceFieldId) const {
 void WaterEffectManager::clear() {
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
         fields_[i].active = false;
+        fields_[i].waterFieldId = -1;
     }
     activeFieldCount_ = 0;
 }

@@ -132,4 +132,3 @@ void main() {
 
     outColor = vec4(finalColor, finalAlpha);
 }
-

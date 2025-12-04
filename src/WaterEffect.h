@@ -26,6 +26,7 @@ struct WaterForceFieldConfig {
 
 // Water force field with visual effect
 struct WaterForceField {
+    int waterFieldId;               // Water effect ID (for lookups)
     int forceFieldId;               // Physics force field ID
     WaterForceFieldConfig config;
 
