@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cassert>
 #include <iostream>
+#include <set>
 
 VulkanTexture::VulkanTexture() :
     m_device(VK_NULL_HANDLE),
@@ -379,18 +380,27 @@ void VulkanTexture::destroyTexture(uint64_t textureId) {
 }
 
 void VulkanTexture::destroyAllTextures() {
+    std::set<VkSampler> destroyedSamplers;
+    std::set<VkImageView> destroyedImageViews;
+    std::set<VkImage> destroyedImages;
+    std::set<VkDeviceMemory> destroyedMemories;
+
     for (auto& pair : m_textures) {
-        if (pair.second.sampler != VK_NULL_HANDLE) {
+        if (pair.second.sampler != VK_NULL_HANDLE && destroyedSamplers.find(pair.second.sampler) == destroyedSamplers.end()) {
             vkDestroySampler(m_device, pair.second.sampler, nullptr);
+            destroyedSamplers.insert(pair.second.sampler);
         }
-        if (pair.second.imageView != VK_NULL_HANDLE) {
+        if (pair.second.imageView != VK_NULL_HANDLE && destroyedImageViews.find(pair.second.imageView) == destroyedImageViews.end()) {
             vkDestroyImageView(m_device, pair.second.imageView, nullptr);
+            destroyedImageViews.insert(pair.second.imageView);
         }
-        if (pair.second.image != VK_NULL_HANDLE) {
+        if (pair.second.image != VK_NULL_HANDLE && destroyedImages.find(pair.second.image) == destroyedImages.end()) {
             vkDestroyImage(m_device, pair.second.image, nullptr);
+            destroyedImages.insert(pair.second.image);
         }
-        if (pair.second.memory != VK_NULL_HANDLE) {
+        if (pair.second.memory != VK_NULL_HANDLE && destroyedMemories.find(pair.second.memory) == destroyedMemories.end()) {
             vkFreeMemory(m_device, pair.second.memory, nullptr);
+            destroyedMemories.insert(pair.second.memory);
         }
     }
     m_textures.clear();
