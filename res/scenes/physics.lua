@@ -107,7 +107,7 @@ function init()
     setShaderParameters(waterShaderId, 0.75, 0.025, 2.0, waterMaxY, waterMinX, waterMinY, waterMaxX)
 
     -- Associate the water shader with the water force field for splash ripples
-    setWaterFieldShader(waterField, waterShaderId)
+    setWaterFieldShader(waterField.waterFieldId, waterShaderId)
 
     createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 
