@@ -23,6 +23,7 @@ public:
         VkSampler sampler;
         uint32_t width;
         uint32_t height;
+        bool isRenderTarget;
     };
 
     // Texture creation and management
@@ -36,6 +37,9 @@ public:
     // Load texture from resource data (handles image header parsing)
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);
+
+    // Render target texture creation (for render-to-texture)
+    void createRenderTargetTexture(uint64_t textureId, uint32_t width, uint32_t height, VkFormat format);
 
     // Cleanup individual texture
     void destroyTexture(uint64_t textureId);

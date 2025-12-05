@@ -46,6 +46,10 @@ static const char* vkResultToString(VkResult result) {
         } \
     } while(0)
 
+// Reserved texture ID for reflection render target
+static const uint64_t REFLECTION_TEXTURE_ID = 0xFFFFFFFF00000001ULL;
+static const uint64_t REFLECTION_TEXTURE_ID_INVALID = 0xFFFFFFFFFFFFFFFFULL;
+
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     if (value < min) return min;
     if (value > max) return max;
@@ -81,7 +85,12 @@ VulkanRenderer::VulkanRenderer() :
     m_msaaColorImageMemory(VK_NULL_HANDLE),
     m_msaaColorImageView(VK_NULL_HANDLE),
     m_selectedGpuIndex(-1),
-    m_preferredGpuIndex(-1)
+    m_preferredGpuIndex(-1),
+    m_reflectionRenderPass(VK_NULL_HANDLE),
+    m_reflectionFramebuffer(VK_NULL_HANDLE),
+    m_reflectionTextureId(REFLECTION_TEXTURE_ID_INVALID),
+    m_reflectionEnabled(false),
+    m_reflectionSurfaceY(0.0f)
 #ifdef DEBUG
     , m_imguiRenderCallback(nullptr)
 #endif
@@ -247,6 +256,9 @@ bool VulkanRenderer::getTextureForImGui(uint64_t textureId, VkImageView* imageVi
 #endif
 
 void VulkanRenderer::cleanup() {
+    // Clean up reflection resources first
+    destroyReflectionResources();
+
     for (size_t i = 0; i < 2; i++) {
         if (m_renderFinishedSemaphores[i] != VK_NULL_HANDLE) {
             vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
@@ -1150,6 +1162,11 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     assert(vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS);
 
+    // Render reflection pass first (if enabled)
+    if (m_reflectionEnabled) {
+        recordReflectionPass(commandBuffer, time);
+    }
+
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = m_renderPass;
@@ -1395,4 +1412,216 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 
     vkCmdEndRenderPass(commandBuffer);
     assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
+}
+
+// Reflection/render-to-texture implementation
+
+void VulkanRenderer::enableReflection(float surfaceY) {
+    if (m_reflectionEnabled) {
+        // Already enabled, just update surface Y
+        m_reflectionSurfaceY = surfaceY;
+        return;
+    }
+
+    m_reflectionSurfaceY = surfaceY;
+    createReflectionResources();
+    m_reflectionEnabled = true;
+
+    std::cout << "Reflection enabled at surface Y=" << surfaceY << std::endl;
+}
+
+void VulkanRenderer::disableReflection() {
+    if (!m_reflectionEnabled) {
+        return;
+    }
+
+    destroyReflectionResources();
+    m_reflectionEnabled = false;
+
+    std::cout << "Reflection disabled" << std::endl;
+}
+
+void VulkanRenderer::createReflectionResources() {
+    // Create render target texture for reflection
+    m_reflectionTextureId = REFLECTION_TEXTURE_ID;
+    m_textureManager.createRenderTargetTexture(m_reflectionTextureId,
+                                                m_swapchainExtent.width,
+                                                m_swapchainExtent.height,
+                                                m_swapchainImageFormat);
+
+    // Create a descriptor set for the reflection texture
+    VulkanTexture::TextureData texData;
+    if (m_textureManager.getTexture(m_reflectionTextureId, &texData)) {
+        m_descriptorManager.createSingleTextureDescriptorSet(m_reflectionTextureId, texData.imageView, texData.sampler);
+    }
+
+    // Create render pass for reflection (no MSAA, single attachment)
+    VkAttachmentDescription colorAttachment{};
+    colorAttachment.format = m_swapchainImageFormat;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference colorAttachmentRef{};
+    colorAttachmentRef.attachment = 0;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentRef;
+
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
+
+    VkResult result = vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_reflectionRenderPass);
+    assert(result == VK_SUCCESS);
+
+    // Create framebuffer for reflection
+    if (m_textureManager.getTexture(m_reflectionTextureId, &texData)) {
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = m_reflectionRenderPass;
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = &texData.imageView;
+        framebufferInfo.width = m_swapchainExtent.width;
+        framebufferInfo.height = m_swapchainExtent.height;
+        framebufferInfo.layers = 1;
+
+        result = vkCreateFramebuffer(m_device, &framebufferInfo, nullptr, &m_reflectionFramebuffer);
+        assert(result == VK_SUCCESS);
+    }
+
+    std::cout << "Created reflection resources: " << m_swapchainExtent.width << "x" << m_swapchainExtent.height << std::endl;
+}
+
+void VulkanRenderer::destroyReflectionResources() {
+    if (m_reflectionFramebuffer != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(m_device, m_reflectionFramebuffer, nullptr);
+        m_reflectionFramebuffer = VK_NULL_HANDLE;
+    }
+
+    if (m_reflectionRenderPass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(m_device, m_reflectionRenderPass, nullptr);
+        m_reflectionRenderPass = VK_NULL_HANDLE;
+    }
+
+    if (m_reflectionTextureId != REFLECTION_TEXTURE_ID_INVALID) {
+        m_textureManager.destroyTexture(m_reflectionTextureId);
+        m_reflectionTextureId = REFLECTION_TEXTURE_ID_INVALID;
+    }
+}
+
+void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float time) {
+    if (!m_reflectionEnabled || m_reflectionRenderPass == VK_NULL_HANDLE) {
+        return;
+    }
+
+    // Begin reflection render pass
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = m_reflectionRenderPass;
+    renderPassInfo.framebuffer = m_reflectionFramebuffer;
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = m_swapchainExtent;
+    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 0.0f}}};  // Transparent background
+    renderPassInfo.clearValueCount = 1;
+    renderPassInfo.pClearValues = &clearColor;
+
+    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    // Render sprites/layers that are above the water surface (for reflection)
+    // Flip the Y coordinate to create mirror effect
+    float flippedCameraY = 2.0f * m_reflectionSurfaceY - m_cameraOffsetY;
+
+    float pushConstants[7] = {
+        static_cast<float>(m_swapchainExtent.width),
+        static_cast<float>(m_swapchainExtent.height),
+        time,
+        m_cameraOffsetX,
+        flippedCameraY,  // Flipped camera Y for reflection
+        m_cameraZoom,
+        0.0f
+    };
+
+    // Bind sprite vertex/index buffers
+    if (m_spriteBuffer.vertexBuffer != VK_NULL_HANDLE && m_spriteBuffer.indexBuffer != VK_NULL_HANDLE) {
+        VkBuffer vertexBuffers[] = {m_spriteBuffer.vertexBuffer};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    }
+
+    // Draw only batches that are above the water surface (parallaxDepth check)
+    for (const auto& batch : m_allBatches) {
+        if (batch.isParticle) continue;  // Skip particles for reflection
+
+        // Skip the water layer itself
+        if (batch.parallaxDepth < 0.0f) continue;  // Water has negative parallax
+
+        VkPipeline pipeline = m_pipelineManager.getPipeline(batch.pipelineId);
+        const PipelineInfo* info = m_pipelineManager.getPipelineInfo(batch.pipelineId);
+
+        if (pipeline != VK_NULL_HANDLE && info != nullptr) {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+            // Set push constants with flipped Y
+            if (info->usesExtendedPushConstants) {
+                const auto& params = m_pipelineManager.getShaderParams(batch.pipelineId);
+                float extPushConstants[13] = {
+                    static_cast<float>(m_swapchainExtent.width),
+                    static_cast<float>(m_swapchainExtent.height),
+                    time,
+                    m_cameraOffsetX,
+                    flippedCameraY,
+                    -m_cameraZoom,  // Negative zoom to flip Y
+                    params[0], params[1], params[2],
+                    params[3], params[4], params[5], params[6]
+                };
+                vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
+            } else {
+                float reflPushConstants[7] = {
+                    pushConstants[0], pushConstants[1], pushConstants[2],
+                    pushConstants[3], pushConstants[4], -m_cameraZoom, pushConstants[6]
+                };
+                vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(reflPushConstants), reflPushConstants);
+            }
+
+            // Bind descriptor set and draw
+            VkDescriptorSet descriptorSet = m_descriptorManager.getOrCreateDescriptorSet(
+                batch.descriptorId, batch.textureId, batch.normalMapId, info->usesDualTexture);
+
+            if (descriptorSet != VK_NULL_HANDLE) {
+                if (info->usesDualTexture) {
+                    VkDescriptorSet descriptorSets[] = {descriptorSet, m_descriptorManager.getLightDescriptorSet()};
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                          info->layout, 0, 2, descriptorSets, 0, nullptr);
+                } else {
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                          info->layout, 0, 1, &descriptorSet, 0, nullptr);
+                }
+                vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+            }
+        }
+    }
+
+    vkCmdEndRenderPass(commandBuffer);
 }

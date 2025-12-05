@@ -24,7 +24,8 @@ layout(location = 4) in vec2 fragWaterBoundsMax;
 
 layout(location = 0) out vec4 outColor;
 
-layout(binding = 0) uniform sampler2D texSampler;
+layout(binding = 0) uniform sampler2D texSampler;        // Primary texture (unused for water)
+layout(binding = 1) uniform sampler2D reflectionSampler; // Reflection render target
 
 const float PI = 3.14159265359;
 
@@ -122,31 +123,38 @@ void main() {
     vec3 highlightColor = vec3(0.85, 0.92, 1.0);
     waterColor = mix(waterColor, highlightColor, surfaceHighlight * 0.7);
 
-    // === REFLECTION ===
-    // Sample from the scene texture to get actual reflection
-    float reflectionZone = smoothstep(0.35, 0.0, normalizedDepth);
-
-    // Calculate reflection UV - flip Y to sample from above water
-    float reflectedY = animatedSurfaceY + (animatedSurfaceY - fragWorldPos.y);
+    // === REFLECTION (using render-to-texture) ===
+    // Reflection is strongest near surface
+    float reflectionZone = smoothstep(0.4, 0.0, normalizedDepth);
 
     // Add wave distortion to the reflection
-    float reflectDistort = surfaceWaveOffset * 0.3;
+    float reflectDistort = surfaceWaveOffset * 2.0;
 
-    // Convert world position to UV for texture sampling
+    // Calculate UV for sampling the reflection texture
+    // The reflection texture contains the scene rendered with flipped Y
     vec2 reflectUV;
     float aspect = pc.height > 0.0 ? pc.width / pc.height : 1.0;
-    reflectUV.x = ((fragWorldPos.x + reflectDistort - pc.cameraX) * pc.cameraZoom / aspect + 1.0) * 0.5;
-    reflectUV.y = ((-reflectedY - pc.cameraY) * pc.cameraZoom + 1.0) * 0.5;
+
+    // Map world position to screen UV, with wave distortion
+    reflectUV.x = ((fragWorldPos.x + reflectDistort * 0.1 - pc.cameraX) * pc.cameraZoom / aspect + 1.0) * 0.5;
+    // For reflection, we sample from the mirrored position (above water)
+    // Add some distortion based on wave height
+    float distortedY = fragWorldPos.y + reflectDistort * 0.15;
+    reflectUV.y = ((-distortedY - pc.cameraY) * pc.cameraZoom + 1.0) * 0.5;
 
     // Clamp to valid UV range
     reflectUV = clamp(reflectUV, 0.01, 0.99);
 
-    // Sample the scene texture for reflection
-    vec4 reflectedColor = texture(texSampler, reflectUV);
+    // Sample the reflection render target
+    vec4 reflectedColor = texture(reflectionSampler, reflectUV);
 
-    // Blend reflection with water color (stronger near surface)
-    float fresnelFactor = pow(1.0 - normalizedDepth, 2.5) * 0.5;
-    waterColor = mix(waterColor, reflectedColor.rgb, reflectionZone * fresnelFactor * min(reflectedColor.a, 1.0));
+    // Fresnel effect - more reflection at grazing angles (near surface)
+    float fresnelFactor = pow(1.0 - normalizedDepth, 3.0) * 0.7;
+
+    // Blend reflection with water color (stronger near surface, weaker at depth)
+    if (reflectedColor.a > 0.01) {
+        waterColor = mix(waterColor, reflectedColor.rgb, reflectionZone * fresnelFactor);
+    }
 
     // === CAUSTICS (light patterns underwater) ===
     float causticDepth = smoothstep(0.08, 0.25, normalizedDepth) * smoothstep(1.0, 0.5, normalizedDepth);

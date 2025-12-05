@@ -55,6 +55,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "createForceField", "destroyForceField",
                                      "createRadialForceField", "destroyRadialForceField",
                                      "createWaterForceField", "destroyWaterForceField", "loadWaterShaders",
+                                     "enableReflection", "disableReflection", "getReflectionTextureId",
                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
                                      "setLayerSpin", "setLayerBlink", "setLayerWave", "setLayerColor", "setLayerColorCycle",
                                      "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
@@ -628,6 +629,11 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "setCameraOffset", setCameraOffset);
     lua_register(luaState_, "getCameraZoom", getCameraZoom);
     lua_register(luaState_, "setCameraZoom", setCameraZoom);
+
+    // Register reflection/render-to-texture functions
+    lua_register(luaState_, "enableReflection", enableReflection);
+    lua_register(luaState_, "disableReflection", disableReflection);
+    lua_register(luaState_, "getReflectionTextureId", getReflectionTextureId);
 
     // Register light management functions
     lua_register(luaState_, "addLight", addLight);
@@ -2920,6 +2926,48 @@ int LuaInterface::setCameraZoom(lua_State* L) {
         interface->cameraZoom_ = zoom;
     }
     return 0;
+}
+
+// Reflection Lua bindings
+
+int LuaInterface::enableReflection(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: surfaceY (float)
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    float surfaceY = lua_tonumber(L, 1);
+    interface->renderer_.enableReflection(surfaceY);
+
+    return 0;
+}
+
+int LuaInterface::disableReflection(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    interface->renderer_.disableReflection();
+
+    return 0;
+}
+
+int LuaInterface::getReflectionTextureId(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    if (!interface->renderer_.isReflectionEnabled()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    uint64_t textureId = interface->renderer_.getReflectionTextureId();
+    lua_pushinteger(L, static_cast<lua_Integer>(textureId));
+    return 1;
 }
 
 // Camera zoom constants
