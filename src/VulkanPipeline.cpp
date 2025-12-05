@@ -449,6 +449,7 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
     info.usesExtendedPushConstants = false;
     info.usesAnimationPushConstants = false;
     info.isParticlePipeline = false;
+    info.isWaterPipeline = false;
     m_pipelineInfo[id] = info;
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
@@ -633,6 +634,7 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     info.usesExtendedPushConstants = false;
     info.usesAnimationPushConstants = false;
     info.isParticlePipeline = false;
+    info.isWaterPipeline = false;
     m_pipelineInfo[id] = info;
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
@@ -818,6 +820,7 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
     info.usesExtendedPushConstants = true;
     info.usesAnimationPushConstants = true;
     info.isParticlePipeline = false;
+    info.isWaterPipeline = false;
     m_pipelineInfo[id] = info;
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
@@ -974,6 +977,7 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
     info.usesExtendedPushConstants = false;
     info.usesAnimationPushConstants = false;
     info.isParticlePipeline = true;
+    info.isWaterPipeline = false;
     m_pipelineInfo[id] = info;
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
@@ -1050,6 +1054,39 @@ int VulkanPipeline::getShaderParamCount(int pipelineId) const {
         return it->second;
     }
     return 0;
+}
+
+void VulkanPipeline::setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples) {
+    if (rippleCount > MAX_SHADER_RIPPLES) {
+        rippleCount = MAX_SHADER_RIPPLES;
+    }
+    m_pipelineWaterRippleCount[pipelineId] = rippleCount;
+    for (int i = 0; i < rippleCount; ++i) {
+        m_pipelineWaterRipples[pipelineId][i] = ripples[i];
+    }
+    for (int i = rippleCount; i < MAX_SHADER_RIPPLES; ++i) {
+        m_pipelineWaterRipples[pipelineId][i] = {0.0f, 0.0f, 0.0f};
+    }
+
+    auto infoIt = m_pipelineInfo.find(pipelineId);
+    if (infoIt != m_pipelineInfo.end()) {
+        infoIt->second.isWaterPipeline = true;
+    }
+}
+
+void VulkanPipeline::getWaterRipples(int pipelineId, int& outRippleCount, ShaderRippleData* outRipples) const {
+    auto countIt = m_pipelineWaterRippleCount.find(pipelineId);
+    if (countIt == m_pipelineWaterRippleCount.end()) {
+        outRippleCount = 0;
+        return;
+    }
+    outRippleCount = countIt->second;
+    auto rippleIt = m_pipelineWaterRipples.find(pipelineId);
+    if (rippleIt != m_pipelineWaterRipples.end()) {
+        for (int i = 0; i < outRippleCount; ++i) {
+            outRipples[i] = rippleIt->second[i];
+        }
+    }
 }
 
 void VulkanPipeline::setPipelineParallaxDepth(int pipelineId, float depth) {

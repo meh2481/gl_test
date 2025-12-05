@@ -54,7 +54,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
                                      "createForceField", "destroyForceField",
                                      "createRadialForceField", "destroyRadialForceField",
-                                     "createWaterForceField", "destroyWaterForceField", "loadWaterShaders",
+                                     "createWaterForceField", "destroyWaterForceField", "loadWaterShaders", "setWaterFieldShader",
                                      "enableReflection", "disableReflection", "getReflectionTextureId",
                                     "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
                                      "setLayerSpin", "setLayerBlink", "setLayerWave", "setLayerColor", "setLayerColorCycle",
@@ -274,6 +274,27 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
                 // Update tracked body for potential splash
                 waterEffectManager_->updateTrackedBody(field.waterFieldId, bodyIds[i], posX[i], posY[i]);
             }
+
+            // Update the shader with ripple data if this field has an associated shader
+            auto shaderIt = waterFieldShaderMap_.find(field.waterFieldId);
+            if (shaderIt != waterFieldShaderMap_.end()) {
+                int pipelineId = shaderIt->second;
+
+                // Convert WaterRipple to ShaderRippleData
+                int rippleCount = field.rippleCount;
+                if (rippleCount > MAX_SHADER_RIPPLES) {
+                    rippleCount = MAX_SHADER_RIPPLES;
+                }
+
+                ShaderRippleData shaderRipples[MAX_SHADER_RIPPLES];
+                for (int r = 0; r < rippleCount; ++r) {
+                    shaderRipples[r].x = field.ripples[r].x;
+                    shaderRipples[r].time = field.ripples[r].time;
+                    shaderRipples[r].amplitude = field.ripples[r].amplitude;
+                }
+
+                renderer_.setWaterRipples(pipelineId, rippleCount, shaderRipples);
+            }
         }
     }
 
@@ -365,6 +386,9 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
 
     // Clear all water effects
     waterEffectManager_->clear();
+
+    // Clear water field shader mappings
+    waterFieldShaderMap_.clear();
 
     // Clear all scene layers
     layerManager_->clear();
@@ -565,6 +589,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "createWaterForceField", createWaterForceField);
     lua_register(luaState_, "destroyWaterForceField", destroyWaterForceField);
     lua_register(luaState_, "loadWaterShaders", loadWaterShaders);
+    lua_register(luaState_, "setWaterFieldShader", setWaterFieldShader);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -1762,11 +1787,34 @@ int LuaInterface::loadWaterShaders(lua_State* L) {
     int pipelineId = interface->pipelineIndex_++;
     interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
 
-    // Create textured pipeline with alpha blending for water
-    interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader, 1);
+    // Create animation textured pipeline for water (uses 33 float push constants)
+    // Water needs 2 textures: primary texture and reflection render target
+    interface->renderer_.createAnimTexturedPipeline(pipelineId, vertShader, fragShader, 2);
+
+    // Mark pipeline as water pipeline
+    interface->renderer_.markPipelineAsWater(pipelineId);
 
     lua_pushinteger(L, pipelineId);
     return 1;
+}
+
+int LuaInterface::setWaterFieldShader(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: waterFieldId (integer), pipelineId (integer)
+    assert(lua_gettop(L) == 2);
+    assert(lua_isinteger(L, 1));
+    assert(lua_isinteger(L, 2));
+
+    int waterFieldId = (int)lua_tointeger(L, 1);
+    int pipelineId = (int)lua_tointeger(L, 2);
+
+    // Store the mapping
+    interface->waterFieldShaderMap_[waterFieldId] = pipelineId;
+
+    return 0;
 }
 
 // Scene layer Lua binding implementations

@@ -76,8 +76,8 @@ function init()
     -- Enable render-to-texture reflection at the water surface
     enableReflection(waterMaxY)
 
-    -- Create a visual layer for the water using dual textures (water + reflection)
-    waterShaderId = loadTexturedShadersEx("res/shaders/water_vertex.spv", "res/shaders/water_fragment.spv", 2, 2)
+    -- Create a visual layer for the water using water shaders (supports splash ripples)
+    waterShaderId = loadWaterShaders("res/shaders/water_vertex.spv", "res/shaders/water_fragment.spv", 2)
     local waterTexId = loadTexture("res/textures/rock1.png")
 
     -- Calculate layer dimensions - ensure full width coverage
@@ -105,6 +105,9 @@ function init()
     setLayerUseLocalUV(waterLayerId, true)
     -- Set water shader parameters: alpha, rippleAmplitude, rippleSpeed, maxY(surface), minX, minY, maxX
     setShaderParameters(waterShaderId, 0.75, 0.025, 2.0, waterMaxY, waterMinX, waterMinY, waterMaxX)
+
+    -- Associate the water shader with the water force field for splash ripples
+    setWaterFieldShader(waterField, waterShaderId)
 
     createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 
