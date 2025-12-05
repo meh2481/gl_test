@@ -57,11 +57,17 @@ function init()
     createBoundaries()
 
     -- Create water force field (with visual effect)
+    local waterMinX = -0.3
+    local waterMaxX = 0.3
+    local waterMinY = -0.9
+    local waterMaxY = 0.0
+    local waveBuffer = 0.05  -- Extra height above surface for wave peaks
+
     local waterVertices = {
-        -0.3, -0.9,   -- bottom-left
-         0.3, -0.9,   -- bottom-right
-         0.3,  0.0,   -- top-right (surface)
-        -0.3,  0.0    -- top-left (surface)
+        waterMinX, waterMinY,   -- bottom-left
+        waterMaxX, waterMinY,   -- bottom-right
+        waterMaxX, waterMaxY,   -- top-right (surface)
+        waterMinX, waterMaxY    -- top-left (surface)
     }
     -- Create water with: vertices, forceX, forceY, alpha, rippleAmplitude, rippleSpeed
     -- Reduced amplitude to 0.015 for gentler waves
@@ -70,20 +76,23 @@ function init()
     -- Create a visual layer for the water
     waterShaderId = loadTexturedShadersEx("res/shaders/water_vertex.spv", "res/shaders/water_fragment.spv", 1, 1)
     local waterTexId = loadTexture("res/textures/rock1.png")
-    -- Layer width matches force field width (0.6), with extra height for wave peaks
-    waterLayerId = createLayer(waterTexId, 0.6, waterShaderId)
-    -- Position: center X at 0, center Y slightly higher to allow waves to extend above surface
-    -- Water area: X from -0.3 to 0.3 (width 0.6), Y from -0.9 to 0.0 (height 0.9)
-    -- Adding 0.05 above surface for wave peaks, so center Y = (-0.9 + 0.05) / 2 = -0.425
-    setLayerPosition(waterLayerId, 0.0, -0.425, 0)
-    -- Scale: width = 1.0 (layer is 0.6 wide), height = 1.583 (0.95 / 0.6 to cover -0.9 to +0.05)
-    setLayerScale(waterLayerId, 1.0, 1.583)
+
+    -- Calculate layer dimensions
+    local waterWidth = waterMaxX - waterMinX
+    local waterHeight = waterMaxY - waterMinY
+    local totalHeight = waterHeight + waveBuffer
+    local centerY = (waterMinY + waterMaxY + waveBuffer) / 2
+
+    -- Layer width matches force field width, with extra height for wave peaks
+    waterLayerId = createLayer(waterTexId, waterWidth, waterShaderId)
+    setLayerPosition(waterLayerId, 0.0, centerY, 0)
+    -- Scale: width = 1.0, height = totalHeight / waterWidth
+    setLayerScale(waterLayerId, 1.0, totalHeight / waterWidth)
     setLayerParallaxDepth(waterLayerId, -0.1)
     -- Enable local UV mode so the shader gets proper 0-1 coordinates
     setLayerUseLocalUV(waterLayerId, true)
     -- Set water shader parameters: alpha, rippleAmplitude, rippleSpeed, maxY(surface), minX, minY, maxX
-    -- Surface Y is 0.0, reduced amplitude to 0.015
-    setShaderParameters(waterShaderId, 0.8, 0.015, 2.0, 0.0, -0.3, -0.9, 0.3)
+    setShaderParameters(waterShaderId, 0.8, 0.015, 2.0, waterMaxY, waterMinX, waterMinY, waterMaxX)
 
     createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 

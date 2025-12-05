@@ -138,7 +138,8 @@ void main() {
     // Convert world position to UV for texture sampling
     // Map from world space to 0-1 UV space based on screen
     vec2 reflectUV;
-    float aspect = pc.width / pc.height;
+    // Guard against division by zero
+    float aspect = pc.height > 0.0 ? pc.width / pc.height : 1.0;
     reflectUV.x = ((fragWorldPos.x + reflectDistort - pc.cameraX) * pc.cameraZoom / aspect + 1.0) * 0.5;
     reflectUV.y = ((-reflectedY - pc.cameraY) * pc.cameraZoom + 1.0) * 0.5;
 
@@ -146,6 +147,7 @@ void main() {
     reflectUV = clamp(reflectUV, 0.01, 0.99);
 
     // Sample the scene texture for reflection
+    // This samples from the rendered scene above the water to create realistic reflections
     vec4 reflectedColor = texture(texSampler, reflectUV);
 
     // Blend reflection with water color (stronger near surface)
