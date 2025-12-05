@@ -48,23 +48,24 @@ float noise(vec2 p) {
 }
 
 // Calculate animated water surface height at a given X position
+// Returns offset from the base surface Y
 float getWaterSurfaceHeight(float x, float time, float amplitude, float speed) {
     float wave = 0.0;
 
-    // Primary wave - slow, large movement
-    wave += sin(x * 6.0 + time * speed * 1.2) * 0.4;
+    // Primary wave - slow, gentle movement (reduced frequency for wider waves)
+    wave += sin(x * 2.0 + time * speed * 0.8) * 0.5;
 
-    // Secondary wave - faster, medium
-    wave += sin(x * 10.0 - time * speed * 0.9) * 0.25;
+    // Secondary wave - slightly faster
+    wave += sin(x * 3.5 - time * speed * 0.6) * 0.3;
 
-    // Tertiary wave - even faster, small ripples
-    wave += sin(x * 18.0 + time * speed * 1.8) * 0.15;
+    // Tertiary wave - small ripples
+    wave += sin(x * 6.0 + time * speed * 1.2) * 0.15;
 
-    // Small high-frequency detail
-    wave += sin(x * 35.0 - time * speed * 2.5) * 0.08;
+    // Tiny detail ripples
+    wave += sin(x * 10.0 - time * speed * 1.5) * 0.05;
 
     // Add some noise for organic feel
-    wave += (noise(vec2(x * 8.0 + time * speed * 0.5, time * 0.1)) - 0.5) * 0.12;
+    wave += (noise(vec2(x * 2.0 + time * speed * 0.3, time * 0.05)) - 0.5) * 0.1;
 
     return wave * amplitude;
 }
@@ -76,10 +77,6 @@ void main() {
     float waterWidth = waterBoundsMax.x - waterBoundsMin.x;
     float waterHeight = waterBoundsMax.y - waterBoundsMin.y;
 
-    // Normalized position within water bounds
-    float normalizedX = (fragWorldPos.x - waterBoundsMin.x) / waterWidth;
-    float normalizedY = (fragWorldPos.y - waterBoundsMin.y) / waterHeight;
-
     // Get water parameters
     float waterAlpha = pc.param0;
     float rippleAmplitude = pc.param1;
@@ -87,9 +84,10 @@ void main() {
     float surfaceY = waterBoundsMax.y;
 
     // Calculate animated surface height at this X position
-    float surfaceWaveOffset = getWaterSurfaceHeight(fragWorldPos.x * 10.0, pc.time, rippleAmplitude, rippleSpeed);
+    // Use world X directly for consistent wave pattern across the water
+    float surfaceWaveOffset = getWaterSurfaceHeight(fragWorldPos.x, pc.time, rippleAmplitude, rippleSpeed);
 
-    // Adjusted surface Y with wave
+    // Adjusted surface Y with wave (waves can go above the base surface)
     float animatedSurfaceY = surfaceY + surfaceWaveOffset;
 
     // Distance from the animated surface (positive = below surface, negative = above)
@@ -103,66 +101,81 @@ void main() {
     // Normalized depth (0 = at surface, 1 = at bottom)
     float normalizedDepth = clamp(distFromSurface / waterHeight, 0.0, 1.0);
 
-    // Surface band thickness (for highlight effects)
-    float surfaceBandThickness = 0.08;
+    // Surface band thickness (for highlight effects) - thinner band
+    float surfaceBandThickness = 0.015;
     float inSurfaceBand = smoothstep(surfaceBandThickness, 0.0, distFromSurface);
 
     // === WATER COLOR ===
     // Base water color gradient (lighter at surface, darker at depth)
-    vec3 surfaceColor = vec3(0.15, 0.45, 0.75);   // Light blue at surface
-    vec3 midColor = vec3(0.08, 0.30, 0.55);       // Medium blue
-    vec3 deepColor = vec3(0.02, 0.12, 0.30);      // Dark blue at depth
-    vec3 waterColor = mix(surfaceColor, deepColor, pow(normalizedDepth, 0.6));
+    vec3 surfaceColor = vec3(0.2, 0.5, 0.8);     // Light blue at surface
+    vec3 deepColor = vec3(0.02, 0.1, 0.25);      // Dark blue at depth
+    vec3 waterColor = mix(surfaceColor, deepColor, pow(normalizedDepth, 0.5));
 
     // === SURFACE HIGHLIGHT ===
     // Bright highlight at the very top edge of the water
-    float surfaceHighlight = pow(inSurfaceBand, 2.0);
+    float surfaceHighlight = pow(inSurfaceBand, 1.5);
 
-    // Add wave-based variation to highlight
-    float highlightWave = sin(fragWorldPos.x * 25.0 + pc.time * rippleSpeed * 3.0) * 0.3 + 0.7;
+    // Add wave-based variation to highlight (gentler variation)
+    float highlightWave = sin(fragWorldPos.x * 8.0 + pc.time * rippleSpeed * 2.0) * 0.2 + 0.8;
     surfaceHighlight *= highlightWave;
 
     // Surface is brighter white/cyan
-    vec3 highlightColor = vec3(0.85, 0.95, 1.0);
-    waterColor = mix(waterColor, highlightColor, surfaceHighlight * 0.7);
+    vec3 highlightColor = vec3(0.9, 0.95, 1.0);
+    waterColor = mix(waterColor, highlightColor, surfaceHighlight * 0.8);
 
-    // === REFLECTION (fake) ===
+    // === REFLECTION ===
     // Near the surface, add a reflection effect
-    // This simulates reflecting the sky/scene above by using procedural patterns
-    float reflectionZone = smoothstep(0.3, 0.0, normalizedDepth);
+    // Sample from the scene texture above the water to create reflection
+    float reflectionZone = smoothstep(0.25, 0.0, normalizedDepth);
 
-    // Animated reflection pattern
-    float reflectX = fragWorldPos.x + surfaceWaveOffset * 2.0;
-    float reflectPattern = noise(vec2(reflectX * 5.0, pc.time * 0.3)) * 0.5 +
-                           noise(vec2(reflectX * 12.0, pc.time * 0.5)) * 0.3;
+    // Calculate reflection UV - flip Y to sample from above water
+    // The reflected position is mirrored across the animated surface
+    float reflectedY = animatedSurfaceY + (animatedSurfaceY - fragWorldPos.y);
 
-    // Reflection color (sky-like colors)
-    vec3 reflectionColor = mix(vec3(0.6, 0.75, 0.9), vec3(0.8, 0.85, 0.95), reflectPattern);
-    waterColor = mix(waterColor, reflectionColor, reflectionZone * 0.4);
+    // Add some wave distortion to the reflection
+    float reflectDistort = surfaceWaveOffset * 0.5;
+
+    // Convert world position to UV for texture sampling
+    // Map from world space to 0-1 UV space based on screen
+    vec2 reflectUV;
+    float aspect = pc.width / pc.height;
+    reflectUV.x = ((fragWorldPos.x + reflectDistort - pc.cameraX) * pc.cameraZoom / aspect + 1.0) * 0.5;
+    reflectUV.y = ((-reflectedY - pc.cameraY) * pc.cameraZoom + 1.0) * 0.5;
+
+    // Clamp to valid UV range
+    reflectUV = clamp(reflectUV, 0.01, 0.99);
+
+    // Sample the scene texture for reflection
+    vec4 reflectedColor = texture(texSampler, reflectUV);
+
+    // Blend reflection with water color (stronger near surface)
+    // Fresnel-like effect: more reflection at grazing angles
+    float fresnelFactor = pow(1.0 - normalizedDepth, 2.0) * 0.6;
+    waterColor = mix(waterColor, reflectedColor.rgb, reflectionZone * fresnelFactor * reflectedColor.a);
 
     // === CAUSTICS (light patterns underwater) ===
     // More visible in the middle depths
-    float causticDepth = smoothstep(0.0, 0.3, normalizedDepth) * smoothstep(1.0, 0.5, normalizedDepth);
-    float caustic1 = sin(fragWorldPos.x * 20.0 + pc.time * 2.0 + surfaceWaveOffset * 5.0) *
-                     sin(fragWorldPos.y * 15.0 - pc.time * 1.5);
-    float caustic2 = sin(fragWorldPos.x * 15.0 - pc.time * 1.3) *
-                     sin(fragWorldPos.y * 22.0 + pc.time * 1.8);
+    float causticDepth = smoothstep(0.05, 0.2, normalizedDepth) * smoothstep(1.0, 0.4, normalizedDepth);
+    float caustic1 = sin(fragWorldPos.x * 12.0 + pc.time * 1.5 + surfaceWaveOffset * 3.0) *
+                     sin(fragWorldPos.y * 10.0 - pc.time * 1.2);
+    float caustic2 = sin(fragWorldPos.x * 8.0 - pc.time * 1.0) *
+                     sin(fragWorldPos.y * 14.0 + pc.time * 1.3);
     float caustics = max(0.0, caustic1 + caustic2) * 0.5;
-    caustics = pow(caustics, 1.5) * causticDepth * 0.25;
+    caustics = pow(caustics, 1.5) * causticDepth * 0.2;
     waterColor += vec3(0.3, 0.5, 0.6) * caustics;
 
     // === FOAM/BUBBLES near surface ===
-    float foamNoise = noise(fragWorldPos * 40.0 + vec2(pc.time * 0.8, pc.time * 0.5));
-    float foamMask = pow(inSurfaceBand, 1.5) * step(0.65, foamNoise);
-    waterColor = mix(waterColor, vec3(0.95, 0.98, 1.0), foamMask * 0.6);
+    float foamNoise = noise(fragWorldPos * 25.0 + vec2(pc.time * 0.5, pc.time * 0.3));
+    float foamMask = pow(inSurfaceBand, 1.2) * step(0.7, foamNoise);
+    waterColor = mix(waterColor, vec3(0.95, 0.98, 1.0), foamMask * 0.5);
 
     // === ALPHA ===
     // More transparent at surface, more opaque at depth
-    float depthAlpha = mix(0.55, 0.90, pow(normalizedDepth, 0.5));
+    float depthAlpha = mix(0.6, 0.92, pow(normalizedDepth, 0.4));
     float finalAlpha = waterAlpha * depthAlpha;
 
     // Slight transparency boost right at the surface edge for softer look
-    finalAlpha *= mix(0.8, 1.0, smoothstep(0.0, 0.02, distFromSurface));
+    finalAlpha *= mix(0.85, 1.0, smoothstep(0.0, 0.01, distFromSurface));
 
     outColor = vec4(waterColor, finalAlpha);
 }

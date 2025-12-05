@@ -64,23 +64,26 @@ function init()
         -0.3,  0.0    -- top-left (surface)
     }
     -- Create water with: vertices, forceX, forceY, alpha, rippleAmplitude, rippleSpeed
-    waterField = createWaterForceField(waterVertices, 0.0, 15.0, 0.75, 0.04, 2.5)
+    -- Reduced amplitude to 0.015 for gentler waves
+    waterField = createWaterForceField(waterVertices, 0.0, 15.0, 0.8, 0.015, 2.0)
 
     -- Create a visual layer for the water
     waterShaderId = loadTexturedShadersEx("res/shaders/water_vertex.spv", "res/shaders/water_fragment.spv", 1, 1)
     local waterTexId = loadTexture("res/textures/rock1.png")
+    -- Layer width matches force field width (0.6), with extra height for wave peaks
     waterLayerId = createLayer(waterTexId, 0.6, waterShaderId)
-    -- Position the water layer to cover the force field area
-    -- Center is at (0, -0.45) which is the middle of the water area
-    setLayerPosition(waterLayerId, 0.0, -0.45, 0)
-    -- Scale to match the water area dimensions (0.6 wide, 0.9 tall)
-    setLayerScale(waterLayerId, 1.0, 1.5)
+    -- Position: center X at 0, center Y slightly higher to allow waves to extend above surface
+    -- Water area: X from -0.3 to 0.3 (width 0.6), Y from -0.9 to 0.0 (height 0.9)
+    -- Adding 0.05 above surface for wave peaks, so center Y = (-0.9 + 0.05) / 2 = -0.425
+    setLayerPosition(waterLayerId, 0.0, -0.425, 0)
+    -- Scale: width = 1.0 (layer is 0.6 wide), height = 1.583 (0.95 / 0.6 to cover -0.9 to +0.05)
+    setLayerScale(waterLayerId, 1.0, 1.583)
     setLayerParallaxDepth(waterLayerId, -0.1)
     -- Enable local UV mode so the shader gets proper 0-1 coordinates
     setLayerUseLocalUV(waterLayerId, true)
     -- Set water shader parameters: alpha, rippleAmplitude, rippleSpeed, maxY(surface), minX, minY, maxX
-    -- Increased amplitude to 0.04 for more visible surface movement
-    setShaderParameters(waterShaderId, 0.75, 0.04, 2.5, 0.0, -0.3, -0.9, 0.3)
+    -- Surface Y is 0.0, reduced amplitude to 0.015
+    setShaderParameters(waterShaderId, 0.8, 0.015, 2.0, 0.0, -0.3, -0.9, 0.3)
 
     createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 
