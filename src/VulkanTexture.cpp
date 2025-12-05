@@ -262,34 +262,58 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
         return;
     }
 
-    // Parse ImageHeader to get format, width, height
-    assert(imageData.size >= sizeof(ImageHeader));
-    const ImageHeader* header = (const ImageHeader*)imageData.data;
-    uint32_t width = header->width;
-    uint32_t height = header->height;
-    uint16_t format = header->format;
-
-    const char* compressedData = imageData.data + sizeof(ImageHeader);
-    size_t compressedSize = imageData.size - sizeof(ImageHeader);
-
-    // Map our format to Vulkan format
-    VkFormat vkFormat;
-    const char* formatStr;
-    if (format == IMAGE_FORMAT_BC1_DXT1) {
-        vkFormat = VK_FORMAT_BC1_RGB_UNORM_BLOCK;
-        formatStr = "BC1/DXT1";
-    } else if (format == IMAGE_FORMAT_BC3_DXT5) {
-        vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
-        formatStr = "BC3/DXT5";
-    } else {
-        std::cerr << "Texture " << textureId << ": unsupported format " << format << std::endl;
-        assert(false && "Unsupported image format (expected BC1/DXT1 or BC3/DXT5)");
+    if (imageData.type != RESOURCE_TYPE_IMAGE) {
+        std::cerr << "Texture " << textureId << ": resource is not an image (type " << imageData.type << ")" << std::endl;
+        assert(false && "Resource is not an image");
         return;
     }
 
-    std::cout << "Texture " << textureId << ": uploading to GPU (" << width << "x" << height << ", " << formatStr << ", " << compressedSize << " bytes)" << std::endl;
-    createTextureImage(textureId, compressedData, width, height, vkFormat, compressedSize);
-    createTextureSampler(textureId);
+    if (imageData.size == 40) {  // Atlas reference
+        // This is an atlas reference
+        const TextureHeader* texHeader = (const TextureHeader*)imageData.data;
+        uint64_t atlasId = texHeader->atlasId;
+        std::cout << "Texture " << textureId << ": atlas reference (atlas id: " << atlasId << ", UV: " << texHeader->coordinates[0] << "," << texHeader->coordinates[1] << " - " << texHeader->coordinates[4] << "," << texHeader->coordinates[5] << ")" << std::endl;
+        // Load the atlas if not already loaded
+        if (m_textures.find(atlasId) == m_textures.end()) {
+            // Atlas not loaded, but we can't load it here without data
+            std::cerr << "Atlas " << atlasId << " not loaded for texture " << textureId << std::endl;
+            return;
+        }
+        // Associate the texture ID with the atlas texture
+        m_textures[textureId] = m_textures[atlasId];
+        createTextureSampler(textureId);
+        return;
+    } else {
+        // Individual image
+        // Parse ImageHeader to get format, width, height
+        assert(imageData.size >= sizeof(ImageHeader));
+        const ImageHeader* header = (const ImageHeader*)imageData.data;
+        uint32_t width = header->width;
+        uint32_t height = header->height;
+        uint16_t format = header->format;
+
+        const char* compressedData = imageData.data + sizeof(ImageHeader);
+        size_t compressedSize = imageData.size - sizeof(ImageHeader);
+
+        // Map our format to Vulkan format
+        VkFormat vkFormat;
+        const char* formatStr;
+        if (format == IMAGE_FORMAT_BC1_DXT1) {
+            vkFormat = VK_FORMAT_BC1_RGB_UNORM_BLOCK;
+            formatStr = "BC1/DXT1";
+        } else if (format == IMAGE_FORMAT_BC3_DXT5) {
+            vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
+            formatStr = "BC3/DXT5";
+        } else {
+            std::cerr << "Texture " << textureId << ": unsupported format " << format << std::endl;
+            assert(false && "Unsupported image format (expected BC1/DXT1 or BC3/DXT5)");
+            return;
+        }
+
+        std::cout << "Texture " << textureId << ": uploading to GPU (" << width << "x" << height << ", " << formatStr << ", " << compressedSize << " bytes)" << std::endl;
+        createTextureImage(textureId, compressedData, width, height, vkFormat, compressedSize);
+        createTextureSampler(textureId);
+    }
 }
 
 void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData) {

@@ -9,6 +9,7 @@
 struct ResourceData {
     char* data;
     size_t size;
+    uint32_t type;
 };
 
 // Atlas UV coordinates for texture

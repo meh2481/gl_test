@@ -112,14 +112,14 @@ ResourceData PakResource::getResource(uint64_t id) {
     if (!m_pakData.data) {
         std::cerr << "Resource pak not loaded, cannot get resource id " << id << std::endl;
         SDL_UnlockMutex(m_mutex);
-        return ResourceData{nullptr, 0};
+        return ResourceData{nullptr, 0, 0};
     }
 
     PakFileHeader* header = (PakFileHeader*)m_pakData.data;
     if (memcmp(header->sig, "PAKC", 4) != 0) {
         std::cerr << "Invalid pak file signature" << std::endl;
         SDL_UnlockMutex(m_mutex);
-        return ResourceData{nullptr, 0};
+        return ResourceData{nullptr, 0, 0};
     }
 
     ResourcePtr* ptrs = (ResourcePtr*)(m_pakData.data + sizeof(PakFileHeader));
@@ -128,14 +128,14 @@ ResourceData PakResource::getResource(uint64_t id) {
             CompressionHeader* comp = (CompressionHeader*)(m_pakData.data + ptrs[i].offset);
             char* compressedData = (char*)(comp + 1);
             if (comp->compressionType == COMPRESSION_FLAGS_UNCOMPRESSED) {
-                ResourceData result = ResourceData{compressedData, comp->decompressedSize};
+                ResourceData result = ResourceData{compressedData, comp->decompressedSize, comp->type};
                 SDL_UnlockMutex(m_mutex);
                 return result;
             } else if (comp->compressionType == COMPRESSION_FLAGS_LZ4) {
                 // Check if already decompressed (cache hit)
                 if (m_decompressedData.find(id) != m_decompressedData.end()) {
                     std::cout << "Resource " << id << ": cache hit (" << comp->decompressedSize << " bytes)" << std::endl;
-                    ResourceData result = ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize};
+                    ResourceData result = ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize, comp->type};
                     SDL_UnlockMutex(m_mutex);
                     return result;
                 }
@@ -146,9 +146,9 @@ ResourceData PakResource::getResource(uint64_t id) {
                 if (result != (int)comp->decompressedSize) {
                     std::cerr << "LZ4 decompression failed for resource " << id << std::endl;
                     SDL_UnlockMutex(m_mutex);
-                    return ResourceData{nullptr, 0};
+                    return ResourceData{nullptr, 0, 0};
                 }
-                ResourceData resData = ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize};
+                ResourceData resData = ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize, comp->type};
                 SDL_UnlockMutex(m_mutex);
                 return resData;
             }
@@ -157,7 +157,7 @@ ResourceData PakResource::getResource(uint64_t id) {
 
     std::cerr << "Resource " << id << " not found in pak" << std::endl;
     SDL_UnlockMutex(m_mutex);
-    return ResourceData{nullptr, 0};
+    return ResourceData{nullptr, 0, 0};
 }
 
 bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
@@ -233,7 +233,7 @@ ResourceData PakResource::getAtlasData(uint64_t atlasId) {
     // Get the atlas resource
     ResourceData resData = getResource(atlasId);
     if (!resData.data || resData.size < sizeof(AtlasHeader)) {
-        return ResourceData{nullptr, 0};
+        return ResourceData{nullptr, 0, 0};
     }
 
     // The atlas data contains: AtlasHeader + AtlasEntry[] + compressed image data
