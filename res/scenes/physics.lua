@@ -64,17 +64,22 @@ function init()
         -0.3,  0.0    -- top-left (surface)
     }
     -- Create water with: vertices, forceX, forceY, alpha, rippleAmplitude, rippleSpeed
-    waterField = createWaterForceField(waterVertices, 0.0, 15.0, 0.6, 0.01, 3.0)
+    waterField = createWaterForceField(waterVertices, 0.0, 15.0, 0.7, 0.02, 2.0)
 
     -- Create a visual layer for the water
     waterShaderId = loadTexturedShadersEx("res/shaders/water_vertex.spv", "res/shaders/water_fragment.spv", 1, 1)
     local waterTexId = loadTexture("res/textures/rock1.png")
     waterLayerId = createLayer(waterTexId, 0.6, waterShaderId)
+    -- Position the water layer to cover the force field area
+    -- Center is at (0, -0.45) which is the middle of the water area
     setLayerPosition(waterLayerId, 0.0, -0.45, 0)
+    -- Scale to match the water area dimensions (0.6 wide, 0.9 tall)
     setLayerScale(waterLayerId, 1.0, 1.5)
     setLayerParallaxDepth(waterLayerId, -0.1)
+    -- Enable local UV mode so the shader gets proper 0-1 coordinates
+    setLayerUseLocalUV(waterLayerId, true)
     -- Set water shader parameters: alpha, rippleAmplitude, rippleSpeed, maxY(surface), minX, minY, maxX
-    setShaderParameters(waterShaderId, 0.6, 0.01, 3.0, 0.0, -0.3, -0.9, 0.3)
+    setShaderParameters(waterShaderId, 0.7, 0.02, 2.0, 0.0, -0.3, -0.9, 0.3)
 
     createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 
