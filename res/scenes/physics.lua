@@ -73,8 +73,11 @@ function init()
     -- Amplitude 0.025 for medium-height waves
     waterField = createWaterForceField(waterVertices, 0.0, 15.0, 0.75, 0.025, 2.0)
 
-    -- Create a visual layer for the water
-    waterShaderId = loadTexturedShadersEx("res/shaders/water_vertex.spv", "res/shaders/water_fragment.spv", 1, 1)
+    -- Enable render-to-texture reflection at the water surface
+    enableReflection(waterMaxY)
+
+    -- Create a visual layer for the water using dual textures (water + reflection)
+    waterShaderId = loadTexturedShadersEx("res/shaders/water_vertex.spv", "res/shaders/water_fragment.spv", 2, 2)
     local waterTexId = loadTexture("res/textures/rock1.png")
 
     -- Calculate layer dimensions - ensure full width coverage

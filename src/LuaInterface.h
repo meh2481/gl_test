@@ -179,6 +179,11 @@ private:
     static int getCameraZoom(lua_State* L);
     static int setCameraZoom(lua_State* L);
 
+    // Reflection/render-to-texture Lua bindings
+    static int enableReflection(lua_State* L);
+    static int disableReflection(lua_State* L);
+    static int getReflectionTextureId(lua_State* L);
+
     // Light management Lua bindings
     static int addLight(lua_State* L);
     static int updateLight(lua_State* L);

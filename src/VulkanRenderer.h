@@ -48,6 +48,12 @@ public:
     void render(float time);
     void cleanup();
 
+    // Reflection/render-to-texture support
+    void enableReflection(float surfaceY);
+    void disableReflection();
+    uint64_t getReflectionTextureId() const { return m_reflectionTextureId; }
+    bool isReflectionEnabled() const { return m_reflectionEnabled; }
+
     // Light management
     int addLight(float x, float y, float z, float r, float g, float b, float intensity);
     void updateLight(int lightId, float x, float y, float z, float r, float g, float b, float intensity);
@@ -161,6 +167,13 @@ private:
     int m_selectedGpuIndex;
     int m_preferredGpuIndex;
 
+    // Reflection render target for water effects
+    VkRenderPass m_reflectionRenderPass;
+    VkFramebuffer m_reflectionFramebuffer;
+    uint64_t m_reflectionTextureId;
+    bool m_reflectionEnabled;
+    float m_reflectionSurfaceY;  // Y coordinate of water surface for reflection clipping
+
 #ifdef DEBUG
     void (*m_imguiRenderCallback)(VkCommandBuffer);
 #endif
@@ -193,6 +206,11 @@ private:
 
     // Command buffer recording
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, float time);
+
+    // Reflection rendering
+    void createReflectionResources();
+    void destroyReflectionResources();
+    void recordReflectionPass(VkCommandBuffer commandBuffer, float time);
 
     // MSAA helpers
     VkSampleCountFlagBits getMaxUsableSampleCount();
