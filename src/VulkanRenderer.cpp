@@ -46,6 +46,10 @@ static const char* vkResultToString(VkResult result) {
         } \
     } while(0)
 
+// Reserved texture ID for reflection render target
+static const uint64_t REFLECTION_TEXTURE_ID = 0xFFFFFFFF00000001ULL;
+static const uint64_t REFLECTION_TEXTURE_ID_INVALID = 0xFFFFFFFFFFFFFFFFULL;
+
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     if (value < min) return min;
     if (value > max) return max;
@@ -84,7 +88,7 @@ VulkanRenderer::VulkanRenderer() :
     m_preferredGpuIndex(-1),
     m_reflectionRenderPass(VK_NULL_HANDLE),
     m_reflectionFramebuffer(VK_NULL_HANDLE),
-    m_reflectionTextureId(0xFFFFFFFFFFFFFFFFULL),
+    m_reflectionTextureId(REFLECTION_TEXTURE_ID_INVALID),
     m_reflectionEnabled(false),
     m_reflectionSurfaceY(0.0f)
 #ifdef DEBUG
@@ -1439,7 +1443,7 @@ void VulkanRenderer::disableReflection() {
 
 void VulkanRenderer::createReflectionResources() {
     // Create render target texture for reflection
-    m_reflectionTextureId = 0xFFFFFFFF00000001ULL;  // Reserved ID for reflection texture
+    m_reflectionTextureId = REFLECTION_TEXTURE_ID;
     m_textureManager.createRenderTargetTexture(m_reflectionTextureId,
                                                 m_swapchainExtent.width,
                                                 m_swapchainExtent.height,
@@ -1520,9 +1524,9 @@ void VulkanRenderer::destroyReflectionResources() {
         m_reflectionRenderPass = VK_NULL_HANDLE;
     }
 
-    if (m_reflectionTextureId != 0xFFFFFFFFFFFFFFFFULL) {
+    if (m_reflectionTextureId != REFLECTION_TEXTURE_ID_INVALID) {
         m_textureManager.destroyTexture(m_reflectionTextureId);
-        m_reflectionTextureId = 0xFFFFFFFFFFFFFFFFULL;
+        m_reflectionTextureId = REFLECTION_TEXTURE_ID_INVALID;
     }
 }
 

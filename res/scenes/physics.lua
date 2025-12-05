@@ -87,8 +87,16 @@ function init()
     local centerX = (waterMinX + waterMaxX) / 2
     local centerY = (waterMinY + waterMaxY + waveBuffer) / 2
 
-    -- Create layer matching the exact force field width
-    waterLayerId = createLayer(waterTexId, waterWidth, waterShaderId)
+    -- Get the reflection texture ID
+    local reflectionTexId = getReflectionTextureId()
+
+    -- Create layer with dual textures: water texture + reflection texture
+    if reflectionTexId then
+        waterLayerId = createLayer(waterTexId, waterWidth, reflectionTexId, waterShaderId)
+    else
+        -- Fallback if reflection not available
+        waterLayerId = createLayer(waterTexId, waterWidth, waterShaderId)
+    end
     setLayerPosition(waterLayerId, centerX, centerY, 0)
     -- Scale height to cover the water area plus wave buffer
     setLayerScale(waterLayerId, 1.0, totalHeight / waterWidth)
