@@ -205,6 +205,14 @@ void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
             if (y < surfaceY) {
                 addSplash(waterFieldId, x, surfaceY, 0.02f);
             }
+        } else {
+            // Remove oldest tracked body to make room for new one
+            for (int k = 0; k < field.trackedBodyCount - 1; ++k) {
+                field.trackedBodies[k] = field.trackedBodies[k + 1];
+                field.trackedBodyLastY[k] = field.trackedBodyLastY[k + 1];
+            }
+            field.trackedBodies[field.trackedBodyCount - 1] = bodyId;
+            field.trackedBodyLastY[field.trackedBodyCount - 1] = y;
         }
         return;
     }

@@ -258,7 +258,7 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
             if (!fields[f].active) continue;
 
             const WaterForceField& field = fields[f];
-            float surfaceY = field.config.maxY;
+            float surfaceY = field.config.surfaceY;
             float minX = field.config.minX;
             float maxX = field.config.maxX;
             float minY = field.config.minY;
