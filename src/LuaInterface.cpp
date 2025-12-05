@@ -238,6 +238,44 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
     // Update audio manager (cleanup finished sources)
     audioManager_->update();
 
+    // Update water effects and detect splashes
+    waterEffectManager_->update(deltaTime);
+
+    // Check for splash events - bodies crossing water surface
+    if (waterEffectManager_->getActiveFieldCount() > 0) {
+        static const int MAX_BODIES_TO_CHECK = 64;
+        int bodyIds[MAX_BODIES_TO_CHECK];
+        float posX[MAX_BODIES_TO_CHECK];
+        float posY[MAX_BODIES_TO_CHECK];
+        float velY[MAX_BODIES_TO_CHECK];
+        int bodyCount = 0;
+
+        physics_->getAllDynamicBodyInfo(bodyIds, posX, posY, velY, MAX_BODIES_TO_CHECK, &bodyCount);
+
+        // Check each body against each water field
+        const WaterForceField* fields = waterEffectManager_->getFields();
+        for (int f = 0; f < MAX_WATER_FORCE_FIELDS; ++f) {
+            if (!fields[f].active) continue;
+
+            const WaterForceField& field = fields[f];
+            float surfaceY = field.config.maxY;
+            float minX = field.config.minX;
+            float maxX = field.config.maxX;
+            float minY = field.config.minY;
+
+            for (int i = 0; i < bodyCount; ++i) {
+                // Check if body is in horizontal range of water
+                if (posX[i] < minX || posX[i] > maxX) continue;
+
+                // Check if body is near or in water
+                if (posY[i] < minY - 0.2f || posY[i] > surfaceY + 0.3f) continue;
+
+                // Update tracked body for potential splash
+                waterEffectManager_->updateTrackedBody(field.waterFieldId, bodyIds[i], posX[i], posY[i]);
+            }
+        }
+    }
+
     // Pop the table
     lua_pop(luaState_, 1);
 }

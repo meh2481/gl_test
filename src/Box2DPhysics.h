@@ -264,6 +264,9 @@ public:
     void clearAllForceFields();
     void clearAllRadialForceFields();
 
+    // Get all dynamic body IDs for splash detection
+    void getAllDynamicBodyInfo(int* bodyIds, float* posX, float* posY, float* velY, int maxBodies, int* outCount);
+
     // Reset physics world (for scene cleanup)
     void reset();
 

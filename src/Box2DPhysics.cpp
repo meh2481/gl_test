@@ -1864,3 +1864,31 @@ void Box2DPhysics::reset() {
 
     SDL_UnlockMutex(physicsMutex_);
 }
+
+void Box2DPhysics::getAllDynamicBodyInfo(int* bodyIds, float* posX, float* posY, float* velY, int maxBodies, int* outCount) {
+    SDL_LockMutex(physicsMutex_);
+
+    int count = 0;
+    for (const auto& pair : bodies_) {
+        if (count >= maxBodies) break;
+
+        b2BodyId bodyId = pair.second;
+        if (!b2Body_IsValid(bodyId)) continue;
+
+        b2BodyType bodyType = b2Body_GetType(bodyId);
+        if (bodyType != b2_dynamicBody) continue;
+
+        b2Vec2 pos = b2Body_GetPosition(bodyId);
+        b2Vec2 vel = b2Body_GetLinearVelocity(bodyId);
+
+        bodyIds[count] = pair.first;
+        posX[count] = pos.x;
+        posY[count] = pos.y;
+        velY[count] = vel.y;
+        ++count;
+    }
+
+    *outCount = count;
+
+    SDL_UnlockMutex(physicsMutex_);
+}

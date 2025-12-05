@@ -169,11 +169,12 @@ void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
         if (!fields_[i].active || fields_[i].waterFieldId != waterFieldId) continue;
 
         WaterForceField& field = fields_[i];
+        float surfaceY = field.config.surfaceY;
 
+        // Check if body is already tracked
         for (int j = 0; j < field.trackedBodyCount; ++j) {
             if (field.trackedBodies[j] == bodyId) {
                 float lastY = field.trackedBodyLastY[j];
-                float surfaceY = field.config.surfaceY;
 
                 // Check for surface crossing
                 bool wasAboveSurface = lastY > surfaceY;
@@ -181,14 +182,28 @@ void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
 
                 if (wasAboveSurface != isAboveSurface) {
                     float velocity = (y - lastY) / PHYSICS_TIMESTEP;
-                    float splashAmplitude = fabsf(velocity) * 0.1f;
-                    if (splashAmplitude > 0.02f) {
+                    float splashAmplitude = fabsf(velocity) * 0.15f;
+                    if (splashAmplitude > 0.01f) {
+                        // Clamp splash amplitude to reasonable range
+                        if (splashAmplitude > 0.05f) splashAmplitude = 0.05f;
                         addSplash(waterFieldId, x, surfaceY, splashAmplitude);
                     }
                 }
 
                 field.trackedBodyLastY[j] = y;
                 return;
+            }
+        }
+
+        // Body not tracked yet - add it
+        if (field.trackedBodyCount < MAX_TRACKED_BODIES) {
+            field.trackedBodies[field.trackedBodyCount] = bodyId;
+            field.trackedBodyLastY[field.trackedBodyCount] = y;
+            ++field.trackedBodyCount;
+
+            // If body is entering water (below surface), trigger a splash
+            if (y < surfaceY) {
+                addSplash(waterFieldId, x, surfaceY, 0.02f);
             }
         }
         return;
