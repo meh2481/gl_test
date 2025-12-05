@@ -81,7 +81,7 @@ function init()
     local waterTexId = loadTexture("res/textures/rock1.png")
 
     -- Calculate layer dimensions - ensure full width coverage
-    local waterWidth = (waterMaxX - waterMinX) * 2
+    local waterWidth = (waterMaxX - waterMinX)
     local waterHeight = waterMaxY - waterMinY
     local totalHeight = waterHeight + waveBuffer
     local centerX = (waterMinX + waterMaxX) / 2
@@ -90,16 +90,27 @@ function init()
     -- Get the reflection texture ID
     local reflectionTexId = getReflectionTextureId()
 
+    -- Adjust layer size to ensure width matches waterWidth based on texture aspect ratio
+    local texWidth, texHeight = getTextureDimensions(waterTexId)
+    local aspectRatio = 1.0
+    if texWidth and texHeight then
+        aspectRatio = texWidth / texHeight
+    end
+    local layerSize = waterWidth
+    if aspectRatio < 1.0 then
+        layerSize = waterWidth / aspectRatio
+    end
+
     -- Create layer with dual textures: water texture + reflection texture
     if reflectionTexId then
-        waterLayerId = createLayer(waterTexId, waterWidth, reflectionTexId, waterShaderId)
+        waterLayerId = createLayer(waterTexId, layerSize, reflectionTexId, waterShaderId)
     else
         -- Fallback if reflection not available
-        waterLayerId = createLayer(waterTexId, waterWidth, waterShaderId)
+        waterLayerId = createLayer(waterTexId, layerSize, waterShaderId)
     end
     setLayerPosition(waterLayerId, centerX, centerY, 0)
-    -- Scale height to cover the water area plus wave buffer
-    setLayerScale(waterLayerId, 1.0, totalHeight / waterWidth)
+    -- Scale height to cover the water area plus wave buffer, accounting for aspect ratio
+    setLayerScale(waterLayerId, 1.0, (totalHeight * aspectRatio) / waterWidth)
     setLayerParallaxDepth(waterLayerId, -0.1)
     -- Enable local UV mode for shader coordinates
     setLayerUseLocalUV(waterLayerId, true)
