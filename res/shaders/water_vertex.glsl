@@ -14,6 +14,28 @@ layout(push_constant) uniform PushConstants {
     float param4;           // Min X in world space
     float param5;           // Min Y in world space
     float param6;           // Max X in world space
+    // Splash ripple data (4 ripples x 3 values = 12 floats)
+    float ripple0_x;
+    float ripple0_time;
+    float ripple0_amplitude;
+    float ripple1_x;
+    float ripple1_time;
+    float ripple1_amplitude;
+    float ripple2_x;
+    float ripple2_time;
+    float ripple2_amplitude;
+    float ripple3_x;
+    float ripple3_time;
+    float ripple3_amplitude;
+    // Unused animation slots
+    float unused0;
+    float unused1;
+    float unused2;
+    float unused3;
+    float unused4;
+    float unused5;
+    float unused6;
+    float unused7;
 } pc;
 
 layout(location = 0) in vec2 inPosition;

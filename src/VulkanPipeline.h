@@ -11,6 +11,16 @@
 // Forward declarations
 class VulkanDescriptor;
 
+// Maximum number of water ripples that can be passed to shader
+static const int MAX_SHADER_RIPPLES = 4;
+
+// Water ripple data for shader
+struct ShaderRippleData {
+    float x;         // X position of ripple
+    float time;      // Time since ripple started
+    float amplitude; // Ripple amplitude
+};
+
 // Pipeline metadata - stores which resources each pipeline uses
 struct PipelineInfo {
     VkPipelineLayout layout;
@@ -19,6 +29,7 @@ struct PipelineInfo {
     bool usesExtendedPushConstants;  // true = uses extended push constants with shader parameters
     bool usesAnimationPushConstants;  // true = uses animation push constants (33 floats)
     bool isParticlePipeline;  // true = particle pipeline (uses vertex colors)
+    bool isWaterPipeline;     // true = water pipeline (uses ripple push constants)
     std::set<uint64_t> descriptorIds;  // Which descriptor sets this pipeline uses
 };
 
@@ -45,6 +56,7 @@ public:
     void createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool additive = true);
     void createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
+    void createWaterPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 2);
 
     // Pipeline access
     VkPipeline getPipeline(uint64_t id) const;
@@ -64,6 +76,10 @@ public:
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
     const std::array<float, 7>& getShaderParams(int pipelineId) const;
     int getShaderParamCount(int pipelineId) const;
+
+    // Water ripple data per pipeline
+    void setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples);
+    void getWaterRipples(int pipelineId, int& outRippleCount, ShaderRippleData* outRipples) const;
 
     // Parallax depth per pipeline
     void setPipelineParallaxDepth(int pipelineId, float depth);
@@ -111,6 +127,10 @@ private:
     std::map<int, std::array<float, 7>> m_pipelineShaderParams;
     std::map<int, int> m_pipelineShaderParamCount;
     std::map<int, float> m_pipelineParallaxDepth;
+
+    // Per-pipeline water ripple data
+    std::map<int, std::array<ShaderRippleData, MAX_SHADER_RIPPLES>> m_pipelineWaterRipples;
+    std::map<int, int> m_pipelineWaterRippleCount;
 
     // Shader data storage
     std::vector<char> m_vertShaderData;

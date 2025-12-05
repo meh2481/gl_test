@@ -14,6 +14,28 @@ layout(push_constant) uniform PushConstants {
     float param4;           // Min X in world space
     float param5;           // Min Y in world space
     float param6;           // Max X in world space
+    // Splash ripple data (4 ripples x 3 values = 12 floats)
+    float ripple0_x;
+    float ripple0_time;
+    float ripple0_amplitude;
+    float ripple1_x;
+    float ripple1_time;
+    float ripple1_amplitude;
+    float ripple2_x;
+    float ripple2_time;
+    float ripple2_amplitude;
+    float ripple3_x;
+    float ripple3_time;
+    float ripple3_amplitude;
+    // Unused animation slots
+    float unused0;
+    float unused1;
+    float unused2;
+    float unused3;
+    float unused4;
+    float unused5;
+    float unused6;
+    float unused7;
 } pc;
 
 layout(location = 0) in vec2 fragTexCoord;
@@ -71,6 +93,57 @@ float getWaterSurfaceHeight(float x, float time, float amplitude, float speed) {
     return wave * amplitude;
 }
 
+// Calculate splash ripple contribution at a given X position
+// Each ripple spreads outward from its origin point
+float getSplashRippleHeight(float x, float rippleX, float rippleTime, float rippleAmplitude) {
+    if (rippleAmplitude <= 0.0 || rippleTime < 0.0) {
+        return 0.0;
+    }
+
+    // Ripple parameters
+    float rippleSpeed = 2.0;       // Speed of ripple propagation
+    float rippleDecay = 0.8;       // How fast the ripple fades
+    float rippleFrequency = 25.0;  // Frequency of the ripple waves
+
+    // Distance from ripple origin
+    float dist = abs(x - rippleX);
+
+    // How far the ripple has traveled
+    float rippleRadius = rippleTime * rippleSpeed;
+
+    // Only show ripple where it has reached
+    if (dist > rippleRadius + 0.05) {
+        return 0.0;
+    }
+
+    // Decay over time and distance
+    float timeDecay = exp(-rippleTime * rippleDecay);
+    float distDecay = exp(-dist * 3.0);
+
+    // Calculate wave at this distance from the ripple center
+    float phase = dist * rippleFrequency - rippleTime * rippleSpeed * 8.0;
+    float wave = sin(phase) * timeDecay * distDecay * rippleAmplitude;
+
+    // Fade in at the wavefront
+    float wavefrontDist = abs(dist - rippleRadius);
+    float wavefrontFade = smoothstep(0.1, 0.0, wavefrontDist);
+
+    return wave * wavefrontFade;
+}
+
+// Calculate total splash ripple contribution from all active ripples
+float getTotalSplashHeight(float x) {
+    float totalSplash = 0.0;
+
+    // Add contribution from each ripple
+    totalSplash += getSplashRippleHeight(x, pc.ripple0_x, pc.ripple0_time, pc.ripple0_amplitude);
+    totalSplash += getSplashRippleHeight(x, pc.ripple1_x, pc.ripple1_time, pc.ripple1_amplitude);
+    totalSplash += getSplashRippleHeight(x, pc.ripple2_x, pc.ripple2_time, pc.ripple2_amplitude);
+    totalSplash += getSplashRippleHeight(x, pc.ripple3_x, pc.ripple3_time, pc.ripple3_amplitude);
+
+    return totalSplash;
+}
+
 void main() {
     vec2 waterBoundsMin = fragWaterBounds;
     vec2 waterBoundsMax = fragWaterBoundsMax;
@@ -84,11 +157,14 @@ void main() {
     float rippleSpeed = pc.param2;
     float surfaceY = waterBoundsMax.y;
 
-    // Calculate animated surface height at this X position
+    // Calculate animated surface height at this X position (ambient waves)
     float surfaceWaveOffset = getWaterSurfaceHeight(fragWorldPos.x, pc.time, rippleAmplitude, rippleSpeed);
 
-    // Adjusted surface Y with wave
-    float animatedSurfaceY = surfaceY + surfaceWaveOffset;
+    // Add splash ripple contributions from physics objects
+    float splashOffset = getTotalSplashHeight(fragWorldPos.x);
+
+    // Adjusted surface Y with combined wave and splash effects
+    float animatedSurfaceY = surfaceY + surfaceWaveOffset + splashOffset;
 
     // Distance from the animated surface (positive = below surface, negative = above)
     float distFromSurface = animatedSurfaceY - fragWorldPos.y;

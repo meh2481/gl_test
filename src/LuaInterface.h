@@ -114,6 +114,7 @@ private:
     static int createWaterForceField(lua_State* L);
     static int destroyWaterForceField(lua_State* L);
     static int loadWaterShaders(lua_State* L);
+    static int setWaterFieldShader(lua_State* L);
 
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);
@@ -226,6 +227,9 @@ private:
     float cameraOffsetX_;
     float cameraOffsetY_;
     float cameraZoom_;
+
+    // Water field to shader pipeline mapping for splash ripples
+    std::unordered_map<int, int> waterFieldShaderMap_; // waterFieldId -> pipelineId
 
     // Particle editor state (DEBUG only)
     int particleEditorPipelineId_;

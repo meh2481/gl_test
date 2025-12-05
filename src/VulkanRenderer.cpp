@@ -941,6 +941,17 @@ void VulkanRenderer::setPipelineParallaxDepth(int pipelineId, float depth) {
     m_pipelineManager.setPipelineParallaxDepth(pipelineId, depth);
 }
 
+void VulkanRenderer::markPipelineAsWater(int pipelineId) {
+    PipelineInfo* info = m_pipelineManager.getPipelineInfoMutable(pipelineId);
+    if (info != nullptr) {
+        info->isWaterPipeline = true;
+    }
+}
+
+void VulkanRenderer::setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples) {
+    m_pipelineManager.setWaterRipples(pipelineId, rippleCount, ripples);
+}
+
 void VulkanRenderer::setCameraTransform(float offsetX, float offsetY, float zoom) {
     m_cameraOffsetX = offsetX;
     m_cameraOffsetY = offsetY;
@@ -1283,7 +1294,40 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             }
 
             // Set push constants for this batch
-            if (info->usesAnimationPushConstants) {
+            if (info->isWaterPipeline) {
+                // Water pipeline with ripple push constants (33 floats)
+                const auto& params = m_pipelineManager.getShaderParams(batch.pipelineId);
+                int rippleCount = 0;
+                ShaderRippleData ripples[MAX_SHADER_RIPPLES];
+                m_pipelineManager.getWaterRipples(batch.pipelineId, rippleCount, ripples);
+
+                float waterPushConstants[33] = {
+                    static_cast<float>(m_swapchainExtent.width),
+                    static_cast<float>(m_swapchainExtent.height),
+                    time,
+                    m_cameraOffsetX,
+                    m_cameraOffsetY,
+                    m_cameraZoom,
+                    params[0], params[1], params[2],
+                    params[3], params[4], params[5], params[6],
+                    // Ripple data (4 ripples x 3 values)
+                    rippleCount > 0 ? ripples[0].x : 0.0f,
+                    rippleCount > 0 ? ripples[0].time : -1.0f,
+                    rippleCount > 0 ? ripples[0].amplitude : 0.0f,
+                    rippleCount > 1 ? ripples[1].x : 0.0f,
+                    rippleCount > 1 ? ripples[1].time : -1.0f,
+                    rippleCount > 1 ? ripples[1].amplitude : 0.0f,
+                    rippleCount > 2 ? ripples[2].x : 0.0f,
+                    rippleCount > 2 ? ripples[2].time : -1.0f,
+                    rippleCount > 2 ? ripples[2].amplitude : 0.0f,
+                    rippleCount > 3 ? ripples[3].x : 0.0f,
+                    rippleCount > 3 ? ripples[3].time : -1.0f,
+                    rippleCount > 3 ? ripples[3].amplitude : 0.0f,
+                    // Unused slots
+                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
+                };
+                vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(waterPushConstants), waterPushConstants);
+            } else if (info->usesAnimationPushConstants) {
                 // Animation pipeline with extended push constants (33 floats)
                 const auto& params = m_pipelineManager.getShaderParams(batch.pipelineId);
 
@@ -1581,6 +1625,9 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
         const PipelineInfo* info = m_pipelineManager.getPipelineInfo(batch.pipelineId);
 
         if (pipeline != VK_NULL_HANDLE && info != nullptr) {
+            // Skip water pipelines in reflection pass
+            if (info->isWaterPipeline) continue;
+
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
             // Set push constants with flipped Y

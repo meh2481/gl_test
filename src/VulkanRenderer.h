@@ -43,6 +43,8 @@ public:
     void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
     void setPipelineParallaxDepth(int pipelineId, float depth);
+    void markPipelineAsWater(int pipelineId);
+    void setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples);
     bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
     void setCameraTransform(float offsetX, float offsetY, float zoom);
     void render(float time);
