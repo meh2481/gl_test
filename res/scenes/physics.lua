@@ -78,7 +78,7 @@ function init()
     local waterTexId = loadTexture("res/textures/rock1.png")
 
     -- Calculate layer dimensions - ensure full width coverage
-    local waterWidth = waterMaxX - waterMinX
+    local waterWidth = (waterMaxX - waterMinX) * 2
     local waterHeight = waterMaxY - waterMinY
     local totalHeight = waterHeight + waveBuffer
     local centerX = (waterMinX + waterMaxX) / 2
