@@ -56,12 +56,11 @@ function init()
     -- Create static boundaries
     createBoundaries()
 
-    -- Create water force field (with visual effect)
+    -- Create water force field (with visual effect via water=true flag)
     local waterMinX = -0.3
     local waterMaxX = 0.3
     local waterMinY = -0.9
     local waterMaxY = 0.0
-    local waveBuffer = 0.1  -- Extra height above surface for wave peaks
 
     local waterVertices = {
         waterMinX, waterMinY,   -- bottom-left
@@ -69,56 +68,8 @@ function init()
         waterMaxX, waterMaxY,   -- top-right (surface)
         waterMinX, waterMaxY    -- top-left (surface)
     }
-    -- Create water with: vertices, forceX, forceY, alpha, rippleAmplitude, rippleSpeed
-    -- Amplitude 0.025 for medium-height waves
-    waterField = createWaterForceField(waterVertices, 0.0, 15.0, 0.75, 0.025, 2.0)
-
-    -- Enable render-to-texture reflection at the water surface
-    enableReflection(waterMaxY)
-
-    -- Create a visual layer for the water using water shaders (supports splash ripples)
-    waterShaderId = loadWaterShaders("res/shaders/water_vertex.spv", "res/shaders/water_fragment.spv", 2)
-    local waterTexId = loadTexture("res/textures/rock1.png")
-
-    -- Calculate layer dimensions - ensure full width coverage
-    local waterWidth = (waterMaxX - waterMinX)
-    local waterHeight = waterMaxY - waterMinY
-    local totalHeight = waterHeight + waveBuffer
-    local centerX = (waterMinX + waterMaxX) / 2
-    local centerY = (waterMinY + waterMaxY + waveBuffer) / 2
-
-    -- Get the reflection texture ID
-    local reflectionTexId = getReflectionTextureId()
-
-    -- Adjust layer size to ensure width matches waterWidth based on texture aspect ratio
-    local texWidth, texHeight = getTextureDimensions(waterTexId)
-    local aspectRatio = 1.0
-    if texWidth and texHeight then
-        aspectRatio = texWidth / texHeight
-    end
-    local layerSize = waterWidth
-    if aspectRatio < 1.0 then
-        layerSize = waterWidth / aspectRatio
-    end
-
-    -- Create layer with dual textures: water texture + reflection texture
-    if reflectionTexId then
-        waterLayerId = createLayer(waterTexId, layerSize, reflectionTexId, waterShaderId)
-    else
-        -- Fallback if reflection not available
-        waterLayerId = createLayer(waterTexId, layerSize, waterShaderId)
-    end
-    setLayerPosition(waterLayerId, centerX, centerY, 0)
-    -- Scale height to cover the water area plus wave buffer, accounting for aspect ratio
-    setLayerScale(waterLayerId, 1.0, (totalHeight * aspectRatio) / waterWidth)
-    setLayerParallaxDepth(waterLayerId, -0.1)
-    -- Enable local UV mode for shader coordinates
-    setLayerUseLocalUV(waterLayerId, true)
-    -- Set water shader parameters: alpha, rippleAmplitude, rippleSpeed, maxY(surface), minX, minY, maxX
-    setShaderParameters(waterShaderId, 0.75, 0.025, 2.0, waterMaxY, waterMinX, waterMinY, waterMaxX)
-
-    -- Associate the water shader with the water force field for splash ripples
-    setWaterFieldShader(waterField.waterFieldId, waterShaderId)
+    -- Create force field with water=true to automatically set up water visuals
+    waterField = createForceField(waterVertices, 0.0, 15.0, true)
 
     createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 

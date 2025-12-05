@@ -1595,9 +1595,10 @@ int LuaInterface::createForceField(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: vertices table, forceX (number), forceY (number)
+    // Arguments: vertices table, forceX (number), forceY (number), [water (boolean)]
     // vertices table format: {x1, y1, x2, y2, x3, y3, ...} (3-8 vertices)
-    assert(lua_gettop(L) == 3);
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 3 && numArgs <= 4);
     assert(lua_istable(L, 1));
     assert(lua_isnumber(L, 2));
     assert(lua_isnumber(L, 3));
@@ -1618,7 +1619,42 @@ int LuaInterface::createForceField(lua_State* L) {
     float forceX = lua_tonumber(L, 2);
     float forceY = lua_tonumber(L, 3);
 
+    // Optional water parameter (4th argument)
+    bool water = false;
+    if (numArgs >= 4 && lua_isboolean(L, 4)) {
+        water = lua_toboolean(L, 4);
+    }
+
     int forceFieldId = interface->physics_->createForceField(vertices, vertexCount, forceX, forceY);
+
+    if (water) {
+        // Calculate bounds from vertices
+        float minX = vertices[0], maxX = vertices[0];
+        float minY = vertices[1], maxY = vertices[1];
+        for (int i = 1; i < vertexCount; ++i) {
+            float x = vertices[i * 2];
+            float y = vertices[i * 2 + 1];
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+        }
+
+        // Default water visual parameters
+        float alpha = 0.75f;
+        float rippleAmplitude = 0.025f;
+        float rippleSpeed = 2.0f;
+
+        // Create water visual effect
+        int waterFieldId = interface->waterEffectManager_->createWaterForceField(
+            forceFieldId, minX, minY, maxX, maxY, alpha, rippleAmplitude, rippleSpeed);
+
+        // Set up all water visuals automatically
+        interface->setupWaterVisuals(forceFieldId, waterFieldId,
+                                      minX, minY, maxX, maxY,
+                                      alpha, rippleAmplitude, rippleSpeed);
+    }
+
     lua_pushinteger(L, forceFieldId);
     return 1;
 }
@@ -3607,4 +3643,123 @@ int LuaInterface::loadObject(lua_State* L) {
 
     // Return the module table (allows scene to access if needed, but update/cleanup are automatic)
     return 1;
+}
+
+void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
+                                      float minX, float minY, float maxX, float maxY,
+                                      float alpha, float rippleAmplitude, float rippleSpeed) {
+    // Water visual setup constants
+    static const float WAVE_BUFFER = 0.1f;
+    static const int WATER_SHADER_Z_INDEX = 2;
+
+    float surfaceY = maxY;
+
+    // 1. Enable reflection at the water surface
+    renderer_.enableReflection(surfaceY);
+
+    // 2. Load water shaders
+    const char* waterVertShaderName = "res/shaders/water_vertex.spv";
+    const char* waterFragShaderName = "res/shaders/water_fragment.spv";
+
+    uint64_t vertId = std::hash<std::string>{}(waterVertShaderName);
+    uint64_t fragId = std::hash<std::string>{}(waterFragShaderName);
+
+    ResourceData vertShader = pakResource_.getResource(vertId);
+    ResourceData fragShader = pakResource_.getResource(fragId);
+
+    if (vertShader.data == nullptr || fragShader.data == nullptr) {
+        std::cerr << "Failed to load water shaders" << std::endl;
+        return;
+    }
+
+    int waterShaderId = pipelineIndex_++;
+    scenePipelines_[currentSceneId_].push_back({waterShaderId, WATER_SHADER_Z_INDEX});
+
+    // Create animation textured pipeline for water (uses 33 float push constants)
+    // Water needs 2 textures: primary texture and reflection render target
+    renderer_.createAnimTexturedPipeline(waterShaderId, vertShader, fragShader, 2);
+
+    // Mark pipeline as water pipeline
+    renderer_.markPipelineAsWater(waterShaderId);
+
+    // 3. Load a placeholder texture (required for layer creation)
+    const char* placeholderTextureName = "res/textures/rock1.png";
+    uint64_t placeholderTexId = std::hash<std::string>{}(placeholderTextureName);
+
+    ResourceData texData = pakResource_.getResource(placeholderTexId);
+    if (texData.data != nullptr && texData.size > 0) {
+        renderer_.loadTexture(placeholderTexId, texData);
+    }
+
+    // 4. Calculate layer dimensions
+    float waterWidth = maxX - minX;
+    float waterHeight = maxY - minY;
+    float totalHeight = waterHeight + WAVE_BUFFER;
+    float centerX = (minX + maxX) / 2.0f;
+    float centerY = (minY + maxY + WAVE_BUFFER) / 2.0f;
+
+    // 5. Get texture dimensions for aspect ratio calculation
+    uint32_t texWidth = 1, texHeight = 1;
+    renderer_.getTextureDimensions(placeholderTexId, &texWidth, &texHeight);
+    float aspectRatio = (texHeight > 0) ? (float)texWidth / (float)texHeight : 1.0f;
+
+    float layerSize = waterWidth;
+    if (aspectRatio < 1.0f) {
+        layerSize = waterWidth / aspectRatio;
+    }
+
+    // Calculate layer width and height based on aspect ratio
+    float width, height;
+    if (aspectRatio >= 1.0f) {
+        width = layerSize;
+        height = layerSize / aspectRatio;
+    } else {
+        width = layerSize * aspectRatio;
+        height = layerSize;
+    }
+
+    // 6. Get reflection texture ID (passed as normalMapId to createLayer)
+    uint64_t reflectionTexId = 0;
+    if (renderer_.isReflectionEnabled()) {
+        reflectionTexId = renderer_.getReflectionTextureId();
+    }
+
+    // 7. Create layer with primary texture and reflection texture as normalMap
+    int waterLayerId = layerManager_->createLayer(placeholderTexId, width, height,
+                                                   reflectionTexId, waterShaderId);
+
+    if (waterLayerId < 0) {
+        std::cerr << "Failed to create water layer" << std::endl;
+        return;
+    }
+
+    // Check if placeholder texture uses atlas
+    AtlasUV atlasUV;
+    bool usesAtlas = pakResource_.getAtlasUV(placeholderTexId, atlasUV);
+    if (usesAtlas) {
+        layerManager_->setLayerAtlasUV(waterLayerId, atlasUV.atlasId,
+                                        atlasUV.u0, atlasUV.v0, atlasUV.u1, atlasUV.v1);
+    }
+
+    // 8. Set layer properties
+    layerManager_->setLayerPosition(waterLayerId, centerX, centerY, 0.0f);
+
+    // Scale height to cover the water area plus wave buffer
+    float scaleY = (totalHeight * aspectRatio) / waterWidth;
+    layerManager_->setLayerScale(waterLayerId, 1.0f, scaleY);
+
+    layerManager_->setLayerParallaxDepth(waterLayerId, -0.1f);
+
+    // Enable local UV mode for shader coordinates
+    layerManager_->setLayerUseLocalUV(waterLayerId, true);
+
+    // 9. Set water shader parameters: alpha, rippleAmplitude, rippleSpeed, maxY(surface), minX, minY, maxX
+    float shaderParams[7] = {alpha, rippleAmplitude, rippleSpeed, surfaceY, minX, minY, maxX};
+    renderer_.setShaderParameters(waterShaderId, 7, shaderParams);
+
+    // 10. Associate the water shader with the water force field for splash ripples
+    waterFieldShaderMap_[waterFieldId] = waterShaderId;
+
+    std::cout << "Water visual setup complete: layer=" << waterLayerId
+              << " shader=" << waterShaderId << " field=" << waterFieldId << std::endl;
 }

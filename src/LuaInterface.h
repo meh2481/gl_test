@@ -231,6 +231,11 @@ private:
     // Water field to shader pipeline mapping for splash ripples
     std::unordered_map<int, int> waterFieldShaderMap_; // waterFieldId -> pipelineId
 
+    // Water visual setup helper (called from createForceField when water=true)
+    void setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
+                           float minX, float minY, float maxX, float maxY,
+                           float alpha, float rippleAmplitude, float rippleSpeed);
+
     // Particle editor state (DEBUG only)
     int particleEditorPipelineId_;
 
