@@ -104,21 +104,26 @@ void WaterEffectManager::addSplash(int waterFieldId, float x, float y, float amp
 
         WaterForceField& field = fields_[i];
 
-        // Find a slot for the new ripple
-        // First, try to use an expired/empty slot
         int targetSlot = -1;
-        for (int j = 0; j < MAX_WATER_RIPPLES; ++j) {
-            // Consider a slot empty if it has zero amplitude or time > 3.0
-            if (j >= field.rippleCount || field.ripples[j].amplitude <= 0.0f || field.ripples[j].time > 3.0f) {
+
+        // First, try to find an expired slot within current ripples
+        for (int j = 0; j < field.rippleCount; ++j) {
+            if (field.ripples[j].amplitude <= 0.0f || field.ripples[j].time > 3.0f) {
                 targetSlot = j;
                 break;
             }
         }
 
-        // If no empty slot, replace the oldest ripple (highest time value)
+        // If no expired slot, try to add a new slot if we have room
+        if (targetSlot < 0 && field.rippleCount < MAX_WATER_RIPPLES) {
+            targetSlot = field.rippleCount;
+            ++field.rippleCount;
+        }
+
+        // If still no slot available, replace the oldest ripple (highest time value)
         if (targetSlot < 0) {
             float maxTime = -1.0f;
-            for (int j = 0; j < MAX_WATER_RIPPLES; ++j) {
+            for (int j = 0; j < field.rippleCount; ++j) {
                 if (field.ripples[j].time > maxTime) {
                     maxTime = field.ripples[j].time;
                     targetSlot = j;
@@ -132,11 +137,6 @@ void WaterEffectManager::addSplash(int waterFieldId, float x, float y, float amp
             field.ripples[targetSlot].y = y;
             field.ripples[targetSlot].time = 0.0f;
             field.ripples[targetSlot].amplitude = amplitude;
-
-            // Update ripple count if needed
-            if (targetSlot >= field.rippleCount) {
-                field.rippleCount = targetSlot + 1;
-            }
         }
         return;
     }

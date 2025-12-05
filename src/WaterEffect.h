@@ -2,8 +2,8 @@
 
 #include <cstdint>
 
-// Maximum number of active ripples
-static const int MAX_WATER_RIPPLES = 8;
+// Maximum number of active ripples (must match MAX_SHADER_RIPPLES in VulkanPipeline.h)
+static const int MAX_WATER_RIPPLES = 4;
 
 // Maximum number of water force fields
 static const int MAX_WATER_FORCE_FIELDS = 16;
