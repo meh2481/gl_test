@@ -81,20 +81,20 @@ void WaterEffectManager::update(float deltaTime) {
 
         WaterForceField& field = fields_[i];
 
-        // Update ripple times and remove expired ripples
-        int writeIdx = 0;
+        // Update ripple times
         for (int j = 0; j < field.rippleCount; ++j) {
             field.ripples[j].time += deltaTime;
 
-            // Keep ripple if it's still visible (decay over ~3 seconds)
-            if (field.ripples[j].time < 3.0f) {
-                if (writeIdx != j) {
-                    field.ripples[writeIdx] = field.ripples[j];
-                }
-                ++writeIdx;
+            // Mark expired ripples with zero amplitude so they can be reused
+            if (field.ripples[j].time >= 3.0f) {
+                field.ripples[j].amplitude = 0.0f;
             }
         }
-        field.rippleCount = writeIdx;
+
+        // Compact the ripple array by removing expired ripples from the end
+        while (field.rippleCount > 0 && field.ripples[field.rippleCount - 1].amplitude <= 0.0f) {
+            --field.rippleCount;
+        }
     }
 }
 
@@ -104,13 +104,39 @@ void WaterEffectManager::addSplash(int waterFieldId, float x, float y, float amp
 
         WaterForceField& field = fields_[i];
 
-        if (field.rippleCount < MAX_WATER_RIPPLES) {
-            WaterRipple& ripple = field.ripples[field.rippleCount];
-            ripple.x = x;
-            ripple.y = y;
-            ripple.time = 0.0f;
-            ripple.amplitude = amplitude;
-            ++field.rippleCount;
+        // Find a slot for the new ripple
+        // First, try to use an expired/empty slot
+        int targetSlot = -1;
+        for (int j = 0; j < MAX_WATER_RIPPLES; ++j) {
+            // Consider a slot empty if it has zero amplitude or time > 3.0
+            if (j >= field.rippleCount || field.ripples[j].amplitude <= 0.0f || field.ripples[j].time > 3.0f) {
+                targetSlot = j;
+                break;
+            }
+        }
+
+        // If no empty slot, replace the oldest ripple (highest time value)
+        if (targetSlot < 0) {
+            float maxTime = -1.0f;
+            for (int j = 0; j < MAX_WATER_RIPPLES; ++j) {
+                if (field.ripples[j].time > maxTime) {
+                    maxTime = field.ripples[j].time;
+                    targetSlot = j;
+                }
+            }
+        }
+
+        // Add the new ripple
+        if (targetSlot >= 0) {
+            field.ripples[targetSlot].x = x;
+            field.ripples[targetSlot].y = y;
+            field.ripples[targetSlot].time = 0.0f;
+            field.ripples[targetSlot].amplitude = amplitude;
+
+            // Update ripple count if needed
+            if (targetSlot >= field.rippleCount) {
+                field.rippleCount = targetSlot + 1;
+            }
         }
         return;
     }

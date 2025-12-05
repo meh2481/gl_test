@@ -280,20 +280,20 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
             if (shaderIt != waterFieldShaderMap_.end()) {
                 int pipelineId = shaderIt->second;
 
-                // Convert WaterRipple to ShaderRippleData
-                int rippleCount = field.rippleCount;
-                if (rippleCount > MAX_SHADER_RIPPLES) {
-                    rippleCount = MAX_SHADER_RIPPLES;
-                }
-
+                // Collect active ripples (amplitude > 0 and time < 3.0)
                 ShaderRippleData shaderRipples[MAX_SHADER_RIPPLES];
-                for (int r = 0; r < rippleCount; ++r) {
-                    shaderRipples[r].x = field.ripples[r].x;
-                    shaderRipples[r].time = field.ripples[r].time;
-                    shaderRipples[r].amplitude = field.ripples[r].amplitude;
+                int shaderRippleCount = 0;
+
+                for (int r = 0; r < field.rippleCount && shaderRippleCount < MAX_SHADER_RIPPLES; ++r) {
+                    if (field.ripples[r].amplitude > 0.0f && field.ripples[r].time < 3.0f) {
+                        shaderRipples[shaderRippleCount].x = field.ripples[r].x;
+                        shaderRipples[shaderRippleCount].time = field.ripples[r].time;
+                        shaderRipples[shaderRippleCount].amplitude = field.ripples[r].amplitude;
+                        ++shaderRippleCount;
+                    }
                 }
 
-                renderer_.setWaterRipples(pipelineId, rippleCount, shaderRipples);
+                renderer_.setWaterRipples(pipelineId, shaderRippleCount, shaderRipples);
             }
         }
     }
