@@ -1586,7 +1586,7 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
     renderPassInfo.framebuffer = m_reflectionFramebuffer;
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = m_swapchainExtent;
-    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 0.0f}}};  // Transparent background
+    VkClearValue clearColor = {{{0.15f, 0.45f, 0.75f, 0.0f}}};  // Water surface color with zero alpha
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
 

@@ -229,9 +229,10 @@ void main() {
     float fresnelFactor = pow(1.0 - normalizedDepth, 3.0) * 0.7;
 
     // Blend reflection with water color (stronger near surface, weaker at depth)
-    if (reflectedColor.a > 0.01) {
-        waterColor = mix(waterColor, reflectedColor.rgb, reflectionZone * fresnelFactor);
-    }
+    // Use the reflection's alpha to weight how much of the reflected color to use
+    // This prevents low-alpha areas (transparent objects) from contributing black
+    float reflectionStrength = reflectionZone * fresnelFactor * reflectedColor.a;
+    waterColor = mix(waterColor, reflectedColor.rgb, reflectionStrength);
 
     // === CAUSTICS (light patterns underwater) ===
     float causticDepth = smoothstep(0.08, 0.25, normalizedDepth) * smoothstep(1.0, 0.5, normalizedDepth);
