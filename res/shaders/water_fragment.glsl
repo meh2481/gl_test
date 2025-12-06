@@ -169,15 +169,15 @@ vec3 calculateWaterLightHighlights(vec3 worldPos, vec3 surfaceNormal) {
         float distanceToLight = length(toLight);
         vec3 lightDir = normalize(toLight);
 
-        float distanceAttenuation = light.intensity / (1.0 + 0.3 * distanceToLight + 0.1 * distanceToLight * distanceToLight);
+        float distanceAttenuation = light.intensity / (1.0 + 0.1 * distanceToLight + 0.05 * distanceToLight * distanceToLight);
 
-        vec3 viewPos = vec3(pc.cameraX, pc.cameraY, 2.0);
+        vec3 viewPos = vec3(pc.cameraX, pc.cameraY, 0.5);
         vec3 viewDir = normalize(viewPos - worldPos);
 
         vec3 halfwayDir = normalize(lightDir + viewDir);
-        float specular = pow(max(dot(surfaceNormal, halfwayDir), 0.0), 64.0);
+        float specular = pow(max(dot(surfaceNormal, halfwayDir), 0.0), 32.0);
 
-        vec3 highlight = light.color * specular * distanceAttenuation;
+        vec3 highlight = light.color * specular * distanceAttenuation * 2.5;
         totalHighlight += highlight;
     }
 
@@ -240,20 +240,40 @@ void main() {
     waterColor = mix(waterColor, highlightColor, surfaceHighlight * 0.7);
 
     // === LIGHT SOURCE HIGHLIGHTS ===
-    float xDerivative = cos(fragWorldPos.x * 12.0 + pc.time * rippleSpeed * 2.5) * 12.0;
-    float baseNormalX = -xDerivative * rippleAmplitude;
+    float waveFreq = 12.0;
+    float wavePhase = fragWorldPos.x * waveFreq + pc.time * rippleSpeed * 2.5;
+    float xDerivative = -sin(wavePhase) * waveFreq * rippleAmplitude;
+
     float splashNormalX = 0.0;
-    splashNormalX += (fragWorldPos.x > pc.ripple0_x - 0.01 && fragWorldPos.x < pc.ripple0_x + 0.01 && pc.ripple0_amplitude > 0.0) ? sin(abs(fragWorldPos.x - pc.ripple0_x) * 25.0 - pc.ripple0_time * 16.0) * pc.ripple0_amplitude * 5.0 : 0.0;
-    splashNormalX += (fragWorldPos.x > pc.ripple1_x - 0.01 && fragWorldPos.x < pc.ripple1_x + 0.01 && pc.ripple1_amplitude > 0.0) ? sin(abs(fragWorldPos.x - pc.ripple1_x) * 25.0 - pc.ripple1_time * 16.0) * pc.ripple1_amplitude * 5.0 : 0.0;
-    splashNormalX += (fragWorldPos.x > pc.ripple2_x - 0.01 && fragWorldPos.x < pc.ripple2_x + 0.01 && pc.ripple2_amplitude > 0.0) ? sin(abs(fragWorldPos.x - pc.ripple2_x) * 25.0 - pc.ripple2_time * 16.0) * pc.ripple2_amplitude * 5.0 : 0.0;
-    splashNormalX += (fragWorldPos.x > pc.ripple3_x - 0.01 && fragWorldPos.x < pc.ripple3_x + 0.01 && pc.ripple3_amplitude > 0.0) ? sin(abs(fragWorldPos.x - pc.ripple3_x) * 25.0 - pc.ripple3_time * 16.0) * pc.ripple3_amplitude * 5.0 : 0.0;
+    float rippleRange = 0.15;
 
-    vec3 surfaceNormal = normalize(vec3(baseNormalX + splashNormalX, 1.0, 0.0));
+    if (pc.ripple0_amplitude > 0.0 && abs(fragWorldPos.x - pc.ripple0_x) < rippleRange) {
+        float dist = abs(fragWorldPos.x - pc.ripple0_x);
+        float ripplePhase = dist * 25.0 - pc.ripple0_time * 16.0;
+        splashNormalX += cos(ripplePhase) * 25.0 * pc.ripple0_amplitude * exp(-dist * 8.0);
+    }
+    if (pc.ripple1_amplitude > 0.0 && abs(fragWorldPos.x - pc.ripple1_x) < rippleRange) {
+        float dist = abs(fragWorldPos.x - pc.ripple1_x);
+        float ripplePhase = dist * 25.0 - pc.ripple1_time * 16.0;
+        splashNormalX += cos(ripplePhase) * 25.0 * pc.ripple1_amplitude * exp(-dist * 8.0);
+    }
+    if (pc.ripple2_amplitude > 0.0 && abs(fragWorldPos.x - pc.ripple2_x) < rippleRange) {
+        float dist = abs(fragWorldPos.x - pc.ripple2_x);
+        float ripplePhase = dist * 25.0 - pc.ripple2_time * 16.0;
+        splashNormalX += cos(ripplePhase) * 25.0 * pc.ripple2_amplitude * exp(-dist * 8.0);
+    }
+    if (pc.ripple3_amplitude > 0.0 && abs(fragWorldPos.x - pc.ripple3_x) < rippleRange) {
+        float dist = abs(fragWorldPos.x - pc.ripple3_x);
+        float ripplePhase = dist * 25.0 - pc.ripple3_time * 16.0;
+        splashNormalX += cos(ripplePhase) * 25.0 * pc.ripple3_amplitude * exp(-dist * 8.0);
+    }
 
-    vec3 worldPos3D = vec3(fragWorldPos.x, animatedSurfaceY, 0.0);
+    vec3 surfaceNormal = normalize(vec3(-xDerivative - splashNormalX, 0.0, 1.0));
+
+    vec3 worldPos3D = vec3(fragWorldPos.x, fragWorldPos.y, 0.0);
     vec3 lightHighlights = calculateWaterLightHighlights(worldPos3D, surfaceNormal);
 
-    waterColor += lightHighlights * smoothstep(0.15, 0.0, normalizedDepth);
+    waterColor += lightHighlights * smoothstep(0.3, 0.0, normalizedDepth);
 
     // === REFLECTION (using render-to-texture) ===
     // Reflection is strongest near surface
