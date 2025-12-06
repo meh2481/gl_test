@@ -52,7 +52,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
-                                     "createForceField", "destroyForceField",
+                                     "createForceField", "destroyForceField", "setForceFieldDamping",
                                      "createRadialForceField", "destroyRadialForceField",
                                      "createWaterForceField", "destroyWaterForceField", "loadWaterShaders", "setWaterFieldShader",
                                      "enableReflection", "disableReflection", "getReflectionTextureId",
@@ -582,6 +582,7 @@ void LuaInterface::registerFunctions() {
     // Register force field functions
     lua_register(luaState_, "createForceField", createForceField);
     lua_register(luaState_, "destroyForceField", destroyForceField);
+    lua_register(luaState_, "setForceFieldDamping", setForceFieldDamping);
     lua_register(luaState_, "createRadialForceField", createRadialForceField);
     lua_register(luaState_, "destroyRadialForceField", destroyRadialForceField);
 
@@ -1595,10 +1596,10 @@ int LuaInterface::createForceField(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: vertices table, forceX (number), forceY (number), [water (boolean)]
+    // Arguments: vertices table, forceX (number), forceY (number), [water (boolean)], [damping (number)]
     // vertices table format: {x1, y1, x2, y2, x3, y3, ...} (3-8 vertices)
     int numArgs = lua_gettop(L);
-    assert(numArgs >= 3 && numArgs <= 4);
+    assert(numArgs >= 3 && numArgs <= 5);
     assert(lua_istable(L, 1));
     assert(lua_isnumber(L, 2));
     assert(lua_isnumber(L, 3));
@@ -1625,7 +1626,17 @@ int LuaInterface::createForceField(lua_State* L) {
         water = lua_toboolean(L, 4);
     }
 
-    int forceFieldId = interface->physics_->createForceField(vertices, vertexCount, forceX, forceY);
+    // Optional damping parameter (5th argument, only used when water=true)
+    // Default damping value provides subtle water drag
+    float damping = 0.0f;
+    if (water) {
+        damping = 0.5f;  // Default water damping
+    }
+    if (numArgs >= 5 && lua_isnumber(L, 5)) {
+        damping = lua_tonumber(L, 5);
+    }
+
+    int forceFieldId = interface->physics_->createForceField(vertices, vertexCount, forceX, forceY, damping, water);
 
     if (water) {
         // Calculate bounds from vertices
@@ -1669,6 +1680,23 @@ int LuaInterface::destroyForceField(lua_State* L) {
 
     int forceFieldId = lua_tointeger(L, 1);
     interface->physics_->destroyForceField(forceFieldId);
+    return 0;
+}
+
+int LuaInterface::setForceFieldDamping(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: forceFieldId (integer), damping (number)
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int forceFieldId = lua_tointeger(L, 1);
+    float damping = lua_tonumber(L, 2);
+
+    interface->physics_->setForceFieldDamping(forceFieldId, damping);
     return 0;
 }
 
@@ -3748,7 +3776,7 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     float scaleY = (totalHeight * aspectRatio) / waterWidth;
     layerManager_->setLayerScale(waterLayerId, 1.0f, scaleY);
 
-    layerManager_->setLayerParallaxDepth(waterLayerId, -0.1f);
+    layerManager_->setLayerParallaxDepth(waterLayerId, 0.0f);
 
     // Enable local UV mode for shader coordinates
     layerManager_->setLayerUseLocalUV(waterLayerId, true);

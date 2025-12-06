@@ -214,10 +214,12 @@ void main() {
     // Map world position to screen UV, with wave distortion
     // Flip X to correct for the horizontal mirror caused by negative zoom in reflection pass
     reflectUV.x = 1.0 - ((fragWorldPos.x + reflectDistort * 0.1 - pc.cameraX) * pc.cameraZoom / aspect + 1.0) * 0.5;
-    // For reflection, we sample from the mirrored position (above water)
-    // Add some distortion based on wave height
-    float distortedY = fragWorldPos.y + reflectDistort * 0.15;
-    reflectUV.y = ((-distortedY - pc.cameraY) * pc.cameraZoom + 1.0) * 0.5;
+
+    // For reflection, calculate the mirrored Y position relative to water surface
+    // The reflected position is: reflectedY = 2 * surfaceY - fragWorldPos.y
+    // This ensures reflection stays fixed relative to water surface, not camera
+    float reflectedWorldY = 2.0 * surfaceY - fragWorldPos.y + reflectDistort * 0.15;
+    reflectUV.y = ((reflectedWorldY - pc.cameraY) * pc.cameraZoom + 1.0) * 0.5;
 
     // Clamp to valid UV range
     reflectUV = clamp(reflectUV, 0.01, 0.99);

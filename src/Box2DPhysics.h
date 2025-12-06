@@ -96,6 +96,8 @@ struct ForceField {
     int bodyId;           // The static body holding the sensor shape
     b2ShapeId shapeId;    // The sensor shape ID
     float forceX, forceY; // Force vector to apply
+    float damping;        // Velocity damping factor (0 = no damping, higher = more damping)
+    bool isWater;         // True if this is a water force field
 };
 
 // Radial force field that applies force based on distance from center
@@ -246,9 +248,14 @@ public:
     // Creates a force field sensor with a polygon shape that applies force to overlapping bodies
     // vertices: array of x,y pairs defining the polygon (3-8 vertices)
     // forceX, forceY: force vector to apply to bodies inside the field
+    // damping: velocity damping factor (0 = no damping, higher = more drag)
+    // isWater: true if this is a water force field (for internal tracking)
     // Returns the force field ID
-    int createForceField(const float* vertices, int vertexCount, float forceX, float forceY);
+    int createForceField(const float* vertices, int vertexCount, float forceX, float forceY, float damping = 0.0f, bool isWater = false);
     void destroyForceField(int forceFieldId);
+
+    // Set the damping factor for an existing force field
+    void setForceFieldDamping(int forceFieldId, float damping);
 
     // Radial force field management
     // Creates a circular force field that applies radial force based on distance from center

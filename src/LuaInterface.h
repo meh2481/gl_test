@@ -107,6 +107,7 @@ private:
     // Force field Lua bindings
     static int createForceField(lua_State* L);
     static int destroyForceField(lua_State* L);
+    static int setForceFieldDamping(lua_State* L);
     static int createRadialForceField(lua_State* L);
     static int destroyRadialForceField(lua_State* L);
 

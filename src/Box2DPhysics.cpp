@@ -1256,7 +1256,7 @@ int Box2DPhysics::createFragmentBody(float x, float y, float angle,
 }
 
 // Force field management
-int Box2DPhysics::createForceField(const float* vertices, int vertexCount, float forceX, float forceY) {
+int Box2DPhysics::createForceField(const float* vertices, int vertexCount, float forceX, float forceY, float damping, bool isWater) {
     assert(vertexCount >= 3 && vertexCount <= 8);
 
     SDL_LockMutex(physicsMutex_);
@@ -1308,6 +1308,8 @@ int Box2DPhysics::createForceField(const float* vertices, int vertexCount, float
     field.shapeId = shapeId;
     field.forceX = forceX;
     field.forceY = forceY;
+    field.damping = damping;
+    field.isWater = isWater;
     forceFields_[forceFieldId] = field;
 
     SDL_UnlockMutex(physicsMutex_);
@@ -1326,6 +1328,17 @@ void Box2DPhysics::destroyForceField(int forceFieldId) {
             bodies_.erase(bodyIt);
         }
         forceFields_.erase(it);
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+}
+
+void Box2DPhysics::setForceFieldDamping(int forceFieldId, float damping) {
+    SDL_LockMutex(physicsMutex_);
+
+    auto it = forceFields_.find(forceFieldId);
+    if (it != forceFields_.end()) {
+        it->second.damping = damping;
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -1454,6 +1467,21 @@ void Box2DPhysics::applyForceFields() {
                     b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
                     vel.x += field.forceX * fixedTimestep_;
                     vel.y += field.forceY * fixedTimestep_;
+
+                    // Apply velocity damping if set (simulates water drag)
+                    // v_new = v * (1 - damping * dt)
+                    if (field.damping > 0.0f) {
+                        float dampingFactor = 1.0f - field.damping * fixedTimestep_;
+                        if (dampingFactor < 0.0f) dampingFactor = 0.0f;
+                        vel.x *= dampingFactor;
+                        vel.y *= dampingFactor;
+
+                        // Also apply angular damping
+                        float angVel = b2Body_GetAngularVelocity(overlappingBodyId);
+                        angVel *= dampingFactor;
+                        b2Body_SetAngularVelocity(overlappingBodyId, angVel);
+                    }
+
                     b2Body_SetLinearVelocity(overlappingBodyId, vel);
                 }
 
