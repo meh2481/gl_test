@@ -77,6 +77,10 @@ VulkanRenderer::VulkanRenderer() :
     m_cameraOffsetX(0.0f),
     m_cameraOffsetY(0.0f),
     m_cameraZoom(1.0f),
+    m_clearColorR(0.0f),
+    m_clearColorG(0.0f),
+    m_clearColorB(0.0f),
+    m_clearColorA(1.0f),
     m_currentFrame(0),
     m_graphicsQueueFamilyIndex(0),
     m_swapchainFramebuffers(nullptr),
@@ -958,6 +962,13 @@ void VulkanRenderer::setCameraTransform(float offsetX, float offsetY, float zoom
     m_cameraZoom = zoom;
 }
 
+void VulkanRenderer::setClearColor(float r, float g, float b, float a) {
+    m_clearColorR = r;
+    m_clearColorG = g;
+    m_clearColorB = b;
+    m_clearColorA = a;
+}
+
 // Buffer update methods
 
 void VulkanRenderer::setDebugDrawData(const std::vector<float>& vertexData) {
@@ -1184,7 +1195,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     renderPassInfo.framebuffer = m_swapchainFramebuffers[imageIndex];
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = m_swapchainExtent;
-    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    VkClearValue clearColor = {{{m_clearColorR, m_clearColorG, m_clearColorB, m_clearColorA}}};
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);

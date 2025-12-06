@@ -41,6 +41,8 @@ public:
     void setParticleEditorActive(bool active, int pipelineId);
     bool isParticleEditorActive() const;
     int getParticleEditorPipelineId() const;
+    void setEditorPreviewSystemId(int systemId);
+    int getEditorPreviewSystemId() const;
 
     // Access to LuaInterface for particle system manager
     LuaInterface* getLuaInterface() { return luaInterface_.get(); }
@@ -60,4 +62,5 @@ private:
     // Particle editor state
     bool particleEditorActive_;
     int particleEditorPipelineId_;
+    int editorPreviewSystemId_;
 };

@@ -47,6 +47,7 @@ public:
     void setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples);
     bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
     void setCameraTransform(float offsetX, float offsetY, float zoom);
+    void setClearColor(float r, float g, float b, float a = 1.0f);
     void render(float time);
     void cleanup();
 
@@ -150,6 +151,12 @@ private:
     float m_cameraOffsetX;
     float m_cameraOffsetY;
     float m_cameraZoom;
+
+    // Clear/background color
+    float m_clearColorR;
+    float m_clearColorG;
+    float m_clearColorB;
+    float m_clearColorA;
 
     // Synchronization
     VkSemaphore m_imageAvailableSemaphores[2];

@@ -62,6 +62,9 @@ struct ParticleEmitterConfig {
     // Lifetime (seconds)
     float lifetimeMin, lifetimeMax;
 
+    // System lifetime (seconds, 0 = infinite)
+    float systemLifetime;
+
     // Rotation (radians) - x/y/z Euler angles
     float rotationMinX, rotationMaxX;
     float rotationMinY, rotationMaxY;
@@ -125,6 +128,8 @@ struct ParticleSystem {
     int maxParticles;
     int liveParticleCount;
     float emissionAccumulator;  // Fractional particles to emit
+    float systemLifetimeRemaining;  // Remaining system lifetime (0 = infinite or expired)
+    bool emissionStopped;  // True when system lifetime has expired
 
     // Emitter position (world space)
     float emitterX;
@@ -168,6 +173,10 @@ public:
 
     // Update all particle systems
     void update(float deltaTime);
+
+    // Get systems that should be auto-destroyed (lifetime expired and no particles)
+    // Returns array of system IDs and count via output parameters
+    void getSystemsToDestroy(int* outSystemIds, int* outCount, int maxCount);
 
     // Get particle system for rendering
     ParticleSystem* getSystem(int systemId);

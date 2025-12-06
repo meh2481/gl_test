@@ -4,6 +4,7 @@
 #include "VulkanRenderer.h"
 #include "ConsoleBuffer.h"
 #include "resource.h"
+#include "SceneManager.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
@@ -33,8 +34,12 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.previewOffsetY = 0.0f;
     editorState_.previewCameraChanged = false;
     editorState_.previewResetRequested = false;
+    editorState_.previewBackgroundR = 0.0f;
+    editorState_.previewBackgroundG = 0.0f;
+    editorState_.previewBackgroundB = 0.0f;
     editorState_.showExportPopup = false;
     editorState_.lastMaxParticles = 100;
+    editorState_.lastSystemLifetime = 0.0f;
 
     // Initialize save/load filenames
     strncpy(editorState_.saveFilename, "my_particles.lua", EDITOR_MAX_FILENAME_LEN - 1);
@@ -98,6 +103,7 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.config.endColorMaxA = 0.0f;
     editorState_.config.lifetimeMin = 1.0f;
     editorState_.config.lifetimeMax = 2.0f;
+    editorState_.config.systemLifetime = 0.0f;  // 0 = infinite
     editorState_.config.rotationMinZ = 0.0f;
     editorState_.config.rotationMaxZ = 6.28318f;
     editorState_.config.rotVelocityMinZ = -1.0f;
@@ -295,7 +301,7 @@ void ImGuiManager::destroyPreviewSystem(ParticleSystemManager* particleManager) 
 }
 
 void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
-                                             VulkanRenderer* renderer, int pipelineId, float deltaTime) {
+                                             VulkanRenderer* renderer, int pipelineId, float deltaTime, SceneManager* sceneManager) {
     if (!initialized_ || !editorState_.isActive) {
         return;
     }
@@ -314,6 +320,11 @@ void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManag
 
     // Update preview system with current config
     updatePreviewSystem(particleManager, pipelineId);
+
+    // Notify scene manager of current preview system ID
+    if (sceneManager) {
+        sceneManager->setEditorPreviewSystemId(editorState_.previewSystemId);
+    }
 
     // Tabs for different sections
     if (ImGui::BeginTabBar("ParticleEditorTabs")) {
@@ -364,6 +375,17 @@ void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManag
         editorState_.previewCameraChanged = true;
     }
 
+    // Background color control (RGB only, not saved)
+    float bgColor[3] = {editorState_.previewBackgroundR, editorState_.previewBackgroundG, editorState_.previewBackgroundB};
+    if (ImGui::ColorEdit3("Background", bgColor)) {
+        editorState_.previewBackgroundR = bgColor[0];
+        editorState_.previewBackgroundG = bgColor[1];
+        editorState_.previewBackgroundB = bgColor[2];
+        if (renderer) {
+            renderer->setClearColor(editorState_.previewBackgroundR, editorState_.previewBackgroundG, editorState_.previewBackgroundB);
+        }
+    }
+
     if (ImGui::Button("Reset Preview")) {
         editorState_.previewZoom = 1.0f;
         editorState_.previewOffsetX = 0.0f;
@@ -392,6 +414,13 @@ void ImGuiManager::showEmissionSettings() {
     ImGui::Separator();
     ImGui::Text("Lifetime");
     ImGui::DragFloatRange2("Lifetime Range", &cfg.lifetimeMin, &cfg.lifetimeMax, 0.01f, 0.01f, 30.0f, "Min: %.2fs", "Max: %.2fs");
+
+    ImGui::Separator();
+    ImGui::Text("System Lifetime");
+    ImGui::SliderFloat("System Lifetime", &cfg.systemLifetime, 0.0f, 60.0f, cfg.systemLifetime > 0.0f ? "%.2fs" : "Infinite");
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("0 = infinite, >0 = stops emission after time and auto-destroys when empty");
+    }
 }
 
 void ImGuiManager::showVelocitySettings() {
@@ -896,6 +925,9 @@ void ImGuiManager::generateLuaExport() {
     pos += snprintf(buf + pos, bufSize - pos, "\n    -- Lifetime\n");
     pos += snprintf(buf + pos, bufSize - pos, "    lifetimeMin = %.2f,\n", cfg.lifetimeMin);
     pos += snprintf(buf + pos, bufSize - pos, "    lifetimeMax = %.2f,\n", cfg.lifetimeMax);
+    if (cfg.systemLifetime > 0.0f) {
+        pos += snprintf(buf + pos, bufSize - pos, "    systemLifetime = %.2f,\n", cfg.systemLifetime);
+    }
 
     // Rotation (only if non-zero)
     bool hasRotation = cfg.rotationMinX != 0.0f || cfg.rotationMaxX != 0.0f ||
@@ -951,8 +983,9 @@ void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, i
 
     ParticleEmitterConfig& cfg = editorState_.config;
 
-    // Check if maxParticles changed - requires system recreation
-    bool needsRecreation = (cfg.maxParticles != editorState_.lastMaxParticles);
+    // Check if maxParticles or systemLifetime changed - requires system recreation
+    bool needsRecreation = (cfg.maxParticles != editorState_.lastMaxParticles) ||
+                          (cfg.systemLifetime != editorState_.lastSystemLifetime);
 
     if (needsRecreation && editorState_.previewSystemId >= 0) {
         // Destroy existing system and create new one with correct capacity
@@ -961,20 +994,30 @@ void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, i
     }
 
     if (editorState_.previewSystemId >= 0) {
-        // Update the system position
-        particleManager->setSystemPosition(editorState_.previewSystemId, 0.0f, 0.0f);
-        particleManager->setSystemEmissionRate(editorState_.previewSystemId, cfg.emissionRate);
-
-        // Get the system and update its config
         ParticleSystem* system = particleManager->getSystem(editorState_.previewSystemId);
         if (system) {
-            system->config = cfg;
+            // Check if system has finished and should loop
+            if (cfg.systemLifetime > 0.0f && system->emissionStopped && system->liveParticleCount == 0) {
+                // System finished - recreate for looping
+                particleManager->destroySystem(editorState_.previewSystemId);
+                editorState_.previewSystemId = -1;
+            } else {
+                // Update the system position
+                particleManager->setSystemPosition(editorState_.previewSystemId, 0.0f, 0.0f);
+                particleManager->setSystemEmissionRate(editorState_.previewSystemId, cfg.emissionRate);
+
+                // Update its config
+                system->config = cfg;
+            }
         }
-    } else if (pipelineId >= 0) {
+    }
+
+    if (editorState_.previewSystemId < 0 && pipelineId >= 0) {
         // Create a new preview system
         editorState_.previewSystemId = particleManager->createSystem(cfg, pipelineId);
         particleManager->setSystemPosition(editorState_.previewSystemId, 0.0f, 0.0f);
         editorState_.lastMaxParticles = cfg.maxParticles;
+        editorState_.lastSystemLifetime = cfg.systemLifetime;
     }
 }
 
@@ -1141,7 +1184,11 @@ void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
 
     pos += snprintf(buffer + pos, bufferSize - pos, "    -- Lifetime\n");
     pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMin = %.2f,\n", cfg.lifetimeMin);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMax = %.2f,\n\n", cfg.lifetimeMax);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMax = %.2f,\n", cfg.lifetimeMax);
+    if (cfg.systemLifetime > 0.0f) {
+        pos += snprintf(buffer + pos, bufferSize - pos, "    systemLifetime = %.2f,\n", cfg.systemLifetime);
+    }
+    pos += snprintf(buffer + pos, bufferSize - pos, "\n");
 
     // Textures - store names as strings for editor loading
     pos += snprintf(buffer + pos, bufferSize - pos, "    -- Textures (stored as names for editor)\n");
@@ -1364,6 +1411,7 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     // Lifetime
     extractFloat("lifetimeMin", cfg.lifetimeMin);
     extractFloat("lifetimeMax", cfg.lifetimeMax);
+    extractFloat("systemLifetime", cfg.systemLifetime);
 
     // Rotation (Z axis is most commonly used for 2D)
     extractFloat("rotationMinZ", cfg.rotationMinZ);

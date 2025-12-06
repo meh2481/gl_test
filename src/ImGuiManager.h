@@ -16,6 +16,7 @@
 class VulkanRenderer;
 class ParticleSystemManager;
 class PakResource;
+class SceneManager;
 
 // Maximum emission polygon vertices / textures
 static const int EDITOR_MAX_VERTICES = 8;
@@ -55,6 +56,11 @@ struct ParticleEditorState {
     bool previewCameraChanged;  // Flag to indicate preview controls were changed by user
     bool previewResetRequested; // Flag to indicate user wants to reset camera
 
+    // Preview background color (not saved, just for editor visualization)
+    float previewBackgroundR;
+    float previewBackgroundG;
+    float previewBackgroundB;
+
     // Export state
     bool showExportPopup;
     char exportBuffer[8192];
@@ -83,6 +89,7 @@ struct ParticleEditorState {
 
     // System recreation tracking
     int lastMaxParticles;  // Track changes that require system recreation
+    float lastSystemLifetime;  // Track changes that require system recreation
 };
 
 class ImGuiManager {
@@ -117,9 +124,10 @@ public:
     void setParticleEditorActive(bool active);
     bool isParticleEditorActive() const;
     void showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
-                                   VulkanRenderer* renderer, int pipelineId, float deltaTime);
+                                   VulkanRenderer* renderer, int pipelineId, float deltaTime, class SceneManager* sceneManager = nullptr);
     ParticleEditorState& getEditorState() { return editorState_; }
     void destroyPreviewSystem(ParticleSystemManager* particleManager);
+    int getPreviewSystemId() const { return editorState_.previewSystemId; }
 
     // Sync preview controls with camera
     void syncPreviewWithCamera(float cameraOffsetX, float cameraOffsetY, float cameraZoom);

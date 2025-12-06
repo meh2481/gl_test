@@ -224,6 +224,8 @@ int ParticleSystemManager::createSystem(const ParticleEmitterConfig& config, int
     system.emitterX = 0.0f;
     system.emitterY = 0.0f;
     system.emissionAccumulator = 0.0f;
+    system.systemLifetimeRemaining = config.systemLifetime;
+    system.emissionStopped = false;
 
     // Calculate emission center
     calculatePolygonCentroid(config.emissionVertices, config.emissionVertexCount,
@@ -491,13 +493,25 @@ void ParticleSystemManager::update(float deltaTime) {
     for (int s = 0; s < systemCount_; ++s) {
         ParticleSystem& system = systems_[s];
 
-        // Update emission accumulator
-        system.emissionAccumulator += system.config.emissionRate * deltaTime;
+        // Update system lifetime if set
+        if (system.systemLifetimeRemaining > 0.0f) {
+            system.systemLifetimeRemaining -= deltaTime;
+            if (system.systemLifetimeRemaining <= 0.0f) {
+                system.systemLifetimeRemaining = 0.0f;
+                system.emissionStopped = true;
+            }
+        }
 
-        // Spawn new particles
-        while (system.emissionAccumulator >= 1.0f) {
-            spawnParticle(system);
-            system.emissionAccumulator -= 1.0f;
+        // Only spawn particles if emission is not stopped
+        if (!system.emissionStopped) {
+            // Update emission accumulator
+            system.emissionAccumulator += system.config.emissionRate * deltaTime;
+
+            // Spawn new particles
+            while (system.emissionAccumulator >= 1.0f) {
+                spawnParticle(system);
+                system.emissionAccumulator -= 1.0f;
+            }
         }
 
         // Update existing particles
@@ -510,6 +524,18 @@ void ParticleSystemManager::update(float deltaTime) {
             }
         }
     }
+}
+
+void ParticleSystemManager::getSystemsToDestroy(int* outSystemIds, int* outCount, int maxCount) {
+    int count = 0;
+    for (int s = 0; s < systemCount_ && count < maxCount; ++s) {
+        ParticleSystem& system = systems_[s];
+        // Mark for destruction if emission stopped and no live particles
+        if (system.emissionStopped && system.liveParticleCount == 0) {
+            outSystemIds[count++] = systemIds_[s];
+        }
+    }
+    *outCount = count;
 }
 
 void ParticleSystemManager::clearAllSystems() {
