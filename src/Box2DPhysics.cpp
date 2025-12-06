@@ -1469,69 +1469,68 @@ void Box2DPhysics::applyForceFields() {
                                     centerOfMass.y <= fieldAABB.upperBound.y + surfaceMargin);
 
                 if (centerInField) {
-                    // Apply acceleration directly to velocity (a = F/m, but we want constant a)
-                    // v_new = v_old + a * dt
                     b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
-                    vel.x += field.forceX * fixedTimestep_;
-                    vel.y += field.forceY * fixedTimestep_;
+                    float speed = sqrtf(vel.x * vel.x + vel.y * vel.y);
 
-                    // Apply velocity damping if set (simulates water drag)
-                    // v_new = v * (1 - damping * dt)
-                    if (field.damping > 0.0f) {
-                        float dampingFactor = 1.0f - field.damping * fixedTimestep_;
-                        if (dampingFactor < 0.0f) dampingFactor = 0.0f;
-                        vel.x *= dampingFactor;
-                        vel.y *= dampingFactor;
+                    // Check if body is near the water surface (top of force field)
+                    const float surfaceEquilibriumMargin = 0.05f;
+                    bool atSurfaceEquilibrium = (centerOfMass.y >= fieldAABB.upperBound.y - surfaceEquilibriumMargin);
 
-                        // Stop jittering at very low velocities
-                        const float velocityDeadZone = 0.02f;
-                        float speed = sqrtf(vel.x * vel.x + vel.y * vel.y);
-                        if (speed < velocityDeadZone) {
-                            vel.x = 0.0f;
-                            vel.y = 0.0f;
+                    // At surface equilibrium with low velocity: let the object rest
+                    // The buoyancy (forceY) and gravity naturally balance here
+                    // Only skip force if velocity is very low to allow proper settling
+                    const float equilibriumVelocityThreshold = 0.15f;
+                    if (atSurfaceEquilibrium && speed < equilibriumVelocityThreshold) {
+                        // Don't apply force - let the object rest at equilibrium
+                        // Apply strong damping to quickly settle any residual motion
+                        if (field.damping > 0.0f) {
+                            float strongDampingFactor = 1.0f - (field.damping * 3.0f) * fixedTimestep_;
+                            if (strongDampingFactor < 0.0f) strongDampingFactor = 0.0f;
+                            vel.x *= strongDampingFactor;
+                            vel.y *= strongDampingFactor;
+                            b2Body_SetLinearVelocity(overlappingBodyId, vel);
+
+                            float angVel = b2Body_GetAngularVelocity(overlappingBodyId);
+                            angVel *= strongDampingFactor;
+                            b2Body_SetAngularVelocity(overlappingBodyId, angVel);
+                        }
+                    } else {
+                        // Normal case: apply force and damping
+                        vel.x += field.forceX * fixedTimestep_;
+                        vel.y += field.forceY * fixedTimestep_;
+
+                        // Apply velocity damping if set (simulates water drag)
+                        if (field.damping > 0.0f) {
+                            float dampingFactor = 1.0f - field.damping * fixedTimestep_;
+                            if (dampingFactor < 0.0f) dampingFactor = 0.0f;
+                            vel.x *= dampingFactor;
+                            vel.y *= dampingFactor;
+
+                            float angVel = b2Body_GetAngularVelocity(overlappingBodyId);
+                            angVel *= dampingFactor;
+                            b2Body_SetAngularVelocity(overlappingBodyId, angVel);
                         }
 
-                        // Also apply angular damping
-                        float angVel = b2Body_GetAngularVelocity(overlappingBodyId);
-                        angVel *= dampingFactor;
-                        const float angularDeadZone = 0.05f;
-                        if (fabsf(angVel) < angularDeadZone) {
-                            angVel = 0.0f;
-                        }
-                        b2Body_SetAngularVelocity(overlappingBodyId, angVel);
+                        b2Body_SetLinearVelocity(overlappingBodyId, vel);
                     }
-
-                    b2Body_SetLinearVelocity(overlappingBodyId, vel);
                 } else if (nearSurface && field.damping > 0.0f) {
-                    // Apply reduced damping when body is just above water surface
+                    // Apply damping when body is just above water surface
                     // This helps objects settle when bobbing at the surface
                     b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
                     float speed = sqrtf(vel.x * vel.x + vel.y * vel.y);
 
-                    // Only apply surface damping when moving slowly
-                    const float slowSpeedThreshold = 1.0f;
+                    // Apply surface damping when moving slowly
+                    const float slowSpeedThreshold = 0.5f;
                     if (speed < slowSpeedThreshold) {
-                        // Apply weaker damping above surface (50% of normal)
-                        float surfaceDampingFactor = 1.0f - (field.damping * 0.5f) * fixedTimestep_;
+                        // Apply stronger damping above surface to stop bobbing
+                        float surfaceDampingFactor = 1.0f - (field.damping * 2.0f) * fixedTimestep_;
                         if (surfaceDampingFactor < 0.0f) surfaceDampingFactor = 0.0f;
                         vel.x *= surfaceDampingFactor;
                         vel.y *= surfaceDampingFactor;
-
-                        // Stop jittering at very low velocities
-                        const float velocityDeadZone = 0.02f;
-                        if (speed < velocityDeadZone) {
-                            vel.x = 0.0f;
-                            vel.y = 0.0f;
-                        }
                         b2Body_SetLinearVelocity(overlappingBodyId, vel);
 
-                        // Dampen angular velocity too
                         float angVel = b2Body_GetAngularVelocity(overlappingBodyId);
                         angVel *= surfaceDampingFactor;
-                        const float angularDeadZone = 0.05f;
-                        if (fabsf(angVel) < angularDeadZone) {
-                            angVel = 0.0f;
-                        }
                         b2Body_SetAngularVelocity(overlappingBodyId, angVel);
                     }
                 }
