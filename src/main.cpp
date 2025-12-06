@@ -468,7 +468,7 @@ int main() {
                 &luaInterface->getParticleSystemManager(),
                 &sceneManager.getPakResource(),
                 &renderer,
-                sceneManager.getParticleEditorPipelineId(),
+                luaInterface,
                 deltaTime,
                 &sceneManager
             );

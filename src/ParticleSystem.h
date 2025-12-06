@@ -6,8 +6,9 @@
 
 // Blend modes for particle systems
 enum ParticleBlendMode {
-    PARTICLE_BLEND_ADDITIVE = 0,  // Default additive blending
-    PARTICLE_BLEND_ALPHA = 1      // Standard alpha blending
+    PARTICLE_BLEND_ADDITIVE = 0,   // Additive blending (brightens)
+    PARTICLE_BLEND_ALPHA = 1,      // Standard alpha blending
+    PARTICLE_BLEND_SUBTRACTIVE = 2 // Subtractive blending (darkens)
 };
 
 // Configuration for a single particle emitter

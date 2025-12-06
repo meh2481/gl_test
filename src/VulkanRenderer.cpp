@@ -929,8 +929,8 @@ void VulkanRenderer::createAnimTexturedPipeline(uint64_t id, const ResourceData&
     m_pipelineManager.createAnimTexturedPipeline(id, vertShader, fragShader, numTextures);
 }
 
-void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool additive) {
-    m_pipelineManager.createParticlePipeline(id, vertShader, fragShader, additive);
+void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode) {
+    m_pipelineManager.createParticlePipeline(id, vertShader, fragShader, blendMode);
 }
 
 void VulkanRenderer::createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds) {

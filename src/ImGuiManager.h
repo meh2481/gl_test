@@ -17,6 +17,7 @@ class VulkanRenderer;
 class ParticleSystemManager;
 class PakResource;
 class SceneManager;
+class LuaInterface;
 
 // Maximum emission polygon vertices / textures
 static const int EDITOR_MAX_VERTICES = 8;
@@ -90,6 +91,7 @@ struct ParticleEditorState {
     // System recreation tracking
     int lastMaxParticles;  // Track changes that require system recreation
     float lastSystemLifetime;  // Track changes that require system recreation
+    ParticleBlendMode lastBlendMode;  // Track blend mode changes for pipeline selection
 };
 
 class ImGuiManager {
@@ -124,7 +126,7 @@ public:
     void setParticleEditorActive(bool active);
     bool isParticleEditorActive() const;
     void showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
-                                   VulkanRenderer* renderer, int pipelineId, float deltaTime, class SceneManager* sceneManager = nullptr);
+                                   VulkanRenderer* renderer, class LuaInterface* luaInterface, float deltaTime, class SceneManager* sceneManager = nullptr);
     ParticleEditorState& getEditorState() { return editorState_; }
     void destroyPreviewSystem(ParticleSystemManager* particleManager);
     int getPreviewSystemId() const { return editorState_.previewSystemId; }

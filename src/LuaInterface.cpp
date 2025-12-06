@@ -8,7 +8,10 @@
 #endif
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), particleEditorPipelineId_(-1) {
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f) {
+    particleEditorPipelineIds_[0] = -1;
+    particleEditorPipelineIds_[1] = -1;
+    particleEditorPipelineIds_[2] = -1;
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
     physics_ = std::make_unique<Box2DPhysics>();
@@ -2368,7 +2371,7 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), additive (boolean, optional)
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), blendMode (integer/boolean, optional)
     int numArgs = lua_gettop(L);
     assert(numArgs >= 3 && numArgs <= 4);
     assert(lua_isstring(L, 1));
@@ -2378,11 +2381,17 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     const char* vertShaderName = lua_tostring(L, 1);
     const char* fragShaderName = lua_tostring(L, 2);
     int zIndex = (int)lua_tointeger(L, 3);
-    bool additive = true;  // Default to additive blending
+    int blendMode = 0;  // Default to additive blending
 
     if (numArgs >= 4) {
-        assert(lua_isboolean(L, 4));
-        additive = lua_toboolean(L, 4);
+        if (lua_isboolean(L, 4)) {
+            // Backward compatibility: boolean true=additive, false=alpha
+            bool additive = lua_toboolean(L, 4);
+            blendMode = additive ? 0 : 1;
+        } else if (lua_isnumber(L, 4)) {
+            // New way: integer blend mode (0=additive, 1=alpha, 2=subtractive)
+            blendMode = (int)lua_tointeger(L, 4);
+        }
     }
 
     uint64_t vertId = std::hash<std::string>{}(vertShaderName);
@@ -2398,7 +2407,7 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
 
     // Create particle pipeline
-    interface->renderer_.createParticlePipeline(pipelineId, vertShader, fragShader, additive);
+    interface->renderer_.createParticlePipeline(pipelineId, vertShader, fragShader, blendMode);
 
     // Return the pipeline ID so it can be used in createParticleSystem
     lua_pushinteger(L, pipelineId);
@@ -2694,17 +2703,21 @@ int LuaInterface::openParticleEditor(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: pipelineId (integer)
-    assert(lua_gettop(L) == 1);
+    // Arguments: pipelineIdAdditive, pipelineIdAlpha, pipelineIdSubtractive (integers)
+    assert(lua_gettop(L) == 3);
     assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
 
-    int pipelineId = lua_tointeger(L, 1);
-    interface->particleEditorPipelineId_ = pipelineId;
+    interface->particleEditorPipelineIds_[0] = lua_tointeger(L, 1);
+    interface->particleEditorPipelineIds_[1] = lua_tointeger(L, 2);
+    interface->particleEditorPipelineIds_[2] = lua_tointeger(L, 3);
 
 #ifdef DEBUG
     // Get SceneManager to access ImGuiManager
     if (interface->sceneManager_) {
-        interface->sceneManager_->setParticleEditorActive(true, pipelineId);
+        // Pass the additive pipeline as the default
+        interface->sceneManager_->setParticleEditorActive(true, interface->particleEditorPipelineIds_[0]);
     }
 #endif
 

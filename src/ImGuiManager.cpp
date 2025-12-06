@@ -5,6 +5,7 @@
 #include "ConsoleBuffer.h"
 #include "resource.h"
 #include "SceneManager.h"
+#include "LuaInterface.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
@@ -40,6 +41,7 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.showExportPopup = false;
     editorState_.lastMaxParticles = 100;
     editorState_.lastSystemLifetime = 0.0f;
+    editorState_.lastBlendMode = PARTICLE_BLEND_ADDITIVE;
 
     // Initialize save/load filenames
     strncpy(editorState_.saveFilename, "my_particles.lua", EDITOR_MAX_FILENAME_LEN - 1);
@@ -302,8 +304,8 @@ void ImGuiManager::destroyPreviewSystem(ParticleSystemManager* particleManager) 
 }
 
 void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
-                                             VulkanRenderer* renderer, int pipelineId, float deltaTime, SceneManager* sceneManager) {
-    if (!initialized_ || !editorState_.isActive) {
+                                             VulkanRenderer* renderer, LuaInterface* luaInterface, float deltaTime, SceneManager* sceneManager) {
+    if (!initialized_ || !editorState_.isActive || !luaInterface) {
         return;
     }
 
@@ -315,6 +317,9 @@ void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManag
         ImGui::End();
         return;
     }
+
+    // Get the correct pipeline based on current blend mode
+    int pipelineId = luaInterface->getParticleEditorPipelineId((int)editorState_.config.blendMode);
 
     // Store pipeline ID for preview
     editorState_.previewPipelineId = pipelineId;
@@ -406,9 +411,9 @@ void ImGuiManager::showEmissionSettings() {
     ImGui::SliderFloat("Emission Rate", &cfg.emissionRate, 0.0f, 1000.0f, "%.1f particles/sec");
     ImGui::SliderFloat("Position Variance", &cfg.positionVariance, 0.0f, 2.0f, "%.3f");
 
-    const char* blendModes[] = { "Additive", "Alpha" };
+    const char* blendModes[] = { "Additive", "Alpha", "Subtractive" };
     int blendMode = (int)cfg.blendMode;
-    if (ImGui::Combo("Blend Mode", &blendMode, blendModes, 2)) {
+    if (ImGui::Combo("Blend Mode", &blendMode, blendModes, 3)) {
         cfg.blendMode = (ParticleBlendMode)blendMode;
     }
 
@@ -879,7 +884,8 @@ void ImGuiManager::generateLuaExport() {
     pos += snprintf(buf + pos, bufSize - pos, "    maxParticles = %d,\n", cfg.maxParticles);
     pos += snprintf(buf + pos, bufSize - pos, "    emissionRate = %.1f,\n", cfg.emissionRate);
     pos += snprintf(buf + pos, bufSize - pos, "    blendMode = %d,  -- %s\n", cfg.blendMode,
-                    cfg.blendMode == PARTICLE_BLEND_ADDITIVE ? "PARTICLE_BLEND_ADDITIVE" : "PARTICLE_BLEND_ALPHA");
+                    cfg.blendMode == PARTICLE_BLEND_ADDITIVE ? "Additive" :
+                    cfg.blendMode == PARTICLE_BLEND_ALPHA ? "Alpha" : "Subtractive");
 
     // Emission polygon
     if (cfg.emissionVertexCount > 0) {
@@ -1010,9 +1016,10 @@ void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, i
 
     ParticleEmitterConfig& cfg = editorState_.config;
 
-    // Check if maxParticles or systemLifetime changed - requires system recreation
+    // Check if maxParticles, systemLifetime, or blendMode changed - requires system recreation
     bool needsRecreation = (cfg.maxParticles != editorState_.lastMaxParticles) ||
-                          (cfg.systemLifetime != editorState_.lastSystemLifetime);
+                          (cfg.systemLifetime != editorState_.lastSystemLifetime) ||
+                          (cfg.blendMode != editorState_.lastBlendMode);
 
     if (needsRecreation && editorState_.previewSystemId >= 0) {
         // Destroy existing system and create new one with correct capacity
@@ -1045,6 +1052,7 @@ void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, i
         particleManager->setSystemPosition(editorState_.previewSystemId, 0.0f, 0.0f);
         editorState_.lastMaxParticles = cfg.maxParticles;
         editorState_.lastSystemLifetime = cfg.systemLifetime;
+        editorState_.lastBlendMode = cfg.blendMode;
     }
 }
 
@@ -1155,7 +1163,8 @@ void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
     pos += snprintf(buffer + pos, bufferSize - pos, "    maxParticles = %d,\n", cfg.maxParticles);
     pos += snprintf(buffer + pos, bufferSize - pos, "    emissionRate = %.1f,\n", cfg.emissionRate);
     pos += snprintf(buffer + pos, bufferSize - pos, "    blendMode = %d,  -- %s\n\n", cfg.blendMode,
-                    cfg.blendMode == PARTICLE_BLEND_ADDITIVE ? "PARTICLE_BLEND_ADDITIVE" : "PARTICLE_BLEND_ALPHA");
+                    cfg.blendMode == PARTICLE_BLEND_ADDITIVE ? "Additive" :
+                    cfg.blendMode == PARTICLE_BLEND_ALPHA ? "Alpha" : "Subtractive");
 
     // Emission polygon
     if (cfg.emissionVertexCount > 0) {

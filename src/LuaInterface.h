@@ -45,6 +45,12 @@ public:
 
     // Particle system access
     ParticleSystemManager& getParticleSystemManager() { return *particleManager_; }
+    int getParticleEditorPipelineId(int blendMode) const {
+        if (blendMode >= 0 && blendMode < 3) {
+            return particleEditorPipelineIds_[blendMode];
+        }
+        return particleEditorPipelineIds_[0]; // Default to additive
+    }
 
     // Water effect access
     WaterEffectManager& getWaterEffectManager() { return *waterEffectManager_; }
@@ -191,7 +197,7 @@ private:
                            float alpha, float rippleAmplitude, float rippleSpeed);
 
     // Particle editor state (DEBUG only)
-    int particleEditorPipelineId_;
+    int particleEditorPipelineIds_[3]; // [0]=additive, [1]=alpha, [2]=subtractive
 
     // Scene objects tracking - objects created via loadObject are tracked here
     // The C++ side calls update/cleanup on these automatically
