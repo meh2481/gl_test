@@ -34,6 +34,9 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.previewOffsetY = 0.0f;
     editorState_.previewCameraChanged = false;
     editorState_.previewResetRequested = false;
+    editorState_.previewBackgroundR = 0.0f;
+    editorState_.previewBackgroundG = 0.0f;
+    editorState_.previewBackgroundB = 0.0f;
     editorState_.showExportPopup = false;
     editorState_.lastMaxParticles = 100;
     editorState_.lastSystemLifetime = 0.0f;
@@ -370,6 +373,17 @@ void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManag
     }
     if (ImGui::DragFloat2("Offset", &editorState_.previewOffsetX, 0.01f, -10.0f, 10.0f, "%.2f")) {
         editorState_.previewCameraChanged = true;
+    }
+
+    // Background color control (RGB only, not saved)
+    float bgColor[3] = {editorState_.previewBackgroundR, editorState_.previewBackgroundG, editorState_.previewBackgroundB};
+    if (ImGui::ColorEdit3("Background", bgColor)) {
+        editorState_.previewBackgroundR = bgColor[0];
+        editorState_.previewBackgroundG = bgColor[1];
+        editorState_.previewBackgroundB = bgColor[2];
+        if (renderer) {
+            renderer->setClearColor(editorState_.previewBackgroundR, editorState_.previewBackgroundG, editorState_.previewBackgroundB);
+        }
     }
 
     if (ImGui::Button("Reset Preview")) {

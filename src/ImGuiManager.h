@@ -56,6 +56,11 @@ struct ParticleEditorState {
     bool previewCameraChanged;  // Flag to indicate preview controls were changed by user
     bool previewResetRequested; // Flag to indicate user wants to reset camera
 
+    // Preview background color (not saved, just for editor visualization)
+    float previewBackgroundR;
+    float previewBackgroundG;
+    float previewBackgroundB;
+
     // Export state
     bool showExportPopup;
     char exportBuffer[8192];

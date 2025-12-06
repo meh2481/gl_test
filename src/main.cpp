@@ -459,6 +459,8 @@ int main() {
                 imguiManager.destroyPreviewSystem(&luaInterface->getParticleSystemManager());
             }
             imguiManager.setParticleEditorActive(false);
+            // Reset background color to black when exiting editor
+            renderer.setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         }
 
         if (sceneWantsEditor && luaInterface) {
