@@ -41,33 +41,25 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
 
     // Copy global functions and tables into the scene table
     const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexturedShadersAdditive", "loadAnimTexturedShaders", "loadTexture",
-                                     "getTextureDimensions",
-                                     "setShaderUniform3f", "setShaderParameters",
+                                     "setShaderParameters",
                                      "pushScene", "popScene", "print",
-                                     "b2SetGravity", "b2SetFixedTimestep", "b2Step", "b2CreateBody", "b2DestroyBody",
+                                     "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
                                      "b2AddBoxFixture", "b2AddCircleFixture", "b2AddPolygonFixture", "b2AddSegmentFixture", "b2SetBodyPosition",
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
-                                     "b2SetBodyAwake", "b2ApplyForce", "b2ApplyTorque", "b2GetBodyPosition", "b2GetBodyAngle",
-                                     "b2GetBodyLinearVelocity", "b2GetBodyAngularVelocity", "b2EnableDebugDraw",
+                                     "b2SetBodyAwake", "b2GetBodyPosition", "b2EnableDebugDraw",
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
-                                     "b2GetCollisionHitEvents", "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
-                                     "createForceField", "destroyForceField", "setForceFieldDamping",
-                                     "createRadialForceField", "destroyRadialForceField",
-                                     "createWaterForceField", "destroyWaterForceField", "loadWaterShaders", "setWaterFieldShader",
-                                     "enableReflection", "disableReflection", "getReflectionTextureId",
-                                    "createLayer", "destroyLayer", "attachLayerToBody", "detachLayer", "setLayerEnabled", "setLayerOffset", "setLayerUseLocalUV", "setLayerPolygon", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
+                                     "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
+                                     "createForceField", "createRadialForceField",
+                                     "createLayer", "destroyLayer", "attachLayerToBody", "setLayerOffset", "setLayerUseLocalUV", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
                                      "setLayerSpin", "setLayerBlink", "setLayerWave", "setLayerColor", "setLayerColorCycle",
-                                     "audioLoadBuffer", "audioLoadOpus", "audioCreateSource", "audioPlaySource", "audioStopSource",
-                                     "audioPauseSource", "audioSetSourcePosition", "audioSetSourceVelocity",
-                                     "audioSetSourceVolume", "audioSetSourcePitch", "audioSetSourceLooping",
-                                     "audioReleaseSource", "audioIsSourcePlaying", "audioSetListenerPosition", "audioSetListenerVelocity",
+                                     "audioLoadOpus", "audioCreateSource", "audioPlaySource",
+                                     "audioSetSourcePosition", "audioSetListenerPosition",
                                      "audioSetListenerOrientation", "audioSetGlobalVolume", "audioSetGlobalEffect",
-                                     "vibrate", "vibrateTriggers", "stopVibration",
                                      "getCursorPosition",
-                                     "getCameraOffset", "setCameraOffset", "getCameraZoom", "setCameraZoom",
-                                     "addLight", "updateLight", "removeLight", "clearLights", "setAmbientLight",
-                                     "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "setParticleSystemEmissionRate", "setParticleSystemParallaxDepth", "loadParticleShaders",
+                                     "setCameraOffset", "setCameraZoom",
+                                     "addLight", "updateLight", "removeLight", "setAmbientLight",
+                                     "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "loadParticleShaders",
                                      "openParticleEditor", "loadParticleConfig", "loadObject",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
@@ -547,7 +539,6 @@ void LuaInterface::registerFunctions() {
 
     // Register Box2D functions
     lua_register(luaState_, "b2SetGravity", b2SetGravity);
-    lua_register(luaState_, "b2SetFixedTimestep", b2SetFixedTimestep);
     lua_register(luaState_, "b2Step", b2Step);
     lua_register(luaState_, "b2CreateBody", b2CreateBody);
     lua_register(luaState_, "b2DestroyBody", b2DestroyBody);
@@ -560,12 +551,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2SetBodyLinearVelocity", b2SetBodyLinearVelocity);
     lua_register(luaState_, "b2SetBodyAngularVelocity", b2SetBodyAngularVelocity);
     lua_register(luaState_, "b2SetBodyAwake", b2SetBodyAwake);
-    lua_register(luaState_, "b2ApplyForce", b2ApplyForce);
-    lua_register(luaState_, "b2ApplyTorque", b2ApplyTorque);
     lua_register(luaState_, "b2GetBodyPosition", b2GetBodyPosition);
-    lua_register(luaState_, "b2GetBodyAngle", b2GetBodyAngle);
-    lua_register(luaState_, "b2GetBodyLinearVelocity", b2GetBodyLinearVelocity);
-    lua_register(luaState_, "b2GetBodyAngularVelocity", b2GetBodyAngularVelocity);
     lua_register(luaState_, "b2EnableDebugDraw", b2EnableDebugDraw);
     lua_register(luaState_, "b2CreateRevoluteJoint", b2CreateRevoluteJoint);
     lua_register(luaState_, "b2DestroyJoint", b2DestroyJoint);
@@ -573,7 +559,6 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2CreateMouseJoint", b2CreateMouseJoint);
     lua_register(luaState_, "b2UpdateMouseJointTarget", b2UpdateMouseJointTarget);
     lua_register(luaState_, "b2DestroyMouseJoint", b2DestroyMouseJoint);
-    lua_register(luaState_, "b2GetCollisionHitEvents", b2GetCollisionHitEvents);
     lua_register(luaState_, "b2SetBodyDestructible", b2SetBodyDestructible);
     lua_register(luaState_, "b2SetBodyDestructibleLayer", b2SetBodyDestructibleLayer);
     lua_register(luaState_, "b2ClearBodyDestructible", b2ClearBodyDestructible);
@@ -581,26 +566,14 @@ void LuaInterface::registerFunctions() {
 
     // Register force field functions
     lua_register(luaState_, "createForceField", createForceField);
-    lua_register(luaState_, "destroyForceField", destroyForceField);
-    lua_register(luaState_, "setForceFieldDamping", setForceFieldDamping);
     lua_register(luaState_, "createRadialForceField", createRadialForceField);
-    lua_register(luaState_, "destroyRadialForceField", destroyRadialForceField);
-
-    // Register water force field functions
-    lua_register(luaState_, "createWaterForceField", createWaterForceField);
-    lua_register(luaState_, "destroyWaterForceField", destroyWaterForceField);
-    lua_register(luaState_, "loadWaterShaders", loadWaterShaders);
-    lua_register(luaState_, "setWaterFieldShader", setWaterFieldShader);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
     lua_register(luaState_, "destroyLayer", destroyLayer);
     lua_register(luaState_, "attachLayerToBody", attachLayerToBody);
-    lua_register(luaState_, "detachLayer", detachLayer);
-    lua_register(luaState_, "setLayerEnabled", setLayerEnabled);
     lua_register(luaState_, "setLayerOffset", setLayerOffset);
     lua_register(luaState_, "setLayerUseLocalUV", setLayerUseLocalUV);
-    lua_register(luaState_, "setLayerPolygon", setLayerPolygon);
     lua_register(luaState_, "setLayerPosition", setLayerPosition);
     lua_register(luaState_, "setLayerParallaxDepth", setLayerParallaxDepth);
     lua_register(luaState_, "setLayerScale", setLayerScale);
@@ -614,66 +587,39 @@ void LuaInterface::registerFunctions() {
 
     // Register texture loading functions
     lua_register(luaState_, "loadTexture", loadTexture);
-    lua_register(luaState_, "getTextureDimensions", getTextureDimensions);
     lua_register(luaState_, "loadTexturedShaders", loadTexturedShaders);
     lua_register(luaState_, "loadTexturedShadersEx", loadTexturedShadersEx);
     lua_register(luaState_, "loadTexturedShadersAdditive", loadTexturedShadersAdditive);
     lua_register(luaState_, "loadAnimTexturedShaders", loadAnimTexturedShaders);
-    lua_register(luaState_, "setShaderUniform3f", setShaderUniform3f);
     lua_register(luaState_, "setShaderParameters", setShaderParameters);
 
     // Register audio functions
-    lua_register(luaState_, "audioLoadBuffer", audioLoadBuffer);
     lua_register(luaState_, "audioLoadOpus", audioLoadOpus);
     lua_register(luaState_, "audioCreateSource", audioCreateSource);
     lua_register(luaState_, "audioPlaySource", audioPlaySource);
-    lua_register(luaState_, "audioStopSource", audioStopSource);
-    lua_register(luaState_, "audioPauseSource", audioPauseSource);
     lua_register(luaState_, "audioSetSourcePosition", audioSetSourcePosition);
-    lua_register(luaState_, "audioSetSourceVelocity", audioSetSourceVelocity);
-    lua_register(luaState_, "audioSetSourceVolume", audioSetSourceVolume);
-    lua_register(luaState_, "audioSetSourcePitch", audioSetSourcePitch);
-    lua_register(luaState_, "audioSetSourceLooping", audioSetSourceLooping);
-    lua_register(luaState_, "audioReleaseSource", audioReleaseSource);
-    lua_register(luaState_, "audioIsSourcePlaying", audioIsSourcePlaying);
     lua_register(luaState_, "audioSetListenerPosition", audioSetListenerPosition);
-    lua_register(luaState_, "audioSetListenerVelocity", audioSetListenerVelocity);
     lua_register(luaState_, "audioSetListenerOrientation", audioSetListenerOrientation);
     lua_register(luaState_, "audioSetGlobalVolume", audioSetGlobalVolume);
     lua_register(luaState_, "audioSetGlobalEffect", audioSetGlobalEffect);
-
-    // Register vibration functions
-    lua_register(luaState_, "vibrate", vibrate);
-    lua_register(luaState_, "vibrateTriggers", vibrateTriggers);
-    lua_register(luaState_, "stopVibration", stopVibration);
 
     // Register cursor position function
     lua_register(luaState_, "getCursorPosition", getCursorPosition);
 
     // Register camera functions
-    lua_register(luaState_, "getCameraOffset", getCameraOffset);
     lua_register(luaState_, "setCameraOffset", setCameraOffset);
-    lua_register(luaState_, "getCameraZoom", getCameraZoom);
     lua_register(luaState_, "setCameraZoom", setCameraZoom);
-
-    // Register reflection/render-to-texture functions
-    lua_register(luaState_, "enableReflection", enableReflection);
-    lua_register(luaState_, "disableReflection", disableReflection);
-    lua_register(luaState_, "getReflectionTextureId", getReflectionTextureId);
 
     // Register light management functions
     lua_register(luaState_, "addLight", addLight);
     lua_register(luaState_, "updateLight", updateLight);
     lua_register(luaState_, "removeLight", removeLight);
-    lua_register(luaState_, "clearLights", clearLights);
     lua_register(luaState_, "setAmbientLight", setAmbientLight);
 
     // Register particle system functions
     lua_register(luaState_, "createParticleSystem", createParticleSystem);
     lua_register(luaState_, "destroyParticleSystem", destroyParticleSystem);
     lua_register(luaState_, "setParticleSystemPosition", setParticleSystemPosition);
-    lua_register(luaState_, "setParticleSystemEmissionRate", setParticleSystemEmissionRate);
-    lua_register(luaState_, "setParticleSystemParallaxDepth", setParticleSystemParallaxDepth);
     lua_register(luaState_, "loadParticleShaders", loadParticleShaders);
 
     // Register particle editor function (available in DEBUG builds)
@@ -1321,51 +1267,6 @@ int LuaInterface::b2DestroyMouseJoint(lua_State* L) {
     return 0;
 }
 
-int LuaInterface::b2GetCollisionHitEvents(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // No arguments expected
-    assert(lua_gettop(L) == 0);
-
-    const auto& events = interface->physics_->getCollisionHitEvents();
-
-    // Create a table to hold the events
-    lua_newtable(L);
-
-    int index = 1;
-    for (const auto& event : events) {
-        lua_newtable(L);
-
-        lua_pushinteger(L, event.bodyIdA);
-        lua_setfield(L, -2, "bodyIdA");
-
-        lua_pushinteger(L, event.bodyIdB);
-        lua_setfield(L, -2, "bodyIdB");
-
-        lua_pushnumber(L, event.pointX);
-        lua_setfield(L, -2, "pointX");
-
-        lua_pushnumber(L, event.pointY);
-        lua_setfield(L, -2, "pointY");
-
-        lua_pushnumber(L, event.normalX);
-        lua_setfield(L, -2, "normalX");
-
-        lua_pushnumber(L, event.normalY);
-        lua_setfield(L, -2, "normalY");
-
-        lua_pushnumber(L, event.approachSpeed);
-        lua_setfield(L, -2, "approachSpeed");
-
-        lua_rawseti(L, -2, index);
-        ++index;
-    }
-
-    return 1; // Return the table
-}
-
 int LuaInterface::b2SetBodyDestructible(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -1559,36 +1460,6 @@ int LuaInterface::createForceField(lua_State* L) {
     return 1;
 }
 
-int LuaInterface::destroyForceField(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    int forceFieldId = lua_tointeger(L, 1);
-    interface->physics_->destroyForceField(forceFieldId);
-    return 0;
-}
-
-int LuaInterface::setForceFieldDamping(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // Arguments: forceFieldId (integer), damping (number)
-    assert(lua_gettop(L) == 2);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-
-    int forceFieldId = lua_tointeger(L, 1);
-    float damping = lua_tonumber(L, 2);
-
-    interface->physics_->setForceFieldDamping(forceFieldId, damping);
-    return 0;
-}
-
 int LuaInterface::createRadialForceField(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -1613,162 +1484,7 @@ int LuaInterface::createRadialForceField(lua_State* L) {
     return 1;
 }
 
-int LuaInterface::destroyRadialForceField(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    int forceFieldId = lua_tointeger(L, 1);
-    interface->physics_->destroyRadialForceField(forceFieldId);
-    return 0;
-}
-
 // Water force field Lua binding implementations
-
-int LuaInterface::createWaterForceField(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // Arguments: vertices table, forceX, forceY, [alpha], [rippleAmplitude], [rippleSpeed]
-    int numArgs = lua_gettop(L);
-    assert(numArgs >= 3 && numArgs <= 6);
-    assert(lua_istable(L, 1));
-    assert(lua_isnumber(L, 2));
-    assert(lua_isnumber(L, 3));
-
-    // Get vertices from table
-    float vertices[16];
-    int tableLen = (int)lua_rawlen(L, 1);
-    assert(tableLen >= 6 && tableLen <= 16);
-
-    for (int i = 0; i < tableLen; ++i) {
-        lua_rawgeti(L, 1, i + 1);
-        assert(lua_isnumber(L, -1));
-        vertices[i] = lua_tonumber(L, -1);
-        lua_pop(L, 1);
-    }
-
-    int vertexCount = tableLen / 2;
-    float forceX = lua_tonumber(L, 2);
-    float forceY = lua_tonumber(L, 3);
-
-    // Optional water visual parameters
-    float alpha = (numArgs >= 4) ? lua_tonumber(L, 4) : 0.6f;
-    float rippleAmplitude = (numArgs >= 5) ? lua_tonumber(L, 5) : 0.005f;
-    float rippleSpeed = (numArgs >= 6) ? lua_tonumber(L, 6) : 3.0f;
-
-    // Calculate bounds from vertices
-    float minX = vertices[0], maxX = vertices[0];
-    float minY = vertices[1], maxY = vertices[1];
-    for (int i = 1; i < vertexCount; ++i) {
-        float x = vertices[i * 2];
-        float y = vertices[i * 2 + 1];
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-    }
-
-    // Create physics force field
-    int physicsFieldId = interface->physics_->createForceField(vertices, vertexCount, forceX, forceY);
-
-    // Create water visual effect
-    int waterFieldId = interface->waterEffectManager_->createWaterForceField(
-        physicsFieldId, minX, minY, maxX, maxY, alpha, rippleAmplitude, rippleSpeed);
-
-    // Return both IDs as a table
-    lua_newtable(L);
-    lua_pushinteger(L, physicsFieldId);
-    lua_setfield(L, -2, "forceFieldId");
-    lua_pushinteger(L, waterFieldId);
-    lua_setfield(L, -2, "waterFieldId");
-
-    return 1;
-}
-
-int LuaInterface::destroyWaterForceField(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // Arguments: table with forceFieldId and waterFieldId
-    assert(lua_gettop(L) == 1);
-    assert(lua_istable(L, 1));
-
-    lua_getfield(L, 1, "forceFieldId");
-    int forceFieldId = lua_tointeger(L, -1);
-    lua_pop(L, 1);
-
-    lua_getfield(L, 1, "waterFieldId");
-    int waterFieldId = lua_tointeger(L, -1);
-    lua_pop(L, 1);
-
-    interface->physics_->destroyForceField(forceFieldId);
-    interface->waterEffectManager_->destroyWaterForceField(waterFieldId);
-
-    return 0;
-}
-
-int LuaInterface::loadWaterShaders(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer)
-    assert(lua_gettop(L) == 3);
-    assert(lua_isstring(L, 1));
-    assert(lua_isstring(L, 2));
-    assert(lua_isnumber(L, 3));
-
-    const char* vertShaderName = lua_tostring(L, 1);
-    const char* fragShaderName = lua_tostring(L, 2);
-    int zIndex = (int)lua_tointeger(L, 3);
-
-    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
-    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
-
-    ResourceData vertShader = interface->pakResource_.getResource(vertId);
-    ResourceData fragShader = interface->pakResource_.getResource(fragId);
-
-    assert(vertShader.data != nullptr);
-    assert(fragShader.data != nullptr);
-
-    int pipelineId = interface->pipelineIndex_++;
-    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
-
-    // Create animation textured pipeline for water (uses 33 float push constants)
-    // Water needs 2 textures: primary texture and reflection render target
-    interface->renderer_.createAnimTexturedPipeline(pipelineId, vertShader, fragShader, 2);
-
-    // Mark pipeline as water pipeline
-    interface->renderer_.markPipelineAsWater(pipelineId);
-
-    lua_pushinteger(L, pipelineId);
-    return 1;
-}
-
-int LuaInterface::setWaterFieldShader(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // Arguments: waterFieldId (integer), pipelineId (integer)
-    assert(lua_gettop(L) == 2);
-    assert(lua_isinteger(L, 1));
-    assert(lua_isinteger(L, 2));
-
-    int waterFieldId = (int)lua_tointeger(L, 1);
-    int pipelineId = (int)lua_tointeger(L, 2);
-
-    // Store the mapping
-    interface->waterFieldShaderMap_[waterFieldId] = pipelineId;
-
-    return 0;
-}
 
 // Scene layer Lua binding implementations
 
@@ -1882,35 +1598,6 @@ int LuaInterface::attachLayerToBody(lua_State* L) {
     return 0;
 }
 
-int LuaInterface::detachLayer(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isinteger(L, 1));
-
-    int layerId = (int)lua_tointeger(L, 1);
-    interface->layerManager_->detachLayer(layerId);
-    return 0;
-}
-
-int LuaInterface::setLayerEnabled(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 2);
-    assert(lua_isinteger(L, 1));
-    assert(lua_isboolean(L, 2));
-
-    int layerId = (int)lua_tointeger(L, 1);
-    bool enabled = lua_toboolean(L, 2);
-
-    interface->layerManager_->setLayerEnabled(layerId, enabled);
-    return 0;
-}
-
 int LuaInterface::setLayerOffset(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -1942,49 +1629,6 @@ int LuaInterface::setLayerUseLocalUV(lua_State* L) {
     bool useLocal = lua_toboolean(L, 2);
 
     interface->layerManager_->setLayerUseLocalUV(layerId, useLocal);
-    return 0;
-}
-
-int LuaInterface::setLayerPolygon(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // Arguments: layerId (integer), vertices (table), uvs (table)
-    assert(lua_gettop(L) == 3);
-    assert(lua_isinteger(L, 1));
-    assert(lua_istable(L, 2));
-    assert(lua_istable(L, 3));
-
-    int layerId = (int)lua_tointeger(L, 1);
-
-    // Get vertices from table (3-8 vertices = 6-16 x,y values)
-    float vertices[16];
-    int vertexLen = (int)lua_rawlen(L, 2);
-    assert(vertexLen >= 6 && vertexLen <= 16);
-
-    for (int i = 0; i < vertexLen; ++i) {
-        lua_rawgeti(L, 2, i + 1);
-        assert(lua_isnumber(L, -1));
-        vertices[i] = lua_tonumber(L, -1);
-        lua_pop(L, 1);
-    }
-    int vertexCount = vertexLen / 2;
-
-    // Get UVs from table (must match vertex count)
-    float uvs[16];
-    int uvLen = (int)lua_rawlen(L, 3);
-    assert(uvLen == vertexLen);
-
-    for (int i = 0; i < uvLen; ++i) {
-        lua_rawgeti(L, 3, i + 1);
-        assert(lua_isnumber(L, -1));
-        uvs[i] = lua_tonumber(L, -1);
-        lua_pop(L, 1);
-    }
-
-    // Use same UVs for normal map (Lua API doesn't support separate normal map UVs yet)
-    interface->layerManager_->setLayerPolygon(layerId, vertices, uvs, nullptr, vertexCount);
     return 0;
 }
 
@@ -2221,38 +1865,6 @@ int LuaInterface::loadTexture(lua_State* L) {
     return 1;
 }
 
-int LuaInterface::getTextureDimensions(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // Argument: textureId (integer)
-    assert(lua_gettop(L) == 1);
-    assert(lua_isinteger(L, 1));
-
-    uint64_t textureId = (uint64_t)lua_tointeger(L, 1);
-
-    // First check if this texture is an atlas reference
-    AtlasUV atlasUV;
-    if (interface->pakResource_.getAtlasUV(textureId, atlasUV) && atlasUV.width > 0 && atlasUV.height > 0) {
-        lua_pushinteger(L, atlasUV.width);
-        lua_pushinteger(L, atlasUV.height);
-        return 2;
-    }
-
-    // Fall back to renderer texture dimensions for standalone textures
-    uint32_t width, height;
-    if (interface->renderer_.getTextureDimensions(textureId, &width, &height)) {
-        lua_pushinteger(L, width);
-        lua_pushinteger(L, height);
-        return 2;
-    }
-
-    // Return nil if texture not found
-    lua_pushnil(L);
-    return 1;
-}
-
 int LuaInterface::loadTexturedShaders(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -2399,28 +2011,6 @@ int LuaInterface::loadAnimTexturedShaders(lua_State* L) {
     return 1;
 }
 
-int LuaInterface::setShaderUniform3f(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // Arguments: x (number), y (number), z (number)
-    assert(lua_gettop(L) == 3);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-    assert(lua_isnumber(L, 3));
-
-    float x = (float)lua_tonumber(L, 1);
-    float y = (float)lua_tonumber(L, 2);
-    float z = (float)lua_tonumber(L, 3);
-
-    // This function is deprecated - setShaderParameters now requires a pipeline ID
-    // For backward compatibility, this does nothing
-    // Users should call setShaderParameters(pipelineId, x, y, z, ...) instead
-
-    return 0;
-}
-
 int LuaInterface::setShaderParameters(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -2450,30 +2040,6 @@ int LuaInterface::setShaderParameters(lua_State* L) {
 }
 
 // Audio Lua bindings
-
-int LuaInterface::audioLoadBuffer(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // Arguments: data (string/userdata), sampleRate (number), channels (number), bitsPerSample (number)
-    assert(lua_gettop(L) == 4);
-    assert(lua_isstring(L, 1));
-    assert(lua_isnumber(L, 2));
-    assert(lua_isnumber(L, 3));
-    assert(lua_isnumber(L, 4));
-
-    size_t dataSize;
-    const char* data = lua_tolstring(L, 1, &dataSize);
-    int sampleRate = lua_tointeger(L, 2);
-    int channels = lua_tointeger(L, 3);
-    int bitsPerSample = lua_tointeger(L, 4);
-
-    int bufferId = interface->audioManager_->loadAudioBufferFromMemory(data, dataSize, sampleRate, channels, bitsPerSample);
-
-    lua_pushinteger(L, bufferId);
-    return 1; // Return buffer ID
-}
 
 int LuaInterface::audioLoadOpus(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
@@ -2547,34 +2113,6 @@ int LuaInterface::audioPlaySource(lua_State* L) {
     return 0;
 }
 
-int LuaInterface::audioStopSource(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    int sourceId = lua_tointeger(L, 1);
-    interface->audioManager_->stopSource(sourceId);
-
-    return 0;
-}
-
-int LuaInterface::audioPauseSource(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    int sourceId = lua_tointeger(L, 1);
-    interface->audioManager_->pauseSource(sourceId);
-
-    return 0;
-}
-
 int LuaInterface::audioSetSourcePosition(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -2596,107 +2134,6 @@ int LuaInterface::audioSetSourcePosition(lua_State* L) {
     return 0;
 }
 
-int LuaInterface::audioSetSourceVelocity(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 4);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-    assert(lua_isnumber(L, 3));
-    assert(lua_isnumber(L, 4));
-
-    int sourceId = lua_tointeger(L, 1);
-    float vx = lua_tonumber(L, 2);
-    float vy = lua_tonumber(L, 3);
-    float vz = lua_tonumber(L, 4);
-
-    interface->audioManager_->setSourceVelocity(sourceId, vx, vy, vz);
-
-    return 0;
-}
-
-int LuaInterface::audioSetSourceVolume(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 2);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-
-    int sourceId = lua_tointeger(L, 1);
-    float volume = lua_tonumber(L, 2);
-
-    interface->audioManager_->setSourceVolume(sourceId, volume);
-
-    return 0;
-}
-
-int LuaInterface::audioSetSourcePitch(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 2);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-
-    int sourceId = lua_tointeger(L, 1);
-    float pitch = lua_tonumber(L, 2);
-
-    interface->audioManager_->setSourcePitch(sourceId, pitch);
-
-    return 0;
-}
-
-int LuaInterface::audioSetSourceLooping(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 2);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isboolean(L, 2));
-
-    int sourceId = lua_tointeger(L, 1);
-    bool looping = lua_toboolean(L, 2);
-
-    interface->audioManager_->setSourceLooping(sourceId, looping);
-
-    return 0;
-}
-
-int LuaInterface::audioReleaseSource(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    int sourceId = lua_tointeger(L, 1);
-    interface->audioManager_->releaseSource(sourceId);
-
-    return 0;
-}
-
-int LuaInterface::audioIsSourcePlaying(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    int sourceId = lua_tointeger(L, 1);
-    bool playing = interface->audioManager_->isSourcePlaying(sourceId);
-
-    lua_pushboolean(L, playing);
-    return 1;
-}
-
 int LuaInterface::audioSetListenerPosition(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -2712,25 +2149,6 @@ int LuaInterface::audioSetListenerPosition(lua_State* L) {
     float z = lua_tonumber(L, 3);
 
     interface->audioManager_->setListenerPosition(x, y, z);
-
-    return 0;
-}
-
-int LuaInterface::audioSetListenerVelocity(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 3);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-    assert(lua_isnumber(L, 3));
-
-    float vx = lua_tonumber(L, 1);
-    float vy = lua_tonumber(L, 2);
-    float vz = lua_tonumber(L, 3);
-
-    interface->audioManager_->setListenerVelocity(vx, vy, vz);
 
     return 0;
 }
@@ -2798,69 +2216,11 @@ int LuaInterface::audioSetGlobalEffect(lua_State* L) {
 
 // vibrate(leftIntensity, rightIntensity, duration)
 // Trigger controller vibration with specified intensities (0.0 to 1.0) and duration in milliseconds
-int LuaInterface::vibrate(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    int numArgs = lua_gettop(L);
-    assert(numArgs == 3);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-    assert(lua_isnumber(L, 3));
-
-    float leftIntensity = lua_tonumber(L, 1);
-    float rightIntensity = lua_tonumber(L, 2);
-    uint32_t duration = lua_tointeger(L, 3);
-
-    if (interface->vibrationManager_) {
-        interface->vibrationManager_->vibrate(leftIntensity, rightIntensity, duration);
-    }
-
-    return 0;
-}
-
 // vibrateTriggers(leftTrigger, rightTrigger, duration)
 // Trigger DualSense trigger motor vibration with specified intensities (0.0 to 1.0) and duration in milliseconds
 // Returns true if successful (controller supports trigger rumble)
-int LuaInterface::vibrateTriggers(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    int numArgs = lua_gettop(L);
-    assert(numArgs == 3);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-    assert(lua_isnumber(L, 3));
-
-    float leftTrigger = lua_tonumber(L, 1);
-    float rightTrigger = lua_tonumber(L, 2);
-    uint32_t duration = lua_tointeger(L, 3);
-
-    bool success = false;
-    if (interface->vibrationManager_) {
-        success = interface->vibrationManager_->vibrateTriggers(leftTrigger, rightTrigger, duration);
-    }
-
-    lua_pushboolean(L, success);
-    return 1;
-}
-
 // stopVibration()
 // Stop all controller vibration
-int LuaInterface::stopVibration(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    if (interface->vibrationManager_) {
-        interface->vibrationManager_->stopVibration();
-    }
-
-    return 0;
-}
-
 // getCursorPosition()
 // Returns current cursor position in world coordinates (x, y)
 int LuaInterface::getCursorPosition(lua_State* L) {
@@ -2875,16 +2235,6 @@ int LuaInterface::getCursorPosition(lua_State* L) {
 
 // getCameraOffset()
 // Returns current camera offset in world coordinates (x, y)
-int LuaInterface::getCameraOffset(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    lua_pushnumber(L, interface->cameraOffsetX_);
-    lua_pushnumber(L, interface->cameraOffsetY_);
-    return 2;
-}
-
 // setCameraOffset(x, y)
 // Sets camera offset in world coordinates
 int LuaInterface::setCameraOffset(lua_State* L) {
@@ -2903,15 +2253,6 @@ int LuaInterface::setCameraOffset(lua_State* L) {
 
 // getCameraZoom()
 // Returns current camera zoom level
-int LuaInterface::getCameraZoom(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    lua_pushnumber(L, interface->cameraZoom_);
-    return 1;
-}
-
 // setCameraZoom(zoom)
 // Sets camera zoom level (1.0 = normal, >1.0 = zoomed in, <1.0 = zoomed out)
 int LuaInterface::setCameraZoom(lua_State* L) {
@@ -2930,46 +2271,6 @@ int LuaInterface::setCameraZoom(lua_State* L) {
 }
 
 // Reflection Lua bindings
-
-int LuaInterface::enableReflection(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    // Arguments: surfaceY (float)
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    float surfaceY = lua_tonumber(L, 1);
-    interface->renderer_.enableReflection(surfaceY);
-
-    return 0;
-}
-
-int LuaInterface::disableReflection(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    interface->renderer_.disableReflection();
-
-    return 0;
-}
-
-int LuaInterface::getReflectionTextureId(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    if (!interface->renderer_.isReflectionEnabled()) {
-        lua_pushnil(L);
-        return 1;
-    }
-
-    uint64_t textureId = interface->renderer_.getReflectionTextureId();
-    lua_pushinteger(L, static_cast<lua_Integer>(textureId));
-    return 1;
-}
 
 // Camera zoom constants
 static const float ZOOM_SCROLL_FACTOR = 1.1f;
@@ -3042,15 +2343,6 @@ int LuaInterface::removeLight(lua_State* L) {
     int lightId = (int)lua_tointeger(L, 1);
 
     interface->renderer_.removeLight(lightId);
-    return 0;
-}
-
-int LuaInterface::clearLights(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    interface->renderer_.clearLights();
     return 0;
 }
 
@@ -3384,38 +2676,6 @@ int LuaInterface::setParticleSystemPosition(lua_State* L) {
     float y = (float)lua_tonumber(L, 3);
 
     interface->particleManager_->setSystemPosition(systemId, x, y);
-    return 0;
-}
-
-int LuaInterface::setParticleSystemEmissionRate(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 2);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-
-    int systemId = lua_tointeger(L, 1);
-    float rate = (float)lua_tonumber(L, 2);
-
-    interface->particleManager_->setSystemEmissionRate(systemId, rate);
-    return 0;
-}
-
-int LuaInterface::setParticleSystemParallaxDepth(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 2);
-    assert(lua_isnumber(L, 1));
-    assert(lua_isnumber(L, 2));
-
-    int systemId = lua_tointeger(L, 1);
-    float depth = (float)lua_tonumber(L, 2);
-
-    interface->particleManager_->setSystemParallaxDepth(systemId, depth);
     return 0;
 }
 
