@@ -118,10 +118,38 @@ private:
     uint32_t binHeight_;
 
     void splitFreeRect(int index, const PackRect& usedRect) {
-        FreeRect freeRect = freeRects_[index];
-        freeRects_.erase(freeRects_.begin() + index);
+        // Process ALL free rectangles and split any that overlap with the used rectangle
+        size_t numRects = freeRects_.size();
+        for (size_t i = 0; i < numRects; i++) {
+            if (splitSingleFreeRectByUsedRect(i, usedRect)) {
+                freeRects_.erase(freeRects_.begin() + i);
+                i--;
+                numRects--;
+            }
+        }
 
-        // Split horizontally (right remainder)
+        pruneFreeRects();
+    }
+
+    bool splitSingleFreeRectByUsedRect(size_t index, const PackRect& usedRect) {
+        FreeRect freeRect = freeRects_[index];
+
+        // Check if used rectangle intersects with this free rectangle
+        if (usedRect.x >= freeRect.x + freeRect.width || usedRect.x + usedRect.width <= freeRect.x ||
+            usedRect.y >= freeRect.y + freeRect.height || usedRect.y + usedRect.height <= freeRect.y) {
+            return false;
+        }
+
+        // Split the free rectangle into up to 4 new rectangles around the used one
+        if (usedRect.x > freeRect.x) {
+            FreeRect newRect;
+            newRect.x = freeRect.x;
+            newRect.y = freeRect.y;
+            newRect.width = usedRect.x - freeRect.x;
+            newRect.height = freeRect.height;
+            freeRects_.push_back(newRect);
+        }
+
         if (usedRect.x + usedRect.width < freeRect.x + freeRect.width) {
             FreeRect newRect;
             newRect.x = usedRect.x + usedRect.width;
@@ -131,7 +159,15 @@ private:
             freeRects_.push_back(newRect);
         }
 
-        // Split vertically (bottom remainder)
+        if (usedRect.y > freeRect.y) {
+            FreeRect newRect;
+            newRect.x = freeRect.x;
+            newRect.y = freeRect.y;
+            newRect.width = freeRect.width;
+            newRect.height = usedRect.y - freeRect.y;
+            freeRects_.push_back(newRect);
+        }
+
         if (usedRect.y + usedRect.height < freeRect.y + freeRect.height) {
             FreeRect newRect;
             newRect.x = freeRect.x;
@@ -141,8 +177,7 @@ private:
             freeRects_.push_back(newRect);
         }
 
-        // Merge overlapping free rects and remove fully contained ones
-        pruneFreeRects();
+        return true;
     }
 
     void pruneFreeRects() {
