@@ -1226,6 +1226,40 @@ void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
     }
     pos += snprintf(buffer + pos, bufferSize - pos, "\n");
 
+    // Rotation
+    bool hasRotation = cfg.rotationMinX != 0.0f || cfg.rotationMaxX != 0.0f ||
+                       cfg.rotationMinY != 0.0f || cfg.rotationMaxY != 0.0f ||
+                       cfg.rotationMinZ != 0.0f || cfg.rotationMaxZ != 0.0f;
+    bool hasRotVel = cfg.rotVelocityMinX != 0.0f || cfg.rotVelocityMaxX != 0.0f ||
+                     cfg.rotVelocityMinY != 0.0f || cfg.rotVelocityMaxY != 0.0f ||
+                     cfg.rotVelocityMinZ != 0.0f || cfg.rotVelocityMaxZ != 0.0f;
+    bool hasRotAccel = cfg.rotAccelerationMinX != 0.0f || cfg.rotAccelerationMaxX != 0.0f ||
+                       cfg.rotAccelerationMinY != 0.0f || cfg.rotAccelerationMaxY != 0.0f ||
+                       cfg.rotAccelerationMinZ != 0.0f || cfg.rotAccelerationMaxZ != 0.0f;
+
+    if (cfg.rotateWithVelocity || hasRotation || hasRotVel || hasRotAccel) {
+        pos += snprintf(buffer + pos, bufferSize - pos, "    -- Rotation\n");
+        if (cfg.rotateWithVelocity) {
+            pos += snprintf(buffer + pos, bufferSize - pos, "    rotateWithVelocity = true,\n");
+        }
+        if (hasRotation) {
+            pos += snprintf(buffer + pos, bufferSize - pos, "    rotationMinX = %.2f, rotationMaxX = %.2f,\n", cfg.rotationMinX, cfg.rotationMaxX);
+            pos += snprintf(buffer + pos, bufferSize - pos, "    rotationMinY = %.2f, rotationMaxY = %.2f,\n", cfg.rotationMinY, cfg.rotationMaxY);
+            pos += snprintf(buffer + pos, bufferSize - pos, "    rotationMinZ = %.2f, rotationMaxZ = %.2f,\n", cfg.rotationMinZ, cfg.rotationMaxZ);
+        }
+        if (hasRotVel) {
+            pos += snprintf(buffer + pos, bufferSize - pos, "    rotVelocityMinX = %.2f, rotVelocityMaxX = %.2f,\n", cfg.rotVelocityMinX, cfg.rotVelocityMaxX);
+            pos += snprintf(buffer + pos, bufferSize - pos, "    rotVelocityMinY = %.2f, rotVelocityMaxY = %.2f,\n", cfg.rotVelocityMinY, cfg.rotVelocityMaxY);
+            pos += snprintf(buffer + pos, bufferSize - pos, "    rotVelocityMinZ = %.2f, rotVelocityMaxZ = %.2f,\n", cfg.rotVelocityMinZ, cfg.rotVelocityMaxZ);
+        }
+        if (hasRotAccel) {
+            pos += snprintf(buffer + pos, bufferSize - pos, "    rotAccelerationMinX = %.2f, rotAccelerationMaxX = %.2f,\n", cfg.rotAccelerationMinX, cfg.rotAccelerationMaxX);
+            pos += snprintf(buffer + pos, bufferSize - pos, "    rotAccelerationMinY = %.2f, rotAccelerationMaxY = %.2f,\n", cfg.rotAccelerationMinY, cfg.rotAccelerationMaxY);
+            pos += snprintf(buffer + pos, bufferSize - pos, "    rotAccelerationMinZ = %.2f, rotAccelerationMaxZ = %.2f,\n", cfg.rotAccelerationMinZ, cfg.rotAccelerationMaxZ);
+        }
+        pos += snprintf(buffer + pos, bufferSize - pos, "\n");
+    }
+
     // Textures - store names as strings for editor loading
     pos += snprintf(buffer + pos, bufferSize - pos, "    -- Textures (stored as names for editor)\n");
     if (editorState_.selectedTextureCount > 0) {
