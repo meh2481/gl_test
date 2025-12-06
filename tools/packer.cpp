@@ -118,10 +118,38 @@ private:
     uint32_t binHeight_;
 
     void splitFreeRect(int index, const PackRect& usedRect) {
-        FreeRect freeRect = freeRects_[index];
-        freeRects_.erase(freeRects_.begin() + index);
+        // Process ALL free rectangles and split any that overlap with the used rectangle
+        size_t numRects = freeRects_.size();
+        for (size_t i = 0; i < numRects; i++) {
+            if (splitSingleFreeRectByUsedRect(i, usedRect)) {
+                freeRects_.erase(freeRects_.begin() + i);
+                i--;
+                numRects--;
+            }
+        }
 
-        // Split horizontally (right remainder)
+        pruneFreeRects();
+    }
+
+    bool splitSingleFreeRectByUsedRect(size_t index, const PackRect& usedRect) {
+        FreeRect freeRect = freeRects_[index];
+
+        // Check if used rectangle intersects with this free rectangle
+        if (usedRect.x >= freeRect.x + freeRect.width || usedRect.x + usedRect.width <= freeRect.x ||
+            usedRect.y >= freeRect.y + freeRect.height || usedRect.y + usedRect.height <= freeRect.y) {
+            return false;
+        }
+
+        // Split the free rectangle into up to 4 new rectangles around the used one
+        if (usedRect.x > freeRect.x) {
+            FreeRect newRect;
+            newRect.x = freeRect.x;
+            newRect.y = freeRect.y;
+            newRect.width = usedRect.x - freeRect.x;
+            newRect.height = freeRect.height;
+            freeRects_.push_back(newRect);
+        }
+
         if (usedRect.x + usedRect.width < freeRect.x + freeRect.width) {
             FreeRect newRect;
             newRect.x = usedRect.x + usedRect.width;
@@ -131,7 +159,15 @@ private:
             freeRects_.push_back(newRect);
         }
 
-        // Split vertically (bottom remainder)
+        if (usedRect.y > freeRect.y) {
+            FreeRect newRect;
+            newRect.x = freeRect.x;
+            newRect.y = freeRect.y;
+            newRect.width = freeRect.width;
+            newRect.height = usedRect.y - freeRect.y;
+            freeRects_.push_back(newRect);
+        }
+
         if (usedRect.y + usedRect.height < freeRect.y + freeRect.height) {
             FreeRect newRect;
             newRect.x = freeRect.x;
@@ -141,8 +177,7 @@ private:
             freeRects_.push_back(newRect);
         }
 
-        // Merge overlapping free rects and remove fully contained ones
-        pruneFreeRects();
+        return true;
     }
 
     void pruneFreeRects() {
@@ -301,6 +336,52 @@ bool loadPNG(const string& filename, vector<uint8_t>& imageData, uint32_t& width
     png_read_end(png, nullptr);
 
     png_destroy_read_struct(&png, &info, nullptr);
+    fclose(fp);
+
+    return true;
+}
+
+// Save RGBA image data as PNG
+bool savePNG(const string& filename, const vector<uint8_t>& imageData, uint32_t width, uint32_t height) {
+    FILE* fp = fopen(filename.c_str(), "wb");
+    if (!fp) return false;
+
+    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (!png) {
+        fclose(fp);
+        return false;
+    }
+
+    png_infop info = png_create_info_struct(png);
+    if (!info) {
+        png_destroy_write_struct(&png, nullptr);
+        fclose(fp);
+        return false;
+    }
+
+    if (setjmp(png_jmpbuf(png))) {
+        png_destroy_write_struct(&png, &info);
+        fclose(fp);
+        return false;
+    }
+
+    png_init_io(png, fp);
+
+    // Set image attributes
+    png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGBA,
+                 PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_write_info(png, info);
+
+    // Write image data
+    vector<png_bytep> row_pointers(height);
+    for (uint32_t y = 0; y < height; y++) {
+        row_pointers[y] = (png_bytep)(imageData.data() + y * width * 4);
+    }
+
+    png_write_image(png, row_pointers.data());
+    png_write_end(png, nullptr);
+
+    png_destroy_write_struct(&png, &info);
     fclose(fp);
 
     return true;
@@ -651,17 +732,38 @@ bool processPNGFile(const string& filename, vector<char>& output) {
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        cerr << "Usage: packer <output.pak> <file1> <file2> ..." << endl;
+        cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases]" << endl;
+        cerr << "  --output-atlases: Save texture atlases as PNG files in build/ folder for review" << endl;
         return 1;
     }
 
-    string output = argv[1];
+    string output;
+    vector<string> inputFiles;
+    bool outputAtlases = false;
+
+    // Parse arguments
+    for (int i = 1; i < argc; ++i) {
+        string arg = argv[i];
+        if (arg == "--output-atlases") {
+            outputAtlases = true;
+        } else if (output.empty()) {
+            output = arg;
+        } else {
+            inputFiles.push_back(arg);
+        }
+    }
+
+    if (output.empty() || inputFiles.empty()) {
+        cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases]" << endl;
+        cerr << "  --output-atlases: Save texture atlases as PNG files in build/ folder for review" << endl;
+        return 1;
+    }
+
     vector<FileInfo> files;
     vector<PNGImageData> pngImages;  // For atlas packing
 
     // Collect all files and identify PNG images
-    for (int i = 2; i < argc; ++i) {
-        string filename = argv[i];
+    for (const string& filename : inputFiles) {
         // Skip directories
         if (!filesystem::is_regular_file(filename)) {
             continue;
@@ -806,6 +908,18 @@ int main(int argc, char* argv[]) {
             cout << "  Atlas " << i << ": " << atlases[i].width << "x" << atlases[i].height
                  << " (" << atlases[i].entries.size() << " images, "
                  << (atlases[i].hasAlpha ? "RGBA/BC3" : "RGB/BC1") << ")" << endl;
+        }
+
+        // Save atlases as PNG files if requested
+        if (outputAtlases) {
+            for (size_t i = 0; i < atlases.size(); i++) {
+                string atlasFilename = "atlas_" + to_string(i) + ".png";
+                if (savePNG(atlasFilename, atlases[i].imageData, atlases[i].width, atlases[i].height)) {
+                    cout << "Saved atlas " << i << " as " << atlasFilename << endl;
+                } else {
+                    cerr << "Failed to save atlas " << i << " as " << atlasFilename << endl;
+                }
+            }
         }
 
         // Process atlases and update file data for images

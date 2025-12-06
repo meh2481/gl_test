@@ -79,7 +79,7 @@ file(GLOB_RECURSE RES_FILES
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/res.pak
-    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${SHADER_FILES} ${RES_FILES}
+    COMMAND packer ${CMAKE_BINARY_DIR}/res.pak ${SHADER_FILES} ${RES_FILES} --output-atlases
     DEPENDS packer ${SHADER_FILES} ${RES_FILES} shaders
 )
 
