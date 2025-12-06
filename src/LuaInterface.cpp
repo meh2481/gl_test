@@ -883,21 +883,6 @@ int LuaInterface::b2SetGravity(lua_State* L) {
     return 0;
 }
 
-int LuaInterface::b2SetFixedTimestep(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    float timestep = lua_tonumber(L, 1);
-    assert(timestep > 0.0f);
-
-    interface->physics_->setFixedTimestep(timestep);
-    return 0;
-}
-
 int LuaInterface::b2Step(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -1177,39 +1162,6 @@ int LuaInterface::b2SetBodyAwake(lua_State* L) {
     return 0;
 }
 
-int LuaInterface::b2ApplyForce(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 5);
-    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3) && lua_isnumber(L, 4) && lua_isnumber(L, 5));
-
-    int bodyId = lua_tointeger(L, 1);
-    float fx = lua_tonumber(L, 2);
-    float fy = lua_tonumber(L, 3);
-    float px = lua_tonumber(L, 4);
-    float py = lua_tonumber(L, 5);
-
-    interface->physics_->applyForce(bodyId, fx, fy, px, py);
-    return 0;
-}
-
-int LuaInterface::b2ApplyTorque(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 2);
-    assert(lua_isnumber(L, 1) && lua_isnumber(L, 2));
-
-    int bodyId = lua_tointeger(L, 1);
-    float torque = lua_tonumber(L, 2);
-
-    interface->physics_->applyTorque(bodyId, torque);
-    return 0;
-}
-
 int LuaInterface::b2GetBodyPosition(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
@@ -1230,66 +1182,6 @@ int LuaInterface::b2GetBodyPosition(lua_State* L) {
     lua_pushnumber(L, x);
     lua_pushnumber(L, y);
     return 2;
-}
-
-int LuaInterface::b2GetBodyAngle(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    int bodyId = lua_tointeger(L, 1);
-    if (!interface->physics_->isBodyValid(bodyId)) {
-        lua_pushnil(L);
-        return 1;
-    }
-    float angle = interface->physics_->getBodyAngle(bodyId);
-
-    lua_pushnumber(L, angle);
-    return 1;
-}
-
-int LuaInterface::b2GetBodyLinearVelocity(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    int bodyId = lua_tointeger(L, 1);
-    if (!interface->physics_->isBodyValid(bodyId)) {
-        lua_pushnil(L);
-        lua_pushnil(L);
-        return 2;
-    }
-    float vx = interface->physics_->getBodyLinearVelocityX(bodyId);
-    float vy = interface->physics_->getBodyLinearVelocityY(bodyId);
-
-    lua_pushnumber(L, vx);
-    lua_pushnumber(L, vy);
-    return 2;
-}
-
-int LuaInterface::b2GetBodyAngularVelocity(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) == 1);
-    assert(lua_isnumber(L, 1));
-
-    int bodyId = lua_tointeger(L, 1);
-    if (!interface->physics_->isBodyValid(bodyId)) {
-        lua_pushnil(L);
-        return 1;
-    }
-    float omega = interface->physics_->getBodyAngularVelocity(bodyId);
-
-    lua_pushnumber(L, omega);
-    return 1;
 }
 
 int LuaInterface::b2EnableDebugDraw(lua_State* L) {
