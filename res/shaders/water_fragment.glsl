@@ -38,6 +38,20 @@ layout(push_constant) uniform PushConstants {
     float unused7;
 } pc;
 
+struct Light {
+    vec3 position;
+    float padding1;
+    vec3 color;
+    float intensity;
+};
+
+layout(std140, set = 1, binding = 0) uniform LightBuffer {
+    Light lights[8];
+    int numLights;
+    vec3 ambient;
+    vec3 padding;
+} lightData;
+
 layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in vec4 fragUVBounds;
 layout(location = 2) in vec2 fragWorldPos;
@@ -46,8 +60,8 @@ layout(location = 4) in vec2 fragWaterBoundsMax;
 
 layout(location = 0) out vec4 outColor;
 
-layout(binding = 0) uniform sampler2D texSampler;        // Primary texture (unused for water)
-layout(binding = 1) uniform sampler2D reflectionSampler; // Reflection render target
+layout(set = 0, binding = 0) uniform sampler2D texSampler;
+layout(set = 0, binding = 1) uniform sampler2D reflectionSampler;
 
 const float PI = 3.14159265359;
 
@@ -144,6 +158,32 @@ float getTotalSplashHeight(float x) {
     return totalSplash;
 }
 
+vec3 calculateWaterLightHighlights(vec3 worldPos, vec3 surfaceNormal) {
+    vec3 totalHighlight = vec3(0.0);
+
+    for (int i = 0; i < lightData.numLights && i < 8; i++) {
+        Light light = lightData.lights[i];
+        vec3 lightPos = light.position;
+
+        vec3 toLight = lightPos - worldPos;
+        float distanceToLight = length(toLight);
+        vec3 lightDir = normalize(toLight);
+
+        float distanceAttenuation = light.intensity / (1.0 + 0.3 * distanceToLight + 0.1 * distanceToLight * distanceToLight);
+
+        vec3 viewPos = vec3(pc.cameraX, pc.cameraY, 2.0);
+        vec3 viewDir = normalize(viewPos - worldPos);
+
+        vec3 halfwayDir = normalize(lightDir + viewDir);
+        float specular = pow(max(dot(surfaceNormal, halfwayDir), 0.0), 64.0);
+
+        vec3 highlight = light.color * specular * distanceAttenuation;
+        totalHighlight += highlight;
+    }
+
+    return totalHighlight;
+}
+
 void main() {
     vec2 waterBoundsMin = fragWaterBounds;
     vec2 waterBoundsMax = fragWaterBoundsMax;
@@ -198,6 +238,22 @@ void main() {
     // Surface is brighter white/cyan
     vec3 highlightColor = vec3(0.85, 0.92, 1.0);
     waterColor = mix(waterColor, highlightColor, surfaceHighlight * 0.7);
+
+    // === LIGHT SOURCE HIGHLIGHTS ===
+    float xDerivative = cos(fragWorldPos.x * 12.0 + pc.time * rippleSpeed * 2.5) * 12.0;
+    float baseNormalX = -xDerivative * rippleAmplitude;
+    float splashNormalX = 0.0;
+    splashNormalX += (fragWorldPos.x > pc.ripple0_x - 0.01 && fragWorldPos.x < pc.ripple0_x + 0.01 && pc.ripple0_amplitude > 0.0) ? sin(abs(fragWorldPos.x - pc.ripple0_x) * 25.0 - pc.ripple0_time * 16.0) * pc.ripple0_amplitude * 5.0 : 0.0;
+    splashNormalX += (fragWorldPos.x > pc.ripple1_x - 0.01 && fragWorldPos.x < pc.ripple1_x + 0.01 && pc.ripple1_amplitude > 0.0) ? sin(abs(fragWorldPos.x - pc.ripple1_x) * 25.0 - pc.ripple1_time * 16.0) * pc.ripple1_amplitude * 5.0 : 0.0;
+    splashNormalX += (fragWorldPos.x > pc.ripple2_x - 0.01 && fragWorldPos.x < pc.ripple2_x + 0.01 && pc.ripple2_amplitude > 0.0) ? sin(abs(fragWorldPos.x - pc.ripple2_x) * 25.0 - pc.ripple2_time * 16.0) * pc.ripple2_amplitude * 5.0 : 0.0;
+    splashNormalX += (fragWorldPos.x > pc.ripple3_x - 0.01 && fragWorldPos.x < pc.ripple3_x + 0.01 && pc.ripple3_amplitude > 0.0) ? sin(abs(fragWorldPos.x - pc.ripple3_x) * 25.0 - pc.ripple3_time * 16.0) * pc.ripple3_amplitude * 5.0 : 0.0;
+
+    vec3 surfaceNormal = normalize(vec3(baseNormalX + splashNormalX, 1.0, 0.0));
+
+    vec3 worldPos3D = vec3(fragWorldPos.x, animatedSurfaceY, 0.0);
+    vec3 lightHighlights = calculateWaterLightHighlights(worldPos3D, surfaceNormal);
+
+    waterColor += lightHighlights * smoothstep(0.15, 0.0, normalizedDepth);
 
     // === REFLECTION (using render-to-texture) ===
     // Reflection is strongest near surface
