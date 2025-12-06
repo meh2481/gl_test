@@ -35,6 +35,7 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.previewResetRequested = false;
     editorState_.showExportPopup = false;
     editorState_.lastMaxParticles = 100;
+    editorState_.lastSystemLifetime = 0.0f;
 
     // Initialize save/load filenames
     strncpy(editorState_.saveFilename, "my_particles.lua", EDITOR_MAX_FILENAME_LEN - 1);
@@ -962,8 +963,9 @@ void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, i
 
     ParticleEmitterConfig& cfg = editorState_.config;
 
-    // Check if maxParticles changed - requires system recreation
-    bool needsRecreation = (cfg.maxParticles != editorState_.lastMaxParticles);
+    // Check if maxParticles or systemLifetime changed - requires system recreation
+    bool needsRecreation = (cfg.maxParticles != editorState_.lastMaxParticles) ||
+                          (cfg.systemLifetime != editorState_.lastSystemLifetime);
 
     if (needsRecreation && editorState_.previewSystemId >= 0) {
         // Destroy existing system and create new one with correct capacity
@@ -972,20 +974,30 @@ void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, i
     }
 
     if (editorState_.previewSystemId >= 0) {
-        // Update the system position
-        particleManager->setSystemPosition(editorState_.previewSystemId, 0.0f, 0.0f);
-        particleManager->setSystemEmissionRate(editorState_.previewSystemId, cfg.emissionRate);
-
-        // Get the system and update its config
         ParticleSystem* system = particleManager->getSystem(editorState_.previewSystemId);
         if (system) {
-            system->config = cfg;
+            // Check if system has finished and should loop
+            if (cfg.systemLifetime > 0.0f && system->emissionStopped && system->liveParticleCount == 0) {
+                // System finished - recreate for looping
+                particleManager->destroySystem(editorState_.previewSystemId);
+                editorState_.previewSystemId = -1;
+            } else {
+                // Update the system position
+                particleManager->setSystemPosition(editorState_.previewSystemId, 0.0f, 0.0f);
+                particleManager->setSystemEmissionRate(editorState_.previewSystemId, cfg.emissionRate);
+
+                // Update its config
+                system->config = cfg;
+            }
         }
-    } else if (pipelineId >= 0) {
+    }
+
+    if (editorState_.previewSystemId < 0 && pipelineId >= 0) {
         // Create a new preview system
         editorState_.previewSystemId = particleManager->createSystem(cfg, pipelineId);
         particleManager->setSystemPosition(editorState_.previewSystemId, 0.0f, 0.0f);
         editorState_.lastMaxParticles = cfg.maxParticles;
+        editorState_.lastSystemLifetime = cfg.systemLifetime;
     }
 }
 

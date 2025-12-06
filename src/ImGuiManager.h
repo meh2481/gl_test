@@ -83,6 +83,7 @@ struct ParticleEditorState {
 
     // System recreation tracking
     int lastMaxParticles;  // Track changes that require system recreation
+    float lastSystemLifetime;  // Track changes that require system recreation
 };
 
 class ImGuiManager {
