@@ -364,19 +364,33 @@ void ParticleSystemManager::spawnParticle(ParticleSystem& system) {
     system.totalLifetime[i] = lt;
 
     // Rotation
-    system.rotX[i] = randomRange(cfg.rotationMinX, cfg.rotationMaxX);
-    system.rotY[i] = randomRange(cfg.rotationMinY, cfg.rotationMaxY);
-    system.rotZ[i] = randomRange(cfg.rotationMinZ, cfg.rotationMaxZ);
+    if (cfg.rotateWithVelocity) {
+        // Set initial rotation based on initial velocity
+        system.rotZ[i] = atan2f(system.velX[i], system.velY[i]);
+        system.rotX[i] = 0.0f;
+        system.rotY[i] = 0.0f;
+        // No rotational velocity or acceleration when using velocity-based rotation
+        system.rotVelX[i] = 0.0f;
+        system.rotVelY[i] = 0.0f;
+        system.rotVelZ[i] = 0.0f;
+        system.rotAccelX[i] = 0.0f;
+        system.rotAccelY[i] = 0.0f;
+        system.rotAccelZ[i] = 0.0f;
+    } else {
+        system.rotX[i] = randomRange(cfg.rotationMinX, cfg.rotationMaxX);
+        system.rotY[i] = randomRange(cfg.rotationMinY, cfg.rotationMaxY);
+        system.rotZ[i] = randomRange(cfg.rotationMinZ, cfg.rotationMaxZ);
 
-    // Rotational velocity
-    system.rotVelX[i] = randomRange(cfg.rotVelocityMinX, cfg.rotVelocityMaxX);
-    system.rotVelY[i] = randomRange(cfg.rotVelocityMinY, cfg.rotVelocityMaxY);
-    system.rotVelZ[i] = randomRange(cfg.rotVelocityMinZ, cfg.rotVelocityMaxZ);
+        // Rotational velocity
+        system.rotVelX[i] = randomRange(cfg.rotVelocityMinX, cfg.rotVelocityMaxX);
+        system.rotVelY[i] = randomRange(cfg.rotVelocityMinY, cfg.rotVelocityMaxY);
+        system.rotVelZ[i] = randomRange(cfg.rotVelocityMinZ, cfg.rotVelocityMaxZ);
 
-    // Rotational acceleration
-    system.rotAccelX[i] = randomRange(cfg.rotAccelerationMinX, cfg.rotAccelerationMaxX);
-    system.rotAccelY[i] = randomRange(cfg.rotAccelerationMinY, cfg.rotAccelerationMaxY);
-    system.rotAccelZ[i] = randomRange(cfg.rotAccelerationMinZ, cfg.rotAccelerationMaxZ);
+        // Rotational acceleration
+        system.rotAccelX[i] = randomRange(cfg.rotAccelerationMinX, cfg.rotAccelerationMaxX);
+        system.rotAccelY[i] = randomRange(cfg.rotAccelerationMinY, cfg.rotAccelerationMaxY);
+        system.rotAccelZ[i] = randomRange(cfg.rotAccelerationMinZ, cfg.rotAccelerationMaxZ);
+    }
 
     // Texture selection
     if (cfg.textureCount > 0) {
@@ -430,15 +444,26 @@ bool ParticleSystemManager::updateParticle(ParticleSystem& system, int i, float 
     // colorR/G/B/A store the START color, endColorR/G/B/A store the END color
     // The actual interpolation uses lifeRatio and is done per-frame in the renderer
 
-    // Apply rotational acceleration
-    system.rotVelX[i] += system.rotAccelX[i] * dt;
-    system.rotVelY[i] += system.rotAccelY[i] * dt;
-    system.rotVelZ[i] += system.rotAccelZ[i] * dt;
-
     // Update rotation
-    system.rotX[i] += system.rotVelX[i] * dt;
-    system.rotY[i] += system.rotVelY[i] * dt;
-    system.rotZ[i] += system.rotVelZ[i] * dt;
+    if (system.config.rotateWithVelocity) {
+        // Calculate rotation based on velocity direction
+        // atan2(y, x) gives angle in radians, where 0 is right (positive X)
+        // We need to rotate so that 0 degrees points up (positive Y)
+        system.rotZ[i] = atan2f(system.velX[i], system.velY[i]);
+        // X and Y rotation stay at 0 for 2D velocity-based rotation
+        system.rotX[i] = 0.0f;
+        system.rotY[i] = 0.0f;
+    } else {
+        // Apply rotational acceleration
+        system.rotVelX[i] += system.rotAccelX[i] * dt;
+        system.rotVelY[i] += system.rotAccelY[i] * dt;
+        system.rotVelZ[i] += system.rotAccelZ[i] * dt;
+
+        // Update rotation
+        system.rotX[i] += system.rotVelX[i] * dt;
+        system.rotY[i] += system.rotVelY[i] * dt;
+        system.rotZ[i] += system.rotVelZ[i] * dt;
+    }
 
     return true;  // Particle is still alive
 }

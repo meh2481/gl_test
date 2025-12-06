@@ -2648,6 +2648,11 @@ int LuaInterface::createParticleSystem(lua_State* L) {
     config.rotAccelerationMaxZ = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
     lua_pop(L, 1);
 
+    // Rotate with velocity
+    lua_getfield(L, 1, "rotateWithVelocity");
+    config.rotateWithVelocity = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : false;
+    lua_pop(L, 1);
+
     int systemId = interface->particleManager_->createSystem(config, pipelineId);
     lua_pushinteger(L, systemId);
     return 1;
