@@ -366,7 +366,7 @@ void ParticleSystemManager::spawnParticle(ParticleSystem& system) {
     // Rotation
     if (cfg.rotateWithVelocity) {
         // Set initial rotation based on initial velocity
-        system.rotZ[i] = atan2f(system.velX[i], system.velY[i]);
+        system.rotZ[i] = atan2f(-system.velX[i], system.velY[i]);
         system.rotX[i] = 0.0f;
         system.rotY[i] = 0.0f;
         // No rotational velocity or acceleration when using velocity-based rotation
@@ -449,7 +449,7 @@ bool ParticleSystemManager::updateParticle(ParticleSystem& system, int i, float 
         // Calculate rotation based on velocity direction
         // atan2(y, x) gives angle in radians, where 0 is right (positive X)
         // We need to rotate so that 0 degrees points up (positive Y)
-        system.rotZ[i] = atan2f(system.velX[i], system.velY[i]);
+        system.rotZ[i] = atan2f(-system.velX[i], system.velY[i]);
         // X and Y rotation stay at 0 for 2D velocity-based rotation
         system.rotX[i] = 0.0f;
         system.rotY[i] = 0.0f;
