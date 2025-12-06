@@ -1483,9 +1483,21 @@ void Box2DPhysics::applyForceFields() {
                         vel.x *= dampingFactor;
                         vel.y *= dampingFactor;
 
+                        // Stop jittering at very low velocities
+                        const float velocityDeadZone = 0.02f;
+                        float speed = sqrtf(vel.x * vel.x + vel.y * vel.y);
+                        if (speed < velocityDeadZone) {
+                            vel.x = 0.0f;
+                            vel.y = 0.0f;
+                        }
+
                         // Also apply angular damping
                         float angVel = b2Body_GetAngularVelocity(overlappingBodyId);
                         angVel *= dampingFactor;
+                        const float angularDeadZone = 0.05f;
+                        if (fabsf(angVel) < angularDeadZone) {
+                            angVel = 0.0f;
+                        }
                         b2Body_SetAngularVelocity(overlappingBodyId, angVel);
                     }
 
@@ -1504,11 +1516,22 @@ void Box2DPhysics::applyForceFields() {
                         if (surfaceDampingFactor < 0.0f) surfaceDampingFactor = 0.0f;
                         vel.x *= surfaceDampingFactor;
                         vel.y *= surfaceDampingFactor;
+
+                        // Stop jittering at very low velocities
+                        const float velocityDeadZone = 0.02f;
+                        if (speed < velocityDeadZone) {
+                            vel.x = 0.0f;
+                            vel.y = 0.0f;
+                        }
                         b2Body_SetLinearVelocity(overlappingBodyId, vel);
 
                         // Dampen angular velocity too
                         float angVel = b2Body_GetAngularVelocity(overlappingBodyId);
                         angVel *= surfaceDampingFactor;
+                        const float angularDeadZone = 0.05f;
+                        if (fabsf(angVel) < angularDeadZone) {
+                            angVel = 0.0f;
+                        }
                         b2Body_SetAngularVelocity(overlappingBodyId, angVel);
                     }
                 }
