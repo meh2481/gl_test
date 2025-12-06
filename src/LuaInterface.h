@@ -67,12 +67,10 @@ private:
     static int loadShaders(lua_State* L);
     static int pushScene(lua_State* L);
     static int popScene(lua_State* L);
-    static int isKeyPressed(lua_State* L);
-    static int luaPrint(lua_State* L);  // Custom print for console capture
+    static int luaPrint(lua_State* L);
 
     // Box2D Lua bindings
     static int b2SetGravity(lua_State* L);
-    static int b2SetFixedTimestep(lua_State* L);
     static int b2Step(lua_State* L);
     static int b2CreateBody(lua_State* L);
     static int b2DestroyBody(lua_State* L);
@@ -85,12 +83,7 @@ private:
     static int b2SetBodyLinearVelocity(lua_State* L);
     static int b2SetBodyAngularVelocity(lua_State* L);
     static int b2SetBodyAwake(lua_State* L);
-    static int b2ApplyForce(lua_State* L);
-    static int b2ApplyTorque(lua_State* L);
     static int b2GetBodyPosition(lua_State* L);
-    static int b2GetBodyAngle(lua_State* L);
-    static int b2GetBodyLinearVelocity(lua_State* L);
-    static int b2GetBodyAngularVelocity(lua_State* L);
     static int b2EnableDebugDraw(lua_State* L);
     static int b2CreateRevoluteJoint(lua_State* L);
     static int b2DestroyJoint(lua_State* L);
@@ -98,7 +91,6 @@ private:
     static int b2CreateMouseJoint(lua_State* L);
     static int b2UpdateMouseJointTarget(lua_State* L);
     static int b2DestroyMouseJoint(lua_State* L);
-    static int b2GetCollisionHitEvents(lua_State* L);
     static int b2SetBodyDestructible(lua_State* L);
     static int b2SetBodyDestructibleLayer(lua_State* L);
     static int b2ClearBodyDestructible(lua_State* L);
@@ -106,26 +98,14 @@ private:
 
     // Force field Lua bindings
     static int createForceField(lua_State* L);
-    static int destroyForceField(lua_State* L);
-    static int setForceFieldDamping(lua_State* L);
     static int createRadialForceField(lua_State* L);
-    static int destroyRadialForceField(lua_State* L);
-
-    // Water force field Lua bindings
-    static int createWaterForceField(lua_State* L);
-    static int destroyWaterForceField(lua_State* L);
-    static int loadWaterShaders(lua_State* L);
-    static int setWaterFieldShader(lua_State* L);
 
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);
     static int destroyLayer(lua_State* L);
     static int attachLayerToBody(lua_State* L);
-    static int detachLayer(lua_State* L);
-    static int setLayerEnabled(lua_State* L);
     static int setLayerOffset(lua_State* L);
     static int setLayerUseLocalUV(lua_State* L);
-    static int setLayerPolygon(lua_State* L);
     static int setLayerPosition(lua_State* L);
     static int setLayerParallaxDepth(lua_State* L);
     static int setLayerScale(lua_State* L);
@@ -139,66 +119,39 @@ private:
 
     // Texture loading
     static int loadTexture(lua_State* L);
-    static int getTextureDimensions(lua_State* L);
     static int loadTexturedShaders(lua_State* L);
     static int loadTexturedShadersEx(lua_State* L);
     static int loadTexturedShadersAdditive(lua_State* L);
     static int loadAnimTexturedShaders(lua_State* L);
-    static int setShaderUniform3f(lua_State* L);
     static int setShaderParameters(lua_State* L);
 
     // Audio Lua bindings
-    static int audioLoadBuffer(lua_State* L);
-    static int audioLoadOpus(lua_State* L);  // Load OPUS audio from resource
+    static int audioLoadOpus(lua_State* L);
     static int audioCreateSource(lua_State* L);
     static int audioPlaySource(lua_State* L);
-    static int audioStopSource(lua_State* L);
-    static int audioPauseSource(lua_State* L);
     static int audioSetSourcePosition(lua_State* L);
-    static int audioSetSourceVelocity(lua_State* L);
-    static int audioSetSourceVolume(lua_State* L);
-    static int audioSetSourcePitch(lua_State* L);
-    static int audioSetSourceLooping(lua_State* L);
-    static int audioReleaseSource(lua_State* L);
-    static int audioIsSourcePlaying(lua_State* L);
     static int audioSetListenerPosition(lua_State* L);
-    static int audioSetListenerVelocity(lua_State* L);
     static int audioSetListenerOrientation(lua_State* L);
     static int audioSetGlobalVolume(lua_State* L);
     static int audioSetGlobalEffect(lua_State* L);
-
-    // Vibration Lua bindings
-    static int vibrate(lua_State* L);
-    static int vibrateTriggers(lua_State* L);
-    static int stopVibration(lua_State* L);
 
     // Cursor position Lua bindings
     static int getCursorPosition(lua_State* L);
 
     // Camera Lua bindings
-    static int getCameraOffset(lua_State* L);
     static int setCameraOffset(lua_State* L);
-    static int getCameraZoom(lua_State* L);
     static int setCameraZoom(lua_State* L);
-
-    // Reflection/render-to-texture Lua bindings
-    static int enableReflection(lua_State* L);
-    static int disableReflection(lua_State* L);
-    static int getReflectionTextureId(lua_State* L);
 
     // Light management Lua bindings
     static int addLight(lua_State* L);
     static int updateLight(lua_State* L);
     static int removeLight(lua_State* L);
-    static int clearLights(lua_State* L);
     static int setAmbientLight(lua_State* L);
 
     // Particle system Lua bindings
     static int createParticleSystem(lua_State* L);
     static int destroyParticleSystem(lua_State* L);
     static int setParticleSystemPosition(lua_State* L);
-    static int setParticleSystemEmissionRate(lua_State* L);
-    static int setParticleSystemParallaxDepth(lua_State* L);
     static int loadParticleShaders(lua_State* L);
 
     // Particle editor Lua bindings (DEBUG only)
