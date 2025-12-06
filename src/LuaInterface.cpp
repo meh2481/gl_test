@@ -3776,7 +3776,9 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     float scaleY = (totalHeight * aspectRatio) / waterWidth;
     layerManager_->setLayerScale(waterLayerId, 1.0f, scaleY);
 
-    layerManager_->setLayerParallaxDepth(waterLayerId, 0.0f);
+    // Use a tiny positive parallax depth so the layer isn't skipped
+    // (layers with no physics body and zero parallax are skipped in SceneLayerManager)
+    layerManager_->setLayerParallaxDepth(waterLayerId, 0.001f);
 
     // Enable local UV mode for shader coordinates
     layerManager_->setLayerUseLocalUV(waterLayerId, true);

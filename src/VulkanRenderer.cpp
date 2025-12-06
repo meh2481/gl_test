@@ -1618,8 +1618,8 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
     for (const auto& batch : m_allBatches) {
         if (batch.isParticle) continue;  // Skip particles for reflection
 
-        // Skip the water layer itself
-        if (batch.parallaxDepth < 0.0f) continue;  // Water has negative parallax
+        // Skip background layers (negative parallax) from reflection
+        if (batch.parallaxDepth < 0.0f) continue;
 
         VkPipeline pipeline = m_pipelineManager.getPipeline(batch.pipelineId);
         const PipelineInfo* info = m_pipelineManager.getPipelineInfo(batch.pipelineId);

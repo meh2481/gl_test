@@ -1461,6 +1461,13 @@ void Box2DPhysics::applyForceFields() {
                                       centerOfMass.y >= fieldAABB.lowerBound.y &&
                                       centerOfMass.y <= fieldAABB.upperBound.y);
 
+                // Check if body is near the surface (within margin above water)
+                const float surfaceMargin = 0.1f;
+                bool nearSurface = (centerOfMass.x >= fieldAABB.lowerBound.x &&
+                                    centerOfMass.x <= fieldAABB.upperBound.x &&
+                                    centerOfMass.y > fieldAABB.upperBound.y &&
+                                    centerOfMass.y <= fieldAABB.upperBound.y + surfaceMargin);
+
                 if (centerInField) {
                     // Apply acceleration directly to velocity (a = F/m, but we want constant a)
                     // v_new = v_old + a * dt
@@ -1483,6 +1490,27 @@ void Box2DPhysics::applyForceFields() {
                     }
 
                     b2Body_SetLinearVelocity(overlappingBodyId, vel);
+                } else if (nearSurface && field.damping > 0.0f) {
+                    // Apply reduced damping when body is just above water surface
+                    // This helps objects settle when bobbing at the surface
+                    b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
+                    float speed = sqrtf(vel.x * vel.x + vel.y * vel.y);
+
+                    // Only apply surface damping when moving slowly
+                    const float slowSpeedThreshold = 1.0f;
+                    if (speed < slowSpeedThreshold) {
+                        // Apply weaker damping above surface (50% of normal)
+                        float surfaceDampingFactor = 1.0f - (field.damping * 0.5f) * fixedTimestep_;
+                        if (surfaceDampingFactor < 0.0f) surfaceDampingFactor = 0.0f;
+                        vel.x *= surfaceDampingFactor;
+                        vel.y *= surfaceDampingFactor;
+                        b2Body_SetLinearVelocity(overlappingBodyId, vel);
+
+                        // Dampen angular velocity too
+                        float angVel = b2Body_GetAngularVelocity(overlappingBodyId);
+                        angVel *= surfaceDampingFactor;
+                        b2Body_SetAngularVelocity(overlappingBodyId, angVel);
+                    }
                 }
 
                 // Track this body as processed
