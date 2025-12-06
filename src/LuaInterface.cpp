@@ -2583,6 +2583,11 @@ int LuaInterface::createParticleSystem(lua_State* L) {
     config.lifetimeMax = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 1.0f;
     lua_pop(L, 1);
 
+    // System lifetime
+    lua_getfield(L, 1, "systemLifetime");
+    config.systemLifetime = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
     // Rotation (start)
     lua_getfield(L, 1, "rotationMinX");
     config.rotationMinX = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;

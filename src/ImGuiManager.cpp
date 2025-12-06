@@ -98,6 +98,7 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.config.endColorMaxA = 0.0f;
     editorState_.config.lifetimeMin = 1.0f;
     editorState_.config.lifetimeMax = 2.0f;
+    editorState_.config.systemLifetime = 0.0f;  // 0 = infinite
     editorState_.config.rotationMinZ = 0.0f;
     editorState_.config.rotationMaxZ = 6.28318f;
     editorState_.config.rotVelocityMinZ = -1.0f;
@@ -392,6 +393,13 @@ void ImGuiManager::showEmissionSettings() {
     ImGui::Separator();
     ImGui::Text("Lifetime");
     ImGui::DragFloatRange2("Lifetime Range", &cfg.lifetimeMin, &cfg.lifetimeMax, 0.01f, 0.01f, 30.0f, "Min: %.2fs", "Max: %.2fs");
+
+    ImGui::Separator();
+    ImGui::Text("System Lifetime");
+    ImGui::SliderFloat("System Lifetime", &cfg.systemLifetime, 0.0f, 60.0f, cfg.systemLifetime > 0.0f ? "%.2fs" : "Infinite");
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("0 = infinite, >0 = stops emission after time and auto-destroys when empty");
+    }
 }
 
 void ImGuiManager::showVelocitySettings() {
@@ -896,6 +904,9 @@ void ImGuiManager::generateLuaExport() {
     pos += snprintf(buf + pos, bufSize - pos, "\n    -- Lifetime\n");
     pos += snprintf(buf + pos, bufSize - pos, "    lifetimeMin = %.2f,\n", cfg.lifetimeMin);
     pos += snprintf(buf + pos, bufSize - pos, "    lifetimeMax = %.2f,\n", cfg.lifetimeMax);
+    if (cfg.systemLifetime > 0.0f) {
+        pos += snprintf(buf + pos, bufSize - pos, "    systemLifetime = %.2f,\n", cfg.systemLifetime);
+    }
 
     // Rotation (only if non-zero)
     bool hasRotation = cfg.rotationMinX != 0.0f || cfg.rotationMaxX != 0.0f ||
@@ -1141,7 +1152,11 @@ void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
 
     pos += snprintf(buffer + pos, bufferSize - pos, "    -- Lifetime\n");
     pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMin = %.2f,\n", cfg.lifetimeMin);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMax = %.2f,\n\n", cfg.lifetimeMax);
+    pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMax = %.2f,\n", cfg.lifetimeMax);
+    if (cfg.systemLifetime > 0.0f) {
+        pos += snprintf(buffer + pos, bufferSize - pos, "    systemLifetime = %.2f,\n", cfg.systemLifetime);
+    }
+    pos += snprintf(buffer + pos, bufferSize - pos, "\n");
 
     // Textures - store names as strings for editor loading
     pos += snprintf(buffer + pos, bufferSize - pos, "    -- Textures (stored as names for editor)\n");
@@ -1364,6 +1379,7 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     // Lifetime
     extractFloat("lifetimeMin", cfg.lifetimeMin);
     extractFloat("lifetimeMax", cfg.lifetimeMax);
+    extractFloat("systemLifetime", cfg.systemLifetime);
 
     // Rotation (Z axis is most commonly used for 2D)
     extractFloat("rotationMinZ", cfg.rotationMinZ);

@@ -116,6 +116,14 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         ParticleSystemManager& particleManager = luaInterface_->getParticleSystemManager();
         particleManager.update(deltaTime);
 
+        // Auto-cleanup systems with expired lifetime and no particles
+        int systemsToDestroy[64];
+        int destroyCount = 0;
+        particleManager.getSystemsToDestroy(systemsToDestroy, &destroyCount, 64);
+        for (int i = 0; i < destroyCount; ++i) {
+            particleManager.destroySystem(systemsToDestroy[i]);
+        }
+
         // Generate particle batches - one per particle system for proper parallax sorting
         std::vector<ParticleBatch> particleBatches;
 
