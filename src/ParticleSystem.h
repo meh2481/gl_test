@@ -79,6 +79,9 @@ struct ParticleEmitterConfig {
     float rotAccelerationMinX, rotAccelerationMaxX;
     float rotAccelerationMinY, rotAccelerationMaxY;
     float rotAccelerationMinZ, rotAccelerationMaxZ;
+
+    // Rotate particles with velocity direction
+    bool rotateWithVelocity;  // When true, particles rotate to face their velocity direction
 };
 
 // A single particle system instance

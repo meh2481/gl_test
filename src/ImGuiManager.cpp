@@ -108,6 +108,7 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     editorState_.config.rotationMaxZ = 6.28318f;
     editorState_.config.rotVelocityMinZ = -1.0f;
     editorState_.config.rotVelocityMaxZ = 1.0f;
+    editorState_.config.rotateWithVelocity = false;
 
     // Expand sections by default
     editorState_.colorsExpanded = true;
@@ -503,22 +504,45 @@ void ImGuiManager::showColorSettings() {
 void ImGuiManager::showRotationSettings() {
     ParticleEmitterConfig& cfg = editorState_.config;
 
-    ImGui::Text("Initial Rotation (radians)");
-    ImGui::DragFloatRange2("Rotation X", &cfg.rotationMinX, &cfg.rotationMaxX, 0.01f, -6.28f, 6.28f, "Min: %.2f", "Max: %.2f");
-    ImGui::DragFloatRange2("Rotation Y", &cfg.rotationMinY, &cfg.rotationMaxY, 0.01f, -6.28f, 6.28f, "Min: %.2f", "Max: %.2f");
-    ImGui::DragFloatRange2("Rotation Z", &cfg.rotationMinZ, &cfg.rotationMaxZ, 0.01f, -6.28f, 6.28f, "Min: %.2f", "Max: %.2f");
+    // Toggle for velocity-based rotation
+    if (ImGui::Checkbox("Rotate with velocity direction", &cfg.rotateWithVelocity)) {
+        // When toggled, zero out rotation values if enabling velocity-based rotation
+        if (cfg.rotateWithVelocity) {
+            cfg.rotationMinX = cfg.rotationMaxX = 0.0f;
+            cfg.rotationMinY = cfg.rotationMaxY = 0.0f;
+            cfg.rotationMinZ = cfg.rotationMaxZ = 0.0f;
+            cfg.rotVelocityMinX = cfg.rotVelocityMaxX = 0.0f;
+            cfg.rotVelocityMinY = cfg.rotVelocityMaxY = 0.0f;
+            cfg.rotVelocityMinZ = cfg.rotVelocityMaxZ = 0.0f;
+            cfg.rotAccelerationMinX = cfg.rotAccelerationMaxX = 0.0f;
+            cfg.rotAccelerationMinY = cfg.rotAccelerationMaxY = 0.0f;
+            cfg.rotAccelerationMinZ = cfg.rotAccelerationMaxZ = 0.0f;
+        }
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Particles automatically rotate to face their velocity direction");
+    }
 
-    ImGui::Separator();
-    ImGui::Text("Rotational Velocity (rad/sec)");
-    ImGui::DragFloatRange2("Rot Vel X", &cfg.rotVelocityMinX, &cfg.rotVelocityMaxX, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
-    ImGui::DragFloatRange2("Rot Vel Y", &cfg.rotVelocityMinY, &cfg.rotVelocityMaxY, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
-    ImGui::DragFloatRange2("Rot Vel Z", &cfg.rotVelocityMinZ, &cfg.rotVelocityMaxZ, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
+    // Only show manual rotation controls if not using velocity-based rotation
+    if (!cfg.rotateWithVelocity) {
+        ImGui::Separator();
+        ImGui::Text("Initial Rotation (radians)");
+        ImGui::DragFloatRange2("Rotation X", &cfg.rotationMinX, &cfg.rotationMaxX, 0.01f, -6.28f, 6.28f, "Min: %.2f", "Max: %.2f");
+        ImGui::DragFloatRange2("Rotation Y", &cfg.rotationMinY, &cfg.rotationMaxY, 0.01f, -6.28f, 6.28f, "Min: %.2f", "Max: %.2f");
+        ImGui::DragFloatRange2("Rotation Z", &cfg.rotationMinZ, &cfg.rotationMaxZ, 0.01f, -6.28f, 6.28f, "Min: %.2f", "Max: %.2f");
 
-    ImGui::Separator();
-    ImGui::Text("Rotational Acceleration (rad/sec^2)");
-    ImGui::DragFloatRange2("Rot Accel X", &cfg.rotAccelerationMinX, &cfg.rotAccelerationMaxX, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
-    ImGui::DragFloatRange2("Rot Accel Y", &cfg.rotAccelerationMinY, &cfg.rotAccelerationMaxY, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
-    ImGui::DragFloatRange2("Rot Accel Z", &cfg.rotAccelerationMinZ, &cfg.rotAccelerationMaxZ, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
+        ImGui::Separator();
+        ImGui::Text("Rotational Velocity (rad/sec)");
+        ImGui::DragFloatRange2("Rot Vel X", &cfg.rotVelocityMinX, &cfg.rotVelocityMaxX, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
+        ImGui::DragFloatRange2("Rot Vel Y", &cfg.rotVelocityMinY, &cfg.rotVelocityMaxY, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
+        ImGui::DragFloatRange2("Rot Vel Z", &cfg.rotVelocityMinZ, &cfg.rotVelocityMaxZ, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
+
+        ImGui::Separator();
+        ImGui::Text("Rotational Acceleration (rad/sec^2)");
+        ImGui::DragFloatRange2("Rot Accel X", &cfg.rotAccelerationMinX, &cfg.rotAccelerationMaxX, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
+        ImGui::DragFloatRange2("Rot Accel Y", &cfg.rotAccelerationMinY, &cfg.rotAccelerationMaxY, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
+        ImGui::DragFloatRange2("Rot Accel Z", &cfg.rotAccelerationMinZ, &cfg.rotAccelerationMaxZ, 0.01f, -10.0f, 10.0f, "Min: %.2f", "Max: %.2f");
+    }
 }
 
 void ImGuiManager::showEmissionPolygonEditor() {
@@ -929,7 +953,7 @@ void ImGuiManager::generateLuaExport() {
         pos += snprintf(buf + pos, bufSize - pos, "    systemLifetime = %.2f,\n", cfg.systemLifetime);
     }
 
-    // Rotation (only if non-zero)
+    // Rotation (only if non-zero OR if rotateWithVelocity is enabled)
     bool hasRotation = cfg.rotationMinX != 0.0f || cfg.rotationMaxX != 0.0f ||
                        cfg.rotationMinY != 0.0f || cfg.rotationMaxY != 0.0f ||
                        cfg.rotationMinZ != 0.0f || cfg.rotationMaxZ != 0.0f;
@@ -940,8 +964,11 @@ void ImGuiManager::generateLuaExport() {
                        cfg.rotAccelerationMinY != 0.0f || cfg.rotAccelerationMaxY != 0.0f ||
                        cfg.rotAccelerationMinZ != 0.0f || cfg.rotAccelerationMaxZ != 0.0f;
 
-    if (hasRotation || hasRotVel || hasRotAccel) {
+    if (cfg.rotateWithVelocity || hasRotation || hasRotVel || hasRotAccel) {
         pos += snprintf(buf + pos, bufSize - pos, "\n    -- Rotation\n");
+        if (cfg.rotateWithVelocity) {
+            pos += snprintf(buf + pos, bufSize - pos, "    rotateWithVelocity = true,\n");
+        }
         if (hasRotation) {
             pos += snprintf(buf + pos, bufSize - pos, "    rotationMinX = %.2f, rotationMaxX = %.2f,\n", cfg.rotationMinX, cfg.rotationMaxX);
             pos += snprintf(buf + pos, bufSize - pos, "    rotationMinY = %.2f, rotationMaxY = %.2f,\n", cfg.rotationMinY, cfg.rotationMaxY);
@@ -1420,6 +1447,16 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     extractFloat("rotVelocityMaxZ", cfg.rotVelocityMaxZ);
     extractFloat("rotAccelerationMinZ", cfg.rotAccelerationMinZ);
     extractFloat("rotAccelerationMaxZ", cfg.rotAccelerationMaxZ);
+
+    // Parse rotateWithVelocity boolean
+    const char* rotateWithVelSearch = strstr(contentPtr, "rotateWithVelocity");
+    if (rotateWithVelSearch) {
+        const char* after = rotateWithVelSearch + strlen("rotateWithVelocity");
+        if (strncmp(after, " = ", 3) == 0) {
+            const char* valueStart = after + 3;
+            cfg.rotateWithVelocity = (strncmp(valueStart, "true", 4) == 0);
+        }
+    }
 
     // Parse texture names array: textureNames = {"name1.png", "name2.png"}
     editorState_.selectedTextureCount = 0;
