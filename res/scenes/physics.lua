@@ -44,7 +44,6 @@ function init()
     -- setLayerColorCycle(foregroundLayerId, 1,0,0,1, 0,0,1,1, 2.0)  -- red to blue over 2s
 
     -- Set up the multi-light system
-    clearLights()
     setAmbientLight(0.75, 0.75, 0.75)
 
     -- Enable Box2D debug drawing

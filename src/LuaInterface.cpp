@@ -1626,12 +1626,9 @@ int LuaInterface::createForceField(lua_State* L) {
         water = lua_toboolean(L, 4);
     }
 
-    // Optional damping parameter (5th argument, only used when water=true)
+    // Optional damping parameter (5th argument)
     // Default damping value provides subtle water drag
     float damping = 0.0f;
-    if (water) {
-        damping = 0.5f;  // Default water damping
-    }
     if (numArgs >= 5 && lua_isnumber(L, 5)) {
         damping = lua_tonumber(L, 5);
     }
