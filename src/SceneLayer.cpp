@@ -338,10 +338,6 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
         if (!layer.enabled) {
             continue;
         }
-        // Skip layers without physics bodies unless they have parallax depth (static layers)
-        if (layer.physicsBodyId < 0 && std::abs(layer.parallaxDepth) < PARALLAX_EPSILON) {
-            continue;
-        }
 
         // Create batch key from pipeline ID, descriptor ID, and parallax depth
         BatchKey batchKey{layer.pipelineId, layer.descriptorId, layer.parallaxDepth};
