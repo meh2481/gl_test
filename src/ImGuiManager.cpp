@@ -4,6 +4,7 @@
 #include "VulkanRenderer.h"
 #include "ConsoleBuffer.h"
 #include "resource.h"
+#include "SceneManager.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
@@ -297,7 +298,7 @@ void ImGuiManager::destroyPreviewSystem(ParticleSystemManager* particleManager) 
 }
 
 void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
-                                             VulkanRenderer* renderer, int pipelineId, float deltaTime) {
+                                             VulkanRenderer* renderer, int pipelineId, float deltaTime, SceneManager* sceneManager) {
     if (!initialized_ || !editorState_.isActive) {
         return;
     }
@@ -316,6 +317,11 @@ void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManag
 
     // Update preview system with current config
     updatePreviewSystem(particleManager, pipelineId);
+
+    // Notify scene manager of current preview system ID
+    if (sceneManager) {
+        sceneManager->setEditorPreviewSystemId(editorState_.previewSystemId);
+    }
 
     // Tabs for different sections
     if (ImGui::BeginTabBar("ParticleEditorTabs")) {

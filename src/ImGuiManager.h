@@ -16,6 +16,7 @@
 class VulkanRenderer;
 class ParticleSystemManager;
 class PakResource;
+class SceneManager;
 
 // Maximum emission polygon vertices / textures
 static const int EDITOR_MAX_VERTICES = 8;
@@ -118,9 +119,10 @@ public:
     void setParticleEditorActive(bool active);
     bool isParticleEditorActive() const;
     void showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
-                                   VulkanRenderer* renderer, int pipelineId, float deltaTime);
+                                   VulkanRenderer* renderer, int pipelineId, float deltaTime, class SceneManager* sceneManager = nullptr);
     ParticleEditorState& getEditorState() { return editorState_; }
     void destroyPreviewSystem(ParticleSystemManager* particleManager);
+    int getPreviewSystemId() const { return editorState_.previewSystemId; }
 
     // Sync preview controls with camera
     void syncPreviewWithCamera(float cameraOffsetX, float cameraOffsetY, float cameraZoom);

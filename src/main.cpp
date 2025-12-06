@@ -467,7 +467,8 @@ int main() {
                 &sceneManager.getPakResource(),
                 &renderer,
                 sceneManager.getParticleEditorPipelineId(),
-                deltaTime
+                deltaTime,
+                &sceneManager
             );
         }
 #endif

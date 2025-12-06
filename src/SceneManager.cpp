@@ -7,7 +7,7 @@
 #include <iostream>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1) {
+    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1) {
 }
 
 SceneManager::~SceneManager() {
@@ -117,10 +117,15 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         particleManager.update(deltaTime);
 
         // Auto-cleanup systems with expired lifetime and no particles
+        // Skip the editor preview system if editor is active
         int systemsToDestroy[64];
         int destroyCount = 0;
         particleManager.getSystemsToDestroy(systemsToDestroy, &destroyCount, 64);
         for (int i = 0; i < destroyCount; ++i) {
+            // Don't auto-destroy the editor's preview system
+            if (particleEditorActive_ && systemsToDestroy[i] == editorPreviewSystemId_) {
+                continue;
+            }
             particleManager.destroySystem(systemsToDestroy[i]);
         }
 
@@ -357,4 +362,12 @@ bool SceneManager::isParticleEditorActive() const {
 
 int SceneManager::getParticleEditorPipelineId() const {
     return particleEditorPipelineId_;
+}
+
+void SceneManager::setEditorPreviewSystemId(int systemId) {
+    editorPreviewSystemId_ = systemId;
+}
+
+int SceneManager::getEditorPreviewSystemId() const {
+    return editorPreviewSystemId_;
 }
