@@ -3,7 +3,7 @@
 
 local particleConfig = {
     maxParticles = 100,
-    emissionRate = 200.0,
+    emissionRate = 400.0,
     blendMode = 1,  -- Alpha
 
     -- Point emitter (no polygon)
@@ -29,8 +29,8 @@ local particleConfig = {
     radialAccelerationMax = 0.00,
 
     -- Size
-    startSizeMin = 0.050,
-    startSizeMax = 0.100,
+    startSizeMin = 0.025,
+    startSizeMax = 0.050,
     endSizeMin = 0.001,
     endSizeMax = 0.001,
 
@@ -47,9 +47,9 @@ local particleConfig = {
     endColorMinA = 1.000, endColorMaxA = 1.000,
 
     -- Lifetime
-    lifetimeMin = 0.43,
-    lifetimeMax = 0.68,
-    systemLifetime = 0.05,
+    lifetimeMin = 0.20,
+    lifetimeMax = 0.40,
+    systemLifetime = 0.03,
 
     -- Rotation
     rotateWithVelocity = true,
