@@ -25,6 +25,16 @@ struct CollisionHitEvent {
     float approachSpeed;
 };
 
+// Sensor event for force field enter/exit
+struct SensorEvent {
+    int sensorBodyId;  // The sensor body ID (force field)
+    int visitorBodyId; // The body entering/exiting
+    float visitorX, visitorY;  // Position of visitor body
+    float visitorVelX, visitorVelY;  // Velocity of visitor body
+    float surfaceY;  // Water surface Y for splash position
+    bool isBegin;  // true for begin touch, false for end touch
+};
+
 // 2D polygon for destructible objects
 struct DestructiblePolygon {
     float vertices[16];  // Max 8 vertices, x/y pairs
@@ -244,6 +254,10 @@ public:
     using FractureCallback = std::function<void(const FractureEvent&)>;
     void setFractureCallback(FractureCallback callback) { fractureCallback_ = callback; }
 
+    // Sensor callback - set to receive notifications when bodies enter/exit sensors
+    using SensorCallback = std::function<void(const SensorEvent&)>;
+    void setSensorCallback(SensorCallback callback) { sensorCallback_ = callback; }
+
     // Force field management
     // Creates a force field sensor with a polygon shape that applies force to overlapping bodies
     // vertices: array of x,y pairs defining the polygon (3-8 vertices)
@@ -270,6 +284,13 @@ public:
     // Clear all force fields (for scene cleanup)
     void clearAllForceFields();
     void clearAllRadialForceFields();
+
+    // Accessors for force fields (for callbacks)
+    const std::unordered_map<int, ForceField>& getForceFields() const { return forceFields_; }
+    const ForceField* getForceField(int id) const {
+        auto it = forceFields_.find(id);
+        return it != forceFields_.end() ? &it->second : nullptr;
+    }
 
     // Get all dynamic body IDs for splash detection
     void getAllDynamicBodyInfo(int* bodyIds, float* posX, float* posY, float* velY, int maxBodies, int* outCount);
@@ -332,6 +353,9 @@ private:
 
     // Fracture callback
     FractureCallback fractureCallback_;
+
+    // Sensor callback
+    SensorCallback sensorCallback_;
 
     // Bodies pending destruction after fracture (processed after step)
     std::vector<int> pendingDestructions_;

@@ -86,10 +86,10 @@ public:
     // Clear all water force fields
     void clear();
 
-private:
     // Find water field by physics force field ID
     int findByPhysicsForceField(int physicsForceFieldId) const;
 
+private:
     WaterForceField fields_[MAX_WATER_FORCE_FIELDS];
     int activeFieldCount_;
     int nextFieldId_;

@@ -39,6 +39,8 @@ public:
 
     // Scene layer access
     SceneLayerManager& getSceneLayerManager() { return *layerManager_; }
+    // Handle sensor events for splash particles
+    void handleSensorEvent(const SensorEvent& event);
 
     // Audio access
     AudioManager& getAudioManager() { return *audioManager_; }

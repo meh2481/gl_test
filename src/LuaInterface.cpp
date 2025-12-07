@@ -1,5 +1,6 @@
 #include "LuaInterface.h"
 #include "SceneManager.h"
+#include "Box2DPhysics.h"
 #include <iostream>
 #include <cassert>
 #include <algorithm>
@@ -25,11 +26,128 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, S
     physics_->setLayerManager(layerManager_.get());
 
     registerFunctions();
+
+    // Set sensor callback for water splash detection
+    physics_->setSensorCallback([this](const SensorEvent& event) { handleSensorEvent(event); });
 }
 
 LuaInterface::~LuaInterface() {
     if (luaState_) {
         lua_close(luaState_);
+    }
+}
+
+void LuaInterface::handleSensorEvent(const SensorEvent& event) {
+    std::cout << "Sensor event: sensorBodyId=" << event.sensorBodyId << " visitorBodyId=" << event.visitorBodyId
+              << " isBegin=" << event.isBegin << " visitorY=" << event.visitorY << " visitorVelY=" << event.visitorVelY << std::endl;
+    if (event.sensorBodyId >= 0) {
+        const auto& forceFields = physics_->getForceFields();
+        for (const auto& pair : forceFields) {
+            if (pair.second.bodyId == event.sensorBodyId) {
+                const ForceField* field = &pair.second;
+                int forceFieldId = pair.first;
+                if (field->isWater) {
+                    int waterFieldId = waterEffectManager_->findByPhysicsForceField(forceFieldId);
+                    if (waterFieldId >= 0) {
+                        const WaterForceField* waterField = waterEffectManager_->getWaterForceField(waterFieldId);
+                        if (waterField) {
+                            if (event.isBegin) {
+                                // Load particle shaders if not loaded
+                                lua_getglobal(luaState_, "loadParticleShaders");
+                                lua_pushstring(luaState_, "res/shaders/particle_vertex.spv");
+                                lua_pushstring(luaState_, "res/shaders/particle_fragment.spv");
+                                lua_pushinteger(luaState_, 1); // Alpha blend
+                                lua_pushboolean(luaState_, 1); // Has texture
+                                if (lua_pcall(luaState_, 4, 1, 0) != LUA_OK) {
+                                    const char* errorMsg = lua_tostring(luaState_, -1);
+                                    std::cerr << "loadParticleShaders error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    lua_pop(luaState_, 1);
+                                    return;
+                                }
+                                int pipelineId = lua_tointeger(luaState_, -1);
+                                lua_pop(luaState_, 1);
+                                // Create splash particles
+                                lua_getglobal(luaState_, "loadParticleConfig");
+                                lua_pushstring(luaState_, "res/fx/splash1.lua");
+                                if (lua_pcall(luaState_, 1, 1, 0) != LUA_OK) {
+                                    const char* errorMsg = lua_tostring(luaState_, -1);
+                                    std::cerr << "loadParticleConfig error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    lua_pop(luaState_, 1);
+                                    return;
+                                }
+                                int configRef = luaL_ref(luaState_, LUA_REGISTRYINDEX);
+                                lua_getglobal(luaState_, "createParticleSystem");
+                                lua_rawgeti(luaState_, LUA_REGISTRYINDEX, configRef);
+                                lua_pushinteger(luaState_, pipelineId);
+                                if (lua_pcall(luaState_, 2, 1, 0) != LUA_OK) {
+                                    const char* errorMsg = lua_tostring(luaState_, -1);
+                                    std::cerr << "createParticleSystem error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    lua_pop(luaState_, 1);
+                                    luaL_unref(luaState_, LUA_REGISTRYINDEX, configRef);
+                                    return;
+                                }
+                                int particleSystemId = lua_tointeger(luaState_, -1);
+                                lua_pop(luaState_, 1);
+                                luaL_unref(luaState_, LUA_REGISTRYINDEX, configRef);
+                                // Set position
+                                lua_getglobal(luaState_, "setParticleSystemPosition");
+                                lua_pushinteger(luaState_, particleSystemId);
+                                lua_pushnumber(luaState_, event.visitorX);
+                                lua_pushnumber(luaState_, waterField->config.surfaceY);
+                                lua_pcall(luaState_, 3, 0, 0);
+                                std::cout << "Created particle system " << particleSystemId << " for enter" << std::endl;
+                            } else {
+                                // Load particle shaders if not loaded
+                                lua_getglobal(luaState_, "loadParticleShaders");
+                                lua_pushstring(luaState_, "res/shaders/particle_vertex.spv");
+                                lua_pushstring(luaState_, "res/shaders/particle_fragment.spv");
+                                lua_pushinteger(luaState_, 1); // Alpha blend
+                                lua_pushboolean(luaState_, 1); // Has texture
+                                if (lua_pcall(luaState_, 4, 1, 0) != LUA_OK) {
+                                    const char* errorMsg = lua_tostring(luaState_, -1);
+                                    std::cerr << "loadParticleShaders error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    lua_pop(luaState_, 1);
+                                    return;
+                                }
+                                int pipelineId = lua_tointeger(luaState_, -1);
+                                lua_pop(luaState_, 1);
+                                // Create splash particles
+                                lua_getglobal(luaState_, "loadParticleConfig");
+                                lua_pushstring(luaState_, "res/fx/splash1.lua");
+                                if (lua_pcall(luaState_, 1, 1, 0) != LUA_OK) {
+                                    const char* errorMsg = lua_tostring(luaState_, -1);
+                                    std::cerr << "loadParticleConfig error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    lua_pop(luaState_, 1);
+                                    return;
+                                }
+                                int configRef = luaL_ref(luaState_, LUA_REGISTRYINDEX);
+                                lua_getglobal(luaState_, "createParticleSystem");
+                                lua_rawgeti(luaState_, LUA_REGISTRYINDEX, configRef);
+                                lua_pushinteger(luaState_, pipelineId);
+                                if (lua_pcall(luaState_, 2, 1, 0) != LUA_OK) {
+                                    const char* errorMsg = lua_tostring(luaState_, -1);
+                                    std::cerr << "createParticleSystem error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    lua_pop(luaState_, 1);
+                                    luaL_unref(luaState_, LUA_REGISTRYINDEX, configRef);
+                                    return;
+                                }
+                                int particleSystemId = lua_tointeger(luaState_, -1);
+                                lua_pop(luaState_, 1);
+                                luaL_unref(luaState_, LUA_REGISTRYINDEX, configRef);
+                                // Set position
+                                lua_getglobal(luaState_, "setParticleSystemPosition");
+                                lua_pushinteger(luaState_, particleSystemId);
+                                lua_pushnumber(luaState_, event.visitorX);
+                                lua_pushnumber(luaState_, waterField->config.surfaceY);
+                                lua_pcall(luaState_, 3, 0, 0);
+                                std::cout << "Created particle system " << particleSystemId << " for exit" << std::endl;
+                            }
+                        }
+                    }
+                }
+                break; // Found the field, no need to continue
+            }
+        }
     }
 }
 
@@ -2371,7 +2489,7 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: vertexShaderName (string), fragmentShaderName (string), zIndex (integer), blendMode (integer/boolean, optional)
+    // Arguments: vertexShaderName (string), fragmentShaderName (string), blendMode (integer), useTexture (boolean, optional)
     int numArgs = lua_gettop(L);
     assert(numArgs >= 3 && numArgs <= 4);
     assert(lua_isstring(L, 1));
@@ -2380,19 +2498,8 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
 
     const char* vertShaderName = lua_tostring(L, 1);
     const char* fragShaderName = lua_tostring(L, 2);
-    int zIndex = (int)lua_tointeger(L, 3);
-    int blendMode = 0;  // Default to additive blending
-
-    if (numArgs >= 4) {
-        if (lua_isboolean(L, 4)) {
-            // Backward compatibility: boolean true=additive, false=alpha
-            bool additive = lua_toboolean(L, 4);
-            blendMode = additive ? 0 : 1;
-        } else if (lua_isnumber(L, 4)) {
-            // New way: integer blend mode (0=additive, 1=alpha, 2=subtractive)
-            blendMode = (int)lua_tointeger(L, 4);
-        }
-    }
+    int blendMode = (int)lua_tointeger(L, 3);
+    int zIndex = 0;  // Default zIndex for particles
 
     uint64_t vertId = std::hash<std::string>{}(vertShaderName);
     uint64_t fragId = std::hash<std::string>{}(fragShaderName);
@@ -2456,14 +2563,19 @@ int LuaInterface::createParticleSystem(lua_State* L) {
     }
     lua_pop(L, 1);
 
-    // Parse texture IDs (optional)
-    lua_getfield(L, 1, "textureIds");
+    // Parse texture names (optional)
+    lua_getfield(L, 1, "textureNames");
     if (lua_istable(L, -1)) {
         int len = (int)lua_rawlen(L, -1);
         config.textureCount = len > 8 ? 8 : len;
         for (int i = 0; i < config.textureCount; ++i) {
             lua_rawgeti(L, -1, i + 1);
-            config.textureIds[i] = lua_isinteger(L, -1) ? (uint64_t)lua_tointeger(L, -1) : 0;
+            if (lua_isstring(L, -1)) {
+                const char* name = lua_tostring(L, -1);
+                config.textureIds[i] = std::hash<std::string>{}(name);
+            } else {
+                config.textureIds[i] = 0;
+            }
             lua_pop(L, 1);
         }
     }

@@ -139,6 +139,51 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
         }
     }
 
+    // Process sensor events after each physics step
+    b2SensorEvents sensorEvents = b2World_GetSensorEvents(worldId_);
+    for (int i = 0; i < sensorEvents.beginCount; ++i) {
+        const b2SensorBeginTouchEvent& beginEvent = sensorEvents.beginEvents[i];
+        if (!b2Shape_IsValid(beginEvent.sensorShapeId) || !b2Shape_IsValid(beginEvent.visitorShapeId)) continue;
+        b2BodyId sensorBody = b2Shape_GetBody(beginEvent.sensorShapeId);
+        b2BodyId visitorBody = b2Shape_GetBody(beginEvent.visitorShapeId);
+        b2Vec2 visitorPos = b2Body_GetPosition(visitorBody);
+        b2Vec2 visitorVel = b2Body_GetLinearVelocity(visitorBody);
+        int sensorInternalId = findInternalBodyId(sensorBody);
+        int visitorInternalId = findInternalBodyId(visitorBody);
+        if (sensorInternalId >= 0 && visitorInternalId >= 0 && sensorCallback_) {
+            SensorEvent event;
+            event.sensorBodyId = sensorInternalId;
+            event.visitorBodyId = visitorInternalId;
+            event.visitorX = visitorPos.x;
+            event.visitorY = visitorPos.y;
+            event.visitorVelX = visitorVel.x;
+            event.visitorVelY = visitorVel.y;
+            event.isBegin = true;
+            sensorCallback_(event);
+        }
+    }
+    for (int i = 0; i < sensorEvents.endCount; ++i) {
+        const b2SensorEndTouchEvent& endEvent = sensorEvents.endEvents[i];
+        if (!b2Shape_IsValid(endEvent.sensorShapeId) || !b2Shape_IsValid(endEvent.visitorShapeId)) continue;
+        b2BodyId sensorBody = b2Shape_GetBody(endEvent.sensorShapeId);
+        b2BodyId visitorBody = b2Shape_GetBody(endEvent.visitorShapeId);
+        b2Vec2 visitorPos = b2Body_GetPosition(visitorBody);
+        b2Vec2 visitorVel = b2Body_GetLinearVelocity(visitorBody);
+        int sensorInternalId = findInternalBodyId(sensorBody);
+        int visitorInternalId = findInternalBodyId(visitorBody);
+        if (sensorInternalId >= 0 && visitorInternalId >= 0 && sensorCallback_) {
+            SensorEvent event;
+            event.sensorBodyId = sensorInternalId;
+            event.visitorBodyId = visitorInternalId;
+            event.visitorX = visitorPos.x;
+            event.visitorY = visitorPos.y;
+            event.visitorVelX = visitorVel.x;
+            event.visitorVelY = visitorVel.y;
+            event.isBegin = false;
+            sensorCallback_(event);
+        }
+    }
+
     // Process fractures for destructible objects (must be done after collecting all collision events)
     SDL_UnlockMutex(physicsMutex_);
     processFractures();
