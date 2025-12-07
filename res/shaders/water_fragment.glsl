@@ -169,8 +169,14 @@ void main() {
     // Distance from the animated surface (positive = below surface, negative = above)
     float distFromSurface = animatedSurfaceY - fragWorldPos.y;
 
-    // Discard pixels above the animated water surface
-    if (distFromSurface < 0.0) {
+    // Antialiasing edge width in world space units
+    float edgeWidth = 0.01;
+
+    // Smooth alpha transition at the surface edge instead of hard discard
+    float surfaceAlpha = smoothstep(-edgeWidth, edgeWidth, distFromSurface);
+
+    // Discard pixels that are completely above the surface (with fade region)
+    if (surfaceAlpha <= 0.0) {
         discard;
     }
 
@@ -258,6 +264,9 @@ void main() {
 
     // Slight transparency boost right at the surface edge for softer look
     finalAlpha *= mix(0.82, 1.0, smoothstep(0.0, 0.015, distFromSurface));
+
+    // Apply smooth surface edge antialiasing
+    finalAlpha *= surfaceAlpha;
 
     outColor = vec4(waterColor, finalAlpha);
 }
