@@ -169,13 +169,13 @@ void main() {
     // Distance from the animated surface (positive = below surface, negative = above)
     float distFromSurface = animatedSurfaceY - fragWorldPos.y;
 
-    // Antialiasing edge width in world space units
-    float edgeWidth = 0.01;
+    // Pixel-width antialiasing using screen space derivatives
+    float edgeWidth = fwidth(distFromSurface);
 
-    // Smooth alpha transition at the surface edge instead of hard discard
+    // Smooth alpha transition at the surface edge for antialiasing
     float surfaceAlpha = smoothstep(-edgeWidth, edgeWidth, distFromSurface);
 
-    // Discard pixels that are completely above the surface (with fade region)
+    // Discard pixels that are completely above the surface
     if (surfaceAlpha <= 0.0) {
         discard;
     }
