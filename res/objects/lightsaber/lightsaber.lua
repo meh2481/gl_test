@@ -12,6 +12,8 @@ Lightsaber.lightId = nil
 Lightsaber.bodies = {}
 Lightsaber.layers = {}
 Lightsaber.joints = {}
+Lightsaber.bladeExtension = 1.0
+Lightsaber.targetExtension = 1.0
 
 -- Loaded resources (loaded once on first create)
 Lightsaber.hiltTexId = nil
@@ -39,6 +41,7 @@ local config = {
 
 -- Constants
 local BLADE_CORE_SCALE = 1.2
+local EXTENSION_SPEED = 2.0
 
 -- Load all required resources internally
 local function loadResources()
@@ -120,10 +123,34 @@ function Lightsaber.create(params)
 end
 
 function Lightsaber.update(deltaTime)
+    -- Update blade extension towards target
+    if Lightsaber.bladeExtension < Lightsaber.targetExtension then
+        Lightsaber.bladeExtension = math.min(Lightsaber.targetExtension, Lightsaber.bladeExtension + EXTENSION_SPEED * deltaTime)
+    elseif Lightsaber.bladeExtension > Lightsaber.targetExtension then
+        Lightsaber.bladeExtension = math.max(Lightsaber.targetExtension, Lightsaber.bladeExtension - EXTENSION_SPEED * deltaTime)
+    end
+
+    -- Update blade visuals and physics based on extension
+    if Lightsaber.bladeLayer then
+        local scaleY = Lightsaber.bladeExtension
+        setLayerScale(Lightsaber.bladeLayer, 1.0, scaleY)
+    end
+
+    -- Enable/disable blade body based on extension
+    if Lightsaber.bladeBody then
+        if Lightsaber.bladeExtension <= 0.0 then
+            b2DisableBody(Lightsaber.bladeBody)
+        else
+            b2EnableBody(Lightsaber.bladeBody)
+        end
+    end
+
+    -- Update light and position
     if Lightsaber.bladeBody then
         local x, y = b2GetBodyPosition(Lightsaber.bladeBody)
         if x ~= nil and y ~= nil then
-            updateLight(Lightsaber.lightId, x, y, config.lightZ, config.colorR, config.colorG, config.colorB, config.lightIntensity)
+            local intensity = config.lightIntensity * Lightsaber.bladeExtension
+            updateLight(Lightsaber.lightId, x, y, config.lightZ, config.colorR, config.colorG, config.colorB, intensity)
         end
     end
 end
@@ -152,6 +179,20 @@ end
 
 function Lightsaber.getBladeBody()
     return Lightsaber.bladeBody
+end
+
+function Lightsaber.toggleBlade()
+    if Lightsaber.targetExtension > 0.5 then
+        Lightsaber.targetExtension = 0.0
+    else
+        Lightsaber.targetExtension = 1.0
+    end
+end
+
+function Lightsaber.onAction(action)
+    if action == ACTION_TOGGLE_BLADE then
+        Lightsaber.toggleBlade()
+    end
 end
 
 function Lightsaber.reset()

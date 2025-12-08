@@ -150,6 +150,8 @@ public:
     void setBodyLinearVelocity(int bodyId, float vx, float vy);
     void setBodyAngularVelocity(int bodyId, float omega);
     void setBodyAwake(int bodyId, bool awake);
+    void enableBody(int bodyId);
+    void disableBody(int bodyId);
     void applyForce(int bodyId, float fx, float fy, float px, float py);
     void applyTorque(int bodyId, float torque);
 

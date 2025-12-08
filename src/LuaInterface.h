@@ -91,6 +91,8 @@ private:
     static int b2SetBodyLinearVelocity(lua_State* L);
     static int b2SetBodyAngularVelocity(lua_State* L);
     static int b2SetBodyAwake(lua_State* L);
+    static int b2EnableBody(lua_State* L);
+    static int b2DisableBody(lua_State* L);
     static int b2GetBodyPosition(lua_State* L);
     static int b2EnableDebugDraw(lua_State* L);
     static int b2CreateRevoluteJoint(lua_State* L);

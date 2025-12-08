@@ -20,6 +20,7 @@ enum Action {
     ACTION_DRAG_END,
     ACTION_PAN_START,
     ACTION_PAN_END,
+    ACTION_TOGGLE_BLADE,
     ACTION_COUNT  // Always keep last
 };
 
@@ -113,6 +114,7 @@ public:
         bind(SDLK_A, ACTION_AUDIO_TEST);
         bind(SDLK_E, ACTION_PARTICLE_EDITOR);
         bind(SDLK_SPACE, ACTION_APPLY_FORCE);
+        bind(SDLK_SPACE, ACTION_TOGGLE_BLADE);
         bind(SDLK_R, ACTION_RESET_PHYSICS);
         bind(SDLK_D, ACTION_TOGGLE_DEBUG_DRAW);
         // ALT+ENTER is handled separately via modifier check

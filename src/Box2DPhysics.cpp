@@ -326,6 +326,20 @@ void Box2DPhysics::setBodyAwake(int bodyId, bool awake) {
     b2Body_SetAwake(it->second, awake);
 }
 
+void Box2DPhysics::enableBody(int bodyId) {
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+
+    b2Body_Enable(it->second);
+}
+
+void Box2DPhysics::disableBody(int bodyId) {
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+
+    b2Body_Disable(it->second);
+}
+
 void Box2DPhysics::applyForce(int bodyId, float fx, float fy, float px, float py) {
     auto it = bodies_.find(bodyId);
     assert(it != bodies_.end());

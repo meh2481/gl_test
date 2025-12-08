@@ -167,7 +167,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
                                      "b2AddBoxFixture", "b2AddCircleFixture", "b2AddPolygonFixture", "b2AddSegmentFixture", "b2SetBodyPosition",
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
-                                     "b2SetBodyAwake", "b2GetBodyPosition", "b2EnableDebugDraw",
+                                     "b2SetBodyAwake", "b2EnableBody", "b2DisableBody", "b2GetBodyPosition", "b2EnableDebugDraw",
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
@@ -216,6 +216,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
         "ACTION_HOTRELOAD", "ACTION_APPLY_FORCE", "ACTION_RESET_PHYSICS", "ACTION_TOGGLE_DEBUG_DRAW",
         "ACTION_DRAG_START", "ACTION_DRAG_END",
         "ACTION_PAN_START", "ACTION_PAN_END",
+        "ACTION_TOGGLE_BLADE",
         nullptr
     };
     for (const char** constant = actionConstants; *constant; ++constant) {
@@ -672,6 +673,8 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2SetBodyLinearVelocity", b2SetBodyLinearVelocity);
     lua_register(luaState_, "b2SetBodyAngularVelocity", b2SetBodyAngularVelocity);
     lua_register(luaState_, "b2SetBodyAwake", b2SetBodyAwake);
+    lua_register(luaState_, "b2EnableBody", b2EnableBody);
+    lua_register(luaState_, "b2DisableBody", b2DisableBody);
     lua_register(luaState_, "b2GetBodyPosition", b2GetBodyPosition);
     lua_register(luaState_, "b2EnableDebugDraw", b2EnableDebugDraw);
     lua_register(luaState_, "b2CreateRevoluteJoint", b2CreateRevoluteJoint);
@@ -789,6 +792,8 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_PAN_START");
     lua_pushinteger(luaState_, ACTION_PAN_END);
     lua_setglobal(luaState_, "ACTION_PAN_END");
+    lua_pushinteger(luaState_, ACTION_TOGGLE_BLADE);
+    lua_setglobal(luaState_, "ACTION_TOGGLE_BLADE");
 
     // Register Audio effect constants
     lua_pushinteger(luaState_, AUDIO_EFFECT_NONE);
@@ -1226,6 +1231,42 @@ int LuaInterface::b2SetBodyAwake(lua_State* L) {
     }
 
     interface->physics_->setBodyAwake(bodyId, awake);
+    return 0;
+}
+
+int LuaInterface::b2EnableBody(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int bodyId = lua_tointeger(L, 1);
+
+    if (!interface->physics_->isBodyValid(bodyId)) {
+        return 0;
+    }
+
+    interface->physics_->enableBody(bodyId);
+    return 0;
+}
+
+int LuaInterface::b2DisableBody(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int bodyId = lua_tointeger(L, 1);
+
+    if (!interface->physics_->isBodyValid(bodyId)) {
+        return 0;
+    }
+
+    interface->physics_->disableBody(bodyId);
     return 0;
 }
 
