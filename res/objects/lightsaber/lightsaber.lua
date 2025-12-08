@@ -200,6 +200,10 @@ function Lightsaber.reset()
     local startY = config.y
     local bladeOffsetY = config.hiltLength / 2 + config.bladeLength / 2
 
+    -- Reset blade extension state
+    Lightsaber.bladeExtension = 1.0
+    Lightsaber.targetExtension = 1.0
+
     -- Reset hilt
     if Lightsaber.hiltBody then
         b2SetBodyPosition(Lightsaber.hiltBody, startX, startY)
@@ -216,6 +220,7 @@ function Lightsaber.reset()
         b2SetBodyLinearVelocity(Lightsaber.bladeBody, 0, 0)
         b2SetBodyAngularVelocity(Lightsaber.bladeBody, 0)
         b2SetBodyAwake(Lightsaber.bladeBody, true)
+        b2EnableBody(Lightsaber.bladeBody)
     end
 end
 
