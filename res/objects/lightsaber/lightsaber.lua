@@ -23,7 +23,6 @@ Lightsaber.phongShaderId = nil
 Lightsaber.saberShaderId = nil
 Lightsaber.resourcesLoaded = false
 Lightsaber.togglingBlade = false
-Lightsaber.lastToggled = false
 
 -- Default configuration
 local config = {
@@ -152,6 +151,7 @@ function Lightsaber.update(deltaTime)
             if Lightsaber.bladeExtension <= 0.01 then
                 b2DisableBody(Lightsaber.bladeBody)
             else
+                b2EnableBody(Lightsaber.bladeBody)
 
                 local hiltX, hiltY = b2GetBodyPosition(Lightsaber.hiltBody)
                 local hiltAngle = b2GetBodyAngle(Lightsaber.hiltBody)
@@ -164,12 +164,8 @@ function Lightsaber.update(deltaTime)
                 local bladeX = hiltX + bladeOffsetY * sinAngle
                 local bladeY = hiltY + bladeOffsetY * cosAngle
 
-                if not Lightsaber.lastToggled then
-                    Lightsaber.lastToggled = true
-                    b2EnableBody(Lightsaber.bladeBody)
-                    b2SetBodyPosition(Lightsaber.bladeBody, bladeX, bladeY)
-                    b2SetBodyAngle(Lightsaber.bladeBody, hiltAngle)
-                end
+                b2SetBodyPosition(Lightsaber.bladeBody, bladeX, bladeY)
+                b2SetBodyAngle(Lightsaber.bladeBody, hiltAngle)
 
                 b2ClearAllFixtures(Lightsaber.bladeBody)
                 local bladeHalfW = config.bladeWidth / 2
@@ -227,7 +223,6 @@ function Lightsaber.onAction(action)
     if action == ACTION_TOGGLE_BLADE then
         Lightsaber.toggleBlade()
         Lightsaber.togglingBlade = true
-        Lightsaber.lastToggled = false
     end
 end
 
