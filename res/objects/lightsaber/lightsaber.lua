@@ -14,6 +14,7 @@ Lightsaber.layers = {}
 Lightsaber.joints = {}
 Lightsaber.bladeExtension = 1.0
 Lightsaber.targetExtension = 1.0
+Lightsaber.bladeEnabled = true
 
 -- Loaded resources (loaded once on first create)
 Lightsaber.hiltTexId = nil
@@ -150,27 +151,25 @@ function Lightsaber.update(deltaTime)
         if Lightsaber.bladeBody and Lightsaber.hiltBody then
             if Lightsaber.bladeExtension <= 0.01 then
                 b2DisableBody(Lightsaber.bladeBody)
+                Lightsaber.bladeEnabled = false
             else
-                b2EnableBody(Lightsaber.bladeBody)
-
-                local hiltX, hiltY = b2GetBodyPosition(Lightsaber.hiltBody)
-                local hiltAngle = b2GetBodyAngle(Lightsaber.hiltBody)
-
-                local currentBladeLength = config.bladeLength * Lightsaber.bladeExtension
-                local bladeOffsetY = config.hiltLength / 2 + currentBladeLength / 2
-
-                local cosAngle = math.cos(hiltAngle)
-                local sinAngle = math.sin(hiltAngle)
-                local bladeX = hiltX + bladeOffsetY * sinAngle
-                local bladeY = hiltY + bladeOffsetY * cosAngle
-
-                b2SetBodyPosition(Lightsaber.bladeBody, bladeX, bladeY)
-                b2SetBodyAngle(Lightsaber.bladeBody, hiltAngle)
+                if not Lightsaber.bladeEnabled then
+                    Lightsaber.bladeEnabled = true
+                    b2EnableBody(Lightsaber.bladeBody)
+                end
 
                 b2ClearAllFixtures(Lightsaber.bladeBody)
+
+                local currentBladeLength = config.bladeLength * Lightsaber.bladeExtension
                 local bladeHalfW = config.bladeWidth / 2
-                local bladeHalfH = currentBladeLength / 2
-                b2AddBoxFixture(Lightsaber.bladeBody, bladeHalfW, bladeHalfH, 0.1, 0.1, 0.0)
+
+                local vertices = {
+                    -bladeHalfW, -config.bladeLength / 2,
+                    bladeHalfW, -config.bladeLength / 2,
+                    bladeHalfW, -config.bladeLength / 2 + currentBladeLength,
+                    -bladeHalfW, -config.bladeLength / 2 + currentBladeLength
+                }
+                b2AddPolygonFixture(Lightsaber.bladeBody, vertices, 0.1, 0.1, 0.0)
             end
         end
 
@@ -234,6 +233,7 @@ function Lightsaber.reset()
     -- Reset blade extension state
     Lightsaber.bladeExtension = 1.0
     Lightsaber.targetExtension = 1.0
+    Lightsaber.bladeEnabled = true
 
     Lightsaber.togglingBlade = false
 
