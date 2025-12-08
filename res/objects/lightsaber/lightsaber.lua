@@ -130,22 +130,38 @@ function Lightsaber.update(deltaTime)
         Lightsaber.bladeExtension = math.max(Lightsaber.targetExtension, Lightsaber.bladeExtension - EXTENSION_SPEED * deltaTime)
     end
 
-    -- Update blade visuals and physics based on extension
+    -- Update blade visuals based on extension
     if Lightsaber.bladeLayer then
         local scaleY = Lightsaber.bladeExtension
         setLayerScale(Lightsaber.bladeLayer, 1.0, scaleY)
+
+        local offsetY = -config.bladeLength * BLADE_CORE_SCALE * (1.0 - scaleY) / 2.0
+        setLayerOffset(Lightsaber.bladeLayer, 0.0, offsetY)
     end
 
-    -- Enable/disable blade body based on extension
-    if Lightsaber.bladeBody then
-        if Lightsaber.bladeExtension <= 0.0 then
+    -- Update blade body position based on extension
+    if Lightsaber.bladeBody and Lightsaber.hiltBody then
+        if Lightsaber.bladeExtension <= 0.01 then
             b2DisableBody(Lightsaber.bladeBody)
         else
             b2EnableBody(Lightsaber.bladeBody)
+
+            local hiltX, hiltY = b2GetBodyPosition(Lightsaber.hiltBody)
+            local hiltAngle = b2GetBodyAngle(Lightsaber.hiltBody)
+
+            local bladeOffsetY = config.hiltLength / 2 + (config.bladeLength / 2) * Lightsaber.bladeExtension
+
+            local cosAngle = math.cos(hiltAngle)
+            local sinAngle = math.sin(hiltAngle)
+            local bladeX = hiltX + bladeOffsetY * sinAngle
+            local bladeY = hiltY + bladeOffsetY * cosAngle
+
+            b2SetBodyPosition(Lightsaber.bladeBody, bladeX, bladeY)
+            b2SetBodyAngle(Lightsaber.bladeBody, hiltAngle)
         end
     end
 
-    -- Update light and position
+    -- Update light position and intensity
     if Lightsaber.bladeBody then
         local x, y = b2GetBodyPosition(Lightsaber.bladeBody)
         if x ~= nil and y ~= nil then

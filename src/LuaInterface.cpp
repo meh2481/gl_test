@@ -167,7 +167,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
                                      "b2AddBoxFixture", "b2AddCircleFixture", "b2AddPolygonFixture", "b2AddSegmentFixture", "b2SetBodyPosition",
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
-                                     "b2SetBodyAwake", "b2EnableBody", "b2DisableBody", "b2GetBodyPosition", "b2EnableDebugDraw",
+                                     "b2SetBodyAwake", "b2EnableBody", "b2DisableBody", "b2GetBodyPosition", "b2GetBodyAngle", "b2EnableDebugDraw",
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
@@ -676,6 +676,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2EnableBody", b2EnableBody);
     lua_register(luaState_, "b2DisableBody", b2DisableBody);
     lua_register(luaState_, "b2GetBodyPosition", b2GetBodyPosition);
+    lua_register(luaState_, "b2GetBodyAngle", b2GetBodyAngle);
     lua_register(luaState_, "b2EnableDebugDraw", b2EnableDebugDraw);
     lua_register(luaState_, "b2CreateRevoluteJoint", b2CreateRevoluteJoint);
     lua_register(luaState_, "b2DestroyJoint", b2DestroyJoint);
@@ -1290,6 +1291,25 @@ int LuaInterface::b2GetBodyPosition(lua_State* L) {
     lua_pushnumber(L, x);
     lua_pushnumber(L, y);
     return 2;
+}
+
+int LuaInterface::b2GetBodyAngle(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int bodyId = lua_tointeger(L, 1);
+    if (!interface->physics_->isBodyValid(bodyId)) {
+        lua_pushnil(L);
+        return 1;
+    }
+    float angle = interface->physics_->getBodyAngle(bodyId);
+
+    lua_pushnumber(L, angle);
+    return 1;
 }
 
 int LuaInterface::b2EnableDebugDraw(lua_State* L) {
