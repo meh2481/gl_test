@@ -173,18 +173,20 @@ function Lightsaber.update(deltaTime)
                 b2EnableBody(Lightsaber.bladeBody)
             end
 
-            b2ClearAllFixtures(Lightsaber.bladeBody)
+            if Lightsaber.togglingBlade then
+                b2ClearAllFixtures(Lightsaber.bladeBody)
 
-            local currentBladeLength = config.bladeLength * Lightsaber.bladeExtension
-            local bladeHalfW = config.bladeWidth / 2
+                local currentBladeLength = config.bladeLength * Lightsaber.bladeExtension
+                local bladeHalfW = config.bladeWidth / 2
 
-            local vertices = {
-                -bladeHalfW, -config.bladeLength / 2,
-                bladeHalfW, -config.bladeLength / 2,
-                bladeHalfW, -config.bladeLength / 2 + currentBladeLength,
-                -bladeHalfW, -config.bladeLength / 2 + currentBladeLength
-            }
-            b2AddPolygonFixture(Lightsaber.bladeBody, vertices, 0.1, 0.1, 0.0)
+                local vertices = {
+                    -bladeHalfW, -config.bladeLength / 2,
+                    bladeHalfW, -config.bladeLength / 2,
+                    bladeHalfW, -config.bladeLength / 2 + currentBladeLength,
+                    -bladeHalfW, -config.bladeLength / 2 + currentBladeLength
+                }
+                b2AddPolygonFixture(Lightsaber.bladeBody, vertices, 0.1, 0.1, 0.0)
+            end
         end
     end
 
