@@ -146,9 +146,10 @@ function Lightsaber.update(deltaTime)
             local offsetY = -config.bladeLength * BLADE_CORE_SCALE * (1.0 - scaleY) / 2.0
             setLayerOffset(Lightsaber.bladeLayer, 0.0, offsetY)
         end
+    end
 
-        -- Update blade body position and size based on extension
-        if Lightsaber.bladeBody and Lightsaber.hiltBody then
+    -- Update blade body position and size based on extension
+    if Lightsaber.bladeBody and Lightsaber.hiltBody then
             if Lightsaber.bladeExtension <= 0.01 then
                 if Lightsaber.bladeEnabled then
                     b2DisableBody(Lightsaber.bladeBody)
@@ -161,7 +162,7 @@ function Lightsaber.update(deltaTime)
 
                 local cosAngle = math.cos(hiltAngle)
                 local sinAngle = math.sin(hiltAngle)
-                local bladeX = hiltX + bladeOffsetY * sinAngle
+                local bladeX = hiltX - bladeOffsetY * sinAngle
                 local bladeY = hiltY + bladeOffsetY * cosAngle
 
                 b2SetBodyPosition(Lightsaber.bladeBody, bladeX, bladeY)
@@ -186,14 +187,14 @@ function Lightsaber.update(deltaTime)
                 b2AddPolygonFixture(Lightsaber.bladeBody, vertices, 0.1, 0.1, 0.0)
             end
         end
+    end
 
-        -- Update light position and intensity
-        if Lightsaber.bladeBody then
-            local x, y = b2GetBodyPosition(Lightsaber.bladeBody)
-            if x ~= nil and y ~= nil then
-                local intensity = config.lightIntensity * Lightsaber.bladeExtension
-                updateLight(Lightsaber.lightId, x, y, config.lightZ, config.colorR, config.colorG, config.colorB, intensity)
-            end
+    -- Update light position and intensity
+    if Lightsaber.bladeBody then
+        local x, y = b2GetBodyPosition(Lightsaber.bladeBody)
+        if x ~= nil and y ~= nil then
+            local intensity = config.lightIntensity * Lightsaber.bladeExtension
+            updateLight(Lightsaber.lightId, x, y, config.lightZ, config.colorR, config.colorG, config.colorB, intensity)
         end
     end
 end
