@@ -22,6 +22,8 @@ Lightsaber.bloomTexId = nil
 Lightsaber.phongShaderId = nil
 Lightsaber.saberShaderId = nil
 Lightsaber.resourcesLoaded = false
+Lightsaber.togglingBlade = false
+Lightsaber.lastToggled = false
 
 -- Default configuration
 local config = {
@@ -41,7 +43,7 @@ local config = {
 
 -- Constants
 local BLADE_CORE_SCALE = 1.2
-local EXTENSION_SPEED = 2.0
+local EXTENSION_SPEED = 6.0
 
 -- Load all required resources internally
 local function loadResources()
@@ -123,56 +125,66 @@ function Lightsaber.create(params)
 end
 
 function Lightsaber.update(deltaTime)
-    -- Update blade extension towards target
-    if Lightsaber.bladeExtension < Lightsaber.targetExtension then
-        Lightsaber.bladeExtension = math.min(Lightsaber.targetExtension, Lightsaber.bladeExtension + EXTENSION_SPEED * deltaTime)
-    elseif Lightsaber.bladeExtension > Lightsaber.targetExtension then
-        Lightsaber.bladeExtension = math.max(Lightsaber.targetExtension, Lightsaber.bladeExtension - EXTENSION_SPEED * deltaTime)
-    end
-
-    -- Update blade visuals based on extension
-    if Lightsaber.bladeLayer then
-        local scaleY = Lightsaber.bladeExtension
-        setLayerScale(Lightsaber.bladeLayer, 1.0, scaleY)
-
-        local offsetY = -config.bladeLength * BLADE_CORE_SCALE * (1.0 - scaleY) / 2.0
-        setLayerOffset(Lightsaber.bladeLayer, 0.0, offsetY)
-    end
-
-    -- Update blade body position and size based on extension
-    if Lightsaber.bladeBody and Lightsaber.hiltBody then
-        if Lightsaber.bladeExtension <= 0.01 then
-            b2DisableBody(Lightsaber.bladeBody)
-        else
-            b2EnableBody(Lightsaber.bladeBody)
-
-            local hiltX, hiltY = b2GetBodyPosition(Lightsaber.hiltBody)
-            local hiltAngle = b2GetBodyAngle(Lightsaber.hiltBody)
-
-            local currentBladeLength = config.bladeLength * Lightsaber.bladeExtension
-            local bladeOffsetY = config.hiltLength / 2 + currentBladeLength / 2
-
-            local cosAngle = math.cos(hiltAngle)
-            local sinAngle = math.sin(hiltAngle)
-            local bladeX = hiltX + bladeOffsetY * sinAngle
-            local bladeY = hiltY + bladeOffsetY * cosAngle
-
-            b2SetBodyPosition(Lightsaber.bladeBody, bladeX, bladeY)
-            b2SetBodyAngle(Lightsaber.bladeBody, hiltAngle)
-
-            b2ClearAllFixtures(Lightsaber.bladeBody)
-            local bladeHalfW = config.bladeWidth / 2
-            local bladeHalfH = currentBladeLength / 2
-            b2AddBoxFixture(Lightsaber.bladeBody, bladeHalfW, bladeHalfH, 0.1, 0.1, 0.0)
+    if Lightsaber.togglingBlade then
+        -- Update blade extension towards target
+        if Lightsaber.bladeExtension < Lightsaber.targetExtension then
+            Lightsaber.bladeExtension = math.min(Lightsaber.targetExtension, Lightsaber.bladeExtension + EXTENSION_SPEED * deltaTime)
+        elseif Lightsaber.bladeExtension > Lightsaber.targetExtension then
+            Lightsaber.bladeExtension = math.max(Lightsaber.targetExtension, Lightsaber.bladeExtension - EXTENSION_SPEED * deltaTime)
         end
-    end
 
-    -- Update light position and intensity
-    if Lightsaber.bladeBody then
-        local x, y = b2GetBodyPosition(Lightsaber.bladeBody)
-        if x ~= nil and y ~= nil then
-            local intensity = config.lightIntensity * Lightsaber.bladeExtension
-            updateLight(Lightsaber.lightId, x, y, config.lightZ, config.colorR, config.colorG, config.colorB, intensity)
+        -- Check if toggling is complete
+        if Lightsaber.bladeExtension == Lightsaber.targetExtension then
+            Lightsaber.togglingBlade = false
+        end
+
+        -- Update blade visuals based on extension
+        if Lightsaber.bladeLayer then
+            local scaleY = Lightsaber.bladeExtension
+            setLayerScale(Lightsaber.bladeLayer, 1.0, scaleY)
+
+            local offsetY = -config.bladeLength * BLADE_CORE_SCALE * (1.0 - scaleY) / 2.0
+            setLayerOffset(Lightsaber.bladeLayer, 0.0, offsetY)
+        end
+
+        -- Update blade body position and size based on extension
+        if Lightsaber.bladeBody and Lightsaber.hiltBody then
+            if Lightsaber.bladeExtension <= 0.01 then
+                b2DisableBody(Lightsaber.bladeBody)
+            else
+
+                local hiltX, hiltY = b2GetBodyPosition(Lightsaber.hiltBody)
+                local hiltAngle = b2GetBodyAngle(Lightsaber.hiltBody)
+
+                local currentBladeLength = config.bladeLength * Lightsaber.bladeExtension
+                local bladeOffsetY = config.hiltLength / 2 + currentBladeLength / 2
+
+                local cosAngle = math.cos(hiltAngle)
+                local sinAngle = math.sin(hiltAngle)
+                local bladeX = hiltX + bladeOffsetY * sinAngle
+                local bladeY = hiltY + bladeOffsetY * cosAngle
+
+                if not Lightsaber.lastToggled then
+                    Lightsaber.lastToggled = true
+                    b2EnableBody(Lightsaber.bladeBody)
+                    b2SetBodyPosition(Lightsaber.bladeBody, bladeX, bladeY)
+                    b2SetBodyAngle(Lightsaber.bladeBody, hiltAngle)
+                end
+
+                b2ClearAllFixtures(Lightsaber.bladeBody)
+                local bladeHalfW = config.bladeWidth / 2
+                local bladeHalfH = currentBladeLength / 2
+                b2AddBoxFixture(Lightsaber.bladeBody, bladeHalfW, bladeHalfH, 0.1, 0.1, 0.0)
+            end
+        end
+
+        -- Update light position and intensity
+        if Lightsaber.bladeBody then
+            local x, y = b2GetBodyPosition(Lightsaber.bladeBody)
+            if x ~= nil and y ~= nil then
+                local intensity = config.lightIntensity * Lightsaber.bladeExtension
+                updateLight(Lightsaber.lightId, x, y, config.lightZ, config.colorR, config.colorG, config.colorB, intensity)
+            end
         end
     end
 end
@@ -214,6 +226,8 @@ end
 function Lightsaber.onAction(action)
     if action == ACTION_TOGGLE_BLADE then
         Lightsaber.toggleBlade()
+        Lightsaber.togglingBlade = true
+        Lightsaber.lastToggled = false
     end
 end
 
@@ -225,6 +239,8 @@ function Lightsaber.reset()
     -- Reset blade extension state
     Lightsaber.bladeExtension = 1.0
     Lightsaber.targetExtension = 1.0
+
+    Lightsaber.togglingBlade = false
 
     -- Reset hilt
     if Lightsaber.hiltBody then
