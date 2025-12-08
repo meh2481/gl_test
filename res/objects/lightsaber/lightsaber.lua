@@ -139,7 +139,7 @@ function Lightsaber.update(deltaTime)
         setLayerOffset(Lightsaber.bladeLayer, 0.0, offsetY)
     end
 
-    -- Update blade body position based on extension
+    -- Update blade body position and size based on extension
     if Lightsaber.bladeBody and Lightsaber.hiltBody then
         if Lightsaber.bladeExtension <= 0.01 then
             b2DisableBody(Lightsaber.bladeBody)
@@ -149,7 +149,8 @@ function Lightsaber.update(deltaTime)
             local hiltX, hiltY = b2GetBodyPosition(Lightsaber.hiltBody)
             local hiltAngle = b2GetBodyAngle(Lightsaber.hiltBody)
 
-            local bladeOffsetY = config.hiltLength / 2 + (config.bladeLength / 2) * Lightsaber.bladeExtension
+            local currentBladeLength = config.bladeLength * Lightsaber.bladeExtension
+            local bladeOffsetY = config.hiltLength / 2 + currentBladeLength / 2
 
             local cosAngle = math.cos(hiltAngle)
             local sinAngle = math.sin(hiltAngle)
@@ -158,6 +159,11 @@ function Lightsaber.update(deltaTime)
 
             b2SetBodyPosition(Lightsaber.bladeBody, bladeX, bladeY)
             b2SetBodyAngle(Lightsaber.bladeBody, hiltAngle)
+
+            b2ClearAllFixtures(Lightsaber.bladeBody)
+            local bladeHalfW = config.bladeWidth / 2
+            local bladeHalfH = currentBladeLength / 2
+            b2AddBoxFixture(Lightsaber.bladeBody, bladeHalfW, bladeHalfH, 0.1, 0.1, 0.0)
         end
     end
 

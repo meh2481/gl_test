@@ -165,7 +165,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "setShaderParameters",
                                      "pushScene", "popScene", "print",
                                      "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
-                                     "b2AddBoxFixture", "b2AddCircleFixture", "b2AddPolygonFixture", "b2AddSegmentFixture", "b2SetBodyPosition",
+                                     "b2AddBoxFixture", "b2AddCircleFixture", "b2AddPolygonFixture", "b2AddSegmentFixture", "b2ClearAllFixtures", "b2SetBodyPosition",
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
                                      "b2SetBodyAwake", "b2EnableBody", "b2DisableBody", "b2GetBodyPosition", "b2GetBodyAngle", "b2EnableDebugDraw",
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
@@ -668,6 +668,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2AddCircleFixture", b2AddCircleFixture);
     lua_register(luaState_, "b2AddPolygonFixture", b2AddPolygonFixture);
     lua_register(luaState_, "b2AddSegmentFixture", b2AddSegmentFixture);
+    lua_register(luaState_, "b2ClearAllFixtures", b2ClearAllFixtures);
     lua_register(luaState_, "b2SetBodyPosition", b2SetBodyPosition);
     lua_register(luaState_, "b2SetBodyAngle", b2SetBodyAngle);
     lua_register(luaState_, "b2SetBodyLinearVelocity", b2SetBodyLinearVelocity);
@@ -1151,6 +1152,24 @@ int LuaInterface::b2AddSegmentFixture(lua_State* L) {
     }
 
     interface->physics_->addSegmentFixture(bodyId, x1, y1, x2, y2, friction, restitution);
+    return 0;
+}
+
+int LuaInterface::b2ClearAllFixtures(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int bodyId = lua_tointeger(L, 1);
+
+    if (!interface->physics_->isBodyValid(bodyId)) {
+        return 0;
+    }
+
+    interface->physics_->clearAllFixtures(bodyId);
     return 0;
 }
 

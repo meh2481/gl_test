@@ -479,6 +479,20 @@ void Box2DPhysics::addSegmentFixture(int bodyId, float x1, float y1, float x2, f
     b2CreateSegmentShape(it->second, &shapeDef, &segment);
 }
 
+void Box2DPhysics::clearAllFixtures(int bodyId) {
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+
+    int shapeCount = b2Body_GetShapeCount(it->second);
+    if (shapeCount > 0) {
+        b2ShapeId shapes[16];
+        int actualCount = b2Body_GetShapes(it->second, shapes, 16);
+        for (int i = 0; i < actualCount; ++i) {
+            b2DestroyShape(shapes[i], true);
+        }
+    }
+}
+
 int Box2DPhysics::createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy,
                                        float anchorBx, float anchorBy, bool enableLimit,
                                        float lowerAngle, float upperAngle) {
