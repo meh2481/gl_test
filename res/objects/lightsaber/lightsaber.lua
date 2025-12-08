@@ -150,8 +150,22 @@ function Lightsaber.update(deltaTime)
         -- Update blade body position and size based on extension
         if Lightsaber.bladeBody and Lightsaber.hiltBody then
             if Lightsaber.bladeExtension <= 0.01 then
-                b2DisableBody(Lightsaber.bladeBody)
-                Lightsaber.bladeEnabled = false
+                if Lightsaber.bladeEnabled then
+                    b2DisableBody(Lightsaber.bladeBody)
+                    Lightsaber.bladeEnabled = false
+                end
+
+                local hiltX, hiltY = b2GetBodyPosition(Lightsaber.hiltBody)
+                local hiltAngle = b2GetBodyAngle(Lightsaber.hiltBody)
+                local bladeOffsetY = config.hiltLength / 2 + config.bladeLength / 2
+
+                local cosAngle = math.cos(hiltAngle)
+                local sinAngle = math.sin(hiltAngle)
+                local bladeX = hiltX + bladeOffsetY * sinAngle
+                local bladeY = hiltY + bladeOffsetY * cosAngle
+
+                b2SetBodyPosition(Lightsaber.bladeBody, bladeX, bladeY)
+                b2SetBodyAngle(Lightsaber.bladeBody, hiltAngle)
             else
                 if not Lightsaber.bladeEnabled then
                     Lightsaber.bladeEnabled = true
