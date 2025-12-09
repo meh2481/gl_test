@@ -3078,7 +3078,7 @@ int LuaInterface::createNode(lua_State* L) {
 
         float vertices[16];
         int tableLen = (int)lua_rawlen(L, -1);
-        assert(tableLen >= 6 && tableLen <= 16);
+        assert(tableLen >= 6 && tableLen <= 16 && tableLen % 2 == 0);
 
         for (int i = 0; i < tableLen; ++i) {
             lua_rawgeti(L, -1, i + 1);
@@ -3089,6 +3089,7 @@ int LuaInterface::createNode(lua_State* L) {
         lua_pop(L, 1);
 
         int vertexCount = tableLen / 2;
+        assert(vertexCount >= 3 && vertexCount <= 8);
 
         // Calculate centroid
         for (int i = 0; i < vertexCount; ++i) {
@@ -3103,6 +3104,7 @@ int LuaInterface::createNode(lua_State* L) {
 
         // Convert vertices to local coordinates
         float localVertices[16];
+        assert(vertexCount * 2 <= 16);
         for (int i = 0; i < vertexCount; ++i) {
             localVertices[i * 2] = vertices[i * 2] - centerX;
             localVertices[i * 2 + 1] = vertices[i * 2 + 1] - centerY;
@@ -3237,14 +3239,10 @@ void LuaInterface::updateNodes(float deltaTime) {
         Node& node = pair.second;
         if (node.updateFuncRef != LUA_NOREF) {
             lua_rawgeti(luaState_, LUA_REGISTRYINDEX, node.updateFuncRef);
-            if (lua_isfunction(luaState_, -1)) {
-                lua_pushnumber(luaState_, deltaTime);
-                if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
-                    const char* errorMsg = lua_tostring(luaState_, -1);
-                    std::cerr << "Node update error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
-                    lua_pop(luaState_, 1);
-                }
-            } else {
+            lua_pushnumber(luaState_, deltaTime);
+            if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
+                const char* errorMsg = lua_tostring(luaState_, -1);
+                std::cerr << "Node update error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
                 lua_pop(luaState_, 1);
             }
         }
@@ -3264,16 +3262,12 @@ void LuaInterface::handleNodeSensorEvent(const SensorEvent& event) {
             Node& node = nodeIt->second;
             if (node.onEnterFuncRef != LUA_NOREF) {
                 lua_rawgeti(luaState_, LUA_REGISTRYINDEX, node.onEnterFuncRef);
-                if (lua_isfunction(luaState_, -1)) {
-                    lua_pushinteger(luaState_, event.visitorBodyId);
-                    lua_pushnumber(luaState_, event.visitorX);
-                    lua_pushnumber(luaState_, event.visitorY);
-                    if (lua_pcall(luaState_, 3, 0, 0) != LUA_OK) {
-                        const char* errorMsg = lua_tostring(luaState_, -1);
-                        std::cerr << "Node onEnter error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
-                        lua_pop(luaState_, 1);
-                    }
-                } else {
+                lua_pushinteger(luaState_, event.visitorBodyId);
+                lua_pushnumber(luaState_, event.visitorX);
+                lua_pushnumber(luaState_, event.visitorY);
+                if (lua_pcall(luaState_, 3, 0, 0) != LUA_OK) {
+                    const char* errorMsg = lua_tostring(luaState_, -1);
+                    std::cerr << "Node onEnter error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
                     lua_pop(luaState_, 1);
                 }
             }
