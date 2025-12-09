@@ -29,10 +29,7 @@ int WaterEffectManager::createWaterForceField(int physicsForceFieldId,
         }
     }
 
-    if (slot < 0) {
-        std::cerr << "WaterEffectManager: Maximum water force fields reached" << std::endl;
-        return -1;
-    }
+    assert(slot >= 0);
 
     int waterFieldId = nextFieldId_++;
 
@@ -54,8 +51,6 @@ int WaterEffectManager::createWaterForceField(int physicsForceFieldId,
     field.active = true;
 
     ++activeFieldCount_;
-
-    std::cout << "Created water force field " << waterFieldId << " at slot " << slot << std::endl;
 
     return waterFieldId;
 }

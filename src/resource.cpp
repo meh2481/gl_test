@@ -112,6 +112,7 @@ ResourceData PakResource::getResource(uint64_t id) {
     if (!m_pakData.data) {
         std::cerr << "Resource pak not loaded, cannot get resource id " << id << std::endl;
         SDL_UnlockMutex(m_mutex);
+        assert(false);
         return ResourceData{nullptr, 0, 0};
     }
 
@@ -119,6 +120,7 @@ ResourceData PakResource::getResource(uint64_t id) {
     if (memcmp(header->sig, "PAKC", 4) != 0) {
         std::cerr << "Invalid pak file signature" << std::endl;
         SDL_UnlockMutex(m_mutex);
+        assert(false);
         return ResourceData{nullptr, 0, 0};
     }
 
@@ -146,6 +148,7 @@ ResourceData PakResource::getResource(uint64_t id) {
                 if (result != (int)comp->decompressedSize) {
                     std::cerr << "LZ4 decompression failed for resource " << id << std::endl;
                     SDL_UnlockMutex(m_mutex);
+                    assert(false);
                     return ResourceData{nullptr, 0, 0};
                 }
                 ResourceData resData = ResourceData{(char*)m_decompressedData[id].data(), comp->decompressedSize, comp->type};
@@ -157,6 +160,7 @@ ResourceData PakResource::getResource(uint64_t id) {
 
     std::cerr << "Resource " << id << " not found in pak" << std::endl;
     SDL_UnlockMutex(m_mutex);
+    assert(false);
     return ResourceData{nullptr, 0, 0};
 }
 

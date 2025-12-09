@@ -111,7 +111,6 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
 
         // Process collision hit events after each physics step
         b2ContactEvents contactEvents = b2World_GetContactEvents(worldId_);
-        // std::cout << "Contact events: begin=" << contactEvents.beginCount << " end=" << contactEvents.endCount << " hit=" << contactEvents.hitCount << std::endl;
         for (int i = 0; i < contactEvents.beginCount; ++i) {
             const b2ContactBeginTouchEvent& beginEvent = contactEvents.beginEvents[i];
             b2BodyId bodyIdA = b2Shape_GetBody(beginEvent.shapeIdA);

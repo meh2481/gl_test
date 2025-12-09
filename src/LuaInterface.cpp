@@ -38,8 +38,6 @@ LuaInterface::~LuaInterface() {
 }
 
 void LuaInterface::handleSensorEvent(const SensorEvent& event) {
-    std::cout << "Sensor event: sensorBodyId=" << event.sensorBodyId << " visitorBodyId=" << event.visitorBodyId
-              << " isBegin=" << event.isBegin << " visitorY=" << event.visitorY << " visitorVelY=" << event.visitorVelY << std::endl;
     if (event.sensorBodyId >= 0) {
         const auto& forceFields = physics_->getForceFields();
         for (const auto& pair : forceFields) {
@@ -62,6 +60,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                     const char* errorMsg = lua_tostring(luaState_, -1);
                                     std::cerr << "loadParticleShaders error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
                                     lua_pop(luaState_, 1);
+                                    assert(false);
                                     return;
                                 }
                                 int pipelineId = lua_tointeger(luaState_, -1);
@@ -73,6 +72,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                     const char* errorMsg = lua_tostring(luaState_, -1);
                                     std::cerr << "loadParticleConfig error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
                                     lua_pop(luaState_, 1);
+                                    assert(false);
                                     return;
                                 }
                                 int configRef = luaL_ref(luaState_, LUA_REGISTRYINDEX);
@@ -84,6 +84,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                     std::cerr << "createParticleSystem error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
                                     lua_pop(luaState_, 1);
                                     luaL_unref(luaState_, LUA_REGISTRYINDEX, configRef);
+                                    assert(false);
                                     return;
                                 }
                                 int particleSystemId = lua_tointeger(luaState_, -1);
@@ -95,7 +96,6 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                 lua_pushnumber(luaState_, event.visitorX);
                                 lua_pushnumber(luaState_, waterField->config.surfaceY);
                                 lua_pcall(luaState_, 3, 0, 0);
-                                std::cout << "Created particle system " << particleSystemId << " for enter" << std::endl;
                             } else {
                                 // Load particle shaders if not loaded
                                 lua_getglobal(luaState_, "loadParticleShaders");
@@ -107,6 +107,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                     const char* errorMsg = lua_tostring(luaState_, -1);
                                     std::cerr << "loadParticleShaders error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
                                     lua_pop(luaState_, 1);
+                                    assert(false);
                                     return;
                                 }
                                 int pipelineId = lua_tointeger(luaState_, -1);
@@ -118,6 +119,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                     const char* errorMsg = lua_tostring(luaState_, -1);
                                     std::cerr << "loadParticleConfig error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
                                     lua_pop(luaState_, 1);
+                                    assert(false);
                                     return;
                                 }
                                 int configRef = luaL_ref(luaState_, LUA_REGISTRYINDEX);
@@ -129,6 +131,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                     std::cerr << "createParticleSystem error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
                                     lua_pop(luaState_, 1);
                                     luaL_unref(luaState_, LUA_REGISTRYINDEX, configRef);
+                                    assert(false);
                                     return;
                                 }
                                 int particleSystemId = lua_tointeger(luaState_, -1);
@@ -140,7 +143,6 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                 lua_pushnumber(luaState_, event.visitorX);
                                 lua_pushnumber(luaState_, waterField->config.surfaceY);
                                 lua_pcall(luaState_, 3, 0, 0);
-                                std::cout << "Created particle system " << particleSystemId << " for exit" << std::endl;
                             }
                         }
                     }
@@ -184,7 +186,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "setCameraOffset", "setCameraZoom",
                                      "addLight", "updateLight", "removeLight", "setAmbientLight",
                                      "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "loadParticleShaders",
-                                     "openParticleEditor", "loadParticleConfig", "loadObject",
+                                     "openParticleEditor", "loadParticleConfig", "loadObject", "createNode", "getNode", "destroyNode", "getNodePosition",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -345,6 +347,7 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
                     const char* errorMsg = lua_tostring(luaState_, -1);
                     std::cerr << "Object update error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
                     lua_pop(luaState_, 1);
+                    assert(false);
                 }
             } else {
                 lua_pop(luaState_, 1); // Pop non-function
@@ -448,6 +451,7 @@ void LuaInterface::handleAction(uint64_t sceneId, Action action) {
         const char* errorMsg = lua_tostring(luaState_, -1);
         std::cerr << "Lua onAction error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
         lua_pop(luaState_, 2); // Pop error message and table
+        assert(false);
         return;
     }
 
@@ -466,6 +470,7 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
                     const char* errorMsg = lua_tostring(luaState_, -1);
                     std::cerr << "Object cleanup error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
                     lua_pop(luaState_, 1);
+                    assert(false);
                 }
             } else {
                 lua_pop(luaState_, 1); // Pop non-function
@@ -489,6 +494,7 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
                 const char* errorMsg = lua_tostring(luaState_, -1);
                 std::cerr << "Lua cleanup error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
                 lua_pop(luaState_, 1); // Pop error message
+                assert(false);
             }
         } else {
             lua_pop(luaState_, 1); // Pop nil
@@ -854,7 +860,6 @@ int LuaInterface::loadShaders(lua_State* L) {
     }
 
     if (alreadyLoaded) {
-        std::cout << "Shader pipeline z-index " << zIndex << ": already loaded (cache hit)" << std::endl;
         return 0; // No return values
     }
 
@@ -2272,6 +2277,7 @@ int LuaInterface::audioLoadOpus(lua_State* L) {
     if (!resourceData.data || resourceData.size == 0) {
         std::cerr << "Failed to load OPUS resource: " << resourceName << std::endl;
         lua_pushinteger(L, -1);
+        assert(false);
         return 1;
     }
 
@@ -2948,6 +2954,7 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
     if (!scriptData.data || scriptData.size == 0) {
         std::cerr << "Failed to load particle config: " << filename << std::endl;
         lua_pushnil(L);
+        assert(false);
         return 1;
     }
 
@@ -2957,6 +2964,7 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
         std::cerr << "Lua load error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
         lua_pop(L, 1);
         lua_pushnil(L);
+        assert(false);
         return 1;
     }
 
@@ -2966,6 +2974,7 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
         std::cerr << "Lua exec error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
         lua_pop(L, 1);
         lua_pushnil(L);
+        assert(false);
         return 1;
     }
 
@@ -2996,6 +3005,7 @@ int LuaInterface::loadObject(lua_State* L) {
     if (!scriptData.data || scriptData.size == 0) {
         std::cerr << "Failed to load object: " << filename << std::endl;
         lua_pushnil(L);
+        assert(false);
         return 1;
     }
 
@@ -3005,6 +3015,7 @@ int LuaInterface::loadObject(lua_State* L) {
         std::cerr << "Lua load error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
         lua_pop(L, 1);
         lua_pushnil(L);
+        assert(false);
         return 1;
     }
 
@@ -3014,6 +3025,7 @@ int LuaInterface::loadObject(lua_State* L) {
         std::cerr << "Lua exec error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
         lua_pop(L, 1);
         lua_pushnil(L);
+        assert(false);
         return 1;
     }
 
@@ -3034,6 +3046,7 @@ int LuaInterface::loadObject(lua_State* L) {
             const char* errorMsg = lua_tostring(L, -1);
             std::cerr << "Lua object create error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
             lua_pop(L, 1);
+            assert(false);
         }
     } else {
         lua_pop(L, 1); // Pop non-function value
@@ -3244,6 +3257,7 @@ void LuaInterface::updateNodes(float deltaTime) {
                 const char* errorMsg = lua_tostring(luaState_, -1);
                 std::cerr << "Node update error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
                 lua_pop(luaState_, 1);
+                assert(false);
             }
         }
     }
@@ -3269,6 +3283,7 @@ void LuaInterface::handleNodeSensorEvent(const SensorEvent& event) {
                     const char* errorMsg = lua_tostring(luaState_, -1);
                     std::cerr << "Node onEnter error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
                     lua_pop(luaState_, 1);
+                    assert(false);
                 }
             }
         }
@@ -3299,6 +3314,7 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
 
     if (vertShader.data == nullptr || fragShader.data == nullptr) {
         std::cerr << "Failed to load water shaders" << std::endl;
+        assert(false);
         return;
     }
 
@@ -3360,6 +3376,7 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
 
     if (waterLayerId < 0) {
         std::cerr << "Failed to create water layer" << std::endl;
+        assert(false);
         return;
     }
 

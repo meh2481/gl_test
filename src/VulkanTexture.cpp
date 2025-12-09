@@ -278,6 +278,7 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
         if (m_textures.find(atlasId) == m_textures.end()) {
             // Atlas not loaded, but we can't load it here without data
             std::cerr << "Atlas " << atlasId << " not loaded for texture " << textureId << std::endl;
+            assert(false && "Atlas texture not loaded");
             return;
         }
         // Associate the texture ID with the atlas texture

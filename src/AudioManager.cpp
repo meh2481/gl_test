@@ -212,6 +212,7 @@ int AudioManager::loadAudioBufferFromMemory(const void* data, size_t size, int s
     int slot = findFreeBufferSlot();
     if (slot == -1) {
         std::cerr << "No free buffer slots available" << std::endl;
+        assert(false);
         return -1;
     }
 
@@ -227,6 +228,7 @@ int AudioManager::loadAudioBufferFromMemory(const void* data, size_t size, int s
         format = AL_FORMAT_STEREO16;
     } else {
         std::cerr << "Unsupported audio format: " << channels << " channels, " << bitsPerSample << " bits" << std::endl;
+        assert(false);
         return -1;
     }
 
@@ -235,6 +237,7 @@ int AudioManager::loadAudioBufferFromMemory(const void* data, size_t size, int s
     ALenum error = alGetError();
     if (error != AL_NO_ERROR) {
         std::cerr << "Failed to generate audio buffer: " << error << std::endl;
+        assert(false);
         return -1;
     }
 
@@ -244,6 +247,7 @@ int AudioManager::loadAudioBufferFromMemory(const void* data, size_t size, int s
     if (error != AL_NO_ERROR) {
         std::cerr << "Failed to upload audio data: " << error << std::endl;
         alDeleteBuffers(1, &buffers[slot].buffer);
+        assert(false);
         return -1;
     }
 
@@ -260,6 +264,7 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
 
     if (!opusFile || error != 0) {
         std::cerr << "Failed to open OPUS data from memory, error code: " << error << std::endl;
+        assert(false);
         return -1;
     }
 
@@ -267,6 +272,7 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     const OpusHead* head = op_head(opusFile, -1);
     if (!head) {
         std::cerr << "Failed to get OPUS header" << std::endl;
+        assert(false);
         op_free(opusFile);
         return -1;
     }
@@ -287,6 +293,7 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     if (samplesRead < 0) {
         std::cerr << "Error reading OPUS data: " << samplesRead << std::endl;
         op_free(opusFile);
+        assert(false);
         return -1;
     }
 
@@ -294,6 +301,7 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
 
     if (pcmData.empty()) {
         std::cerr << "No audio data decoded from OPUS" << std::endl;
+        assert(false);
         return -1;
     }
 
@@ -304,22 +312,17 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     return bufferId;
 }
 
-int AudioManager::loadAudioBuffer(const char* filename) {
-    // TODO: Implement file loading
-    // For now, this is a placeholder
-    std::cerr << "loadAudioBuffer from file not yet implemented" << std::endl;
-    return -1;
-}
-
 int AudioManager::createAudioSource(int bufferId, bool looping, float volume) {
     if (bufferId < 0 || bufferId >= MAX_AUDIO_BUFFERS || !buffers[bufferId].loaded) {
         std::cerr << "Invalid buffer ID: " << bufferId << std::endl;
+        assert(false);
         return -1;
     }
 
     int slot = findFreeSourceSlot();
     if (slot == -1) {
         std::cerr << "No free source slots available" << std::endl;
+        assert(false);
         return -1;
     }
 
@@ -328,6 +331,7 @@ int AudioManager::createAudioSource(int bufferId, bool looping, float volume) {
     ALenum error = alGetError();
     if (error != AL_NO_ERROR) {
         std::cerr << "Failed to generate audio source: " << error << std::endl;
+        assert(false);
         return -1;
     }
 
@@ -363,6 +367,7 @@ int AudioManager::createAudioSource(int bufferId, bool looping, float volume) {
 void AudioManager::playSource(int sourceId) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
         std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        assert(false);
         return;
     }
 
@@ -372,6 +377,7 @@ void AudioManager::playSource(int sourceId) {
 void AudioManager::stopSource(int sourceId) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
         std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        assert(false);
         return;
     }
 
@@ -381,6 +387,7 @@ void AudioManager::stopSource(int sourceId) {
 void AudioManager::pauseSource(int sourceId) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
         std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        assert(false);
         return;
     }
 
@@ -390,6 +397,7 @@ void AudioManager::pauseSource(int sourceId) {
 void AudioManager::setSourcePosition(int sourceId, float x, float y, float z) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
         std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        assert(false);
         return;
     }
 
@@ -402,6 +410,7 @@ void AudioManager::setSourcePosition(int sourceId, float x, float y, float z) {
 void AudioManager::setSourceVelocity(int sourceId, float vx, float vy, float vz) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
         std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        assert(false);
         return;
     }
 
@@ -411,6 +420,7 @@ void AudioManager::setSourceVelocity(int sourceId, float vx, float vy, float vz)
 void AudioManager::setSourceVolume(int sourceId, float volume) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
         std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        assert(false);
         return;
     }
 
@@ -421,6 +431,7 @@ void AudioManager::setSourceVolume(int sourceId, float volume) {
 void AudioManager::setSourcePitch(int sourceId, float pitch) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
         std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        assert(false);
         return;
     }
 
@@ -430,6 +441,7 @@ void AudioManager::setSourcePitch(int sourceId, float pitch) {
 void AudioManager::setSourceLooping(int sourceId, bool looping) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
         std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        assert(false);
         return;
     }
 
@@ -481,6 +493,7 @@ void AudioManager::setGlobalVolume(float volume) {
 void AudioManager::setGlobalEffect(AudioEffect effect, float intensity) {
     if (!efxSupported) {
         std::cerr << "EFX not supported, cannot set global effect" << std::endl;
+        assert(false);
         return;
     }
 
