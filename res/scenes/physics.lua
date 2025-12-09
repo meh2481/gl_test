@@ -72,6 +72,29 @@ function init()
 
     createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 
+    -- Create test nodes to demonstrate the node system
+    -- Circle node with script callback at left side
+    local circleNodeScript = {
+        counter = 0,
+        update = function(dt)
+        end,
+        onEnter = function(bodyId, x, y)
+            print("Circle node entered by body " .. bodyId .. " at position (" .. x .. ", " .. y .. ")")
+        end
+    }
+    local circleNodeId = createNode("circle_test", {x = -1.0, y = 0.5, radius = 0.2}, circleNodeScript)
+
+    -- Polygon node without script at right side (for position query test)
+    local polyNodeVertices = {
+        0.6, -0.5,
+        0.8, -0.5,
+        0.8, -0.3,
+        0.6, -0.3
+    }
+    local polyNodeId = createNode("poly_test", {vertices = polyNodeVertices})
+    local polyX, polyY = getNodePosition(polyNodeId)
+    print("Polygon node created at position: (" .. polyX .. ", " .. polyY .. ")")
+
     -- Load objects
     table.insert(objects, loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.7 }))
     table.insert(objects, loadObject("res/objects/lightsaber/lightsaber.lua", { x = 0.3, y = 0.2, colorR = 0.3, colorG = 0.7, colorB = 1.0 }))
