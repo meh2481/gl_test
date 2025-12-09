@@ -74,15 +74,7 @@ function init()
 
     -- Create test nodes to demonstrate the node system
     -- Circle node with script callback at left side
-    local circleNodeScript = {
-        counter = 0,
-        update = function(dt)
-        end,
-        onEnter = function(bodyId, x, y)
-            print("Circle node entered by body " .. bodyId .. " at position (" .. x .. ", " .. y .. ")")
-        end
-    }
-    local circleNodeId = createNode("circle_test", {x = -1.0, y = 0.5, radius = 0.2}, circleNodeScript)
+    local circleNodeId = createNode("circle_test", {x = -1.0, y = 0.5, radius = 0.2}, "circle_node_script")
 
     -- Polygon node without script at right side (for position query test)
     local polyNodeVertices = {

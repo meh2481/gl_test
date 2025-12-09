@@ -3161,25 +3161,54 @@ int LuaInterface::createNode(lua_State* L) {
     node.onEnterFuncRef = LUA_NOREF;
 
     // Store optional script callbacks
-    if (numArgs >= 3 && lua_istable(L, 3)) {
+    if (numArgs >= 3) {
+        if (lua_isstring(L, 3)) {
+            // Load script directly from pak
+            std::string scriptName = lua_tostring(L, 3);
+            std::string scriptPath = "res/nodes/" + scriptName + ".lua";
+            uint64_t scriptId = std::hash<std::string>{}(scriptPath);
+            ResourceData scriptData = interface->pakResource_.getResource(scriptId);
+            if (scriptData.data && scriptData.size > 0) {
+                if (luaL_loadbuffer(L, (char*)scriptData.data, scriptData.size, scriptPath.c_str()) == LUA_OK) {
+                    if (lua_pcall(L, 0, 1, 0) == LUA_OK) {
+                        // Script table is now on top
+                    } else {
+                        std::cerr << "Failed to execute node script: " << scriptPath << std::endl;
+                        lua_pop(L, 1); // Pop error message
+                    }
+                } else {
+                    std::cerr << "Failed to load node script buffer: " << scriptPath << std::endl;
+                    lua_pop(L, 1); // Pop error message
+                }
+            } else {
+                std::cerr << "Failed to load node script: " << scriptPath << std::endl;
+            }
+        } else if (lua_istable(L, 3)) {
+            lua_pushvalue(L, 3);
+        }
+        // If neither string nor table, skip
+    }
+
+    if (lua_istable(L, -1)) {
         // Store reference to the script table
-        lua_pushvalue(L, 3);
         node.luaCallbackRef = luaL_ref(L, LUA_REGISTRYINDEX);
 
         // Get and store references to update and onEnter functions if they exist
-        lua_getfield(L, 3, "update");
+        lua_rawgeti(L, LUA_REGISTRYINDEX, node.luaCallbackRef);
+        lua_getfield(L, -1, "update");
         if (lua_isfunction(L, -1)) {
             node.updateFuncRef = luaL_ref(L, LUA_REGISTRYINDEX);
         } else {
             lua_pop(L, 1);
         }
 
-        lua_getfield(L, 3, "onEnter");
+        lua_getfield(L, -1, "onEnter");
         if (lua_isfunction(L, -1)) {
             node.onEnterFuncRef = luaL_ref(L, LUA_REGISTRYINDEX);
         } else {
             lua_pop(L, 1);
         }
+        lua_pop(L, 1); // Pop the table
     }
 
     interface->nodes_[nodeId] = node;
