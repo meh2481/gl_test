@@ -171,6 +171,10 @@ public:
     void addSegmentFixture(int bodyId, float x1, float y1, float x2, float y2, float friction = 0.3f, float restitution = 0.0f);
     void clearAllFixtures(int bodyId);
 
+    // Sensor shape management (for nodes)
+    void addCircleSensor(int bodyId, float radius);
+    void addPolygonSensor(int bodyId, const float* vertices, int vertexCount);
+
     // Joint management
     int createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy, float anchorBx, float anchorBy, bool enableLimit = false, float lowerAngle = 0.0f, float upperAngle = 0.0f);
     void destroyJoint(int jointId);

@@ -173,6 +173,11 @@ private:
     static int loadParticleConfig(lua_State* L);
     static int loadObject(lua_State* L);
 
+    // Node Lua bindings
+    static int createNode(lua_State* L);
+    static int destroyNode(lua_State* L);
+    static int getNodePosition(lua_State* L);
+
     void registerFunctions();
 
     PakResource& pakResource_;
@@ -208,4 +213,21 @@ private:
     // Scene objects tracking - objects created via loadObject are tracked here
     // The C++ side calls update/cleanup on these automatically
     std::vector<int> sceneObjects_; // Lua registry references to object tables
+
+    // Node system
+    struct Node {
+        int bodyId;           // Physics sensor body ID
+        std::string name;     // Node name for lookup
+        float centerX;        // Center position X
+        float centerY;        // Center position Y
+        int luaCallbackRef;   // Lua registry reference to callback table (or LUA_NOREF)
+        int updateFuncRef;    // Lua registry reference to update function (or LUA_NOREF)
+        int onEnterFuncRef;   // Lua registry reference to onEnter function (or LUA_NOREF)
+    };
+    std::unordered_map<int, Node> nodes_; // nodeId -> Node
+    std::unordered_map<int, int> bodyToNodeMap_; // bodyId -> nodeId
+    int nextNodeId_;
+
+    void updateNodes(float deltaTime);
+    void handleNodeSensorEvent(const SensorEvent& event);
 };

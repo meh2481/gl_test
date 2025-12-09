@@ -9,7 +9,7 @@
 #endif
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f) {
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), nextNodeId_(1) {
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;
@@ -27,7 +27,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, S
 
     registerFunctions();
 
-    // Set sensor callback for water splash detection
+    // Set sensor callback for water splash detection and node triggers
     physics_->setSensorCallback([this](const SensorEvent& event) { handleSensorEvent(event); });
 }
 
@@ -148,6 +148,9 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                 break; // Found the field, no need to continue
             }
         }
+
+        // Check if this is a node sensor
+        handleNodeSensorEvent(event);
     }
 }
 
@@ -411,6 +414,9 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
             }
         }
     }
+
+    // Update nodes
+    updateNodes(deltaTime);
 
     // Pop the table
     lua_pop(luaState_, 1);
@@ -756,6 +762,11 @@ void LuaInterface::registerFunctions() {
 
     // Register object loading function
     lua_register(luaState_, "loadObject", loadObject);
+
+    // Register node functions
+    lua_register(luaState_, "createNode", createNode);
+    lua_register(luaState_, "destroyNode", destroyNode);
+    lua_register(luaState_, "getNodePosition", getNodePosition);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -3035,6 +3046,239 @@ int LuaInterface::loadObject(lua_State* L) {
 
     // Return the module table (allows scene to access if needed, but update/cleanup are automatic)
     return 1;
+}
+
+int LuaInterface::createNode(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int numArgs = lua_gettop(L);
+    assert(numArgs >= 2);
+
+    // Arguments: name (string), shape (table with either {vertices={...}} or {radius=number, x=number, y=number}), [script (table)]
+    assert(lua_isstring(L, 1));
+    assert(lua_istable(L, 2));
+
+    std::string nodeName = lua_tostring(L, 1);
+
+    // Check shape type
+    lua_getfield(L, 2, "vertices");
+    bool isPolygon = lua_istable(L, -1);
+    lua_pop(L, 1);
+
+    int bodyId = -1;
+    float centerX = 0.0f;
+    float centerY = 0.0f;
+
+    if (isPolygon) {
+        // Polygon node
+        lua_getfield(L, 2, "vertices");
+        assert(lua_istable(L, -1));
+
+        float vertices[16];
+        int tableLen = (int)lua_rawlen(L, -1);
+        assert(tableLen >= 6 && tableLen <= 16);
+
+        for (int i = 0; i < tableLen; ++i) {
+            lua_rawgeti(L, -1, i + 1);
+            assert(lua_isnumber(L, -1));
+            vertices[i] = lua_tonumber(L, -1);
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+
+        int vertexCount = tableLen / 2;
+
+        // Calculate centroid
+        for (int i = 0; i < vertexCount; ++i) {
+            centerX += vertices[i * 2];
+            centerY += vertices[i * 2 + 1];
+        }
+        centerX /= vertexCount;
+        centerY /= vertexCount;
+
+        // Create static sensor body
+        bodyId = interface->physics_->createBody(0, centerX, centerY, 0.0f);
+
+        // Convert vertices to local coordinates
+        float localVertices[16];
+        for (int i = 0; i < vertexCount; ++i) {
+            localVertices[i * 2] = vertices[i * 2] - centerX;
+            localVertices[i * 2 + 1] = vertices[i * 2 + 1] - centerY;
+        }
+
+        // Add polygon sensor fixture
+        interface->physics_->addPolygonSensor(bodyId, localVertices, vertexCount);
+    } else {
+        // Circle node
+        lua_getfield(L, 2, "radius");
+        assert(lua_isnumber(L, -1));
+        float radius = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        lua_getfield(L, 2, "x");
+        assert(lua_isnumber(L, -1));
+        centerX = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        lua_getfield(L, 2, "y");
+        assert(lua_isnumber(L, -1));
+        centerY = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        // Create static sensor body
+        bodyId = interface->physics_->createBody(0, centerX, centerY, 0.0f);
+
+        // Add circle sensor fixture
+        interface->physics_->addCircleSensor(bodyId, radius);
+    }
+
+    // Create node entry
+    int nodeId = interface->nextNodeId_++;
+    Node node;
+    node.bodyId = bodyId;
+    node.name = nodeName;
+    node.centerX = centerX;
+    node.centerY = centerY;
+    node.luaCallbackRef = LUA_NOREF;
+    node.updateFuncRef = LUA_NOREF;
+    node.onEnterFuncRef = LUA_NOREF;
+
+    // Store optional script callbacks
+    if (numArgs >= 3 && lua_istable(L, 3)) {
+        // Store reference to the script table
+        lua_pushvalue(L, 3);
+        node.luaCallbackRef = luaL_ref(L, LUA_REGISTRYINDEX);
+
+        // Get and store references to update and onEnter functions if they exist
+        lua_getfield(L, 3, "update");
+        if (lua_isfunction(L, -1)) {
+            node.updateFuncRef = luaL_ref(L, LUA_REGISTRYINDEX);
+        } else {
+            lua_pop(L, 1);
+        }
+
+        lua_getfield(L, 3, "onEnter");
+        if (lua_isfunction(L, -1)) {
+            node.onEnterFuncRef = luaL_ref(L, LUA_REGISTRYINDEX);
+        } else {
+            lua_pop(L, 1);
+        }
+    }
+
+    interface->nodes_[nodeId] = node;
+    interface->bodyToNodeMap_[bodyId] = nodeId;
+
+    lua_pushinteger(L, nodeId);
+    return 1;
+}
+
+int LuaInterface::destroyNode(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int nodeId = lua_tointeger(L, 1);
+
+    auto it = interface->nodes_.find(nodeId);
+    if (it != interface->nodes_.end()) {
+        Node& node = it->second;
+
+        // Unref Lua callbacks
+        if (node.luaCallbackRef != LUA_NOREF) {
+            luaL_unref(L, LUA_REGISTRYINDEX, node.luaCallbackRef);
+        }
+        if (node.updateFuncRef != LUA_NOREF) {
+            luaL_unref(L, LUA_REGISTRYINDEX, node.updateFuncRef);
+        }
+        if (node.onEnterFuncRef != LUA_NOREF) {
+            luaL_unref(L, LUA_REGISTRYINDEX, node.onEnterFuncRef);
+        }
+
+        // Remove from body map
+        interface->bodyToNodeMap_.erase(node.bodyId);
+
+        // Destroy physics body
+        interface->physics_->destroyBody(node.bodyId);
+
+        // Remove node
+        interface->nodes_.erase(it);
+    }
+
+    return 0;
+}
+
+int LuaInterface::getNodePosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int nodeId = lua_tointeger(L, 1);
+
+    auto it = interface->nodes_.find(nodeId);
+    if (it != interface->nodes_.end()) {
+        lua_pushnumber(L, it->second.centerX);
+        lua_pushnumber(L, it->second.centerY);
+        return 2;
+    }
+
+    return 0;
+}
+
+void LuaInterface::updateNodes(float deltaTime) {
+    for (auto& pair : nodes_) {
+        Node& node = pair.second;
+        if (node.updateFuncRef != LUA_NOREF) {
+            lua_rawgeti(luaState_, LUA_REGISTRYINDEX, node.updateFuncRef);
+            if (lua_isfunction(luaState_, -1)) {
+                lua_pushnumber(luaState_, deltaTime);
+                if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
+                    const char* errorMsg = lua_tostring(luaState_, -1);
+                    std::cerr << "Node update error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                    lua_pop(luaState_, 1);
+                }
+            } else {
+                lua_pop(luaState_, 1);
+            }
+        }
+    }
+}
+
+void LuaInterface::handleNodeSensorEvent(const SensorEvent& event) {
+    if (!event.isBegin) {
+        return;
+    }
+
+    auto it = bodyToNodeMap_.find(event.sensorBodyId);
+    if (it != bodyToNodeMap_.end()) {
+        int nodeId = it->second;
+        auto nodeIt = nodes_.find(nodeId);
+        if (nodeIt != nodes_.end()) {
+            Node& node = nodeIt->second;
+            if (node.onEnterFuncRef != LUA_NOREF) {
+                lua_rawgeti(luaState_, LUA_REGISTRYINDEX, node.onEnterFuncRef);
+                if (lua_isfunction(luaState_, -1)) {
+                    lua_pushinteger(luaState_, event.visitorBodyId);
+                    lua_pushnumber(luaState_, event.visitorX);
+                    lua_pushnumber(luaState_, event.visitorY);
+                    if (lua_pcall(luaState_, 3, 0, 0) != LUA_OK) {
+                        const char* errorMsg = lua_tostring(luaState_, -1);
+                        std::cerr << "Node onEnter error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                        lua_pop(luaState_, 1);
+                    }
+                } else {
+                    lua_pop(luaState_, 1);
+                }
+            }
+        }
+    }
 }
 
 void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,

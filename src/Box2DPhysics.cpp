@@ -479,6 +479,41 @@ void Box2DPhysics::addSegmentFixture(int bodyId, float x1, float y1, float x2, f
     b2CreateSegmentShape(it->second, &shapeDef, &segment);
 }
 
+void Box2DPhysics::addCircleSensor(int bodyId, float radius) {
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+
+    b2Circle circle;
+    circle.center = (b2Vec2){0.0f, 0.0f};
+    circle.radius = radius;
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.isSensor = true;
+    shapeDef.enableSensorEvents = true;
+
+    b2CreateCircleShape(it->second, &shapeDef, &circle);
+}
+
+void Box2DPhysics::addPolygonSensor(int bodyId, const float* vertices, int vertexCount) {
+    auto it = bodies_.find(bodyId);
+    assert(it != bodies_.end());
+    assert(vertexCount >= 3 && vertexCount <= 8);
+
+    b2Vec2 points[8];
+    for (int i = 0; i < vertexCount; ++i) {
+        points[i] = (b2Vec2){vertices[i * 2], vertices[i * 2 + 1]};
+    }
+
+    b2Hull hull = b2ComputeHull(points, vertexCount);
+    b2Polygon polygon = b2MakePolygon(&hull, 0.0f);
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.isSensor = true;
+    shapeDef.enableSensorEvents = true;
+
+    b2CreatePolygonShape(it->second, &shapeDef, &polygon);
+}
+
 void Box2DPhysics::clearAllFixtures(int bodyId) {
     auto it = bodies_.find(bodyId);
     assert(it != bodies_.end());
