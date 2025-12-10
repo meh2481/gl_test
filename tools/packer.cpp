@@ -1,4 +1,4 @@
-#include "../src/ResourceTypes.h"
+#include "../src/core/ResourceTypes.h"
 #include <iostream>
 #include <fstream>
 #include <vector>

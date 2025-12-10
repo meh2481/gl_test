@@ -5,15 +5,15 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
-#include "resources/resource.h"
-#include "vulkan/VulkanRenderer.h"
-#include "physics/Box2DPhysics.h"
+#include "../resources/resource.h"
+#include "../vulkan/VulkanRenderer.h"
+#include "../physics/Box2DPhysics.h"
 #include "SceneLayer.h"
-#include "effects/ParticleSystem.h"
-#include "input/InputActions.h"
-#include "audio/AudioManager.h"
-#include "input/VibrationManager.h"
-#include "effects/WaterEffect.h"
+#include "../effects/ParticleSystem.h"
+#include "../input/InputActions.h"
+#include "../audio/AudioManager.h"
+#include "../input/VibrationManager.h"
+#include "../effects/WaterEffect.h"
 
 class SceneManager;
 

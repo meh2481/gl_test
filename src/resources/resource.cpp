@@ -1,5 +1,5 @@
 #include "resource.h"
-#include "core/ResourceTypes.h"
+#include "../core/ResourceTypes.h"
 #include <cstring>
 #include <cassert>
 #include <iostream>

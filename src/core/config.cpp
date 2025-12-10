@@ -18,20 +18,20 @@ ConfigManager::ConfigManager() : entryCount(0) {
 
 void ConfigManager::trimWhitespace(char* str) {
     if (!str || str[0] == '\0') return;
-    
+
     // Trim leading whitespace
     char* start = str;
     while (*start == ' ' || *start == '\t' || *start == '\r' || *start == '\n') {
         start++;
     }
-    
+
     // Trim trailing whitespace
     char* end = start + SDL_strlen(start) - 1;
     while (end > start && (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n')) {
         end--;
     }
     *(end + 1) = '\0';
-    
+
     // Move trimmed string to beginning if needed
     if (start != str) {
         SDL_memmove(str, start, SDL_strlen(start) + 1);
@@ -40,7 +40,7 @@ void ConfigManager::trimWhitespace(char* str) {
 
 int ConfigManager::findEntry(const char* section, const char* key) {
     for (int i = 0; i < entryCount; i++) {
-        if (SDL_strcmp(entries[i].section, section) == 0 && 
+        if (SDL_strcmp(entries[i].section, section) == 0 &&
             SDL_strcmp(entries[i].key, key) == 0) {
             return i;
         }
@@ -51,23 +51,23 @@ int ConfigManager::findEntry(const char* section, const char* key) {
 bool ConfigManager::load(const char* filename) {
     SDL_strlcpy(configFilePath, filename, sizeof(configFilePath));
     entryCount = 0;
-    
+
     SDL_IOStream* file = SDL_IOFromFile(filename, "r");
     if (!file) {
         return false;
     }
-    
+
     char line[MAX_CONFIG_LINE];
     char currentSection[MAX_CONFIG_KEY] = "";
     size_t len = 0;
     char ch;
-    
+
     while (SDL_ReadIO(file, &ch, 1) == 1) {
         if (ch == '\n' || ch == '\r' || len >= sizeof(line) - 1) {
             if (len > 0) {
                 line[len] = '\0';
                 trimWhitespace(line);
-                
+
                 // Skip empty lines and comments
                 if (line[0] != '\0' && line[0] != '#' && line[0] != ';') {
                     // Check for section header [Section]
@@ -85,10 +85,10 @@ bool ConfigManager::load(const char* filename) {
                             *equals = '\0';
                             char* keyStr = line;
                             char* valueStr = equals + 1;
-                            
+
                             trimWhitespace(keyStr);
                             trimWhitespace(valueStr);
-                            
+
                             if (keyStr[0] != '\0') {
                                 SDL_strlcpy(entries[entryCount].section, currentSection, MAX_CONFIG_KEY);
                                 SDL_strlcpy(entries[entryCount].key, keyStr, MAX_CONFIG_KEY);
@@ -104,12 +104,12 @@ bool ConfigManager::load(const char* filename) {
             line[len++] = ch;
         }
     }
-    
+
     // Process last line if no trailing newline
     if (len > 0) {
         line[len] = '\0';
         trimWhitespace(line);
-        
+
         if (line[0] != '\0' && line[0] != '#' && line[0] != ';') {
             if (line[0] == '[') {
                 char* endBracket = SDL_strchr(line, ']');
@@ -124,10 +124,10 @@ bool ConfigManager::load(const char* filename) {
                     *equals = '\0';
                     char* keyStr = line;
                     char* valueStr = equals + 1;
-                    
+
                     trimWhitespace(keyStr);
                     trimWhitespace(valueStr);
-                    
+
                     if (keyStr[0] != '\0') {
                         SDL_strlcpy(entries[entryCount].section, currentSection, MAX_CONFIG_KEY);
                         SDL_strlcpy(entries[entryCount].key, keyStr, MAX_CONFIG_KEY);
@@ -138,35 +138,35 @@ bool ConfigManager::load(const char* filename) {
             }
         }
     }
-    
+
     SDL_CloseIO(file);
     return true;
 }
 
 bool ConfigManager::save() {
     assert(configFilePath[0] != '\0');
-    
+
     SDL_IOStream* file = SDL_IOFromFile(configFilePath, "w");
     if (!file) {
         return false;
     }
-    
+
     // Group entries by section and write them
     char currentSection[MAX_CONFIG_KEY] = "";
     bool firstSection = true;
-    
+
     for (int i = 0; i < entryCount; i++) {
         // Write section header if section changed
         if (SDL_strcmp(currentSection, entries[i].section) != 0) {
             SDL_strlcpy(currentSection, entries[i].section, sizeof(currentSection));
-            
+
             // Add blank line before new section (except first)
             if (!firstSection) {
                 const char* newline = "\n";
                 SDL_WriteIO(file, newline, SDL_strlen(newline));
             }
             firstSection = false;
-            
+
             // Write section header if not empty
             if (currentSection[0] != '\0') {
                 char sectionHeader[MAX_CONFIG_LINE];
@@ -174,13 +174,13 @@ bool ConfigManager::save() {
                 SDL_WriteIO(file, sectionHeader, SDL_strlen(sectionHeader));
             }
         }
-        
+
         // Write key=value
         char line[MAX_CONFIG_LINE];
         SDL_snprintf(line, sizeof(line), "%s = %s\n", entries[i].key, entries[i].value);
         SDL_WriteIO(file, line, SDL_strlen(line));
     }
-    
+
     SDL_CloseIO(file);
     return true;
 }

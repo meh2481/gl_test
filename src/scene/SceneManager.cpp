@@ -1,7 +1,7 @@
 #include "SceneManager.h"
 #include "LuaInterface.h"
 #include "SceneLayer.h"
-#include "effects/ParticleSystem.h"
+#include "../effects/ParticleSystem.h"
 #include <cassert>
 #include <cmath>
 #include <iostream>

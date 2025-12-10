@@ -3,7 +3,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
-#include "resources/resource.h"
+#include "../resources/resource.h"
 #include "VulkanBuffer.h"
 #include "VulkanTexture.h"
 #include "VulkanDescriptor.h"

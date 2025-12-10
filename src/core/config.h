@@ -25,32 +25,32 @@ private:
         char key[MAX_CONFIG_KEY];
         char value[MAX_CONFIG_VALUE];
     };
-    
+
     ConfigEntry entries[MAX_CONFIG_ENTRIES];
     int entryCount;
     char configFilePath[1024];
-    
+
     void trimWhitespace(char* str);
     int findEntry(const char* section, const char* key);
-    
+
 public:
     ConfigManager();
-    
+
     // Load config from file
     bool load(const char* filename);
-    
+
     // Save config to file
     bool save();
-    
+
     // Read a string value from a section
     const char* getString(const char* section, const char* key, const char* defaultValue = "");
-    
+
     // Read an integer value from a section
     int getInt(const char* section, const char* key, int defaultValue = 0);
-    
+
     // Write a string value to a section
     void setString(const char* section, const char* key, const char* value);
-    
+
     // Write an integer value to a section
     void setInt(const char* section, const char* key, int value);
 };

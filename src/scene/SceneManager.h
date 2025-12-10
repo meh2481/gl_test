@@ -3,10 +3,10 @@
 #include <stack>
 #include <unordered_set>
 #include <memory>
-#include "resources/resource.h"
-#include "vulkan/VulkanRenderer.h"
-#include "input/InputActions.h"
-#include "input/VibrationManager.h"
+#include "../resources/resource.h"
+#include "../vulkan/VulkanRenderer.h"
+#include "../input/InputActions.h"
+#include "../input/VibrationManager.h"
 
 class LuaInterface;
 
