@@ -2,16 +2,22 @@
 #include "LuaInterface.h"
 #include "SceneLayer.h"
 #include "../effects/ParticleSystem.h"
+#include "../memory/SmallAllocator.h"
 #include <cassert>
 #include <cmath>
 #include <iostream>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1) {
+    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), allocator_(nullptr) {
+    allocator_ = new SmallAllocator();
 }
 
 SceneManager::~SceneManager() {
     // LuaInterface will be automatically cleaned up
+    if (allocator_) {
+        delete allocator_;
+        allocator_ = nullptr;
+    }
 }
 
 void SceneManager::pushScene(uint64_t sceneId) {
@@ -103,7 +109,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         }
 
         // Generate sprite batches grouped by texture
-        std::vector<SpriteBatch> spriteBatches;
+        Vector<SpriteBatch> spriteBatches(*allocator_);
         float cameraX = luaInterface_->getCameraOffsetX();
         float cameraY = luaInterface_->getCameraOffsetY();
         float cameraZoom = luaInterface_->getCameraZoom();
@@ -130,7 +136,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         }
 
         // Generate particle batches - one per particle system for proper parallax sorting
-        std::vector<ParticleBatch> particleBatches;
+        Vector<ParticleBatch> particleBatches(*allocator_);
 
         for (int i = 0; i < particleManager.getSystemCount(); ++i) {
             ParticleSystem* system = &particleManager.getSystems()[i];
@@ -147,7 +153,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                 }
             }
 
-            ParticleBatch batch;
+            ParticleBatch batch(*allocator_);
             batch.textureId = textureId;
             batch.pipelineId = system->pipelineId;
             batch.parallaxDepth = system->parallaxDepth;
@@ -243,8 +249,8 @@ bool SceneManager::updateActiveScene(float deltaTime) {
 
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {
-            const std::vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
-            std::vector<float> lineVertexData;
+            const Vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
+            Vector<float> lineVertexData(*allocator_);
             lineVertexData.reserve(debugLineVerts.size() * 6);
             for (const auto& v : debugLineVerts) {
                 lineVertexData.push_back(v.x);
@@ -256,8 +262,8 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             }
             renderer_.setDebugLineDrawData(lineVertexData);
 
-            const std::vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
-            std::vector<float> triangleVertexData;
+            const Vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
+            Vector<float> triangleVertexData(*allocator_);
             triangleVertexData.reserve(debugTriangleVerts.size() * 6);
             for (size_t i = 0; i < debugTriangleVerts.size(); i += 3) {
                 // Reverse winding order: v0, v2, v1 instead of v0, v1, v2
@@ -289,8 +295,9 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             renderer_.setDebugTriangleDrawData(triangleVertexData);
         } else {
             // Clear debug draw data
-            renderer_.setDebugLineDrawData({});
-            renderer_.setDebugTriangleDrawData({});
+            Vector<float> emptyVector(*allocator_);
+            renderer_.setDebugLineDrawData(emptyVector);
+            renderer_.setDebugTriangleDrawData(emptyVector);
         }
 
         // Pop the scene after Lua execution is complete

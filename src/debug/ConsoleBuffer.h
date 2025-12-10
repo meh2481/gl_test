@@ -2,12 +2,12 @@
 
 #ifdef DEBUG
 
-#include <vector>
 #include <mutex>
 #include <sstream>
 #include <iostream>
 #include <functional>
 #include "../core/String.h"
+#include "../core/Vector.h"
 #include "../memory/MemoryAllocator.h"
 #include "../memory/SmallAllocator.h"
 
@@ -24,11 +24,11 @@ public:
         lines_.push_back(String(line.c_str(), stringAllocator_));
         // Keep buffer size reasonable (max 1000 lines)
         if (lines_.size() > 1000) {
-            lines_.erase(lines_.begin());
+            lines_.erase(0);
         }
     }
 
-    const std::vector<String>& getLines() {
+    const Vector<String>& getLines() {
         return lines_;
     }
 
@@ -38,8 +38,7 @@ public:
     }
 
 private:
-    ConsoleBuffer() {
-        stringAllocator_ = new SmallAllocator();
+    ConsoleBuffer() : lines_(*(stringAllocator_ = new SmallAllocator())) {
     }
     ~ConsoleBuffer() {
         // Clear lines before deleting allocator (lines contain Strings that use the allocator)
@@ -49,7 +48,7 @@ private:
             stringAllocator_ = nullptr;
         }
     }
-    std::vector<String> lines_;
+    Vector<String> lines_;
     std::mutex mutex_;
     MemoryAllocator* stringAllocator_;
 };

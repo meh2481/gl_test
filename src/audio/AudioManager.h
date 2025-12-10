@@ -131,6 +131,9 @@ private:
     AudioEffect currentEffect;
     float currentEffectIntensity;
 
+    // Memory allocator for Vector usage
+    class MemoryAllocator* allocator;
+
     // Helper function to find free source slot
     int findFreeSourceSlot();
 

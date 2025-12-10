@@ -7,6 +7,7 @@
 #include "../vulkan/VulkanRenderer.h"
 #include "../input/InputActions.h"
 #include "../input/VibrationManager.h"
+#include "../memory/MemoryAllocator.h"
 
 class LuaInterface;
 
@@ -63,4 +64,7 @@ private:
     bool particleEditorActive_;
     int particleEditorPipelineId_;
     int editorPreviewSystemId_;
+
+    // Memory allocator for Vector members
+    MemoryAllocator* allocator_;
 };

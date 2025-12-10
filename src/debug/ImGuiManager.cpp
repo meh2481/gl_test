@@ -1371,7 +1371,8 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     }
 
     // Read file content using vector for RAII
-    std::vector<char> content(fileSize + 1);
+    Vector<char> content(*stringAllocator_);
+    content.resize(fileSize + 1);
     size_t bytesRead = fread(content.data(), 1, fileSize, file);
     fclose(file);
     content[bytesRead] = '\0';

@@ -1,4 +1,5 @@
 #include "SceneLayer.h"
+#include "../memory/SmallAllocator.h"
 #include <cmath>
 #include <cassert>
 #include <algorithm>
@@ -18,10 +19,15 @@ struct PairHash {
 };
 
 SceneLayerManager::SceneLayerManager()
-    : nextLayerId_(1) {
+    : nextLayerId_(1), allocator_(nullptr) {
+    allocator_ = new SmallAllocator();
 }
 
 SceneLayerManager::~SceneLayerManager() {
+    if (allocator_) {
+        delete allocator_;
+        allocator_ = nullptr;
+    }
 }
 
 int SceneLayerManager::createLayer(uint64_t textureId, float width, float height, uint64_t normalMapId, int pipelineId) {
@@ -303,7 +309,7 @@ void SceneLayerManager::clear() {
     layers_.clear();
 }
 
-void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, float cameraX, float cameraY, float cameraZoom) {
+void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float cameraX, float cameraY, float cameraZoom) {
     batches.clear();
 
     // Group layers by pipeline ID, descriptor ID, AND parallax depth
@@ -358,7 +364,7 @@ void SceneLayerManager::updateLayerVertices(std::vector<SpriteBatch>& batches, f
         if (batchIt == batchMap.end() || hasAnimation) {
             // Always create new batch for animated layers or if batch doesn't exist
             batchIndex = batches.size();
-            batches.push_back(SpriteBatch());
+            batches.push_back(SpriteBatch(*allocator_));
             // Use atlas texture ID if available, otherwise original texture ID
             batches[batchIndex].textureId = layer.textureUV.isAtlas ? layer.atlasTextureId : layer.textureId;
             batches[batchIndex].normalMapId = layer.normalMapUV.isAtlas ? layer.atlasNormalMapId : layer.normalMapId;

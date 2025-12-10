@@ -2,9 +2,10 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <vector>
 #include <map>
 #include <SDL3/SDL.h>
+#include "../core/Vector.h"
+#include "../memory/MemoryAllocator.h"
 
 struct ResourceData {
     char* data;
@@ -43,9 +44,10 @@ public:
 
 private:
     ResourceData m_pakData;
-    std::map<uint64_t, std::vector<char>> m_decompressedData;
+    std::map<uint64_t, Vector<char>> m_decompressedData;
     std::map<uint64_t, AtlasUV> m_atlasUVCache;  // Cache of atlas UV lookups
     SDL_Mutex* m_mutex;
+    MemoryAllocator* m_allocator;
 
 #ifdef _WIN32
     HANDLE m_hFile;
