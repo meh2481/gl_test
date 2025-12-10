@@ -46,8 +46,9 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
 
 Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
                                 timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
-                                nextForceFieldId_(0), stringAllocator_(nullptr),
-                                debugLineVertices_(*(stringAllocator_ = new SmallAllocator())),
+                                nextForceFieldId_(0),
+                                stringAllocator_(new SmallAllocator()),
+                                debugLineVertices_(*stringAllocator_),
                                 debugTriangleVertices_(*stringAllocator_),
                                 collisionHitEvents_(*stringAllocator_),
                                 fractureEvents_(*stringAllocator_),

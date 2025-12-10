@@ -347,6 +347,10 @@ private:
     int nextBodyId_;
     int nextJointId_;
     bool debugDrawEnabled_;
+
+    // Memory allocator for string operations (must be before Vector members)
+    MemoryAllocator* stringAllocator_;
+
     Vector<DebugVertex> debugLineVertices_;
     Vector<DebugVertex> debugTriangleVertices_;
 
@@ -394,9 +398,6 @@ private:
 
     // Type system for object interactions
     std::unordered_map<int, Vector<String>> bodyTypes_;
-
-    // Memory allocator for string operations
-    MemoryAllocator* stringAllocator_;
 
     // Collision callback
     CollisionCallback collisionCallback_;
