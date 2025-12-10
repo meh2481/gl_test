@@ -66,6 +66,9 @@ function DestructibleBox.create(params)
     DestructibleBox.body = b2CreateBody(B2_DYNAMIC_BODY, config.x, config.y, 0)
     b2AddPolygonFixture(DestructibleBox.body, boxVerts, 1.0, 0.3, 0.3)
 
+    -- Add "destructible" type for type-based interactions
+    b2AddBodyType(DestructibleBox.body, "destructible")
+
     -- Create layer
     DestructibleBox.layer = createLayer(DestructibleBox.texId, config.size * 2, DestructibleBox.normId, DestructibleBox.shaderId)
     attachLayerToBody(DestructibleBox.layer, DestructibleBox.body)

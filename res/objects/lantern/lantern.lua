@@ -151,6 +151,9 @@ function Lantern.create(params)
     -- Create the light
     Lantern.lightId = addLight(startX, startY, config.lightZ, config.lightR, config.lightG, config.lightB, config.lightIntensity)
 
+    -- Add "fire" type to the light body for type-based interactions
+    b2AddBodyType(Lantern.lightBody, "fire")
+
     -- Create particle system if enabled
     if config.enableParticles and Lantern.particlePipelineId then
         local particleConfig = loadParticleConfig("res/fx/lantern_bugs.lua")
@@ -163,6 +166,50 @@ function Lantern.create(params)
     end
 
     return Lantern
+end
+
+function Lantern.extinguish()
+    if not Lantern.lightId then return end
+
+    if Lantern.particleSystemId then
+        destroyParticleSystem(Lantern.particleSystemId)
+        Lantern.particleSystemId = nil
+    end
+
+    updateLight(Lantern.lightId, 0, 0, 0, 0, 0, 0, 0)
+
+    if Lantern.layers and #Lantern.layers >= 3 then
+        local bloomLayerId = Lantern.layers[3]
+        if bloomLayerId then
+            setLayerScale(bloomLayerId, 0, 0)
+        end
+    end
+end
+
+function Lantern.relight()
+    if not Lantern.lightBody then return end
+
+    local x, y = b2GetBodyPosition(Lantern.lightBody)
+    if x == nil or y == nil then return end
+
+    updateLight(Lantern.lightId, x, y, config.lightZ, config.lightR, config.lightG, config.lightB, config.lightIntensity)
+
+    if Lantern.layers and #Lantern.layers >= 3 then
+        local bloomLayerId = Lantern.layers[3]
+        if bloomLayerId then
+            setLayerScale(bloomLayerId, 1.0, 1.0)
+        end
+    end
+
+    if config.enableParticles and Lantern.particlePipelineId and not Lantern.particleSystemId then
+        local particleConfig = loadParticleConfig("res/fx/lantern_bugs.lua")
+        if particleConfig then
+            particleConfig.textureIds = {Lantern.bloomTexId}
+            particleConfig.textureCount = 1
+            Lantern.particleSystemId = createParticleSystem(particleConfig, Lantern.particlePipelineId)
+            setParticleSystemPosition(Lantern.particleSystemId, x, y)
+        end
+    end
 end
 
 function Lantern.update(deltaTime)

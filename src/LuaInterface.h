@@ -119,6 +119,7 @@ private:
     // Force field Lua bindings
     static int createForceField(lua_State* L);
     static int createRadialForceField(lua_State* L);
+    static int getForceFieldBodyId(lua_State* L);
 
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);

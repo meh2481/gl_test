@@ -43,6 +43,9 @@ function Rock.create(params)
     Rock.body = b2CreateBody(B2_DYNAMIC_BODY, config.x, config.y, 0)
     b2AddCircleFixture(Rock.body, config.radius, 1.0, 0.3, 0.5)
 
+    -- Add "heavy" type for type-based interactions
+    b2AddBodyType(Rock.body, "heavy")
+
     Rock.layer = createLayer(Rock.texId, 0.3, Rock.normId, Rock.shaderId)
     attachLayerToBody(Rock.layer, Rock.body)
 

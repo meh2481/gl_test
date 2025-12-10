@@ -177,7 +177,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
                                      "b2AddBodyType", "b2RemoveBodyType", "b2ClearBodyTypes", "b2BodyHasType", "b2GetBodyTypes", "b2SetCollisionCallback",
-                                     "createForceField", "createRadialForceField",
+                                     "createForceField", "createRadialForceField", "getForceFieldBodyId",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "setLayerOffset", "setLayerUseLocalUV", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
                                      "setLayerSpin", "setLayerBlink", "setLayerWave", "setLayerColor", "setLayerColorCycle",
                                      "audioLoadOpus", "audioCreateSource", "audioPlaySource",
@@ -714,6 +714,7 @@ void LuaInterface::registerFunctions() {
     // Register force field functions
     lua_register(luaState_, "createForceField", createForceField);
     lua_register(luaState_, "createRadialForceField", createRadialForceField);
+    lua_register(luaState_, "getForceFieldBodyId", getForceFieldBodyId);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -1707,6 +1708,19 @@ int LuaInterface::createRadialForceField(lua_State* L) {
 
     int forceFieldId = interface->physics_->createRadialForceField(centerX, centerY, radius, forceAtCenter, forceAtEdge);
     lua_pushinteger(L, forceFieldId);
+    return 1;
+}
+
+int LuaInterface::getForceFieldBodyId(lua_State* L) {
+    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    int forceFieldId = luaL_checkinteger(L, 1);
+
+    const ForceField* field = interface->physics_->getForceField(forceFieldId);
+    if (field) {
+        lua_pushinteger(L, field->bodyId);
+    } else {
+        lua_pushnil(L);
+    }
     return 1;
 }
 

@@ -70,6 +70,12 @@ function init()
     -- Create force field with water=true to automatically set up water visuals
     waterField = createForceField(waterVertices, 0.0, 15.0, true)
 
+    -- Add "water" type to the water force field body
+    local waterBodyId = getForceFieldBodyId(waterField)
+    if waterBodyId then
+        b2AddBodyType(waterBodyId, "water")
+    end
+
     createRadialForceField(0.9, 0.0, 0.5, -20.0, -15.0)
 
     -- Create test nodes to demonstrate the node system
@@ -94,6 +100,68 @@ function init()
     table.insert(objects, loadObject("res/objects/destructible_box/destructible_box.lua", { x = 0.8, y = 0.5 }))
     table.insert(objects, loadObject("res/objects/destructible_box/destructible_box.lua", { x = 1.2, y = 0.5 }))
     table.insert(objects, loadObject("res/objects/rock/rock.lua", { x = 0.0, y = 0.5 }))
+
+    -- Set up collision callback for type-based interactions
+    b2SetCollisionCallback(handleCollision)
+end
+
+function handleCollision(bodyIdA, bodyIdB, pointX, pointY, normalX, normalY, approachSpeed)
+    local typesA = b2GetBodyTypes(bodyIdA)
+    local typesB = b2GetBodyTypes(bodyIdB)
+
+    if not typesA or not typesB then return end
+
+    local function hasType(types, type)
+        for _, t in ipairs(types) do
+            if t == type then return true end
+        end
+        return false
+    end
+
+    local fireBody = nil
+    local waterBody = nil
+    local laserBody = nil
+    local destructibleBody = nil
+
+    if hasType(typesA, "fire") then fireBody = bodyIdA end
+    if hasType(typesB, "fire") then fireBody = bodyIdB end
+    if hasType(typesA, "water") then waterBody = bodyIdA end
+    if hasType(typesB, "water") then waterBody = bodyIdB end
+    if hasType(typesA, "laser") then laserBody = bodyIdA end
+    if hasType(typesB, "laser") then laserBody = bodyIdB end
+    if hasType(typesA, "destructible") then destructibleBody = bodyIdA end
+    if hasType(typesB, "destructible") then destructibleBody = bodyIdB end
+
+    if fireBody and waterBody then
+        for _, obj in ipairs(objects) do
+            if obj.lightBody and obj.lightBody == fireBody and obj.extinguish then
+                obj.extinguish()
+            end
+        end
+    end
+
+    if laserBody and fireBody then
+        for _, obj in ipairs(objects) do
+            if obj.lightBody and obj.lightBody == fireBody and obj.relight then
+                obj.relight()
+            end
+        end
+    end
+
+    if laserBody and destructibleBody then
+        local x, y = b2GetBodyPosition(destructibleBody)
+        if x then
+            for _, obj in ipairs(objects) do
+                if obj.getBody and obj.getBody() == destructibleBody then
+                    local verts = obj.getVertices and obj.getVertices()
+                    if not verts then
+                        verts = {-0.12, -0.12, 0.12, -0.12, 0.12, 0.12, -0.12, 0.12}
+                    end
+                    b2SetBodyDestructible(destructibleBody, 0.1, 0.9, verts, obj.texId or 0, obj.normId or 0, obj.shaderId or 0)
+                end
+            end
+        end
+    end
 end
 
 function createBoundaries()
