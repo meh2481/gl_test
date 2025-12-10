@@ -1,35 +1,42 @@
 #pragma once
 
+#include "MemoryAllocator.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cassert>
 #include <new>
 
-template<typename T>
-class Allocator {
+class DefaultMemoryAllocator : public MemoryAllocator {
 public:
-    virtual ~Allocator() {}
-    virtual T* allocate(size_t count) = 0;
-    virtual void deallocate(T* ptr, size_t count) = 0;
-};
-
-template<typename T>
-class DefaultAllocator : public Allocator<T> {
-public:
-    T* allocate(size_t count) override {
-        if (count == 0) {
+    void* allocate(size_t size) override {
+        if (size == 0) {
             return nullptr;
         }
-        void* ptr = malloc(count * sizeof(T));
+        void* ptr = malloc(size);
         assert(ptr != nullptr);
-        return static_cast<T*>(ptr);
+        return ptr;
     }
 
-    void deallocate(T* ptr, size_t count) override {
-        (void)count;
+    void free(void* ptr) override {
         if (ptr != nullptr) {
-            free(ptr);
+            ::free(ptr);
         }
+    }
+
+    size_t defragment() override {
+        return 0;
+    }
+
+    size_t getTotalMemory() const override {
+        return 0;
+    }
+
+    size_t getUsedMemory() const override {
+        return 0;
+    }
+
+    size_t getFreeMemory() const override {
+        return 0;
     }
 };
 
@@ -41,12 +48,12 @@ public:
         , size_(0)
         , capacity_(0)
         , allocator_(nullptr)
-        , defaultAllocator_(new DefaultAllocator<T>())
+        , defaultAllocator_(new DefaultMemoryAllocator())
         , ownsAllocator_(true) {
         allocator_ = defaultAllocator_;
     }
 
-    explicit Vector(Allocator<T>& allocator)
+    explicit Vector(MemoryAllocator& allocator)
         : data_(nullptr)
         , size_(0)
         , capacity_(0)
@@ -58,7 +65,7 @@ public:
     ~Vector() {
         clear();
         if (data_) {
-            allocator_->deallocate(data_, capacity_);
+            allocator_->free(data_);
             data_ = nullptr;
         }
         capacity_ = 0;
@@ -76,7 +83,7 @@ public:
         , defaultAllocator_(nullptr)
         , ownsAllocator_(false) {
         if (other.ownsAllocator_) {
-            defaultAllocator_ = new DefaultAllocator<T>();
+            defaultAllocator_ = new DefaultMemoryAllocator();
             allocator_ = defaultAllocator_;
             ownsAllocator_ = true;
         } else {
@@ -97,7 +104,7 @@ public:
                 defaultAllocator_ = nullptr;
             }
             if (other.ownsAllocator_) {
-                defaultAllocator_ = new DefaultAllocator<T>();
+                defaultAllocator_ = new DefaultMemoryAllocator();
                 allocator_ = defaultAllocator_;
                 ownsAllocator_ = true;
             } else {
@@ -132,7 +139,7 @@ public:
         if (this != &other) {
             clear();
             if (data_) {
-                allocator_->deallocate(data_, capacity_);
+                allocator_->free(data_);
             }
             if (ownsAllocator_ && defaultAllocator_) {
                 delete defaultAllocator_;
@@ -247,7 +254,7 @@ public:
             return;
         }
 
-        T* newData = allocator_->allocate(newCapacity);
+        T* newData = static_cast<T*>(allocator_->allocate(newCapacity * sizeof(T)));
         assert(newData != nullptr || newCapacity == 0);
         for (size_t i = 0; i < size_; ++i) {
             new (&newData[i]) T(static_cast<T&&>(data_[i]));
@@ -255,7 +262,7 @@ public:
         }
 
         if (data_) {
-            allocator_->deallocate(data_, capacity_);
+            allocator_->free(data_);
         }
 
         data_ = newData;
@@ -302,12 +309,12 @@ public:
         if (size_ < capacity_) {
             if (size_ == 0) {
                 if (data_) {
-                    allocator_->deallocate(data_, capacity_);
+                    allocator_->free(data_);
                     data_ = nullptr;
                 }
                 capacity_ = 0;
             } else {
-                T* newData = allocator_->allocate(size_);
+                T* newData = static_cast<T*>(allocator_->allocate(size_ * sizeof(T)));
                 assert(newData != nullptr);
                 for (size_t i = 0; i < size_; ++i) {
                     new (&newData[i]) T(static_cast<T&&>(data_[i]));
@@ -315,7 +322,7 @@ public:
                 }
 
                 if (data_) {
-                    allocator_->deallocate(data_, capacity_);
+                    allocator_->free(data_);
                 }
 
                 data_ = newData;
@@ -385,7 +392,7 @@ private:
     T* data_;
     size_t size_;
     size_t capacity_;
-    Allocator<T>* allocator_;
-    DefaultAllocator<T>* defaultAllocator_;
+    MemoryAllocator* allocator_;
+    DefaultMemoryAllocator* defaultAllocator_;
     bool ownsAllocator_;
 };
