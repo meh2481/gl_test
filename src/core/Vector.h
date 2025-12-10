@@ -64,7 +64,7 @@ public:
         other.data_ = nullptr;
         other.size_ = 0;
         other.capacity_ = 0;
-        other.allocator_ = nullptr;
+        // Keep allocator_ valid in moved-from object
     }
 
     Vector& operator=(Vector&& other) noexcept {
@@ -80,7 +80,7 @@ public:
             other.data_ = nullptr;
             other.size_ = 0;
             other.capacity_ = 0;
-            other.allocator_ = nullptr;
+            // Keep allocator_ valid in moved-from object
         }
         return *this;
     }
