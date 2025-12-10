@@ -61,8 +61,10 @@ public:
     ~ConsoleCapture() {
         // Restore original buffer
         stream_.rdbuf(oldBuf_);
+        // buffer_ will be destroyed automatically before stringAllocator_ due to declaration order
         if (stringAllocator_) {
             delete stringAllocator_;
+            stringAllocator_ = nullptr;
         }
     }
 
@@ -85,8 +87,8 @@ protected:
 private:
     std::ostream& stream_;
     std::streambuf* oldBuf_;
-    String buffer_;
     MemoryAllocator* stringAllocator_;
+    String buffer_;
 };
 
 #endif // DEBUG
