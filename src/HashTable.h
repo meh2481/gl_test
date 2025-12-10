@@ -1,19 +1,47 @@
 #pragma once
 
+#include "MemoryAllocator.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
 #include <cassert>
+#include <new>
 
-// Default allocator functions using malloc/free
-inline void* defaultAlloc(size_t size, void* /*userData*/) {
-    return malloc(size);
-}
+// Default allocator using malloc/free
+class DefaultHashTableAllocator : public MemoryAllocator {
+public:
+    void* allocate(size_t size) override {
+        if (size == 0) {
+            return nullptr;
+        }
+        void* ptr = malloc(size);
+        assert(ptr != nullptr);
+        return ptr;
+    }
 
-inline void defaultFree(void* ptr, void* /*userData*/) {
-    free(ptr);
-}
+    void free(void* ptr) override {
+        if (ptr != nullptr) {
+            ::free(ptr);
+        }
+    }
+
+    size_t defragment() override {
+        return 0;
+    }
+
+    size_t getTotalMemory() const override {
+        return 0;
+    }
+
+    size_t getUsedMemory() const override {
+        return 0;
+    }
+
+    size_t getFreeMemory() const override {
+        return 0;
+    }
+};
 
 // Hash function for integral types
 template<typename K>
@@ -75,7 +103,7 @@ inline uint32_t hashKey<int>(const int& key) {
 // K = Key type (must be trivially copyable and support operator==)
 // V = Value type (must be trivially copyable)
 // Uses open addressing with linear probing for O(1) lookup
-// Configurable memory allocator via function pointers
+// Configurable memory allocator via MemoryAllocator interface
 //
 // Note: This hash table is designed for simple/POD types.
 // It does not call constructors/destructors, so types with
@@ -83,25 +111,35 @@ inline uint32_t hashKey<int>(const int& key) {
 template<typename K, typename V>
 class HashTable {
 public:
-    // Allocator function types
-    typedef void* (*AllocFunc)(size_t size, void* userData);
-    typedef void (*FreeFunc)(void* ptr, void* userData);
-
-    // Constructor with optional custom allocator
-    HashTable(AllocFunc allocFunc = defaultAlloc,
-              FreeFunc freeFunc = defaultFree,
-              void* allocUserData = nullptr)
+    // Constructor with default allocator
+    HashTable()
         : keys_(nullptr)
         , values_(nullptr)
         , occupied_(nullptr)
         , capacity_(0)
         , size_(0)
-        , allocFunc_(allocFunc)
-        , freeFunc_(freeFunc)
-        , allocUserData_(allocUserData)
+        , allocator_(nullptr)
+        , defaultAllocator_(new DefaultHashTableAllocator())
+        , ownsAllocator_(true)
     {
-        assert(allocFunc != nullptr);
-        assert(freeFunc != nullptr);
+        allocator_ = defaultAllocator_;
+        assert(allocator_ != nullptr);
+        // Start with a reasonable default capacity
+        reserve(16);
+    }
+
+    // Constructor with custom allocator
+    explicit HashTable(MemoryAllocator& allocator)
+        : keys_(nullptr)
+        , values_(nullptr)
+        , occupied_(nullptr)
+        , capacity_(0)
+        , size_(0)
+        , allocator_(&allocator)
+        , defaultAllocator_(nullptr)
+        , ownsAllocator_(false)
+    {
+        assert(allocator_ != nullptr);
         // Start with a reasonable default capacity
         reserve(16);
     }
@@ -109,16 +147,20 @@ public:
     ~HashTable() {
         clear();
         if (keys_) {
-            freeFunc_(keys_, allocUserData_);
+            allocator_->free(keys_);
             keys_ = nullptr;
         }
         if (values_) {
-            freeFunc_(values_, allocUserData_);
+            allocator_->free(values_);
             values_ = nullptr;
         }
         if (occupied_) {
-            freeFunc_(occupied_, allocUserData_);
+            allocator_->free(occupied_);
             occupied_ = nullptr;
+        }
+        if (ownsAllocator_ && defaultAllocator_) {
+            delete defaultAllocator_;
+            defaultAllocator_ = nullptr;
         }
     }
 
@@ -291,9 +333,9 @@ public:
         }
 
         // Allocate new arrays
-        K* newKeys = static_cast<K*>(allocFunc_(n * sizeof(K), allocUserData_));
-        V* newValues = static_cast<V*>(allocFunc_(n * sizeof(V), allocUserData_));
-        bool* newOccupied = static_cast<bool*>(allocFunc_(n * sizeof(bool), allocUserData_));
+        K* newKeys = static_cast<K*>(allocator_->allocate(n * sizeof(K)));
+        V* newValues = static_cast<V*>(allocator_->allocate(n * sizeof(V)));
+        bool* newOccupied = static_cast<bool*>(allocator_->allocate(n * sizeof(bool)));
 
         assert(newKeys != nullptr);
         assert(newValues != nullptr);
@@ -321,9 +363,9 @@ public:
             }
 
             // Free old arrays
-            freeFunc_(keys_, allocUserData_);
-            freeFunc_(values_, allocUserData_);
-            freeFunc_(occupied_, allocUserData_);
+            allocator_->free(keys_);
+            allocator_->free(values_);
+            allocator_->free(occupied_);
         }
 
         keys_ = newKeys;
@@ -464,7 +506,7 @@ private:
     uint32_t capacity_;
     uint32_t size_;
 
-    AllocFunc allocFunc_;
-    FreeFunc freeFunc_;
-    void* allocUserData_;
+    MemoryAllocator* allocator_;
+    DefaultHashTableAllocator* defaultAllocator_;
+    bool ownsAllocator_;
 };
