@@ -64,6 +64,7 @@ String::~String() {
 String& String::operator=(const String& other) {
     if (this != &other) {
         clear();
+        this->allocator_ = other.allocator_;
         if (other.length_ > 0) {
             length_ = other.length_;
             ensureCapacity(length_);

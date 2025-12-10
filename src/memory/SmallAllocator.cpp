@@ -19,6 +19,15 @@ SmallAllocator::~SmallAllocator() {
     if (pool_) {
         std::cerr << "SmallAllocator: Destroying allocator with " << allocationCount_
                   << " leaked allocations" << std::endl;
+        if (allocationCount_ > 0) {
+            BlockHeader* current = firstBlock_;
+            while (current) {
+                if (!current->isFree) {
+                    std::cerr << "Leaked block: size=" << current->size << ", contents=\"" << (char*)((char*)current + sizeof(BlockHeader)) << "\"" << std::endl;
+                }
+                current = current->next;
+            }
+        }
         assert(allocationCount_ == 0);
         ::free(pool_);
         pool_ = nullptr;
@@ -38,10 +47,12 @@ void* SmallAllocator::allocate(size_t size) {
         // Need to grow the pool
         size_t neededSize = poolUsed_ + sizeof(BlockHeader) + alignedSize;
         size_t newCapacity = poolCapacity_;
+        if (newCapacity == 0) newCapacity = MIN_POOL_SIZE;
 
         // Grow by powers of 2
         while (newCapacity < neededSize) {
             newCapacity *= 2;
+            assert(newCapacity > 0);
         }
 
         std::cerr << "SmallAllocator: Growing pool from " << poolCapacity_

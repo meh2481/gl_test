@@ -6,60 +6,15 @@
 #include <cassert>
 #include <new>
 
-class DefaultMemoryAllocator : public MemoryAllocator {
-public:
-    void* allocate(size_t size) override {
-        if (size == 0) {
-            return nullptr;
-        }
-        void* ptr = malloc(size);
-        assert(ptr != nullptr);
-        return ptr;
-    }
-
-    void free(void* ptr) override {
-        if (ptr != nullptr) {
-            ::free(ptr);
-        }
-    }
-
-    size_t defragment() override {
-        return 0;
-    }
-
-    size_t getTotalMemory() const override {
-        return 0;
-    }
-
-    size_t getUsedMemory() const override {
-        return 0;
-    }
-
-    size_t getFreeMemory() const override {
-        return 0;
-    }
-};
-
 template<typename T>
 class Vector {
 public:
-    Vector()
-        : data_(nullptr)
-        , size_(0)
-        , capacity_(0)
-        , allocator_(nullptr)
-        , defaultAllocator_(new DefaultMemoryAllocator())
-        , ownsAllocator_(true) {
-        allocator_ = defaultAllocator_;
-    }
-
     explicit Vector(MemoryAllocator& allocator)
         : data_(nullptr)
         , size_(0)
         , capacity_(0)
         , allocator_(&allocator)
-        , defaultAllocator_(nullptr)
-        , ownsAllocator_(false) {
+        , defaultAllocator_(nullptr) {
     }
 
     ~Vector() {
@@ -69,26 +24,14 @@ public:
             data_ = nullptr;
         }
         capacity_ = 0;
-        if (ownsAllocator_ && defaultAllocator_) {
-            delete defaultAllocator_;
-            defaultAllocator_ = nullptr;
-        }
     }
 
     Vector(const Vector& other)
         : data_(nullptr)
         , size_(0)
         , capacity_(0)
-        , allocator_(nullptr)
-        , defaultAllocator_(nullptr)
-        , ownsAllocator_(false) {
-        if (other.ownsAllocator_) {
-            defaultAllocator_ = new DefaultMemoryAllocator();
-            allocator_ = defaultAllocator_;
-            ownsAllocator_ = true;
-        } else {
-            allocator_ = other.allocator_;
-        }
+        , allocator_(nullptr) {
+        allocator_ = other.allocator_;
         reserve(other.size_);
         for (size_t i = 0; i < other.size_; ++i) {
             new (&data_[i]) T(other.data_[i]);
@@ -104,18 +47,7 @@ public:
                 data_ = nullptr;
                 capacity_ = 0;
             }
-            if (ownsAllocator_ && defaultAllocator_) {
-                delete defaultAllocator_;
-                defaultAllocator_ = nullptr;
-            }
-            if (other.ownsAllocator_) {
-                defaultAllocator_ = new DefaultMemoryAllocator();
-                allocator_ = defaultAllocator_;
-                ownsAllocator_ = true;
-            } else {
-                allocator_ = other.allocator_;
-                ownsAllocator_ = false;
-            }
+            allocator_ = other.allocator_;
             reserve(other.size_);
             for (size_t i = 0; i < other.size_; ++i) {
                 new (&data_[i]) T(other.data_[i]);
@@ -129,15 +61,11 @@ public:
         : data_(other.data_)
         , size_(other.size_)
         , capacity_(other.capacity_)
-        , allocator_(other.allocator_)
-        , defaultAllocator_(other.defaultAllocator_)
-        , ownsAllocator_(other.ownsAllocator_) {
+        , allocator_(other.allocator_) {
         other.data_ = nullptr;
         other.size_ = 0;
         other.capacity_ = 0;
         other.allocator_ = nullptr;
-        other.defaultAllocator_ = nullptr;
-        other.ownsAllocator_ = false;
     }
 
     Vector& operator=(Vector&& other) noexcept {
@@ -146,21 +74,14 @@ public:
             if (data_) {
                 allocator_->free(data_);
             }
-            if (ownsAllocator_ && defaultAllocator_) {
-                delete defaultAllocator_;
-            }
             data_ = other.data_;
             size_ = other.size_;
             capacity_ = other.capacity_;
             allocator_ = other.allocator_;
-            defaultAllocator_ = other.defaultAllocator_;
-            ownsAllocator_ = other.ownsAllocator_;
             other.data_ = nullptr;
             other.size_ = 0;
             other.capacity_ = 0;
             other.allocator_ = nullptr;
-            other.defaultAllocator_ = nullptr;
-            other.ownsAllocator_ = false;
         }
         return *this;
     }
@@ -398,6 +319,4 @@ private:
     size_t size_;
     size_t capacity_;
     MemoryAllocator* allocator_;
-    DefaultMemoryAllocator* defaultAllocator_;
-    bool ownsAllocator_;
 };

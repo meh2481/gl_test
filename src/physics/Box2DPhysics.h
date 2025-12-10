@@ -3,9 +3,10 @@
 #include <box2d/box2d.h>
 #include <vector>
 #include <unordered_map>
-#include <string>
 #include <SDL3/SDL.h>
 #include <functional>
+#include "../core/String.h"
+#include "../memory/MemoryAllocator.h"
 
 #define LENGTH_UNITS_PER_METER 0.05f  // Define this smaller so box2d doesn't join polygon vertices
 
@@ -307,11 +308,11 @@ public:
     void reset();
 
     // Type system for object interactions
-    void addBodyType(int bodyId, const std::string& type);
-    void removeBodyType(int bodyId, const std::string& type);
+    void addBodyType(int bodyId, const char* type);
+    void removeBodyType(int bodyId, const char* type);
     void clearBodyTypes(int bodyId);
-    bool bodyHasType(int bodyId, const std::string& type) const;
-    std::vector<std::string> getBodyTypes(int bodyId) const;
+    bool bodyHasType(int bodyId, const char* type) const;
+    std::vector<String> getBodyTypes(int bodyId) const;
 
     // Collision callback for type-based interactions
     using CollisionCallback = std::function<void(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed)>;
@@ -392,7 +393,10 @@ private:
     int nextForceFieldId_;
 
     // Type system for object interactions
-    std::unordered_map<int, std::vector<std::string>> bodyTypes_;
+    std::unordered_map<int, std::vector<String>> bodyTypes_;
+
+    // Memory allocator for string operations
+    MemoryAllocator* stringAllocator_;
 
     // Collision callback
     CollisionCallback collisionCallback_;
