@@ -248,6 +248,7 @@ public:
         }
 
         T* newData = allocator_->allocate(newCapacity);
+        assert(newData != nullptr || newCapacity == 0);
         for (size_t i = 0; i < size_; ++i) {
             new (&newData[i]) T(static_cast<T&&>(data_[i]));
             data_[i].~T();
@@ -307,6 +308,7 @@ public:
                 capacity_ = 0;
             } else {
                 T* newData = allocator_->allocate(size_);
+                assert(newData != nullptr);
                 for (size_t i = 0; i < size_; ++i) {
                     new (&newData[i]) T(static_cast<T&&>(data_[i]));
                     data_[i].~T();
