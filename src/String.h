@@ -3,8 +3,11 @@
 #include <cstddef>
 #include <cstdint>
 
+// Forward declaration
+class SmallAllocator;
+
 // Lightweight UTF-8 string class
-// Uses malloc/free for memory management
+// Uses SmallAllocator for memory management
 // Optimized for performance via data-driven design
 class String {
 public:
@@ -83,6 +86,9 @@ private:
     char* data_;       // Pointer to string data
     size_t length_;    // Length of string in bytes (excluding null terminator)
     size_t capacity_;  // Allocated capacity in bytes (excluding null terminator)
+
+    // Get the global string allocator
+    static SmallAllocator& getAllocator();
 
     // Ensure capacity is sufficient for at least minCapacity bytes
     void ensureCapacity(size_t minCapacity);

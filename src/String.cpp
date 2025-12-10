@@ -1,4 +1,5 @@
 #include "String.h"
+#include "SmallAllocator.h"
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
@@ -7,6 +8,12 @@
 // Default growth factor for capacity
 static const size_t GROWTH_FACTOR = 2;
 static const size_t MIN_CAPACITY = 16;
+
+// Global string allocator
+SmallAllocator& String::getAllocator() {
+    static SmallAllocator allocator;
+    return allocator;
+}
 
 // Default constructor
 String::String() : data_(nullptr), length_(0), capacity_(0) {
@@ -53,7 +60,7 @@ String::String(String&& other) noexcept
 // Destructor
 String::~String() {
     if (data_) {
-        free(data_);
+        getAllocator().free(data_);
         data_ = nullptr;
     }
     length_ = 0;
@@ -77,7 +84,7 @@ String& String::operator=(const String& other) {
 String& String::operator=(String&& other) noexcept {
     if (this != &other) {
         if (data_) {
-            free(data_);
+            getAllocator().free(data_);
         }
         data_ = other.data_;
         length_ = other.length_;
@@ -257,7 +264,7 @@ void String::clear() {
 // Reserve capacity
 void String::reserve(size_t newCapacity) {
     if (newCapacity > capacity_) {
-        char* newData = (char*)malloc(newCapacity + 1);
+        char* newData = (char*)getAllocator().allocate(newCapacity + 1);
         assert(newData != nullptr);
         if (data_ && length_ > 0) {
             strcpy(newData, data_);
@@ -265,7 +272,7 @@ void String::reserve(size_t newCapacity) {
             newData[0] = '\0';
         }
         if (data_) {
-            free(data_);
+            getAllocator().free(data_);
         }
         data_ = newData;
         capacity_ = newCapacity;
