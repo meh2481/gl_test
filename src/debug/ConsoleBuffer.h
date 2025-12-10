@@ -42,8 +42,11 @@ private:
         stringAllocator_ = new SmallAllocator();
     }
     ~ConsoleBuffer() {
+        // Clear lines before deleting allocator (lines contain Strings that use the allocator)
+        lines_.clear();
         if (stringAllocator_) {
             delete stringAllocator_;
+            stringAllocator_ = nullptr;
         }
     }
     std::vector<String> lines_;
