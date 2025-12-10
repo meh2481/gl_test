@@ -19,6 +19,15 @@ SmallAllocator::~SmallAllocator() {
     if (pool_) {
         std::cerr << "SmallAllocator: Destroying allocator with " << allocationCount_
                   << " leaked allocations" << std::endl;
+        if (allocationCount_ > 0) {
+            BlockHeader* current = firstBlock_;
+            while (current) {
+                if (!current->isFree) {
+                    std::cerr << "Leaked block: size=" << current->size << ", contents=\"" << (char*)((char*)current + sizeof(BlockHeader)) << "\"" << std::endl;
+                }
+                current = current->next;
+            }
+        }
         assert(allocationCount_ == 0);
         ::free(pool_);
         pool_ = nullptr;
