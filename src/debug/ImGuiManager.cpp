@@ -7,6 +7,7 @@
 #include "../scene/SceneManager.h"
 #include "../scene/LuaInterface.h"
 #include "../memory/SmallAllocator.h"
+#include "../core/hash.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
@@ -16,16 +17,6 @@
 // Check Vulkan result callback for ImGui
 static void check_vk_result(VkResult err) {
     assert(err == VK_SUCCESS);
-}
-
-// Simple hash function for C-strings (FNV-1a hash)
-static uint64_t hashCString(const char* str) {
-    uint64_t hash = 14695981039346656037ULL;
-    while (*str) {
-        hash ^= (uint64_t)*str++;
-        hash *= 1099511628211ULL;
-    }
-    return hash;
 }
 
 ImGuiManager::ImGuiManager() : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE), stringAllocator_(nullptr) {

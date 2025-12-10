@@ -2,22 +2,13 @@
 #include "SceneManager.h"
 #include "../physics/Box2DPhysics.h"
 #include "../memory/SmallAllocator.h"
+#include "../core/hash.h"
 #include <iostream>
 #include <cassert>
 #include <algorithm>
 #ifndef M_PI
     #define M_PI 3.14159265358979323846
 #endif
-
-// Simple hash function for C-strings (FNV-1a hash)
-static uint64_t hashCString(const char* str) {
-    uint64_t hash = 14695981039346656037ULL;
-    while (*str) {
-        hash ^= (uint64_t)*str++;
-        hash *= 1099511628211ULL;
-    }
-    return hash;
-}
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager, VibrationManager* vibrationManager)
     : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), nextNodeId_(1), stringAllocator_(nullptr) {

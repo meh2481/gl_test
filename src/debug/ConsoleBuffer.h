@@ -55,9 +55,7 @@ private:
 class ConsoleCapture : public std::streambuf {
 public:
     ConsoleCapture(std::ostream& stream, std::streambuf* oldBuf)
-        : stream_(stream), oldBuf_(oldBuf), stringAllocator_(nullptr), buffer_(nullptr) {
-        stringAllocator_ = new SmallAllocator();
-        buffer_ = String(stringAllocator_);
+        : stream_(stream), oldBuf_(oldBuf), stringAllocator_(new SmallAllocator()), buffer_(stringAllocator_) {
     }
 
     ~ConsoleCapture() {

@@ -38,10 +38,12 @@ void* SmallAllocator::allocate(size_t size) {
         // Need to grow the pool
         size_t neededSize = poolUsed_ + sizeof(BlockHeader) + alignedSize;
         size_t newCapacity = poolCapacity_;
+        if (newCapacity == 0) newCapacity = MIN_POOL_SIZE;
 
         // Grow by powers of 2
         while (newCapacity < neededSize) {
             newCapacity *= 2;
+            assert(newCapacity > 0);
         }
 
         std::cerr << "SmallAllocator: Growing pool from " << poolCapacity_
