@@ -1,5 +1,6 @@
 #include "Box2DPhysics.h"
 #include "SceneLayer.h"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstring>

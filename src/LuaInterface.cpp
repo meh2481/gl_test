@@ -1712,7 +1712,10 @@ int LuaInterface::createRadialForceField(lua_State* L) {
 }
 
 int LuaInterface::getForceFieldBodyId(lua_State* L) {
-    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
     int forceFieldId = luaL_checkinteger(L, 1);
 
     const ForceField* field = interface->physics_->getForceField(forceFieldId);
@@ -3466,7 +3469,10 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
 }
 
 int LuaInterface::b2AddBodyType(lua_State* L) {
-    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
     int bodyId = luaL_checkinteger(L, 1);
     const char* type = luaL_checkstring(L, 2);
     interface->physics_->addBodyType(bodyId, type);
@@ -3474,7 +3480,10 @@ int LuaInterface::b2AddBodyType(lua_State* L) {
 }
 
 int LuaInterface::b2RemoveBodyType(lua_State* L) {
-    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
     int bodyId = luaL_checkinteger(L, 1);
     const char* type = luaL_checkstring(L, 2);
     interface->physics_->removeBodyType(bodyId, type);
@@ -3482,14 +3491,20 @@ int LuaInterface::b2RemoveBodyType(lua_State* L) {
 }
 
 int LuaInterface::b2ClearBodyTypes(lua_State* L) {
-    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
     int bodyId = luaL_checkinteger(L, 1);
     interface->physics_->clearBodyTypes(bodyId);
     return 0;
 }
 
 int LuaInterface::b2BodyHasType(lua_State* L) {
-    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
     int bodyId = luaL_checkinteger(L, 1);
     const char* type = luaL_checkstring(L, 2);
     bool hasType = interface->physics_->bodyHasType(bodyId, type);
@@ -3498,7 +3513,10 @@ int LuaInterface::b2BodyHasType(lua_State* L) {
 }
 
 int LuaInterface::b2GetBodyTypes(lua_State* L) {
-    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
     int bodyId = luaL_checkinteger(L, 1);
     std::vector<std::string> types = interface->physics_->getBodyTypes(bodyId);
 
@@ -3511,9 +3529,12 @@ int LuaInterface::b2GetBodyTypes(lua_State* L) {
 }
 
 int LuaInterface::b2SetCollisionCallback(lua_State* L) {
-    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
 
     if (!lua_isfunction(L, 1)) {
+        assert(false);
         return luaL_error(L, "Expected function as first argument");
     }
 
@@ -3531,6 +3552,7 @@ int LuaInterface::b2SetCollisionCallback(lua_State* L) {
         if (lua_pcall(interface->luaState_, 7, 0, 0) != LUA_OK) {
             const char* errorMsg = lua_tostring(interface->luaState_, -1);
             std::cerr << "Collision callback error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+            assert(false);
             lua_pop(interface->luaState_, 1);
         }
     });
