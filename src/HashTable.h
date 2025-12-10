@@ -373,7 +373,7 @@ public:
             return *this;
         }
 
-        K& key() {
+        const K& key() const {
             assert(index_ < table_->capacity_);
             assert(table_->occupied_[index_]);
             return table_->keys_[index_];
