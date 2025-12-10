@@ -11,12 +11,15 @@ SmallAllocator::SmallAllocator()
     , lastBlock_(nullptr)
     , allocationCount_(0)
 {
-    // Start with minimum pool size
+    std::cerr << "SmallAllocator: Initializing with " << MIN_POOL_SIZE << " bytes" << std::endl;
     growPool(MIN_POOL_SIZE);
 }
 
 SmallAllocator::~SmallAllocator() {
     if (pool_) {
+        std::cerr << "SmallAllocator: Destroying allocator with " << allocationCount_
+                  << " leaked allocations" << std::endl;
+        assert(allocationCount_ == 0);
         ::free(pool_);
         pool_ = nullptr;
     }
@@ -41,6 +44,8 @@ void* SmallAllocator::allocate(size_t size) {
             newCapacity *= 2;
         }
 
+        std::cerr << "SmallAllocator: Growing pool from " << poolCapacity_
+                  << " to " << newCapacity << " bytes" << std::endl;
         growPool(newCapacity);
 
         // Try again after growing
@@ -75,6 +80,8 @@ void SmallAllocator::free(void* ptr) {
 
     // Try to shrink pool if too much is free
     if (poolCapacity_ > MIN_POOL_SIZE && poolUsed_ < poolCapacity_ / 4) {
+        std::cerr << "SmallAllocator: Attempting to shrink pool (capacity=" << poolCapacity_
+                  << ", used=" << poolUsed_ << ")" << std::endl;
         shrinkPool();
     }
 }
