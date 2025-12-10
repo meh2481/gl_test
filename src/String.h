@@ -8,6 +8,8 @@
 // Optimized for performance via data-driven design
 class String {
 public:
+    // Special value returned by find() when pattern not found
+    static const size_t npos = (size_t)-1;
     // Constructors
     String();
     String(const char* str);

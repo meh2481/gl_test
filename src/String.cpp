@@ -169,10 +169,13 @@ String String::operator+(const String& other) const {
 // Concatenation with C-string
 String String::operator+(const char* str) const {
     String result;
-    if (!str || strlen(str) == 0) {
+    if (!str) {
         return *this;
     }
     size_t strLen = strlen(str);
+    if (strLen == 0) {
+        return *this;
+    }
     size_t newLength = length_ + strLen;
     result.ensureCapacity(newLength);
     result.length_ = newLength;
@@ -298,12 +301,12 @@ String String::substr(size_t pos, size_t len) const {
 
 // Find C-string
 size_t String::find(const char* str, size_t pos) const {
-    if (!str || strlen(str) == 0 || pos >= length_) {
-        return (size_t)-1;
+    if (!str || pos >= length_) {
+        return npos;
     }
     size_t strLen = strlen(str);
-    if (strLen > length_ - pos) {
-        return (size_t)-1;
+    if (strLen == 0 || strLen > length_ - pos) {
+        return npos;
     }
     for (size_t i = pos; i <= length_ - strLen; i++) {
         bool found = true;
@@ -317,20 +320,20 @@ size_t String::find(const char* str, size_t pos) const {
             return i;
         }
     }
-    return (size_t)-1;
+    return npos;
 }
 
 // Find character
 size_t String::find(char c, size_t pos) const {
     if (pos >= length_) {
-        return (size_t)-1;
+        return npos;
     }
     for (size_t i = pos; i < length_; i++) {
         if (data_[i] == c) {
             return i;
         }
     }
-    return (size_t)-1;
+    return npos;
 }
 
 // Static strlen
