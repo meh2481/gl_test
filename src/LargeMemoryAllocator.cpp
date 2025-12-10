@@ -40,7 +40,6 @@ void LargeMemoryAllocator::addChunk(size_t size) {
 
     newChunk->memory = (char*)std::malloc(chunkSize);
     assert(newChunk->memory != nullptr);
-    std::memset(newChunk->memory, 0, chunkSize);
 
     newChunk->size = chunkSize;
     newChunk->next = m_chunks;
@@ -126,7 +125,7 @@ void LargeMemoryAllocator::deallocate(void* ptr) {
 
     mergeAdjacentBlocks(block);
 
-    if ((float)m_usedMemory / m_totalPoolSize < SHRINK_THRESHOLD && m_totalPoolSize > m_chunkSize) {
+    if (m_totalPoolSize > 0 && (float)m_usedMemory / m_totalPoolSize < SHRINK_THRESHOLD && m_totalPoolSize > m_chunkSize) {
         removeEmptyChunks();
     }
 }
@@ -152,7 +151,7 @@ void LargeMemoryAllocator::defragment() {
                         next->next->prev = next->prev;
                     }
                     if (m_freeList == next) {
-                        m_freeList = next->next ? next->next : next->prev;
+                        m_freeList = next->prev ? next->prev : next->next;
                     }
                     continue;
                 }
@@ -179,7 +178,7 @@ void LargeMemoryAllocator::removeEmptyChunks() {
         BlockHeader* block = (BlockHeader*)chunk->memory;
 
         bool isEmpty = (block->isFree &&
-                       block->size >= chunk->size - sizeof(BlockHeader) - MIN_BLOCK_SIZE &&
+                       block->size == chunk->size - sizeof(BlockHeader) &&
                        chunk != m_chunks);
 
         if (isEmpty) {
@@ -263,7 +262,7 @@ void LargeMemoryAllocator::mergeAdjacentBlocks(BlockHeader* block) {
             next->next->prev = next->prev;
         }
         if (m_freeList == next) {
-            m_freeList = next->next ? next->next : block;
+            m_freeList = next->prev ? next->prev : next->next;
         }
         block->next = next->next;
     }
