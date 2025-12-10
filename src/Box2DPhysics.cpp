@@ -6,6 +6,25 @@
 #include <cstring>
 #include <iostream>
 
+// Helper macros for dynamic C array management
+#define ARRAY_PUSH_BACK(arr, count, capacity, type, value) \
+    do { \
+        if ((count) >= (capacity)) { \
+            size_t newCap = (capacity) == 0 ? 16 : (capacity) * 2; \
+            type* newArr = new type[newCap]; \
+            if ((arr)) { \
+                memcpy(newArr, (arr), (count) * sizeof(type)); \
+                delete[] (arr); \
+            } \
+            (arr) = newArr; \
+            (capacity) = newCap; \
+        } \
+        (arr)[(count)++] = (value); \
+    } while(0)
+
+#define ARRAY_CLEAR(count) \
+    do { (count) = 0; } while(0)
+
 // Default fixed timestep for physics simulation (Box2D recommended value)
 static constexpr float DEFAULT_FIXED_TIMESTEP = 1.0f / 250.0f;
 
@@ -45,7 +64,14 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
 
 Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
                                 timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
-                                nextForceFieldId_(0) {
+                                nextForceFieldId_(0),
+                                debugLineVertices_(nullptr), debugLineVerticesCount_(0), debugLineVerticesCapacity_(0),
+                                debugTriangleVertices_(nullptr), debugTriangleVerticesCount_(0), debugTriangleVerticesCapacity_(0),
+                                collisionHitEvents_(nullptr), collisionHitEventsCount_(0), collisionHitEventsCapacity_(0),
+                                fractureEvents_(nullptr), fractureEventsCount_(0), fractureEventsCapacity_(0),
+                                pendingDestructions_(nullptr), pendingDestructionsCount_(0), pendingDestructionsCapacity_(0),
+                                fragmentBodyIds_(nullptr), fragmentBodyIdsCount_(0), fragmentBodyIdsCapacity_(0),
+                                fragmentLayerIds_(nullptr), fragmentLayerIdsCount_(0), fragmentLayerIdsCapacity_(0) {
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;
@@ -79,6 +105,14 @@ Box2DPhysics::~Box2DPhysics() {
     if (physicsMutex_) {
         SDL_DestroyMutex(physicsMutex_);
     }
+
+    delete[] debugLineVertices_;
+    delete[] debugTriangleVertices_;
+    delete[] collisionHitEvents_;
+    delete[] fractureEvents_;
+    delete[] pendingDestructions_;
+    delete[] fragmentBodyIds_;
+    delete[] fragmentLayerIds_;
 }
 
 void Box2DPhysics::setGravity(float x, float y) {
@@ -97,7 +131,7 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
     timeAccumulator_ += timeStep;
 
     // Clear collision events from previous step
-    collisionHitEvents_.clear();
+    ARRAY_CLEAR(collisionHitEventsCount_);
 
     // Step the physics simulation in fixed increments
     // This ensures framerate-independent physics behavior
@@ -133,7 +167,7 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
                     event.normalX = beginEvent.manifold.normal.x;
                     event.normalY = beginEvent.manifold.normal.y;
                     event.approachSpeed = approachSpeed;
-                    collisionHitEvents_.push_back(event);
+                    ARRAY_PUSH_BACK(collisionHitEvents_, collisionHitEventsCount_, collisionHitEventsCapacity_, CollisionHitEvent, event);
 
                     if (collisionCallback_ && internalIdA >= 0 && internalIdB >= 0) {
                         collisionCallback_(internalIdA, internalIdB, event.pointX, event.pointY, event.normalX, event.normalY, event.approachSpeed);
@@ -194,8 +228,8 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
     SDL_LockMutex(physicsMutex_);
 
     if (debugDrawEnabled_) {
-        debugLineVertices_.clear();
-        debugTriangleVertices_.clear();
+        ARRAY_CLEAR(debugLineVerticesCount_);
+        ARRAY_CLEAR(debugTriangleVerticesCount_);
 
         b2DebugDraw debugDraw = {0};
         debugDraw.DrawPolygonFcn = DrawPolygon;
@@ -721,11 +755,13 @@ void Box2DPhysics::enableDebugDraw(bool enable) {
     debugDrawEnabled_ = enable;
 }
 
-const std::vector<DebugVertex>& Box2DPhysics::getDebugLineVertices() {
+const DebugVertex* Box2DPhysics::getDebugLineVertices(size_t* outCount) {
+    *outCount = debugLineVerticesCount_;
     return debugLineVertices_;
 }
 
-const std::vector<DebugVertex>& Box2DPhysics::getDebugTriangleVertices() {
+const DebugVertex* Box2DPhysics::getDebugTriangleVertices(size_t* outCount) {
+    *outCount = debugTriangleVerticesCount_;
     return debugTriangleVertices_;
 }
 
@@ -734,7 +770,7 @@ void Box2DPhysics::addLineVertex(float x, float y, b2HexColor hexColor) {
     v.x = x;
     v.y = y;
     hexColorToRGBA(hexColor, v.r, v.g, v.b, v.a);
-    debugLineVertices_.push_back(v);
+    ARRAY_PUSH_BACK(debugLineVertices_, debugLineVerticesCount_, debugLineVerticesCapacity_, DebugVertex, v);
 }
 
 void Box2DPhysics::addTriangleVertex(float x, float y, b2HexColor hexColor) {
@@ -742,7 +778,7 @@ void Box2DPhysics::addTriangleVertex(float x, float y, b2HexColor hexColor) {
     v.x = x;
     v.y = y;
     hexColorToRGBA(hexColor, v.r, v.g, v.b, v.a);
-    debugTriangleVertices_.push_back(v);
+    ARRAY_PUSH_BACK(debugTriangleVertices_, debugTriangleVerticesCount_, debugTriangleVerticesCapacity_, DebugVertex, v);
 }
 
 void Box2DPhysics::DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context) {
@@ -991,18 +1027,18 @@ void Box2DPhysics::setBodyDestructibleLayer(int bodyId, int layerId) {
 void Box2DPhysics::cleanupAllFragments() {
     // Destroy all fragment layers
     if (layerManager_) {
-        for (int layerId : fragmentLayerIds_) {
-            layerManager_->destroyLayer(layerId);
+        for (size_t i = 0; i < fragmentLayerIdsCount_; i++) {
+            layerManager_->destroyLayer(fragmentLayerIds_[i]);
         }
     }
-    fragmentLayerIds_.clear();
+    ARRAY_CLEAR(fragmentLayerIdsCount_);
 
     // Destroy all fragment bodies
-    for (int bodyId : fragmentBodyIds_) {
-        clearBodyDestructible(bodyId);
-        destroyBody(bodyId);
+    for (size_t i = 0; i < fragmentBodyIdsCount_; i++) {
+        clearBodyDestructible(fragmentBodyIds_[i]);
+        destroyBody(fragmentBodyIds_[i]);
     }
-    fragmentBodyIds_.clear();
+    ARRAY_CLEAR(fragmentBodyIdsCount_);
 }
 
 bool Box2DPhysics::isBodyDestructible(int bodyId) const {
@@ -1722,7 +1758,7 @@ void Box2DPhysics::applyRadialForceFields() {
 
 // Process fractures for destructible bodies
 void Box2DPhysics::processFractures() {
-    fractureEvents_.clear();
+    ARRAY_CLEAR(fractureEventsCount_);
 
     // Helper to process a single destructible body in a collision
     auto processDestructible = [this](int bodyId, const CollisionHitEvent& hit) {
@@ -1734,8 +1770,8 @@ void Box2DPhysics::processFractures() {
         if (hit.approachSpeed < breakForce) return;
 
         // Check if already pending destruction
-        for (int pending : pendingDestructions_) {
-            if (pending == bodyId) return;
+        for (size_t i = 0; i < pendingDestructionsCount_; i++) {
+            if (pendingDestructions_[i] == bodyId) return;
         }
 
         // Get body state
@@ -1834,12 +1870,12 @@ void Box2DPhysics::processFractures() {
                 }
 
                 // Track fragment layer for cleanup
-                fragmentLayerIds_.push_back(layerId);
+                ARRAY_PUSH_BACK(fragmentLayerIds_, fragmentLayerIdsCount_, fragmentLayerIdsCapacity_, int, layerId);
             }
             event.newLayerIds[fragIdx] = layerId;
 
             // Track fragment body for cleanup
-            fragmentBodyIds_.push_back(fragBodyId);
+            ARRAY_PUSH_BACK(fragmentBodyIds_, fragmentBodyIdsCount_, fragmentBodyIdsCapacity_, int, fragBodyId);
 
             // Make fragments also destructible if original was brittle enough and fragment is large enough
             if (props->brittleness > 0.5f && fracture.fragments[i].area >= MIN_FRAGMENT_AREA * MIN_REFRACTURE_AREA_MULTIPLIER) {
@@ -1882,8 +1918,8 @@ void Box2DPhysics::processFractures() {
 
         // Only create event if we have valid fragments
         if (event.fragmentCount > 0) {
-            fractureEvents_.push_back(event);
-            pendingDestructions_.push_back(bodyId);
+            ARRAY_PUSH_BACK(fractureEvents_, fractureEventsCount_, fractureEventsCapacity_, FractureEvent, event);
+            ARRAY_PUSH_BACK(pendingDestructions_, pendingDestructionsCount_, pendingDestructionsCapacity_, int, bodyId);
 
             // Call fracture callback if set
             if (fractureCallback_) {
@@ -1893,7 +1929,8 @@ void Box2DPhysics::processFractures() {
     };
 
     // Process each collision event - check both bodies
-    for (const auto& hit : collisionHitEvents_) {
+    for (size_t i = 0; i < collisionHitEventsCount_; i++) {
+        const auto& hit = collisionHitEvents_[i];
         // Process body A if destructible
         if (isBodyDestructible(hit.bodyIdA)) {
             processDestructible(hit.bodyIdA, hit);
@@ -1906,8 +1943,11 @@ void Box2DPhysics::processFractures() {
     }
 
     // Destroy joints attached to pending destruction bodies
-    std::vector<int> jointsToDestroy;
-    for (int bodyId : pendingDestructions_) {
+    int* jointsToDestroy = nullptr;
+    size_t jointsToDestroyCount = 0;
+    size_t jointsToDestroyCapacity = 0;
+    for (size_t i = 0; i < pendingDestructionsCount_; i++) {
+        int bodyId = pendingDestructions_[i];
         auto bodyIt = bodies_.find(bodyId);
         if (bodyIt != bodies_.end()) {
             for (auto& j : joints_) {
@@ -1916,118 +1956,137 @@ void Box2DPhysics::processFractures() {
                     b2BodyId bodyB = b2Joint_GetBodyB(jointId);
                     int attachedBodyId = findInternalBodyId(bodyB);
                     if (attachedBodyId == bodyId) {
-                        jointsToDestroy.push_back(j.first);
+                        ARRAY_PUSH_BACK(jointsToDestroy, jointsToDestroyCount, jointsToDestroyCapacity, int, j.first);
                     }
                 }
             }
         }
     }
-    for (int jointId : jointsToDestroy) {
-        destroyJoint(jointId);
+    for (size_t i = 0; i < jointsToDestroyCount; i++) {
+        destroyJoint(jointsToDestroy[i]);
     }
+    delete[] jointsToDestroy;
 
     // Destroy pending bodies
-    for (int bodyId : pendingDestructions_) {
-        clearBodyDestructible(bodyId);
-        destroyBody(bodyId);
+    for (size_t i = 0; i < pendingDestructionsCount_; i++) {
+        clearBodyDestructible(pendingDestructions_[i]);
+        destroyBody(pendingDestructions_[i]);
     }
-    pendingDestructions_.clear();
+    ARRAY_CLEAR(pendingDestructionsCount_);
 }
 
 void Box2DPhysics::clearAllForceFields() {
     SDL_LockMutex(physicsMutex_);
 
-    std::vector<int> fieldIds;
+    int* fieldIds = nullptr;
+    size_t fieldIdsCount = 0;
+    size_t fieldIdsCapacity = 0;
     for (auto& pair : forceFields_) {
-        fieldIds.push_back(pair.first);
+        ARRAY_PUSH_BACK(fieldIds, fieldIdsCount, fieldIdsCapacity, int, pair.first);
     }
 
     SDL_UnlockMutex(physicsMutex_);
 
-    for (int fieldId : fieldIds) {
-        destroyForceField(fieldId);
+    for (size_t i = 0; i < fieldIdsCount; i++) {
+        destroyForceField(fieldIds[i]);
     }
+    delete[] fieldIds;
 }
 
 void Box2DPhysics::clearAllRadialForceFields() {
     SDL_LockMutex(physicsMutex_);
 
-    std::vector<int> fieldIds;
+    int* fieldIds = nullptr;
+    size_t fieldIdsCount = 0;
+    size_t fieldIdsCapacity = 0;
     for (auto& pair : radialForceFields_) {
-        fieldIds.push_back(pair.first);
+        ARRAY_PUSH_BACK(fieldIds, fieldIdsCount, fieldIdsCapacity, int, pair.first);
     }
 
     SDL_UnlockMutex(physicsMutex_);
 
-    for (int fieldId : fieldIds) {
-        destroyRadialForceField(fieldId);
+    for (size_t i = 0; i < fieldIdsCount; i++) {
+        destroyRadialForceField(fieldIds[i]);
     }
+    delete[] fieldIds;
 }
 
 void Box2DPhysics::reset() {
     SDL_LockMutex(physicsMutex_);
 
     // Destroy all force fields first (uses bodies)
-    std::vector<int> forceFieldIds;
+    int* forceFieldIds = nullptr;
+    size_t forceFieldIdsCount = 0;
+    size_t forceFieldIdsCapacity = 0;
     for (auto& pair : forceFields_) {
-        forceFieldIds.push_back(pair.first);
+        ARRAY_PUSH_BACK(forceFieldIds, forceFieldIdsCount, forceFieldIdsCapacity, int, pair.first);
     }
-    std::vector<int> radialForceFieldIds;
+    int* radialForceFieldIds = nullptr;
+    size_t radialForceFieldIdsCount = 0;
+    size_t radialForceFieldIdsCapacity = 0;
     for (auto& pair : radialForceFields_) {
-        radialForceFieldIds.push_back(pair.first);
+        ARRAY_PUSH_BACK(radialForceFieldIds, radialForceFieldIdsCount, radialForceFieldIdsCapacity, int, pair.first);
     }
 
     SDL_UnlockMutex(physicsMutex_);
 
-    for (int fieldId : forceFieldIds) {
-        destroyForceField(fieldId);
+    for (size_t i = 0; i < forceFieldIdsCount; i++) {
+        destroyForceField(forceFieldIds[i]);
     }
-    for (int fieldId : radialForceFieldIds) {
-        destroyRadialForceField(fieldId);
+    delete[] forceFieldIds;
+    for (size_t i = 0; i < radialForceFieldIdsCount; i++) {
+        destroyRadialForceField(radialForceFieldIds[i]);
     }
+    delete[] radialForceFieldIds;
 
     SDL_LockMutex(physicsMutex_);
 
     // Destroy all joints
-    std::vector<int> jointIds;
+    int* jointIds = nullptr;
+    size_t jointIdsCount = 0;
+    size_t jointIdsCapacity = 0;
     for (auto& pair : joints_) {
-        jointIds.push_back(pair.first);
+        ARRAY_PUSH_BACK(jointIds, jointIdsCount, jointIdsCapacity, int, pair.first);
     }
 
     SDL_UnlockMutex(physicsMutex_);
 
-    for (int jointId : jointIds) {
-        destroyJoint(jointId);
+    for (size_t i = 0; i < jointIdsCount; i++) {
+        destroyJoint(jointIds[i]);
     }
+    delete[] jointIds;
 
     SDL_LockMutex(physicsMutex_);
 
     // Destroy all bodies
-    std::vector<int> bodyIds;
+    int* bodyIds = nullptr;
+    size_t bodyIdsCount = 0;
+    size_t bodyIdsCapacity = 0;
     for (auto& pair : bodies_) {
-        bodyIds.push_back(pair.first);
+        ARRAY_PUSH_BACK(bodyIds, bodyIdsCount, bodyIdsCapacity, int, pair.first);
     }
 
     SDL_UnlockMutex(physicsMutex_);
 
-    for (int bodyId : bodyIds) {
-        clearBodyDestructible(bodyId);
-        destroyBody(bodyId);
+    for (size_t i = 0; i < bodyIdsCount; i++) {
+        clearBodyDestructible(bodyIds[i]);
+        destroyBody(bodyIds[i]);
     }
+    delete[] bodyIds;
 
     SDL_LockMutex(physicsMutex_);
 
     // Clear fragment tracking
-    fragmentBodyIds_.clear();
-    fragmentLayerIds_.clear();
+    ARRAY_CLEAR(fragmentBodyIdsCount_);
+    ARRAY_CLEAR(fragmentLayerIdsCount_);
 
     // Clear destructible body layers
     destructibleBodyLayers_.clear();
 
     // Clear collision events
-    collisionHitEvents_.clear();
-    fractureEvents_.clear();
-    pendingDestructions_.clear();
+    ARRAY_CLEAR(collisionHitEventsCount_);
+    ARRAY_CLEAR(fractureEventsCount_);
+    ARRAY_CLEAR(pendingDestructionsCount_);
 
     // Reset time accumulator
     timeAccumulator_ = 0.0f;
@@ -2069,7 +2128,7 @@ void Box2DPhysics::getAllDynamicBodyInfo(int* bodyIds, float* posX, float* posY,
 void Box2DPhysics::addBodyType(int bodyId, const std::string& type) {
     SDL_LockMutex(physicsMutex_);
     auto& types = bodyTypes_[bodyId];
-    if (std::find(types.begin(), types.end(), type) == types.end()) {
+    if (!types.contains(type)) {
         types.push_back(type);
     }
     SDL_UnlockMutex(physicsMutex_);
@@ -2080,8 +2139,11 @@ void Box2DPhysics::removeBodyType(int bodyId, const std::string& type) {
     auto it = bodyTypes_.find(bodyId);
     if (it != bodyTypes_.end()) {
         auto& types = it->second;
-        types.erase(std::remove(types.begin(), types.end(), type), types.end());
-        if (types.empty()) {
+        int index = types.find(type);
+        if (index >= 0) {
+            types.erase(index);
+        }
+        if (types.count == 0) {
             bodyTypes_.erase(it);
         }
     }
@@ -2100,18 +2162,20 @@ bool Box2DPhysics::bodyHasType(int bodyId, const std::string& type) const {
     bool result = false;
     if (it != bodyTypes_.end()) {
         const auto& types = it->second;
-        result = std::find(types.begin(), types.end(), type) != types.end();
+        result = types.contains(type);
     }
     SDL_UnlockMutex(physicsMutex_);
     return result;
 }
 
-std::vector<std::string> Box2DPhysics::getBodyTypes(int bodyId) const {
+const char** Box2DPhysics::getBodyTypes(int bodyId, size_t* outCount) const {
     SDL_LockMutex(physicsMutex_);
     auto it = bodyTypes_.find(bodyId);
-    std::vector<std::string> result;
+    const char** result = nullptr;
+    *outCount = 0;
     if (it != bodyTypes_.end()) {
-        result = it->second;
+        *outCount = it->second.count;
+        result = (const char**)it->second.strings;
     }
     SDL_UnlockMutex(physicsMutex_);
     return result;

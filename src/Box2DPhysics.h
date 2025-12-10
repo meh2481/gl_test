@@ -1,16 +1,83 @@
 #pragma once
 
 #include <box2d/box2d.h>
-#include <vector>
 #include <unordered_map>
 #include <string>
 #include <SDL3/SDL.h>
 #include <functional>
+#include <cstring>
+#include <cassert>
 
 #define LENGTH_UNITS_PER_METER 0.05f  // Define this smaller so box2d doesn't join polygon vertices
 
 // Forward declarations
 class SceneLayerManager;
+
+// Dynamic string array helper
+struct StringArray {
+    char** strings;
+    size_t count;
+    size_t capacity;
+
+    StringArray() : strings(nullptr), count(0), capacity(0) {}
+
+    ~StringArray() {
+        for (size_t i = 0; i < count; i++) {
+            delete[] strings[i];
+        }
+        delete[] strings;
+    }
+
+    void push_back(const std::string& str) {
+        if (count >= capacity) {
+            size_t newCapacity = capacity == 0 ? 4 : capacity * 2;
+            char** newStrings = new char*[newCapacity];
+            for (size_t i = 0; i < count; i++) {
+                newStrings[i] = strings[i];
+            }
+            delete[] strings;
+            strings = newStrings;
+            capacity = newCapacity;
+        }
+        strings[count] = new char[str.length() + 1];
+        strcpy(strings[count], str.c_str());
+        count++;
+    }
+
+    void erase(size_t index) {
+        assert(index < count);
+        delete[] strings[index];
+        for (size_t i = index; i < count - 1; i++) {
+            strings[i] = strings[i + 1];
+        }
+        count--;
+    }
+
+    void clear() {
+        for (size_t i = 0; i < count; i++) {
+            delete[] strings[i];
+        }
+        count = 0;
+    }
+
+    bool contains(const std::string& str) const {
+        for (size_t i = 0; i < count; i++) {
+            if (strcmp(strings[i], str.c_str()) == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    int find(const std::string& str) const {
+        for (size_t i = 0; i < count; i++) {
+            if (strcmp(strings[i], str.c_str()) == 0) {
+                return (int)i;
+            }
+        }
+        return -1;
+    }
+};
 
 struct DebugVertex {
     float x, y;
@@ -189,11 +256,14 @@ public:
     // Debug drawing
     void enableDebugDraw(bool enable);
     bool isDebugDrawEnabled() const { return debugDrawEnabled_; }
-    const std::vector<DebugVertex>& getDebugLineVertices();
-    const std::vector<DebugVertex>& getDebugTriangleVertices();
+    const DebugVertex* getDebugLineVertices(size_t* outCount);
+    const DebugVertex* getDebugTriangleVertices(size_t* outCount);
 
     // Collision events - returns hit events from last physics step
-    const std::vector<CollisionHitEvent>& getCollisionHitEvents() const { return collisionHitEvents_; }
+    const CollisionHitEvent* getCollisionHitEvents(size_t* outCount) const {
+        *outCount = collisionHitEventsCount_;
+        return collisionHitEvents_;
+    }
 
     // Destructible object management
     void setBodyDestructible(int bodyId, float strength, float brittleness,
@@ -311,7 +381,7 @@ public:
     void removeBodyType(int bodyId, const std::string& type);
     void clearBodyTypes(int bodyId);
     bool bodyHasType(int bodyId, const std::string& type) const;
-    std::vector<std::string> getBodyTypes(int bodyId) const;
+    const char** getBodyTypes(int bodyId, size_t* outCount) const;
 
     // Collision callback for type-based interactions
     using CollisionCallback = std::function<void(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed)>;
@@ -346,8 +416,12 @@ private:
     int nextBodyId_;
     int nextJointId_;
     bool debugDrawEnabled_;
-    std::vector<DebugVertex> debugLineVertices_;
-    std::vector<DebugVertex> debugTriangleVertices_;
+    DebugVertex* debugLineVertices_;
+    size_t debugLineVerticesCount_;
+    size_t debugLineVerticesCapacity_;
+    DebugVertex* debugTriangleVertices_;
+    size_t debugTriangleVerticesCount_;
+    size_t debugTriangleVerticesCapacity_;
 
     // Fixed timestep accumulator for framerate-independent physics
     float timeAccumulator_;
@@ -362,10 +436,14 @@ private:
     b2BodyId mouseJointGroundBody_;
 
     // Collision events from last physics step
-    std::vector<CollisionHitEvent> collisionHitEvents_;
+    CollisionHitEvent* collisionHitEvents_;
+    size_t collisionHitEventsCount_;
+    size_t collisionHitEventsCapacity_;
 
     // Fracture events from last physics step
-    std::vector<FractureEvent> fractureEvents_;
+    FractureEvent* fractureEvents_;
+    size_t fractureEventsCount_;
+    size_t fractureEventsCapacity_;
 
     // Layer manager for creating fragment layers (not owned)
     SceneLayerManager* layerManager_ = nullptr;
@@ -377,11 +455,17 @@ private:
     SensorCallback sensorCallback_;
 
     // Bodies pending destruction after fracture (processed after step)
-    std::vector<int> pendingDestructions_;
+    int* pendingDestructions_;
+    size_t pendingDestructionsCount_;
+    size_t pendingDestructionsCapacity_;
 
     // Fragment tracking for cleanup
-    std::vector<int> fragmentBodyIds_;   // All fragment body IDs
-    std::vector<int> fragmentLayerIds_;  // All fragment layer IDs
+    int* fragmentBodyIds_;
+    size_t fragmentBodyIdsCount_;
+    size_t fragmentBodyIdsCapacity_;
+    int* fragmentLayerIds_;
+    size_t fragmentLayerIdsCount_;
+    size_t fragmentLayerIdsCapacity_;
 
     // Map from destructible body ID to its layer ID (for destroying layer when body fractures)
     std::unordered_map<int, int> destructibleBodyLayers_;
@@ -392,7 +476,7 @@ private:
     int nextForceFieldId_;
 
     // Type system for object interactions
-    std::unordered_map<int, std::vector<std::string>> bodyTypes_;
+    std::unordered_map<int, StringArray> bodyTypes_;
 
     // Collision callback
     CollisionCallback collisionCallback_;

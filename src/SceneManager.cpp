@@ -243,54 +243,66 @@ bool SceneManager::updateActiveScene(float deltaTime) {
 
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {
-            const std::vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
-            std::vector<float> lineVertexData;
-            lineVertexData.reserve(debugLineVerts.size() * 6);
-            for (const auto& v : debugLineVerts) {
-                lineVertexData.push_back(v.x);
-                lineVertexData.push_back(v.y);
-                lineVertexData.push_back(v.r);
-                lineVertexData.push_back(v.g);
-                lineVertexData.push_back(v.b);
-                lineVertexData.push_back(v.a);
+            size_t debugLineCount = 0;
+            const DebugVertex* debugLineVerts = physics.getDebugLineVertices(&debugLineCount);
+            float* lineVertexData = nullptr;
+            size_t lineVertexDataCount = 0;
+            size_t lineVertexDataCapacity = 0;
+            for (size_t i = 0; i < debugLineCount; i++) {
+                const auto& v = debugLineVerts[i];
+                float values[] = {v.x, v.y, v.r, v.g, v.b, v.a};
+                for (int j = 0; j < 6; j++) {
+                    if (lineVertexDataCount >= lineVertexDataCapacity) {
+                        size_t newCap = lineVertexDataCapacity == 0 ? debugLineCount * 6 : lineVertexDataCapacity * 2;
+                        float* newData = new float[newCap];
+                        if (lineVertexData) {
+                            memcpy(newData, lineVertexData, lineVertexDataCount * sizeof(float));
+                            delete[] lineVertexData;
+                        }
+                        lineVertexData = newData;
+                        lineVertexDataCapacity = newCap;
+                    }
+                    lineVertexData[lineVertexDataCount++] = values[j];
+                }
             }
-            renderer_.setDebugLineDrawData(lineVertexData);
+            renderer_.setDebugLineDrawData(lineVertexData, lineVertexDataCount);
+            delete[] lineVertexData;
 
-            const std::vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
-            std::vector<float> triangleVertexData;
-            triangleVertexData.reserve(debugTriangleVerts.size() * 6);
-            for (size_t i = 0; i < debugTriangleVerts.size(); i += 3) {
+            size_t debugTriangleCount = 0;
+            const DebugVertex* debugTriangleVerts = physics.getDebugTriangleVertices(&debugTriangleCount);
+            float* triangleVertexData = nullptr;
+            size_t triangleVertexDataCount = 0;
+            size_t triangleVertexDataCapacity = 0;
+            for (size_t i = 0; i < debugTriangleCount; i += 3) {
                 // Reverse winding order: v0, v2, v1 instead of v0, v1, v2
                 const auto& v0 = debugTriangleVerts[i];
                 const auto& v1 = debugTriangleVerts[i + 1];
                 const auto& v2 = debugTriangleVerts[i + 2];
-                // Push v0
-                triangleVertexData.push_back(v0.x);
-                triangleVertexData.push_back(v0.y);
-                triangleVertexData.push_back(v0.r);
-                triangleVertexData.push_back(v0.g);
-                triangleVertexData.push_back(v0.b);
-                triangleVertexData.push_back(v0.a);
-                // Push v2
-                triangleVertexData.push_back(v2.x);
-                triangleVertexData.push_back(v2.y);
-                triangleVertexData.push_back(v2.r);
-                triangleVertexData.push_back(v2.g);
-                triangleVertexData.push_back(v2.b);
-                triangleVertexData.push_back(v2.a);
-                // Push v1
-                triangleVertexData.push_back(v1.x);
-                triangleVertexData.push_back(v1.y);
-                triangleVertexData.push_back(v1.r);
-                triangleVertexData.push_back(v1.g);
-                triangleVertexData.push_back(v1.b);
-                triangleVertexData.push_back(v1.a);
+                float values[] = {
+                    v0.x, v0.y, v0.r, v0.g, v0.b, v0.a,
+                    v2.x, v2.y, v2.r, v2.g, v2.b, v2.a,
+                    v1.x, v1.y, v1.r, v1.g, v1.b, v1.a
+                };
+                for (int j = 0; j < 18; j++) {
+                    if (triangleVertexDataCount >= triangleVertexDataCapacity) {
+                        size_t newCap = triangleVertexDataCapacity == 0 ? debugTriangleCount * 6 : triangleVertexDataCapacity * 2;
+                        float* newData = new float[newCap];
+                        if (triangleVertexData) {
+                            memcpy(newData, triangleVertexData, triangleVertexDataCount * sizeof(float));
+                            delete[] triangleVertexData;
+                        }
+                        triangleVertexData = newData;
+                        triangleVertexDataCapacity = newCap;
+                    }
+                    triangleVertexData[triangleVertexDataCount++] = values[j];
+                }
             }
-            renderer_.setDebugTriangleDrawData(triangleVertexData);
+            renderer_.setDebugTriangleDrawData(triangleVertexData, triangleVertexDataCount);
+            delete[] triangleVertexData;
         } else {
             // Clear debug draw data
-            renderer_.setDebugLineDrawData({});
-            renderer_.setDebugTriangleDrawData({});
+            renderer_.setDebugLineDrawData(nullptr, 0);
+            renderer_.setDebugTriangleDrawData(nullptr, 0);
         }
 
         // Pop the scene after Lua execution is complete
