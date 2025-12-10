@@ -18,7 +18,7 @@ public:
 
     ~Vector() {
         clear();
-        if (data_) {
+        if (data_ && allocator_) {
             allocator_->free(data_);
             data_ = nullptr;
         }
@@ -41,7 +41,7 @@ public:
     Vector& operator=(const Vector& other) {
         if (this != &other) {
             clear();
-            if (data_) {
+            if (data_ && allocator_) {
                 allocator_->free(data_);
                 data_ = nullptr;
                 capacity_ = 0;
@@ -70,7 +70,7 @@ public:
     Vector& operator=(Vector&& other) noexcept {
         if (this != &other) {
             clear();
-            if (data_) {
+            if (data_ && allocator_) {
                 allocator_->free(data_);
             }
             data_ = other.data_;
