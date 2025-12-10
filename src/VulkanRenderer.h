@@ -30,17 +30,17 @@ public:
     void createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode = 0);
     void associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId);
     void setCurrentPipeline(uint64_t id);
-    void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
-    void setDebugDrawData(const std::vector<float>& vertexData);
-    void setDebugLineDrawData(const std::vector<float>& vertexData);
-    void setDebugTriangleDrawData(const std::vector<float>& vertexData);
-    void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
-    void setSpriteBatches(const std::vector<SpriteBatch>& batches);
-    void setParticleBatches(const std::vector<ParticleBatch>& batches);
-    void setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices, uint64_t textureId = 0);
+    void setPipelinesToDraw(const uint64_t* pipelineIds, size_t count);
+    void setDebugDrawData(const float* vertexData, size_t count);
+    void setDebugLineDrawData(const float* vertexData, size_t count);
+    void setDebugTriangleDrawData(const float* vertexData, size_t count);
+    void setSpriteDrawData(const float* vertexData, size_t vertexCount, const uint16_t* indices, size_t indexCount);
+    void setSpriteBatches(const SpriteBatch* batches, size_t count);
+    void setParticleBatches(const ParticleBatch* batches, size_t count);
+    void setParticleDrawData(const float* vertexData, size_t vertexCount, const uint16_t* indices, size_t indexCount, uint64_t textureId = 0);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);
-    void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
+    void createDescriptorSetForTextures(uint64_t descriptorId, const uint64_t* textureIds, size_t count);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
     void setPipelineParallaxDepth(int pipelineId, float depth);
     void markPipelineAsWater(int pipelineId);
@@ -137,9 +137,15 @@ private:
         float colorEndR, colorEndG, colorEndB, colorEndA;
         float colorCycleTime;
     };
-    std::vector<BatchDrawData> m_spriteBatches;
-    std::vector<BatchDrawData> m_particleBatches;
-    std::vector<BatchDrawData> m_allBatches;  // Combined and sorted
+    BatchDrawData* m_spriteBatches;
+    size_t m_spriteBatchesCount;
+    size_t m_spriteBatchesCapacity;
+    BatchDrawData* m_particleBatches;
+    size_t m_particleBatchesCount;
+    size_t m_particleBatchesCapacity;
+    BatchDrawData* m_allBatches;
+    size_t m_allBatchesCount;
+    size_t m_allBatchesCapacity;
 
     // Helper to rebuild combined batch list from sprite and particle batches
     void rebuildAllBatches();

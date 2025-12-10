@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <vector>
 #include <cstdint>
 
 // Helper class for managing Vulkan buffers
@@ -28,7 +27,7 @@ public:
     };
 
     void createDynamicVertexBuffer(DynamicBuffer& dynBuffer, size_t initialSize);
-    void updateDynamicVertexBuffer(DynamicBuffer& dynBuffer, const std::vector<float>& vertexData,
+    void updateDynamicVertexBuffer(DynamicBuffer& dynBuffer, const float* vertexData, size_t count,
                                    uint32_t floatsPerVertex);
     void destroyDynamicBuffer(DynamicBuffer& dynBuffer);
 
@@ -45,8 +44,8 @@ public:
     };
 
     void createIndexedBuffer(IndexedBuffer& buffer, size_t initialVertexSize, size_t initialIndexSize);
-    void updateIndexedBuffer(IndexedBuffer& buffer, const std::vector<float>& vertexData,
-                            const std::vector<uint16_t>& indices, uint32_t floatsPerVertex);
+    void updateIndexedBuffer(IndexedBuffer& buffer, const float* vertexData, size_t vertexCount,
+                            const uint16_t* indices, size_t indexCount, uint32_t floatsPerVertex);
     void destroyIndexedBuffer(IndexedBuffer& buffer);
 
     // Memory type finding utility

@@ -91,14 +91,14 @@ void VulkanBuffer::createDynamicVertexBuffer(DynamicBuffer& dynBuffer, size_t in
                 dynBuffer.buffer, dynBuffer.memory);
 }
 
-void VulkanBuffer::updateDynamicVertexBuffer(DynamicBuffer& dynBuffer, const std::vector<float>& vertexData,
+void VulkanBuffer::updateDynamicVertexBuffer(DynamicBuffer& dynBuffer, const float* vertexData, size_t count,
                                              uint32_t floatsPerVertex) {
-    if (vertexData.empty()) {
+    if (count == 0 || vertexData == nullptr) {
         dynBuffer.count = 0;
         return;
     }
 
-    size_t dataSize = vertexData.size() * sizeof(float);
+    size_t dataSize = count * sizeof(float);
 
     // Reallocate if needed
     if (dataSize > dynBuffer.currentSize) {
@@ -115,8 +115,8 @@ void VulkanBuffer::updateDynamicVertexBuffer(DynamicBuffer& dynBuffer, const std
                     dynBuffer.buffer, dynBuffer.memory);
     }
 
-    copyDataToBuffer(dynBuffer.memory, vertexData.data(), dataSize);
-    dynBuffer.count = static_cast<uint32_t>(vertexData.size() / floatsPerVertex);
+    copyDataToBuffer(dynBuffer.memory, vertexData, dataSize);
+    dynBuffer.count = static_cast<uint32_t>(count / floatsPerVertex);
 }
 
 void VulkanBuffer::destroyDynamicBuffer(DynamicBuffer& dynBuffer) {
@@ -147,16 +147,16 @@ void VulkanBuffer::createIndexedBuffer(IndexedBuffer& buffer, size_t initialVert
                 buffer.indexBuffer, buffer.indexMemory);
 }
 
-void VulkanBuffer::updateIndexedBuffer(IndexedBuffer& buffer, const std::vector<float>& vertexData,
-                                       const std::vector<uint16_t>& indices, uint32_t floatsPerVertex) {
-    if (vertexData.empty() || indices.empty()) {
+void VulkanBuffer::updateIndexedBuffer(IndexedBuffer& buffer, const float* vertexData, size_t vertexCount,
+                                       const uint16_t* indices, size_t indexCount, uint32_t floatsPerVertex) {
+    if (vertexCount == 0 || indexCount == 0 || vertexData == nullptr || indices == nullptr) {
         buffer.vertexCount = 0;
         buffer.indexCount = 0;
         return;
     }
 
-    size_t vertexDataSize = vertexData.size() * sizeof(float);
-    size_t indexDataSize = indices.size() * sizeof(uint16_t);
+    size_t vertexDataSize = vertexCount * sizeof(float);
+    size_t indexDataSize = indexCount * sizeof(uint16_t);
 
     // Reallocate vertex buffer if needed
     if (vertexDataSize > buffer.vertexSize) {
@@ -188,11 +188,11 @@ void VulkanBuffer::updateIndexedBuffer(IndexedBuffer& buffer, const std::vector<
                     buffer.indexBuffer, buffer.indexMemory);
     }
 
-    copyDataToBuffer(buffer.vertexMemory, vertexData.data(), vertexDataSize);
-    copyDataToBuffer(buffer.indexMemory, indices.data(), indexDataSize);
+    copyDataToBuffer(buffer.vertexMemory, vertexData, vertexDataSize);
+    copyDataToBuffer(buffer.indexMemory, indices, indexDataSize);
 
-    buffer.vertexCount = static_cast<uint32_t>(vertexData.size() / floatsPerVertex);
-    buffer.indexCount = static_cast<uint32_t>(indices.size());
+    buffer.vertexCount = static_cast<uint32_t>(vertexCount / floatsPerVertex);
+    buffer.indexCount = static_cast<uint32_t>(indexCount);
 }
 
 void VulkanBuffer::destroyIndexedBuffer(IndexedBuffer& buffer) {

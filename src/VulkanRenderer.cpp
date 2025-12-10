@@ -7,6 +7,25 @@
 #include <cassert>
 #include <SDL3/SDL_vulkan.h>
 
+// Helper macros for dynamic C array management
+#define ARRAY_PUSH_BACK(arr, count, capacity, type, value) \
+    do { \
+        if ((count) >= (capacity)) { \
+            size_t newCap = (capacity) == 0 ? 16 : (capacity) * 2; \
+            type* newArr = new type[newCap]; \
+            if ((arr)) { \
+                memcpy(newArr, (arr), (count) * sizeof(type)); \
+                delete[] (arr); \
+            } \
+            (arr) = newArr; \
+            (capacity) = newCap; \
+        } \
+        (arr)[(count)++] = (value); \
+    } while(0)
+
+#define ARRAY_CLEAR(count) \
+    do { (count) = 0; } while(0)
+
 // Helper function to convert VkResult to readable string for error logging
 static const char* vkResultToString(VkResult result) {
     switch (result) {
@@ -94,7 +113,16 @@ VulkanRenderer::VulkanRenderer() :
     m_reflectionFramebuffer(VK_NULL_HANDLE),
     m_reflectionTextureId(REFLECTION_TEXTURE_ID_INVALID),
     m_reflectionEnabled(false),
-    m_reflectionSurfaceY(0.0f)
+    m_reflectionSurfaceY(0.0f),
+    m_spriteBatches(nullptr),
+    m_spriteBatchesCount(0),
+    m_spriteBatchesCapacity(0),
+    m_particleBatches(nullptr),
+    m_particleBatchesCount(0),
+    m_particleBatchesCapacity(0),
+    m_allBatches(nullptr),
+    m_allBatchesCount(0),
+    m_allBatchesCapacity(0)
 #ifdef DEBUG
     , m_imguiRenderCallback(nullptr)
 #endif
@@ -185,8 +213,8 @@ void VulkanRenderer::associateDescriptorWithPipeline(uint64_t pipelineId, uint64
     m_pipelineManager.associateDescriptorWithPipeline(pipelineId, descriptorId);
 }
 
-void VulkanRenderer::setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds) {
-    m_pipelineManager.setPipelinesToDraw(pipelineIds);
+void VulkanRenderer::setPipelinesToDraw(const uint64_t* pipelineIds, size_t count) {
+    m_pipelineManager.setPipelinesToDraw(pipelineIds, count);
 }
 
 void VulkanRenderer::render(float time) {
@@ -291,6 +319,11 @@ void VulkanRenderer::cleanup() {
     m_bufferManager.destroyDynamicBuffer(m_debugTriangleBuffer);
     m_bufferManager.destroyIndexedBuffer(m_spriteBuffer);
     m_bufferManager.destroyIndexedBuffer(m_particleBuffer);
+
+    // Cleanup batch arrays
+    delete[] m_spriteBatches;
+    delete[] m_particleBatches;
+    delete[] m_allBatches;
 
     if (m_swapchainFramebuffers != nullptr) {
         for (size_t i = 0; i < m_swapchainImageCount; i++) {
@@ -933,8 +966,8 @@ void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& ver
     m_pipelineManager.createParticlePipeline(id, vertShader, fragShader, blendMode);
 }
 
-void VulkanRenderer::createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds) {
-    m_descriptorManager.createDescriptorSetForTextures(descriptorId, textureIds);
+void VulkanRenderer::createDescriptorSetForTextures(uint64_t descriptorId, const uint64_t* textureIds, size_t count) {
+    m_descriptorManager.createDescriptorSetForTextures(descriptorId, textureIds, count);
 }
 
 void VulkanRenderer::setShaderParameters(int pipelineId, int paramCount, const float* params) {
@@ -971,40 +1004,45 @@ void VulkanRenderer::setClearColor(float r, float g, float b, float a) {
 
 // Buffer update methods
 
-void VulkanRenderer::setDebugDrawData(const std::vector<float>& vertexData) {
-    m_bufferManager.updateDynamicVertexBuffer(m_debugLineBuffer, vertexData, 6);
+void VulkanRenderer::setDebugDrawData(const float* vertexData, size_t count) {
+    m_bufferManager.updateDynamicVertexBuffer(m_debugLineBuffer, vertexData, count, 6);
 }
 
-void VulkanRenderer::setDebugLineDrawData(const std::vector<float>& vertexData) {
-    m_bufferManager.updateDynamicVertexBuffer(m_debugLineBuffer, vertexData, 6);
+void VulkanRenderer::setDebugLineDrawData(const float* vertexData, size_t count) {
+    m_bufferManager.updateDynamicVertexBuffer(m_debugLineBuffer, vertexData, count, 6);
 }
 
-void VulkanRenderer::setDebugTriangleDrawData(const std::vector<float>& vertexData) {
-    m_bufferManager.updateDynamicVertexBuffer(m_debugTriangleBuffer, vertexData, 6);
+void VulkanRenderer::setDebugTriangleDrawData(const float* vertexData, size_t count) {
+    m_bufferManager.updateDynamicVertexBuffer(m_debugTriangleBuffer, vertexData, count, 6);
 }
 
-void VulkanRenderer::setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices) {
-    m_bufferManager.updateIndexedBuffer(m_spriteBuffer, vertexData, indices, 6);
+void VulkanRenderer::setSpriteDrawData(const float* vertexData, size_t vertexCount, const uint16_t* indices, size_t indexCount) {
+    m_bufferManager.updateIndexedBuffer(m_spriteBuffer, vertexData, vertexCount, indices, indexCount, 6);
 }
 
-void VulkanRenderer::setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices, uint64_t textureId) {
-    m_bufferManager.updateIndexedBuffer(m_particleBuffer, vertexData, indices, 8);
+void VulkanRenderer::setParticleDrawData(const float* vertexData, size_t vertexCount, const uint16_t* indices, size_t indexCount, uint64_t textureId) {
+    m_bufferManager.updateIndexedBuffer(m_particleBuffer, vertexData, vertexCount, indices, indexCount, 8);
     m_particleTextureId = textureId;
 }
 
-void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
+void VulkanRenderer::setSpriteBatches(const SpriteBatch* batches, size_t count) {
     // Wait for all in-flight frames to complete before modifying shared buffers
     VkFence fences[] = {m_inFlightFences[0], m_inFlightFences[1]};
     vkWaitForFences(m_device, 2, fences, VK_TRUE, UINT64_MAX);
 
-    m_spriteBatches.clear();
+    ARRAY_CLEAR(m_spriteBatchesCount);
 
-    std::vector<float> allVertexData;
-    std::vector<uint16_t> allIndices;
+    float* allVertexData = nullptr;
+    size_t allVertexDataCount = 0;
+    size_t allVertexDataCapacity = 0;
+    uint16_t* allIndices = nullptr;
+    size_t allIndicesCount = 0;
+    size_t allIndicesCapacity = 0;
     uint32_t baseVertex = 0;
 
-    for (const auto& batch : batches) {
-        if (batch.vertices.empty() || batch.indices.empty()) {
+    for (size_t i = 0; i < count; i++) {
+        const auto& batch = batches[i];
+        if (batch.verticesCount == 0 || batch.indicesCount == 0) {
             continue;
         }
 
@@ -1014,8 +1052,8 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
         drawData.descriptorId = batch.descriptorId;
         drawData.pipelineId = batch.pipelineId;
         drawData.parallaxDepth = batch.parallaxDepth;
-        drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
-        drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        drawData.firstIndex = static_cast<uint32_t>(allIndicesCount);
+        drawData.indexCount = static_cast<uint32_t>(batch.indicesCount);
         drawData.isParticle = false;
 
         // Copy animation parameters
@@ -1040,44 +1078,47 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
         drawData.colorEndA = batch.colorEndA;
         drawData.colorCycleTime = batch.colorCycleTime;
 
-        for (const auto& v : batch.vertices) {
-            allVertexData.push_back(v.x);
-            allVertexData.push_back(v.y);
-            allVertexData.push_back(v.u);
-            allVertexData.push_back(v.v);
-            allVertexData.push_back(v.nu);
-            allVertexData.push_back(v.nv);
-            allVertexData.push_back(v.uvMinX);
-            allVertexData.push_back(v.uvMinY);
-            allVertexData.push_back(v.uvMaxX);
-            allVertexData.push_back(v.uvMaxY);
+        for (size_t j = 0; j < batch.verticesCount; j++) {
+            const auto& v = batch.vertices[j];
+            float values[] = {v.x, v.y, v.u, v.v, v.nu, v.nv, v.uvMinX, v.uvMinY, v.uvMaxX, v.uvMaxY};
+            for (int k = 0; k < 10; k++) {
+                ARRAY_PUSH_BACK(allVertexData, allVertexDataCount, allVertexDataCapacity, float, values[k]);
+            }
         }
 
-        for (uint16_t idx : batch.indices) {
-            allIndices.push_back(idx + baseVertex);
+        for (size_t j = 0; j < batch.indicesCount; j++) {
+            uint16_t idx = batch.indices[j] + baseVertex;
+            ARRAY_PUSH_BACK(allIndices, allIndicesCount, allIndicesCapacity, uint16_t, idx);
         }
 
-        baseVertex += static_cast<uint32_t>(batch.vertices.size());
-        m_spriteBatches.push_back(drawData);
+        baseVertex += static_cast<uint32_t>(batch.verticesCount);
+        ARRAY_PUSH_BACK(m_spriteBatches, m_spriteBatchesCount, m_spriteBatchesCapacity, BatchDrawData, drawData);
     }
 
-    m_bufferManager.updateIndexedBuffer(m_spriteBuffer, allVertexData, allIndices, 10);
+    m_bufferManager.updateIndexedBuffer(m_spriteBuffer, allVertexData, allVertexDataCount, allIndices, allIndicesCount, 10);
+    delete[] allVertexData;
+    delete[] allIndices;
     rebuildAllBatches();
 }
 
-void VulkanRenderer::setParticleBatches(const std::vector<ParticleBatch>& batches) {
+void VulkanRenderer::setParticleBatches(const ParticleBatch* batches, size_t count) {
     // Wait for all in-flight frames to complete before modifying shared buffers
     VkFence fences[] = {m_inFlightFences[0], m_inFlightFences[1]};
     vkWaitForFences(m_device, 2, fences, VK_TRUE, UINT64_MAX);
 
-    m_particleBatches.clear();
+    ARRAY_CLEAR(m_particleBatchesCount);
 
-    std::vector<float> allVertexData;
-    std::vector<uint16_t> allIndices;
+    float* allVertexData = nullptr;
+    size_t allVertexDataCount = 0;
+    size_t allVertexDataCapacity = 0;
+    uint16_t* allIndices = nullptr;
+    size_t allIndicesCount = 0;
+    size_t allIndicesCapacity = 0;
     uint32_t baseVertex = 0;
 
-    for (const auto& batch : batches) {
-        if (batch.vertices.empty() || batch.indices.empty()) {
+    for (size_t i = 0; i < count; i++) {
+        const auto& batch = batches[i];
+        if (batch.verticesCount == 0 || batch.indicesCount == 0) {
             continue;
         }
 
@@ -1087,8 +1128,8 @@ void VulkanRenderer::setParticleBatches(const std::vector<ParticleBatch>& batche
         drawData.descriptorId = batch.textureId;  // Use texture ID as descriptor ID
         drawData.pipelineId = batch.pipelineId;
         drawData.parallaxDepth = batch.parallaxDepth;
-        drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
-        drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        drawData.firstIndex = static_cast<uint32_t>(allIndicesCount);
+        drawData.indexCount = static_cast<uint32_t>(batch.indicesCount);
         drawData.isParticle = true;
 
         // Initialize animation parameters to defaults (no animation for particles)
@@ -1113,44 +1154,39 @@ void VulkanRenderer::setParticleBatches(const std::vector<ParticleBatch>& batche
         drawData.colorEndA = 1.0f;
         drawData.colorCycleTime = 0.0f;
 
-        for (const auto& v : batch.vertices) {
-            allVertexData.push_back(v.x);
-            allVertexData.push_back(v.y);
-            allVertexData.push_back(v.u);
-            allVertexData.push_back(v.v);
-            allVertexData.push_back(v.r);
-            allVertexData.push_back(v.g);
-            allVertexData.push_back(v.b);
-            allVertexData.push_back(v.a);
-            allVertexData.push_back(v.uvMinX);
-            allVertexData.push_back(v.uvMinY);
-            allVertexData.push_back(v.uvMaxX);
-            allVertexData.push_back(v.uvMaxY);
+        for (size_t j = 0; j < batch.verticesCount; j++) {
+            const auto& v = batch.vertices[j];
+            float values[] = {v.x, v.y, v.u, v.v, v.r, v.g, v.b, v.a, v.uvMinX, v.uvMinY, v.uvMaxX, v.uvMaxY};
+            for (int k = 0; k < 12; k++) {
+                ARRAY_PUSH_BACK(allVertexData, allVertexDataCount, allVertexDataCapacity, float, values[k]);
+            }
         }
 
-        for (uint16_t idx : batch.indices) {
-            allIndices.push_back(idx + baseVertex);
+        for (size_t j = 0; j < batch.indicesCount; j++) {
+            uint16_t idx = batch.indices[j] + baseVertex;
+            ARRAY_PUSH_BACK(allIndices, allIndicesCount, allIndicesCapacity, uint16_t, idx);
         }
 
-        baseVertex += static_cast<uint32_t>(batch.vertices.size());
-        m_particleBatches.push_back(drawData);
+        baseVertex += static_cast<uint32_t>(batch.verticesCount);
+        ARRAY_PUSH_BACK(m_particleBatches, m_particleBatchesCount, m_particleBatchesCapacity, BatchDrawData, drawData);
     }
 
-    m_bufferManager.updateIndexedBuffer(m_particleBuffer, allVertexData, allIndices, 8);
+    m_bufferManager.updateIndexedBuffer(m_particleBuffer, allVertexData, allVertexDataCount, allIndices, allIndicesCount, 8);
+    delete[] allVertexData;
+    delete[] allIndices;
     rebuildAllBatches();
 }
 
 void VulkanRenderer::rebuildAllBatches() {
-    m_allBatches.clear();
-    m_allBatches.reserve(m_spriteBatches.size() + m_particleBatches.size());
-    for (const auto& b : m_spriteBatches) {
-        m_allBatches.push_back(b);
+    ARRAY_CLEAR(m_allBatchesCount);
+    for (size_t i = 0; i < m_spriteBatchesCount; i++) {
+        ARRAY_PUSH_BACK(m_allBatches, m_allBatchesCount, m_allBatchesCapacity, BatchDrawData, m_spriteBatches[i]);
     }
-    for (const auto& b : m_particleBatches) {
-        m_allBatches.push_back(b);
+    for (size_t i = 0; i < m_particleBatchesCount; i++) {
+        ARRAY_PUSH_BACK(m_allBatches, m_allBatchesCount, m_allBatchesCapacity, BatchDrawData, m_particleBatches[i]);
     }
     // Sort by parallax depth (higher = background = drawn first)
-    std::sort(m_allBatches.begin(), m_allBatches.end(), [](const BatchDrawData& a, const BatchDrawData& b) {
+    std::sort(m_allBatches, m_allBatches + m_allBatchesCount, [](const BatchDrawData& a, const BatchDrawData& b) {
         return a.parallaxDepth > b.parallaxDepth;
     });
 }
@@ -1247,13 +1283,14 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 
     // Phase 2: Draw all batches (sprites and particles) in parallax order
     // m_allBatches is pre-sorted by parallax depth (higher = background = drawn first)
-    if (!m_allBatches.empty()) {
+    if (m_allBatchesCount > 0) {
         int currentPipelineId = -1;
         bool currentIsParticle = false;
         bool spriteBound = false;
         bool particleBound = false;
 
-        for (const auto& batch : m_allBatches) {
+        for (size_t i = 0; i < m_allBatchesCount; i++) {
+            const auto& batch = m_allBatches[i];
             VkPipeline pipeline = m_pipelineManager.getPipeline(batch.pipelineId);
             const PipelineInfo* info = m_pipelineManager.getPipelineInfo(batch.pipelineId);
 
@@ -1626,7 +1663,8 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
     }
 
     // Draw only batches that are above the water surface (parallaxDepth check)
-    for (const auto& batch : m_allBatches) {
+    for (size_t i = 0; i < m_allBatchesCount; i++) {
+        const auto& batch = m_allBatches[i];
         if (batch.isParticle) continue;  // Skip particles for reflection
 
         VkPipeline pipeline = m_pipelineManager.getPipeline(batch.pipelineId);
