@@ -247,8 +247,7 @@ void ImGuiManager::showConsoleWindow() {
     ImGui::Begin("Console Output", nullptr);
 
     // Get console lines
-    std::vector<String> lines;
-    ConsoleBuffer::getInstance().getLines(lines);
+    const auto& lines = ConsoleBuffer::getInstance().getLines();
 
     // Display lines in a scrollable region
     ImGui::BeginChild("ScrollingRegion", ImVec2(0, -30), false, ImGuiWindowFlags_HorizontalScrollbar);

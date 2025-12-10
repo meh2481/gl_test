@@ -6,6 +6,7 @@
 #include <mutex>
 #include <sstream>
 #include <iostream>
+#include <functional>
 #include "../core/String.h"
 #include "../memory/MemoryAllocator.h"
 #include "../memory/SmallAllocator.h"
@@ -20,16 +21,15 @@ public:
 
     void addLine(const String& line) {
         std::lock_guard<std::mutex> lock(mutex_);
-        lines_.push_back(line);
+        lines_.push_back(String(line.c_str(), stringAllocator_));
         // Keep buffer size reasonable (max 1000 lines)
         if (lines_.size() > 1000) {
             lines_.erase(lines_.begin());
         }
     }
 
-    void getLines(std::vector<String>& outLines) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        outLines = lines_;
+    const std::vector<String>& getLines() {
+        return lines_;
     }
 
     void clear() {
