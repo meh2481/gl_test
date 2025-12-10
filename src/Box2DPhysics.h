@@ -311,7 +311,7 @@ public:
     void removeBodyType(int bodyId, const std::string& type);
     void clearBodyTypes(int bodyId);
     bool bodyHasType(int bodyId, const std::string& type) const;
-    const std::vector<std::string>* getBodyTypes(int bodyId) const;
+    std::vector<std::string> getBodyTypes(int bodyId) const;
 
     // Collision callback for type-based interactions
     using CollisionCallback = std::function<void(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed)>;

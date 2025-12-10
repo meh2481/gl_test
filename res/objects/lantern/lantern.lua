@@ -12,6 +12,7 @@ Lantern.lightBody = nil
 Lantern.chainAnchor = nil
 Lantern.lightId = nil
 Lantern.particleSystemId = nil
+Lantern.config = nil
 
 -- Loaded resources (loaded once on first create)
 Lantern.lanternTexId = nil
@@ -74,6 +75,8 @@ function Lantern.create(params)
     for k, v in pairs(params) do
         config[k] = v
     end
+
+    Lantern.config = config
 
     local startX = config.x
     local startY = config.y
@@ -187,12 +190,12 @@ function Lantern.extinguish()
 end
 
 function Lantern.relight()
-    if not Lantern.lightBody then return end
+    if not Lantern.lightBody or not Lantern.config then return end
 
     local x, y = b2GetBodyPosition(Lantern.lightBody)
     if x == nil or y == nil then return end
 
-    updateLight(Lantern.lightId, x, y, config.lightZ, config.lightR, config.lightG, config.lightB, config.lightIntensity)
+    updateLight(Lantern.lightId, x, y, Lantern.config.lightZ, Lantern.config.lightR, Lantern.config.lightG, Lantern.config.lightB, Lantern.config.lightIntensity)
 
     if Lantern.layers and #Lantern.layers >= 3 then
         local bloomLayerId = Lantern.layers[3]
@@ -201,7 +204,7 @@ function Lantern.relight()
         end
     end
 
-    if config.enableParticles and Lantern.particlePipelineId and not Lantern.particleSystemId then
+    if Lantern.config.enableParticles and Lantern.particlePipelineId and not Lantern.particleSystemId then
         local particleConfig = loadParticleConfig("res/fx/lantern_bugs.lua")
         if particleConfig then
             particleConfig.textureIds = {Lantern.bloomTexId}

@@ -2105,7 +2105,13 @@ bool Box2DPhysics::bodyHasType(int bodyId, const std::string& type) const {
     return result;
 }
 
-const std::vector<std::string>* Box2DPhysics::getBodyTypes(int bodyId) const {
+std::vector<std::string> Box2DPhysics::getBodyTypes(int bodyId) const {
+    SDL_LockMutex(physicsMutex_);
     auto it = bodyTypes_.find(bodyId);
-    return it != bodyTypes_.end() ? &it->second : nullptr;
+    std::vector<std::string> result;
+    if (it != bodyTypes_.end()) {
+        result = it->second;
+    }
+    SDL_UnlockMutex(physicsMutex_);
+    return result;
 }

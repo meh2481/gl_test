@@ -3500,14 +3500,12 @@ int LuaInterface::b2BodyHasType(lua_State* L) {
 int LuaInterface::b2GetBodyTypes(lua_State* L) {
     LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
     int bodyId = luaL_checkinteger(L, 1);
-    const std::vector<std::string>* types = interface->physics_->getBodyTypes(bodyId);
+    std::vector<std::string> types = interface->physics_->getBodyTypes(bodyId);
 
     lua_newtable(L);
-    if (types) {
-        for (size_t i = 0; i < types->size(); ++i) {
-            lua_pushstring(L, (*types)[i].c_str());
-            lua_rawseti(L, -2, i + 1);
-        }
+    for (size_t i = 0; i < types.size(); ++i) {
+        lua_pushstring(L, types[i].c_str());
+        lua_rawseti(L, -2, i + 1);
     }
     return 1;
 }
