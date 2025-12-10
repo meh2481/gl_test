@@ -1,5 +1,6 @@
 #include "VulkanPipeline.h"
 #include "VulkanDescriptor.h"
+#include "../memory/SmallAllocator.h"
 #include <cassert>
 #include <iostream>
 
@@ -24,11 +25,19 @@ VulkanPipeline::VulkanPipeline() :
     m_pipelineLayout(VK_NULL_HANDLE),
     m_debugLinePipeline(VK_NULL_HANDLE),
     m_debugTrianglePipeline(VK_NULL_HANDLE),
-    m_currentPipeline(VK_NULL_HANDLE)
+    m_currentPipeline(VK_NULL_HANDLE),
+    m_allocator(nullptr),
+    m_pipelinesToDraw(*(m_allocator = new SmallAllocator())),
+    m_vertShaderData(*m_allocator),
+    m_fragShaderData(*m_allocator)
 {
 }
 
 VulkanPipeline::~VulkanPipeline() {
+    if (m_allocator) {
+        delete m_allocator;
+        m_allocator = nullptr;
+    }
 }
 
 void VulkanPipeline::init(VkDevice device, VkRenderPass renderPass, VkSampleCountFlagBits msaaSamples, VkExtent2D swapchainExtent) {
@@ -70,7 +79,7 @@ void VulkanPipeline::cleanup() {
     m_initialized = false;
 }
 
-VkShaderModule VulkanPipeline::createShaderModule(const std::vector<char>& code) {
+VkShaderModule VulkanPipeline::createShaderModule(const Vector<char>& code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = code.size();
@@ -103,8 +112,14 @@ void VulkanPipeline::createBasePipelineLayout() {
 }
 
 void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline) {
-    std::vector<char> vertData(vertShader.data, vertShader.data + vertShader.size);
-    std::vector<char> fragData(fragShader.data, fragShader.data + fragShader.size);
+    Vector<char> vertData(*m_allocator);
+    for (size_t i = 0; i < vertShader.size; ++i) {
+        vertData.push_back(vertShader.data[i]);
+    }
+    Vector<char> fragData(*m_allocator);
+    for (size_t i = 0; i < fragShader.size; ++i) {
+        fragData.push_back(fragShader.data[i]);
+    }
 
     VkShaderModule vertShaderModule = createShaderModule(vertData);
     VkShaderModule fragShaderModule = createShaderModule(fragData);
@@ -272,8 +287,14 @@ void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader,
 }
 
 void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
-    m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
-    m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
+    m_vertShaderData.clear();
+    for (size_t i = 0; i < vertShader.size; ++i) {
+        m_vertShaderData.push_back(vertShader.data[i]);
+    }
+    m_fragShaderData.clear();
+    for (size_t i = 0; i < fragShader.size; ++i) {
+        m_fragShaderData.push_back(fragShader.data[i]);
+    }
 
     VkShaderModule vertShaderModule = createShaderModule(m_vertShaderData);
     VkShaderModule fragShaderModule = createShaderModule(m_fragShaderData);
@@ -457,8 +478,14 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
 }
 
 void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
-    m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
-    m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
+    m_vertShaderData.clear();
+    for (size_t i = 0; i < vertShader.size; ++i) {
+        m_vertShaderData.push_back(vertShader.data[i]);
+    }
+    m_fragShaderData.clear();
+    for (size_t i = 0; i < fragShader.size; ++i) {
+        m_fragShaderData.push_back(fragShader.data[i]);
+    }
 
     VkShaderModule vertShaderModule = createShaderModule(m_vertShaderData);
     VkShaderModule fragShaderModule = createShaderModule(m_fragShaderData);
@@ -642,8 +669,14 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
 }
 
 void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
-    m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
-    m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
+    m_vertShaderData.clear();
+    for (size_t i = 0; i < vertShader.size; ++i) {
+        m_vertShaderData.push_back(vertShader.data[i]);
+    }
+    m_fragShaderData.clear();
+    for (size_t i = 0; i < fragShader.size; ++i) {
+        m_fragShaderData.push_back(fragShader.data[i]);
+    }
 
     VkShaderModule vertShaderModule = createShaderModule(m_vertShaderData);
     VkShaderModule fragShaderModule = createShaderModule(m_fragShaderData);
@@ -828,8 +861,14 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
 }
 
 void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode) {
-    m_vertShaderData.assign(vertShader.data, vertShader.data + vertShader.size);
-    m_fragShaderData.assign(fragShader.data, fragShader.data + fragShader.size);
+    m_vertShaderData.clear();
+    for (size_t i = 0; i < vertShader.size; ++i) {
+        m_vertShaderData.push_back(vertShader.data[i]);
+    }
+    m_fragShaderData.clear();
+    for (size_t i = 0; i < fragShader.size; ++i) {
+        m_fragShaderData.push_back(fragShader.data[i]);
+    }
 
     VkShaderModule vertShaderModule = createShaderModule(m_vertShaderData);
     VkShaderModule fragShaderModule = createShaderModule(m_fragShaderData);

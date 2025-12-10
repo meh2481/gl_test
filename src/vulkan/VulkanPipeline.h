@@ -4,9 +4,10 @@
 #include "../resources/resource.h"
 #include <map>
 #include <set>
-#include <vector>
 #include <array>
 #include <cstdint>
+#include "../core/Vector.h"
+#include "../memory/MemoryAllocator.h"
 
 // Forward declarations
 class VulkanDescriptor;
@@ -90,8 +91,8 @@ public:
     VkPipeline getCurrentPipeline() const { return m_currentPipeline; }
 
     // Pipelines to draw
-    void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds) { m_pipelinesToDraw = pipelineIds; }
-    const std::vector<uint64_t>& getPipelinesToDraw() const { return m_pipelinesToDraw; }
+    void setPipelinesToDraw(const Vector<uint64_t>& pipelineIds) { m_pipelinesToDraw = pipelineIds; }
+    const Vector<uint64_t>& getPipelinesToDraw() const { return m_pipelinesToDraw; }
 
     // Destroy specific pipeline
     void destroyPipeline(uint64_t id);
@@ -100,7 +101,7 @@ public:
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
 
 private:
-    VkShaderModule createShaderModule(const std::vector<char>& code);
+    VkShaderModule createShaderModule(const Vector<char>& code);
 
     VkDevice m_device;
     VkRenderPass m_renderPass;
@@ -118,7 +119,7 @@ private:
     VkPipeline m_debugLinePipeline;
     VkPipeline m_debugTrianglePipeline;
     VkPipeline m_currentPipeline;
-    std::vector<uint64_t> m_pipelinesToDraw;
+    Vector<uint64_t> m_pipelinesToDraw;
 
     // Pipeline info
     std::map<uint64_t, PipelineInfo> m_pipelineInfo;
@@ -132,7 +133,10 @@ private:
     std::map<int, std::array<ShaderRippleData, MAX_SHADER_RIPPLES>> m_pipelineWaterRipples;
     std::map<int, int> m_pipelineWaterRippleCount;
 
+    // Memory allocator for Vector members
+    MemoryAllocator* m_allocator;
+
     // Shader data storage
-    std::vector<char> m_vertShaderData;
-    std::vector<char> m_fragShaderData;
+    Vector<char> m_vertShaderData;
+    Vector<char> m_fragShaderData;
 };

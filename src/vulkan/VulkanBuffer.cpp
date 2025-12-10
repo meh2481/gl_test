@@ -91,7 +91,7 @@ void VulkanBuffer::createDynamicVertexBuffer(DynamicBuffer& dynBuffer, size_t in
                 dynBuffer.buffer, dynBuffer.memory);
 }
 
-void VulkanBuffer::updateDynamicVertexBuffer(DynamicBuffer& dynBuffer, const std::vector<float>& vertexData,
+void VulkanBuffer::updateDynamicVertexBuffer(DynamicBuffer& dynBuffer, const Vector<float>& vertexData,
                                              uint32_t floatsPerVertex) {
     if (vertexData.empty()) {
         dynBuffer.count = 0;
@@ -147,8 +147,8 @@ void VulkanBuffer::createIndexedBuffer(IndexedBuffer& buffer, size_t initialVert
                 buffer.indexBuffer, buffer.indexMemory);
 }
 
-void VulkanBuffer::updateIndexedBuffer(IndexedBuffer& buffer, const std::vector<float>& vertexData,
-                                       const std::vector<uint16_t>& indices, uint32_t floatsPerVertex) {
+void VulkanBuffer::updateIndexedBuffer(IndexedBuffer& buffer, const Vector<float>& vertexData,
+                                       const Vector<uint16_t>& indices, uint32_t floatsPerVertex) {
     if (vertexData.empty() || indices.empty()) {
         buffer.vertexCount = 0;
         buffer.indexCount = 0;

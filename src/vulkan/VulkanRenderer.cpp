@@ -1,6 +1,7 @@
 #include "VulkanRenderer.h"
 #include "../core/ResourceTypes.h"
 #include "../scene/SceneLayer.h"
+#include "../memory/SmallAllocator.h"
 #include <iostream>
 #include <cstring>
 #include <algorithm>
@@ -94,7 +95,11 @@ VulkanRenderer::VulkanRenderer() :
     m_reflectionFramebuffer(VK_NULL_HANDLE),
     m_reflectionTextureId(REFLECTION_TEXTURE_ID_INVALID),
     m_reflectionEnabled(false),
-    m_reflectionSurfaceY(0.0f)
+    m_reflectionSurfaceY(0.0f),
+    m_allocator(nullptr),
+    m_spriteBatches(*(m_allocator = new SmallAllocator())),
+    m_particleBatches(*m_allocator),
+    m_allBatches(*m_allocator)
 #ifdef DEBUG
     , m_imguiRenderCallback(nullptr)
 #endif
@@ -113,6 +118,10 @@ VulkanRenderer::VulkanRenderer() :
 }
 
 VulkanRenderer::~VulkanRenderer() {
+    if (m_allocator) {
+        delete m_allocator;
+        m_allocator = nullptr;
+    }
 }
 
 void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
@@ -185,7 +194,7 @@ void VulkanRenderer::associateDescriptorWithPipeline(uint64_t pipelineId, uint64
     m_pipelineManager.associateDescriptorWithPipeline(pipelineId, descriptorId);
 }
 
-void VulkanRenderer::setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds) {
+void VulkanRenderer::setPipelinesToDraw(const Vector<uint64_t>& pipelineIds) {
     m_pipelineManager.setPipelinesToDraw(pipelineIds);
 }
 
@@ -933,7 +942,7 @@ void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& ver
     m_pipelineManager.createParticlePipeline(id, vertShader, fragShader, blendMode);
 }
 
-void VulkanRenderer::createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds) {
+void VulkanRenderer::createDescriptorSetForTextures(uint64_t descriptorId, const Vector<uint64_t>& textureIds) {
     m_descriptorManager.createDescriptorSetForTextures(descriptorId, textureIds);
 }
 
@@ -971,36 +980,36 @@ void VulkanRenderer::setClearColor(float r, float g, float b, float a) {
 
 // Buffer update methods
 
-void VulkanRenderer::setDebugDrawData(const std::vector<float>& vertexData) {
+void VulkanRenderer::setDebugDrawData(const Vector<float>& vertexData) {
     m_bufferManager.updateDynamicVertexBuffer(m_debugLineBuffer, vertexData, 6);
 }
 
-void VulkanRenderer::setDebugLineDrawData(const std::vector<float>& vertexData) {
+void VulkanRenderer::setDebugLineDrawData(const Vector<float>& vertexData) {
     m_bufferManager.updateDynamicVertexBuffer(m_debugLineBuffer, vertexData, 6);
 }
 
-void VulkanRenderer::setDebugTriangleDrawData(const std::vector<float>& vertexData) {
+void VulkanRenderer::setDebugTriangleDrawData(const Vector<float>& vertexData) {
     m_bufferManager.updateDynamicVertexBuffer(m_debugTriangleBuffer, vertexData, 6);
 }
 
-void VulkanRenderer::setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices) {
+void VulkanRenderer::setSpriteDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices) {
     m_bufferManager.updateIndexedBuffer(m_spriteBuffer, vertexData, indices, 6);
 }
 
-void VulkanRenderer::setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices, uint64_t textureId) {
+void VulkanRenderer::setParticleDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices, uint64_t textureId) {
     m_bufferManager.updateIndexedBuffer(m_particleBuffer, vertexData, indices, 8);
     m_particleTextureId = textureId;
 }
 
-void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
+void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
     // Wait for all in-flight frames to complete before modifying shared buffers
     VkFence fences[] = {m_inFlightFences[0], m_inFlightFences[1]};
     vkWaitForFences(m_device, 2, fences, VK_TRUE, UINT64_MAX);
 
     m_spriteBatches.clear();
 
-    std::vector<float> allVertexData;
-    std::vector<uint16_t> allIndices;
+    Vector<float> allVertexData(*m_allocator);
+    Vector<uint16_t> allIndices(*m_allocator);
     uint32_t baseVertex = 0;
 
     for (const auto& batch : batches) {
@@ -1065,15 +1074,15 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
     rebuildAllBatches();
 }
 
-void VulkanRenderer::setParticleBatches(const std::vector<ParticleBatch>& batches) {
+void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
     // Wait for all in-flight frames to complete before modifying shared buffers
     VkFence fences[] = {m_inFlightFences[0], m_inFlightFences[1]};
     vkWaitForFences(m_device, 2, fences, VK_TRUE, UINT64_MAX);
 
     m_particleBatches.clear();
 
-    std::vector<float> allVertexData;
-    std::vector<uint16_t> allIndices;
+    Vector<float> allVertexData(*m_allocator);
+    Vector<uint16_t> allIndices(*m_allocator);
     uint32_t baseVertex = 0;
 
     for (const auto& batch : batches) {
