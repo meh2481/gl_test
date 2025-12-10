@@ -1,47 +1,8 @@
 #pragma once
 
 #include "MemoryAllocator.h"
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <cstdlib>
 #include <cassert>
-#include <new>
-
-// Default allocator using malloc/free
-class DefaultHashTableAllocator : public MemoryAllocator {
-public:
-    void* allocate(size_t size) override {
-        if (size == 0) {
-            return nullptr;
-        }
-        void* ptr = malloc(size);
-        assert(ptr != nullptr);
-        return ptr;
-    }
-
-    void free(void* ptr) override {
-        if (ptr != nullptr) {
-            ::free(ptr);
-        }
-    }
-
-    size_t defragment() override {
-        return 0;
-    }
-
-    size_t getTotalMemory() const override {
-        return 0;
-    }
-
-    size_t getUsedMemory() const override {
-        return 0;
-    }
-
-    size_t getFreeMemory() const override {
-        return 0;
-    }
-};
 
 // Hash function for integral types
 template<typename K>
@@ -111,23 +72,6 @@ inline uint32_t hashKey<int>(const int& key) {
 template<typename K, typename V>
 class HashTable {
 public:
-    // Constructor with default allocator
-    HashTable()
-        : keys_(nullptr)
-        , values_(nullptr)
-        , occupied_(nullptr)
-        , capacity_(0)
-        , size_(0)
-        , allocator_(nullptr)
-        , defaultAllocator_(new DefaultHashTableAllocator())
-        , ownsAllocator_(true)
-    {
-        allocator_ = defaultAllocator_;
-        assert(allocator_ != nullptr);
-        // Start with a reasonable default capacity
-        reserve(16);
-    }
-
     // Constructor with custom allocator
     explicit HashTable(MemoryAllocator& allocator)
         : keys_(nullptr)
@@ -136,8 +80,6 @@ public:
         , capacity_(0)
         , size_(0)
         , allocator_(&allocator)
-        , defaultAllocator_(nullptr)
-        , ownsAllocator_(false)
     {
         assert(allocator_ != nullptr);
         // Start with a reasonable default capacity
@@ -157,10 +99,6 @@ public:
         if (occupied_) {
             allocator_->free(occupied_);
             occupied_ = nullptr;
-        }
-        if (ownsAllocator_ && defaultAllocator_) {
-            delete defaultAllocator_;
-            defaultAllocator_ = nullptr;
         }
     }
 
@@ -507,6 +445,4 @@ private:
     uint32_t size_;
 
     MemoryAllocator* allocator_;
-    DefaultHashTableAllocator* defaultAllocator_;
-    bool ownsAllocator_;
 };
