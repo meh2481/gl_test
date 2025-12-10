@@ -17,7 +17,9 @@ template<typename T>
 class DefaultAllocator : public Allocator<T> {
 public:
     T* allocate(size_t count) override {
-        assert(count > 0);
+        if (count == 0) {
+            return nullptr;
+        }
         void* ptr = malloc(count * sizeof(T));
         assert(ptr != nullptr);
         return static_cast<T*>(ptr);
@@ -319,12 +321,13 @@ public:
 
     void erase(size_t index) {
         assert(index < size_);
+        assert(size_ > 0);
 
         data_[index].~T();
 
-        for (size_t i = index; i < size_ - 1; ++i) {
-            new (&data_[i]) T(static_cast<T&&>(data_[i + 1]));
-            data_[i + 1].~T();
+        for (size_t i = index + 1; i < size_; ++i) {
+            new (&data_[i - 1]) T(static_cast<T&&>(data_[i]));
+            data_[i].~T();
         }
 
         --size_;
@@ -337,12 +340,16 @@ public:
             grow();
         }
 
-        for (size_t i = size_; i > index; --i) {
-            new (&data_[i]) T(static_cast<T&&>(data_[i - 1]));
-            data_[i - 1].~T();
+        if (index < size_) {
+            new (&data_[size_]) T(static_cast<T&&>(data_[size_ - 1]));
+            for (size_t i = size_ - 1; i > index; --i) {
+                data_[i] = static_cast<T&&>(data_[i - 1]);
+            }
+            data_[index] = value;
+        } else {
+            new (&data_[index]) T(value);
         }
 
-        new (&data_[index]) T(value);
         ++size_;
     }
 
