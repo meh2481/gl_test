@@ -27,8 +27,9 @@ public:
 
     void deallocate(T* ptr, size_t count) override {
         (void)count;
-        assert(ptr != nullptr);
-        free(ptr);
+        if (ptr != nullptr) {
+            free(ptr);
+        }
     }
 };
 
@@ -122,6 +123,7 @@ public:
         other.data_ = nullptr;
         other.size_ = 0;
         other.capacity_ = 0;
+        other.allocator_ = nullptr;
         other.defaultAllocator_ = nullptr;
         other.ownsAllocator_ = false;
     }
@@ -144,6 +146,7 @@ public:
             other.data_ = nullptr;
             other.size_ = 0;
             other.capacity_ = 0;
+            other.allocator_ = nullptr;
             other.defaultAllocator_ = nullptr;
             other.ownsAllocator_ = false;
         }
@@ -342,8 +345,10 @@ public:
 
         if (index < size_) {
             new (&data_[size_]) T(static_cast<T&&>(data_[size_ - 1]));
-            for (size_t i = size_ - 1; i > index; --i) {
-                data_[i] = static_cast<T&&>(data_[i - 1]);
+            if (size_ > 1) {
+                for (size_t i = size_ - 1; i > index; --i) {
+                    data_[i] = static_cast<T&&>(data_[i - 1]);
+                }
             }
             data_[index] = value;
         } else {
