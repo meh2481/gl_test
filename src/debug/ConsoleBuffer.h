@@ -85,8 +85,8 @@ protected:
 private:
     std::ostream& stream_;
     std::streambuf* oldBuf_;
-    MemoryAllocator* stringAllocator_;
     String buffer_;
+    MemoryAllocator* stringAllocator_;
 };
 
 #endif // DEBUG
