@@ -1,6 +1,6 @@
 #include "VulkanRenderer.h"
-#include "ResourceTypes.h"
-#include "SceneLayer.h"
+#include "core/ResourceTypes.h"
+#include "scene/SceneLayer.h"
 #include <iostream>
 #include <cstring>
 #include <algorithm>

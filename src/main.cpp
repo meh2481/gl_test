@@ -8,16 +8,16 @@
 #include <cstdlib>
 #include <cassert>
 #include <lua.hpp>
-#include "VulkanRenderer.h"
-#include "SceneManager.h"
-#include "config.h"
-#include "InputActions.h"
-#include "VibrationManager.h"
-#include "LuaInterface.h"
+#include "vulkan/VulkanRenderer.h"
+#include "scene/SceneManager.h"
+#include "core/config.h"
+#include "input/InputActions.h"
+#include "input/VibrationManager.h"
+#include "scene/LuaInterface.h"
 
 #ifdef DEBUG
-#include "ImGuiManager.h"
-#include "ConsoleBuffer.h"
+#include "debug/ImGuiManager.h"
+#include "debug/ConsoleBuffer.h"
 #endif
 
 #define LUA_SCRIPT_ID 11832125453070754724ULL

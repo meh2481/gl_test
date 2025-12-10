@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include "resource.h"
+#include "resources/resource.h"
 #include <map>
 #include <cstdint>
 

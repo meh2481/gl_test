@@ -1,6 +1,6 @@
 #include "LuaInterface.h"
 #include "SceneManager.h"
-#include "Box2DPhysics.h"
+#include "physics/Box2DPhysics.h"
 #include <iostream>
 #include <cassert>
 #include <algorithm>

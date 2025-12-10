@@ -68,7 +68,7 @@ foreach(SHADER ${SHADER_SOURCES})
 endforeach()
 add_custom_target(shaders DEPENDS ${SHADER_FILES})
 
-add_executable(packer tools/packer.cpp src/ResourceTypes.h)
+add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
 target_link_libraries(packer ${LZ4_LIBRARIES} ${PNG_LIBRARIES} squish)
 
 file(GLOB_RECURSE RES_FILES
@@ -86,9 +86,9 @@ add_custom_command(
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/VulkanBuffer.cpp src/VulkanTexture.cpp src/VulkanDescriptor.cpp src/VulkanPipeline.cpp src/VulkanLight.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp src/ParticleSystem.cpp src/ImGuiManager.cpp src/WaterEffect.cpp src/SmallAllocator.cpp src/LargeMemoryAllocator.cpp src/String.cpp)
+    add_executable(shader_triangle src/main.cpp src/core/config.cpp src/resources/resource.cpp src/vulkan/VulkanRenderer.cpp src/vulkan/VulkanBuffer.cpp src/vulkan/VulkanTexture.cpp src/vulkan/VulkanDescriptor.cpp src/vulkan/VulkanPipeline.cpp src/vulkan/VulkanLight.cpp src/scene/LuaInterface.cpp src/scene/SceneManager.cpp src/physics/Box2DPhysics.cpp src/scene/SceneLayer.cpp src/audio/AudioManager.cpp src/effects/ParticleSystem.cpp src/debug/ImGuiManager.cpp src/effects/WaterEffect.cpp src/memory/SmallAllocator.cpp src/memory/LargeMemoryAllocator.cpp src/core/String.cpp)
 else()
-    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/VulkanBuffer.cpp src/VulkanTexture.cpp src/VulkanDescriptor.cpp src/VulkanPipeline.cpp src/VulkanLight.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp src/ParticleSystem.cpp src/WaterEffect.cpp src/SmallAllocator.cpp src/LargeMemoryAllocator.cpp src/String.cpp)
+    add_executable(shader_triangle src/main.cpp src/core/config.cpp src/resources/resource.cpp src/vulkan/VulkanRenderer.cpp src/vulkan/VulkanBuffer.cpp src/vulkan/VulkanTexture.cpp src/vulkan/VulkanDescriptor.cpp src/vulkan/VulkanPipeline.cpp src/vulkan/VulkanLight.cpp src/scene/LuaInterface.cpp src/scene/SceneManager.cpp src/physics/Box2DPhysics.cpp src/scene/SceneLayer.cpp src/audio/AudioManager.cpp src/effects/ParticleSystem.cpp src/effects/WaterEffect.cpp src/memory/SmallAllocator.cpp src/memory/LargeMemoryAllocator.cpp src/core/String.cpp)
 endif()
 add_dependencies(shader_triangle shaders res_pak)
 

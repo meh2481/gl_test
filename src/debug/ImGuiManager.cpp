@@ -1,11 +1,11 @@
 #ifdef DEBUG
 
 #include "ImGuiManager.h"
-#include "VulkanRenderer.h"
+#include "vulkan/VulkanRenderer.h"
 #include "ConsoleBuffer.h"
-#include "resource.h"
-#include "SceneManager.h"
-#include "LuaInterface.h"
+#include "resources/resource.h"
+#include "scene/SceneManager.h"
+#include "scene/LuaInterface.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
