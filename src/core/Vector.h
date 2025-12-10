@@ -13,8 +13,7 @@ public:
         : data_(nullptr)
         , size_(0)
         , capacity_(0)
-        , allocator_(&allocator)
-        , defaultAllocator_(nullptr) {
+        , allocator_(&allocator) {
     }
 
     ~Vector() {
