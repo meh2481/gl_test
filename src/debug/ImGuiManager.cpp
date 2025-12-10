@@ -6,19 +6,30 @@
 #include "../resources/resource.h"
 #include "../scene/SceneManager.h"
 #include "../scene/LuaInterface.h"
+#include "../memory/SmallAllocator.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
 #include <cmath>
 #include <vector>
-#include <string>
 
 // Check Vulkan result callback for ImGui
 static void check_vk_result(VkResult err) {
     assert(err == VK_SUCCESS);
 }
 
-ImGuiManager::ImGuiManager() : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE) {
+// Simple hash function for C-strings (FNV-1a hash)
+static uint64_t hashCString(const char* str) {
+    uint64_t hash = 14695981039346656037ULL;
+    while (*str) {
+        hash ^= (uint64_t)*str++;
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
+ImGuiManager::ImGuiManager() : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE), stringAllocator_(nullptr) {
+    stringAllocator_ = new SmallAllocator();
     initializeParticleEditorDefaults();
 }
 
@@ -59,7 +70,7 @@ void ImGuiManager::initializeParticleEditorDefaults() {
     // Initialize default texture (bloom.png) - always start with at least one texture
     const char* defaultTexture = "res/fx/bloom.png";
     editorState_.selectedTextureCount = 1;
-    editorState_.selectedTextureIds[0] = std::hash<std::string>{}(std::string(defaultTexture));
+    editorState_.selectedTextureIds[0] = hashCString(defaultTexture);
     strncpy(editorState_.textureNames[0], defaultTexture, EDITOR_MAX_TEXTURE_NAME_LEN - 1);
     editorState_.textureNames[0][EDITOR_MAX_TEXTURE_NAME_LEN - 1] = '\0';
 
@@ -128,6 +139,10 @@ void ImGuiManager::initializeParticleEditorDefaults() {
 ImGuiManager::~ImGuiManager() {
     if (initialized_) {
         cleanup();
+    }
+    if (stringAllocator_) {
+        delete stringAllocator_;
+        stringAllocator_ = nullptr;
     }
 }
 
@@ -241,7 +256,7 @@ void ImGuiManager::showConsoleWindow() {
     ImGui::Begin("Console Output", nullptr);
 
     // Get console lines
-    std::vector<std::string> lines;
+    std::vector<String> lines;
     ConsoleBuffer::getInstance().getLines(lines);
 
     // Display lines in a scrollable region
@@ -777,7 +792,7 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
         if (editorState_.selectedTextureCount >= EDITOR_MAX_TEXTURES) break;
 
         const char* texturePath = editorState_.textureFileList[i];
-        uint64_t texId = std::hash<std::string>{}(std::string(texturePath));
+        uint64_t texId = hashCString(texturePath);
 
         // Start new row or add same-line
         if (itemIndex > 0 && (itemIndex % itemsPerRow) != 0) {
@@ -843,7 +858,7 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
         }
 
         // Show filename below the image
-        std::string displayName = truncateTextureName(texturePath, itemWidth + 5.0f);
+        String displayName = truncateTextureName(texturePath, itemWidth + 5.0f);
         ImGui::TextWrapped("%s", displayName.c_str());
 
         ImGui::EndGroup();
@@ -1526,9 +1541,8 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
                     editorState_.textureNames[editorState_.selectedTextureCount][nameLen] = '\0';
 
                     // Compute the texture ID from the name hash
-                    std::string texName(editorState_.textureNames[editorState_.selectedTextureCount]);
                     editorState_.selectedTextureIds[editorState_.selectedTextureCount] =
-                        std::hash<std::string>{}(texName);
+                        hashCString(editorState_.textureNames[editorState_.selectedTextureCount]);
 
                     editorState_.selectedTextureCount++;
                 }
@@ -1547,14 +1561,14 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     return true;
 }
 
-std::string ImGuiManager::truncateTextureName(const char* fullName, float maxWidth) {
-    std::string name = fullName;
+String ImGuiManager::truncateTextureName(const char* fullName, float maxWidth) {
+    String name(fullName, stringAllocator_);
     ImVec2 fullSize = ImGui::CalcTextSize(name.c_str());
     if (fullSize.x <= maxWidth) {
         return name;
     }
 
-    std::string ellipsis = "~";
+    String ellipsis("~", stringAllocator_);
     ImVec2 ellipsisSize = ImGui::CalcTextSize(ellipsis.c_str());
     float availableWidth = maxWidth - ellipsisSize.x;
     if (availableWidth <= 0) {
@@ -1563,7 +1577,7 @@ std::string ImGuiManager::truncateTextureName(const char* fullName, float maxWid
 
     size_t len = name.length();
     for (size_t suffixLen = len; suffixLen >= 1; --suffixLen) {
-        std::string candidate = name.substr(len - suffixLen);
+        String candidate = name.substr(len - suffixLen, suffixLen);
         ImVec2 candidateSize = ImGui::CalcTextSize(candidate.c_str());
         if (candidateSize.x <= availableWidth) {
             return ellipsis + candidate;

@@ -8,9 +8,10 @@
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_vulkan.h>
 #include "../effects/ParticleSystem.h"
+#include "../core/String.h"
+#include "../memory/MemoryAllocator.h"
 #include <cstdint>
 #include <map>
-#include <string>
 
 // Forward declarations
 class VulkanRenderer;
@@ -143,6 +144,9 @@ private:
     // Particle editor state
     ParticleEditorState editorState_;
 
+    // Memory allocator for string operations
+    MemoryAllocator* stringAllocator_;
+
     // Initialize particle editor state with defaults
     void initializeParticleEditorDefaults();
 
@@ -166,7 +170,7 @@ private:
     bool loadParticleConfigFromFile(const char* filename);
 
     // Helper function to truncate texture names for display
-    std::string truncateTextureName(const char* fullName, float maxWidth);
+    String truncateTextureName(const char* fullName, float maxWidth);
 
     // ImGui texture cache for preview images
     std::map<uint64_t, VkDescriptorSet> imguiTextureCache_;

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <lua.hpp>
-#include <string>
 #include <unordered_map>
 #include <vector>
 #include <memory>
@@ -14,6 +13,8 @@
 #include "../audio/AudioManager.h"
 #include "../input/VibrationManager.h"
 #include "../effects/WaterEffect.h"
+#include "../core/String.h"
+#include "../memory/MemoryAllocator.h"
 
 class SceneManager;
 
@@ -225,8 +226,12 @@ private:
 
     // Node system
     struct Node {
+        Node() : bodyId(-1), name(nullptr), centerX(0.0f), centerY(0.0f),
+                 luaCallbackRef(LUA_NOREF), updateFuncRef(LUA_NOREF), onEnterFuncRef(LUA_NOREF) {}
+        Node(MemoryAllocator* allocator) : bodyId(-1), name(allocator), centerX(0.0f), centerY(0.0f),
+                 luaCallbackRef(LUA_NOREF), updateFuncRef(LUA_NOREF), onEnterFuncRef(LUA_NOREF) {}
         int bodyId;           // Physics sensor body ID
-        std::string name;     // Node name for lookup
+        String name;          // Node name for lookup
         float centerX;        // Center position X
         float centerY;        // Center position Y
         int luaCallbackRef;   // Lua registry reference to callback table (or LUA_NOREF)
@@ -236,6 +241,9 @@ private:
     std::unordered_map<int, Node> nodes_; // nodeId -> Node
     std::unordered_map<int, int> bodyToNodeMap_; // bodyId -> nodeId
     int nextNodeId_;
+
+    // Memory allocator for string operations
+    MemoryAllocator* stringAllocator_;
 
     void updateNodes(float deltaTime);
     void handleNodeSensorEvent(const SensorEvent& event);

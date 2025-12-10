@@ -2,11 +2,13 @@
 
 #ifdef DEBUG
 
-#include <string>
 #include <vector>
 #include <mutex>
 #include <sstream>
 #include <iostream>
+#include "../core/String.h"
+#include "../memory/MemoryAllocator.h"
+#include "../memory/SmallAllocator.h"
 
 // Console buffer to capture output for ImGui display
 class ConsoleBuffer {
@@ -16,7 +18,7 @@ public:
         return instance;
     }
 
-    void addLine(const std::string& line) {
+    void addLine(const String& line) {
         std::lock_guard<std::mutex> lock(mutex_);
         lines_.push_back(line);
         // Keep buffer size reasonable (max 1000 lines)
@@ -25,7 +27,7 @@ public:
         }
     }
 
-    void getLines(std::vector<std::string>& outLines) {
+    void getLines(std::vector<String>& outLines) {
         std::lock_guard<std::mutex> lock(mutex_);
         outLines = lines_;
     }
@@ -36,21 +38,34 @@ public:
     }
 
 private:
-    ConsoleBuffer() {}
-    std::vector<std::string> lines_;
+    ConsoleBuffer() {
+        stringAllocator_ = new SmallAllocator();
+    }
+    ~ConsoleBuffer() {
+        if (stringAllocator_) {
+            delete stringAllocator_;
+        }
+    }
+    std::vector<String> lines_;
     std::mutex mutex_;
+    MemoryAllocator* stringAllocator_;
 };
 
 // Custom streambuf to capture cout
 class ConsoleCapture : public std::streambuf {
 public:
     ConsoleCapture(std::ostream& stream, std::streambuf* oldBuf)
-        : stream_(stream), oldBuf_(oldBuf) {
+        : stream_(stream), oldBuf_(oldBuf), stringAllocator_(nullptr), buffer_(nullptr) {
+        stringAllocator_ = new SmallAllocator();
+        buffer_ = String(stringAllocator_);
     }
 
     ~ConsoleCapture() {
         // Restore original buffer
         stream_.rdbuf(oldBuf_);
+        if (stringAllocator_) {
+            delete stringAllocator_;
+        }
     }
 
 protected:
@@ -59,7 +74,7 @@ protected:
             if (c == '\n') {
                 ConsoleBuffer::getInstance().addLine(buffer_);
                 // Also write to original stream
-                oldBuf_->sputn(buffer_.c_str(), buffer_.size());
+                oldBuf_->sputn(buffer_.c_str(), buffer_.length());
                 oldBuf_->sputc('\n');
                 buffer_.clear();
             } else {
@@ -72,7 +87,8 @@ protected:
 private:
     std::ostream& stream_;
     std::streambuf* oldBuf_;
-    std::string buffer_;
+    MemoryAllocator* stringAllocator_;
+    String buffer_;
 };
 
 #endif // DEBUG

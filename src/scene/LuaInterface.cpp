@@ -1,6 +1,7 @@
 #include "LuaInterface.h"
 #include "SceneManager.h"
 #include "../physics/Box2DPhysics.h"
+#include "../memory/SmallAllocator.h"
 #include <iostream>
 #include <cassert>
 #include <algorithm>
@@ -8,8 +9,19 @@
     #define M_PI 3.14159265358979323846
 #endif
 
+// Simple hash function for C-strings (FNV-1a hash)
+static uint64_t hashCString(const char* str) {
+    uint64_t hash = 14695981039346656037ULL;
+    while (*str) {
+        hash ^= (uint64_t)*str++;
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), nextNodeId_(1) {
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), nextNodeId_(1), stringAllocator_(nullptr) {
+    stringAllocator_ = new SmallAllocator();
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;
@@ -34,6 +46,10 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, S
 LuaInterface::~LuaInterface() {
     if (luaState_) {
         lua_close(luaState_);
+    }
+    if (stringAllocator_) {
+        delete stringAllocator_;
+        stringAllocator_ = nullptr;
     }
 }
 
@@ -662,14 +678,18 @@ void LuaInterface::registerFunctions() {
 
     // Number keys
     for (int i = 0; i <= 9; ++i) {
+        char keyName[16];
+        snprintf(keyName, sizeof(keyName), "SDLK_%d", i);
         lua_pushinteger(luaState_, 48 + i);
-        lua_setglobal(luaState_, ("SDLK_" + std::to_string(i)).c_str());
+        lua_setglobal(luaState_, keyName);
     }
 
     // Letter keys
     for (char c = 'a'; c <= 'z'; ++c) {
+        char keyName[16];
+        snprintf(keyName, sizeof(keyName), "SDLK_%c", c);
         lua_pushinteger(luaState_, 97 + (c - 'a'));
-        lua_setglobal(luaState_, ("SDLK_" + std::string(1, c)).c_str());
+        lua_setglobal(luaState_, keyName);
     }
 
     // Register Box2D functions
@@ -874,8 +894,8 @@ int LuaInterface::loadShaders(lua_State* L) {
     }
 
     // Hash filenames to get resource IDs
-    uint64_t vertId = std::hash<std::string>{}(vertFile);
-    uint64_t fragId = std::hash<std::string>{}(fragFile);
+    uint64_t vertId = hashCString(vertFile);
+    uint64_t fragId = hashCString(fragFile);
 
     std::cout << "Loading shaders: " << vertFile << ", " << fragFile << " (z-index: " << zIndex << ")" << std::endl;
 
@@ -909,8 +929,13 @@ int LuaInterface::loadShaders(lua_State* L) {
 }
 
 int LuaInterface::luaPrint(lua_State* L) {
+    // Get the LuaInterface instance from the Lua registry
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
     int n = lua_gettop(L);  // Number of arguments
-    std::string output;
+    String output(interface->stringAllocator_);
 
     // Convert all arguments to strings and concatenate them
     for (int i = 1; i <= n; i++) {
@@ -925,7 +950,7 @@ int LuaInterface::luaPrint(lua_State* L) {
     }
 
     // Output to std::cout (which will be captured by ConsoleCapture in debug builds)
-    std::cout << output << std::endl;
+    std::cout << output.c_str() << std::endl;
 
     return 0;
 }
@@ -943,7 +968,7 @@ int LuaInterface::pushScene(lua_State* L) {
     const char* sceneFile = lua_tostring(L, 1);
 
     // Hash filename to get resource ID
-    uint64_t sceneId = std::hash<std::string>{}(sceneFile);
+    uint64_t sceneId = hashCString(sceneFile);
 
     // Push the scene using the scene manager
     assert(interface->sceneManager_ != nullptr);
@@ -2070,7 +2095,7 @@ int LuaInterface::loadTexture(lua_State* L) {
     const char* filename = lua_tostring(L, 1);
 
     // Hash the filename to get texture ID (same as packer)
-    uint64_t textureId = std::hash<std::string>{}(filename);
+    uint64_t textureId = hashCString(filename);
 
     std::cout << "Loading texture: " << filename << " (id: " << textureId << ")" << std::endl;
 
@@ -2123,8 +2148,8 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
     const char* fragShaderName = lua_tostring(L, 2);
     int zIndex = (int)lua_tointeger(L, 3);
 
-    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
-    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+    uint64_t vertId = hashCString(vertShaderName);
+    uint64_t fragId = hashCString(fragShaderName);
 
     ResourceData vertShader = interface->pakResource_.getResource(vertId);
     ResourceData fragShader = interface->pakResource_.getResource(fragId);
@@ -2160,8 +2185,8 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     int zIndex = (int)lua_tointeger(L, 3);
     int numTextures = (int)lua_tointeger(L, 4);
 
-    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
-    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+    uint64_t vertId = hashCString(vertShaderName);
+    uint64_t fragId = hashCString(fragShaderName);
 
     ResourceData vertShader = interface->pakResource_.getResource(vertId);
     ResourceData fragShader = interface->pakResource_.getResource(fragId);
@@ -2197,8 +2222,8 @@ int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
     int zIndex = (int)lua_tointeger(L, 3);
     int numTextures = (int)lua_tointeger(L, 4);
 
-    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
-    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+    uint64_t vertId = hashCString(vertShaderName);
+    uint64_t fragId = hashCString(fragShaderName);
 
     ResourceData vertShader = interface->pakResource_.getResource(vertId);
     ResourceData fragShader = interface->pakResource_.getResource(fragId);
@@ -2234,8 +2259,8 @@ int LuaInterface::loadAnimTexturedShaders(lua_State* L) {
     int zIndex = (int)lua_tointeger(L, 3);
     int numTextures = (int)lua_tointeger(L, 4);
 
-    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
-    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+    uint64_t vertId = hashCString(vertShaderName);
+    uint64_t fragId = hashCString(fragShaderName);
 
     ResourceData vertShader = interface->pakResource_.getResource(vertId);
     ResourceData fragShader = interface->pakResource_.getResource(fragId);
@@ -2296,7 +2321,7 @@ int LuaInterface::audioLoadOpus(lua_State* L) {
     const char* resourceName = lua_tostring(L, 1);
 
     // Hash the resource name to get its ID
-    uint64_t resourceId = std::hash<std::string>{}(resourceName);
+    uint64_t resourceId = hashCString(resourceName);
 
     // Load resource from pak
     ResourceData resourceData = interface->pakResource_.getResource(resourceId);
@@ -2624,8 +2649,8 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     int blendMode = (int)lua_tointeger(L, 3);
     int zIndex = 0;  // Default zIndex for particles
 
-    uint64_t vertId = std::hash<std::string>{}(vertShaderName);
-    uint64_t fragId = std::hash<std::string>{}(fragShaderName);
+    uint64_t vertId = hashCString(vertShaderName);
+    uint64_t fragId = hashCString(fragShaderName);
 
     ResourceData vertShader = interface->pakResource_.getResource(vertId);
     ResourceData fragShader = interface->pakResource_.getResource(fragId);
@@ -2695,7 +2720,7 @@ int LuaInterface::createParticleSystem(lua_State* L) {
             lua_rawgeti(L, -1, i + 1);
             if (lua_isstring(L, -1)) {
                 const char* name = lua_tostring(L, -1);
-                config.textureIds[i] = std::hash<std::string>{}(name);
+                config.textureIds[i] = hashCString(name);
             } else {
                 config.textureIds[i] = 0;
             }
@@ -2973,7 +2998,7 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
     std::cout << "Loading particle config: " << filename << std::endl;
 
     // Hash the filename to get resource ID
-    uint64_t resourceId = std::hash<std::string>{}(filename);
+    uint64_t resourceId = hashCString(filename);
 
     // Load the Lua file from the pak
     ResourceData scriptData = interface->pakResource_.getResource(resourceId);
@@ -3024,7 +3049,7 @@ int LuaInterface::loadObject(lua_State* L) {
     std::cout << "Loading object: " << filename << std::endl;
 
     // Hash the filename to get resource ID
-    uint64_t resourceId = std::hash<std::string>{}(filename);
+    uint64_t resourceId = hashCString(filename);
 
     // Load the Lua file from the pak
     ResourceData scriptData = interface->pakResource_.getResource(resourceId);
@@ -3099,7 +3124,8 @@ int LuaInterface::createNode(lua_State* L) {
     assert(lua_isstring(L, 1));
     assert(lua_istable(L, 2));
 
-    std::string nodeName = lua_tostring(L, 1);
+    const char* nodeNameCStr = lua_tostring(L, 1);
+    String nodeName(nodeNameCStr, interface->stringAllocator_);
 
     // Check shape type
     lua_getfield(L, 2, "vertices");
@@ -3190,24 +3216,27 @@ int LuaInterface::createNode(lua_State* L) {
     if (numArgs >= 3) {
         if (lua_isstring(L, 3)) {
             // Load script directly from pak
-            std::string scriptName = lua_tostring(L, 3);
-            std::string scriptPath = "res/nodes/" + scriptName + ".lua";
-            uint64_t scriptId = std::hash<std::string>{}(scriptPath);
+            const char* scriptNameCStr = lua_tostring(L, 3);
+            String scriptName(scriptNameCStr, interface->stringAllocator_);
+            String scriptPath("res/nodes/", interface->stringAllocator_);
+            scriptPath += scriptName;
+            scriptPath += ".lua";
+            uint64_t scriptId = hashCString(scriptPath.c_str());
             ResourceData scriptData = interface->pakResource_.getResource(scriptId);
             if (scriptData.data && scriptData.size > 0) {
                 if (luaL_loadbuffer(L, (char*)scriptData.data, scriptData.size, scriptPath.c_str()) == LUA_OK) {
                     if (lua_pcall(L, 0, 1, 0) == LUA_OK) {
                         // Script table is now on top
                     } else {
-                        std::cerr << "Failed to execute node script: " << scriptPath << std::endl;
+                        std::cerr << "Failed to execute node script: " << scriptPath.c_str() << std::endl;
                         lua_pop(L, 1); // Pop error message
                     }
                 } else {
-                    std::cerr << "Failed to load node script buffer: " << scriptPath << std::endl;
+                    std::cerr << "Failed to load node script buffer: " << scriptPath.c_str() << std::endl;
                     lua_pop(L, 1); // Pop error message
                 }
             } else {
-                std::cerr << "Failed to load node script: " << scriptPath << std::endl;
+                std::cerr << "Failed to load node script: " << scriptPath.c_str() << std::endl;
             }
         } else if (lua_istable(L, 3)) {
             lua_pushvalue(L, 3);
@@ -3361,8 +3390,8 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     const char* waterVertShaderName = "res/shaders/water_vertex.spv";
     const char* waterFragShaderName = "res/shaders/water_fragment.spv";
 
-    uint64_t vertId = std::hash<std::string>{}(waterVertShaderName);
-    uint64_t fragId = std::hash<std::string>{}(waterFragShaderName);
+    uint64_t vertId = hashCString(waterVertShaderName);
+    uint64_t fragId = hashCString(waterFragShaderName);
 
     ResourceData vertShader = pakResource_.getResource(vertId);
     ResourceData fragShader = pakResource_.getResource(fragId);
@@ -3385,7 +3414,7 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
 
     // 3. Load a placeholder texture (required for layer creation)
     const char* placeholderTextureName = "res/textures/rock1.png";
-    uint64_t placeholderTexId = std::hash<std::string>{}(placeholderTextureName);
+    uint64_t placeholderTexId = hashCString(placeholderTextureName);
 
     ResourceData texData = pakResource_.getResource(placeholderTexId);
     if (texData.data != nullptr && texData.size > 0) {
@@ -3474,7 +3503,8 @@ int LuaInterface::b2AddBodyType(lua_State* L) {
     lua_pop(L, 1);
 
     int bodyId = luaL_checkinteger(L, 1);
-    const char* type = luaL_checkstring(L, 2);
+    const char* typeStr = luaL_checkstring(L, 2);
+    String type(typeStr, interface->stringAllocator_);
     interface->physics_->addBodyType(bodyId, type);
     return 0;
 }
@@ -3485,7 +3515,8 @@ int LuaInterface::b2RemoveBodyType(lua_State* L) {
     lua_pop(L, 1);
 
     int bodyId = luaL_checkinteger(L, 1);
-    const char* type = luaL_checkstring(L, 2);
+    const char* typeStr = luaL_checkstring(L, 2);
+    String type(typeStr, interface->stringAllocator_);
     interface->physics_->removeBodyType(bodyId, type);
     return 0;
 }
@@ -3506,7 +3537,8 @@ int LuaInterface::b2BodyHasType(lua_State* L) {
     lua_pop(L, 1);
 
     int bodyId = luaL_checkinteger(L, 1);
-    const char* type = luaL_checkstring(L, 2);
+    const char* typeStr = luaL_checkstring(L, 2);
+    String type(typeStr, interface->stringAllocator_);
     bool hasType = interface->physics_->bodyHasType(bodyId, type);
     lua_pushboolean(L, hasType);
     return 1;
@@ -3518,7 +3550,7 @@ int LuaInterface::b2GetBodyTypes(lua_State* L) {
     lua_pop(L, 1);
 
     int bodyId = luaL_checkinteger(L, 1);
-    std::vector<std::string> types = interface->physics_->getBodyTypes(bodyId);
+    std::vector<String> types = interface->physics_->getBodyTypes(bodyId);
 
     lua_newtable(L);
     for (size_t i = 0; i < types.size(); ++i) {

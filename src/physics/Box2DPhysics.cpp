@@ -1,5 +1,6 @@
 #include "Box2DPhysics.h"
 #include "../scene/SceneLayer.h"
+#include "../memory/SmallAllocator.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -45,7 +46,8 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
 
 Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
                                 timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
-                                nextForceFieldId_(0) {
+                                nextForceFieldId_(0), stringAllocator_(nullptr) {
+    stringAllocator_ = new SmallAllocator();
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;
@@ -78,6 +80,11 @@ Box2DPhysics::~Box2DPhysics() {
 
     if (physicsMutex_) {
         SDL_DestroyMutex(physicsMutex_);
+    }
+
+    if (stringAllocator_) {
+        delete stringAllocator_;
+        stringAllocator_ = nullptr;
     }
 }
 
@@ -1588,7 +1595,8 @@ void Box2DPhysics::applyForceFields() {
 
                     if (field.isWater) {
                         int internalBodyId = findInternalBodyId(overlappingBodyId);
-                        if (internalBodyId >= 0 && bodyHasType(internalBodyId, "heavy")) {
+                        String heavyType("heavy", stringAllocator_);
+                        if (internalBodyId >= 0 && bodyHasType(internalBodyId, heavyType)) {
                             forceMultiplier = -0.5f;
                         }
                     }
@@ -2066,21 +2074,34 @@ void Box2DPhysics::getAllDynamicBodyInfo(int* bodyIds, float* posX, float* posY,
     SDL_UnlockMutex(physicsMutex_);
 }
 
-void Box2DPhysics::addBodyType(int bodyId, const std::string& type) {
+void Box2DPhysics::addBodyType(int bodyId, const String& type) {
     SDL_LockMutex(physicsMutex_);
     auto& types = bodyTypes_[bodyId];
-    if (std::find(types.begin(), types.end(), type) == types.end()) {
+    bool found = false;
+    for (const auto& t : types) {
+        if (t == type) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
         types.push_back(type);
     }
     SDL_UnlockMutex(physicsMutex_);
 }
 
-void Box2DPhysics::removeBodyType(int bodyId, const std::string& type) {
+void Box2DPhysics::removeBodyType(int bodyId, const String& type) {
     SDL_LockMutex(physicsMutex_);
     auto it = bodyTypes_.find(bodyId);
     if (it != bodyTypes_.end()) {
         auto& types = it->second;
-        types.erase(std::remove(types.begin(), types.end(), type), types.end());
+        for (auto typeIt = types.begin(); typeIt != types.end(); ) {
+            if (*typeIt == type) {
+                typeIt = types.erase(typeIt);
+            } else {
+                ++typeIt;
+            }
+        }
         if (types.empty()) {
             bodyTypes_.erase(it);
         }
@@ -2094,22 +2115,27 @@ void Box2DPhysics::clearBodyTypes(int bodyId) {
     SDL_UnlockMutex(physicsMutex_);
 }
 
-bool Box2DPhysics::bodyHasType(int bodyId, const std::string& type) const {
+bool Box2DPhysics::bodyHasType(int bodyId, const String& type) const {
     SDL_LockMutex(physicsMutex_);
     auto it = bodyTypes_.find(bodyId);
     bool result = false;
     if (it != bodyTypes_.end()) {
         const auto& types = it->second;
-        result = std::find(types.begin(), types.end(), type) != types.end();
+        for (const auto& t : types) {
+            if (t == type) {
+                result = true;
+                break;
+            }
+        }
     }
     SDL_UnlockMutex(physicsMutex_);
     return result;
 }
 
-std::vector<std::string> Box2DPhysics::getBodyTypes(int bodyId) const {
+std::vector<String> Box2DPhysics::getBodyTypes(int bodyId) const {
     SDL_LockMutex(physicsMutex_);
     auto it = bodyTypes_.find(bodyId);
-    std::vector<std::string> result;
+    std::vector<String> result;
     if (it != bodyTypes_.end()) {
         result = it->second;
     }
