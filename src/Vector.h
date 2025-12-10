@@ -99,6 +99,11 @@ public:
     Vector& operator=(const Vector& other) {
         if (this != &other) {
             clear();
+            if (data_) {
+                allocator_->free(data_);
+                data_ = nullptr;
+                capacity_ = 0;
+            }
             if (ownsAllocator_ && defaultAllocator_) {
                 delete defaultAllocator_;
                 defaultAllocator_ = nullptr;
