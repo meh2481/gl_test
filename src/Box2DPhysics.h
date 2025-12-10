@@ -289,14 +289,20 @@ public:
     const DestructibleProperties* getDestructibleProperties(int bodyId) const;
 
     // Get fracture events from last physics step
-    const std::vector<FractureEvent>& getFractureEvents() const { return fractureEvents_; }
+    const FractureEvent* getFractureEvents(size_t* outCount) const {
+        *outCount = fractureEventsCount_;
+        return fractureEvents_;
+    }
 
     // Clean up all fragment bodies and layers created during fractures
     // Call this before recreating destructible objects (e.g., on scene reset)
     void cleanupAllFragments();
 
     // Get fragment body IDs (for debugging/tracking)
-    const std::vector<int>& getFragmentBodyIds() const { return fragmentBodyIds_; }
+    const int* getFragmentBodyIds(size_t* outCount) const {
+        *outCount = fragmentBodyIdsCount_;
+        return fragmentBodyIds_;
+    }
 
     // Process destructible collisions and generate fractures
     // Returns body/layer IDs that should be created (caller must create layers)

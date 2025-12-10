@@ -24,11 +24,14 @@ VulkanPipeline::VulkanPipeline() :
     m_pipelineLayout(VK_NULL_HANDLE),
     m_debugLinePipeline(VK_NULL_HANDLE),
     m_debugTrianglePipeline(VK_NULL_HANDLE),
-    m_currentPipeline(VK_NULL_HANDLE)
+    m_currentPipeline(VK_NULL_HANDLE),
+    m_pipelinesToDraw(nullptr),
+    m_pipelinesToDrawCount(0)
 {
 }
 
 VulkanPipeline::~VulkanPipeline() {
+    delete[] m_pipelinesToDraw;
 }
 
 void VulkanPipeline::init(VkDevice device, VkRenderPass renderPass, VkSampleCountFlagBits msaaSamples, VkExtent2D swapchainExtent) {
@@ -65,7 +68,9 @@ void VulkanPipeline::cleanup() {
     m_pipelineShaderParams.clear();
     m_pipelineShaderParamCount.clear();
     m_pipelineParallaxDepth.clear();
-    m_pipelinesToDraw.clear();
+    delete[] m_pipelinesToDraw;
+    m_pipelinesToDraw = nullptr;
+    m_pipelinesToDrawCount = 0;
     m_currentPipeline = VK_NULL_HANDLE;
     m_initialized = false;
 }

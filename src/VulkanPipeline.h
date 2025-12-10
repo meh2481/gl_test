@@ -4,9 +4,9 @@
 #include "resource.h"
 #include <map>
 #include <set>
-#include <vector>
 #include <array>
 #include <cstdint>
+#include <cstring>
 
 // Forward declarations
 class VulkanDescriptor;
@@ -90,8 +90,20 @@ public:
     VkPipeline getCurrentPipeline() const { return m_currentPipeline; }
 
     // Pipelines to draw
-    void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds) { m_pipelinesToDraw = pipelineIds; }
-    const std::vector<uint64_t>& getPipelinesToDraw() const { return m_pipelinesToDraw; }
+    void setPipelinesToDraw(const uint64_t* pipelineIds, size_t count) {
+        delete[] m_pipelinesToDraw;
+        m_pipelinesToDrawCount = count;
+        if (count > 0) {
+            m_pipelinesToDraw = new uint64_t[count];
+            memcpy(m_pipelinesToDraw, pipelineIds, count * sizeof(uint64_t));
+        } else {
+            m_pipelinesToDraw = nullptr;
+        }
+    }
+    const uint64_t* getPipelinesToDraw(size_t* outCount) const {
+        *outCount = m_pipelinesToDrawCount;
+        return m_pipelinesToDraw;
+    }
 
     // Destroy specific pipeline
     void destroyPipeline(uint64_t id);
@@ -118,7 +130,8 @@ private:
     VkPipeline m_debugLinePipeline;
     VkPipeline m_debugTrianglePipeline;
     VkPipeline m_currentPipeline;
-    std::vector<uint64_t> m_pipelinesToDraw;
+    uint64_t* m_pipelinesToDraw;
+    size_t m_pipelinesToDrawCount;
 
     // Pipeline info
     std::map<uint64_t, PipelineInfo> m_pipelineInfo;

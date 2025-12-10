@@ -1246,10 +1246,12 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
         0.0f
     };
 
-    const auto& pipelinesToDraw = m_pipelineManager.getPipelinesToDraw();
+    size_t pipelinesToDrawCount = 0;
+    const uint64_t* pipelinesToDraw = m_pipelineManager.getPipelinesToDraw(&pipelinesToDrawCount);
 
     // Phase 1: Draw background shaders (non-textured pipelines like nebula)
-    for (uint64_t pipelineId : pipelinesToDraw) {
+    for (size_t i = 0; i < pipelinesToDrawCount; i++) {
+        uint64_t pipelineId = pipelinesToDraw[i];
         if (m_pipelineManager.isDebugPipeline(pipelineId)) {
             continue; // Skip debug, draw last
         }

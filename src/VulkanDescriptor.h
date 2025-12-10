@@ -47,7 +47,7 @@ public:
     // Create descriptor sets
     void createSingleTextureDescriptorSet(uint64_t textureId, VkImageView imageView, VkSampler sampler);
     void createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id);
-    void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
+    void createDescriptorSetForTextures(uint64_t descriptorId, const uint64_t* textureIds, size_t count);
 
     // Light descriptor set (special case - single set for all lights)
     void createLightDescriptorSet(VkBuffer lightUniformBuffer, VkDeviceSize bufferSize);
