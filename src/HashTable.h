@@ -360,7 +360,7 @@ public:
         }
 
         bool operator!=(const Iterator& other) const {
-            return index_ != other.index_;
+            return table_ != other.table_ || index_ != other.index_;
         }
 
         Iterator& operator++() {
@@ -403,7 +403,7 @@ public:
         }
 
         bool operator!=(const ConstIterator& other) const {
-            return index_ != other.index_;
+            return table_ != other.table_ || index_ != other.index_;
         }
 
         ConstIterator& operator++() {
