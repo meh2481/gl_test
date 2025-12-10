@@ -3,8 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include <cassert>
-#include <iostream>
 
 // Default allocator functions using malloc/free
 inline void* defaultAlloc(size_t size, void* /*userData*/) {
@@ -32,7 +32,13 @@ inline uint32_t hashKey(const K& key) {
 template<typename T>
 inline uint32_t hashKey(T* const& ptr) {
     uintptr_t val = reinterpret_cast<uintptr_t>(ptr);
-    return hashKey(val);
+    uint32_t hash = static_cast<uint32_t>(val ^ (val >> 32));
+    hash ^= (hash >> 16);
+    hash *= 0x85ebca6b;
+    hash ^= (hash >> 13);
+    hash *= 0xc2b2ae35;
+    hash ^= (hash >> 16);
+    return hash;
 }
 
 // Specialization for uint64_t (common in this codebase)
@@ -66,10 +72,14 @@ inline uint32_t hashKey<int>(const int& key) {
 }
 
 // Template-based fast hash lookup table
-// K = Key type
-// V = Value type
+// K = Key type (must be trivially copyable and support operator==)
+// V = Value type (must be trivially copyable)
 // Uses open addressing with linear probing for O(1) lookup
 // Configurable memory allocator via function pointers
+//
+// Note: This hash table is designed for simple/POD types.
+// It does not call constructors/destructors, so types with
+// non-trivial constructors should not be used.
 template<typename K, typename V>
 class HashTable {
 public:
@@ -363,13 +373,13 @@ public:
             return *this;
         }
 
-        K& key() const {
+        K& key() {
             assert(index_ < table_->capacity_);
             assert(table_->occupied_[index_]);
             return table_->keys_[index_];
         }
 
-        V& value() const {
+        V& value() {
             assert(index_ < table_->capacity_);
             assert(table_->occupied_[index_]);
             return table_->values_[index_];
@@ -380,12 +390,71 @@ public:
         uint32_t index_;
     };
 
+    // Const iterator for traversing all entries
+    class ConstIterator {
+    public:
+        ConstIterator(const HashTable* table, uint32_t index)
+            : table_(table), index_(index)
+        {
+            // Move to first occupied slot
+            while (index_ < table_->capacity_ && !table_->occupied_[index_]) {
+                index_++;
+            }
+        }
+
+        bool operator!=(const ConstIterator& other) const {
+            return index_ != other.index_;
+        }
+
+        ConstIterator& operator++() {
+            assert(index_ < table_->capacity_);
+            index_++;
+            // Move to next occupied slot
+            while (index_ < table_->capacity_ && !table_->occupied_[index_]) {
+                index_++;
+            }
+            return *this;
+        }
+
+        const K& key() const {
+            assert(index_ < table_->capacity_);
+            assert(table_->occupied_[index_]);
+            return table_->keys_[index_];
+        }
+
+        const V& value() const {
+            assert(index_ < table_->capacity_);
+            assert(table_->occupied_[index_]);
+            return table_->values_[index_];
+        }
+
+    private:
+        const HashTable* table_;
+        uint32_t index_;
+    };
+
     Iterator begin() {
         return Iterator(this, 0);
     }
 
     Iterator end() {
         return Iterator(this, capacity_);
+    }
+
+    ConstIterator begin() const {
+        return ConstIterator(this, 0);
+    }
+
+    ConstIterator end() const {
+        return ConstIterator(this, capacity_);
+    }
+
+    ConstIterator cbegin() const {
+        return ConstIterator(this, 0);
+    }
+
+    ConstIterator cend() const {
+        return ConstIterator(this, capacity_);
     }
 
 private:
