@@ -8,8 +8,7 @@
 #include <iostream>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), allocator_(nullptr) {
-    allocator_ = new SmallAllocator();
+    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), allocator_(nullptr), m_tempDebugLineData(*(allocator_ = new SmallAllocator())), m_tempDebugTriangleData(*allocator_) {
 }
 
 SceneManager::~SceneManager() {
@@ -250,49 +249,49 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {
             const Vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
-            Vector<float> lineVertexData(*allocator_);
-            lineVertexData.reserve(debugLineVerts.size() * 6);
+            m_tempDebugLineData.clear();
+            m_tempDebugLineData.reserve(debugLineVerts.size() * 6);
             for (const auto& v : debugLineVerts) {
-                lineVertexData.push_back(v.x);
-                lineVertexData.push_back(v.y);
-                lineVertexData.push_back(v.r);
-                lineVertexData.push_back(v.g);
-                lineVertexData.push_back(v.b);
-                lineVertexData.push_back(v.a);
+                m_tempDebugLineData.push_back(v.x);
+                m_tempDebugLineData.push_back(v.y);
+                m_tempDebugLineData.push_back(v.r);
+                m_tempDebugLineData.push_back(v.g);
+                m_tempDebugLineData.push_back(v.b);
+                m_tempDebugLineData.push_back(v.a);
             }
-            renderer_.setDebugLineDrawData(lineVertexData);
+            renderer_.setDebugLineDrawData(m_tempDebugLineData);
 
             const Vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
-            Vector<float> triangleVertexData(*allocator_);
-            triangleVertexData.reserve(debugTriangleVerts.size() * 6);
+            m_tempDebugTriangleData.clear();
+            m_tempDebugTriangleData.reserve(debugTriangleVerts.size() * 6);
             for (size_t i = 0; i < debugTriangleVerts.size(); i += 3) {
                 // Reverse winding order: v0, v2, v1 instead of v0, v1, v2
                 const auto& v0 = debugTriangleVerts[i];
                 const auto& v1 = debugTriangleVerts[i + 1];
                 const auto& v2 = debugTriangleVerts[i + 2];
                 // Push v0
-                triangleVertexData.push_back(v0.x);
-                triangleVertexData.push_back(v0.y);
-                triangleVertexData.push_back(v0.r);
-                triangleVertexData.push_back(v0.g);
-                triangleVertexData.push_back(v0.b);
-                triangleVertexData.push_back(v0.a);
+                m_tempDebugTriangleData.push_back(v0.x);
+                m_tempDebugTriangleData.push_back(v0.y);
+                m_tempDebugTriangleData.push_back(v0.r);
+                m_tempDebugTriangleData.push_back(v0.g);
+                m_tempDebugTriangleData.push_back(v0.b);
+                m_tempDebugTriangleData.push_back(v0.a);
                 // Push v2
-                triangleVertexData.push_back(v2.x);
-                triangleVertexData.push_back(v2.y);
-                triangleVertexData.push_back(v2.r);
-                triangleVertexData.push_back(v2.g);
-                triangleVertexData.push_back(v2.b);
-                triangleVertexData.push_back(v2.a);
+                m_tempDebugTriangleData.push_back(v2.x);
+                m_tempDebugTriangleData.push_back(v2.y);
+                m_tempDebugTriangleData.push_back(v2.r);
+                m_tempDebugTriangleData.push_back(v2.g);
+                m_tempDebugTriangleData.push_back(v2.b);
+                m_tempDebugTriangleData.push_back(v2.a);
                 // Push v1
-                triangleVertexData.push_back(v1.x);
-                triangleVertexData.push_back(v1.y);
-                triangleVertexData.push_back(v1.r);
-                triangleVertexData.push_back(v1.g);
-                triangleVertexData.push_back(v1.b);
-                triangleVertexData.push_back(v1.a);
+                m_tempDebugTriangleData.push_back(v1.x);
+                m_tempDebugTriangleData.push_back(v1.y);
+                m_tempDebugTriangleData.push_back(v1.r);
+                m_tempDebugTriangleData.push_back(v1.g);
+                m_tempDebugTriangleData.push_back(v1.b);
+                m_tempDebugTriangleData.push_back(v1.a);
             }
-            renderer_.setDebugTriangleDrawData(triangleVertexData);
+            renderer_.setDebugTriangleDrawData(m_tempDebugTriangleData);
         } else {
             // Clear debug draw data
             Vector<float> emptyVector(*allocator_);

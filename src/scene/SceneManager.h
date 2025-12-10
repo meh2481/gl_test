@@ -67,4 +67,8 @@ private:
 
     // Memory allocator for Vector members
     MemoryAllocator* allocator_;
+
+    // Reusable buffers for debug vertex data (cleared and reused each frame)
+    Vector<float> m_tempDebugLineData;
+    Vector<float> m_tempDebugTriangleData;
 };
