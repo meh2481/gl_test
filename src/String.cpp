@@ -1,5 +1,4 @@
 #include "String.h"
-#include "SmallAllocator.h"
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
@@ -9,18 +8,12 @@
 static const size_t GROWTH_FACTOR = 2;
 static const size_t MIN_CAPACITY = 16;
 
-// Global string allocator
-SmallAllocator& String::getAllocator() {
-    static SmallAllocator allocator;
-    return allocator;
-}
-
 // Default constructor
-String::String() : data_(nullptr), length_(0), capacity_(0) {
+String::String(MemoryAllocator* allocator) : data_(nullptr), length_(0), capacity_(0), allocator_(allocator) {
 }
 
 // Constructor from C-string
-String::String(const char* str) : data_(nullptr), length_(0), capacity_(0) {
+String::String(const char* str, MemoryAllocator* allocator) : data_(nullptr), length_(0), capacity_(0), allocator_(allocator) {
     if (str) {
         length_ = strlen(str);
         if (length_ > 0) {
@@ -31,7 +24,7 @@ String::String(const char* str) : data_(nullptr), length_(0), capacity_(0) {
 }
 
 // Constructor from C-string with explicit length
-String::String(const char* str, size_t length) : data_(nullptr), length_(0), capacity_(0) {
+String::String(const char* str, size_t length, MemoryAllocator* allocator) : data_(nullptr), length_(0), capacity_(0), allocator_(allocator) {
     if (str && length > 0) {
         length_ = length;
         ensureCapacity(length_);
@@ -41,7 +34,7 @@ String::String(const char* str, size_t length) : data_(nullptr), length_(0), cap
 }
 
 // Copy constructor
-String::String(const String& other) : data_(nullptr), length_(0), capacity_(0) {
+String::String(const String& other) : data_(nullptr), length_(0), capacity_(0), allocator_(other.allocator_) {
     if (other.length_ > 0) {
         length_ = other.length_;
         ensureCapacity(length_);
@@ -51,7 +44,7 @@ String::String(const String& other) : data_(nullptr), length_(0), capacity_(0) {
 
 // Move constructor
 String::String(String&& other) noexcept
-    : data_(other.data_), length_(other.length_), capacity_(other.capacity_) {
+    : data_(other.data_), length_(other.length_), capacity_(other.capacity_), allocator_(other.allocator_) {
     other.data_ = nullptr;
     other.length_ = 0;
     other.capacity_ = 0;
@@ -60,7 +53,7 @@ String::String(String&& other) noexcept
 // Destructor
 String::~String() {
     if (data_) {
-        getAllocator().free(data_);
+        allocator_->free(data_);
         data_ = nullptr;
     }
     length_ = 0;
@@ -84,7 +77,7 @@ String& String::operator=(const String& other) {
 String& String::operator=(String&& other) noexcept {
     if (this != &other) {
         if (data_) {
-            getAllocator().free(data_);
+            allocator_->free(data_);
         }
         data_ = other.data_;
         length_ = other.length_;
@@ -158,7 +151,7 @@ bool String::operator>=(const String& other) const {
 
 // Concatenation with String
 String String::operator+(const String& other) const {
-    String result;
+    String result(allocator_);
     size_t newLength = length_ + other.length_;
     if (newLength > 0) {
         result.ensureCapacity(newLength);
@@ -175,7 +168,7 @@ String String::operator+(const String& other) const {
 
 // Concatenation with C-string
 String String::operator+(const char* str) const {
-    String result;
+    String result(allocator_);
     if (!str) {
         return *this;
     }
@@ -264,7 +257,7 @@ void String::clear() {
 // Reserve capacity
 void String::reserve(size_t newCapacity) {
     if (newCapacity > capacity_) {
-        char* newData = (char*)getAllocator().allocate(newCapacity + 1);
+        char* newData = (char*)allocator_->allocate(newCapacity + 1);
         assert(newData != nullptr);
         if (data_ && length_ > 0) {
             strcpy(newData, data_);
@@ -272,7 +265,7 @@ void String::reserve(size_t newCapacity) {
             newData[0] = '\0';
         }
         if (data_) {
-            getAllocator().free(data_);
+            allocator_->free(data_);
         }
         data_ = newData;
         capacity_ = newCapacity;
@@ -301,9 +294,9 @@ String String::substr(size_t pos, size_t len) const {
         actualLen = length_ - pos;
     }
     if (actualLen == 0) {
-        return String();
+        return String(allocator_);
     }
-    return String(data_ + pos, actualLen);
+    return String(data_ + pos, actualLen, allocator_);
 }
 
 // Find C-string
@@ -420,7 +413,7 @@ int String::utf8CharLength(unsigned char c) {
 
 // Non-member concatenation operator
 String operator+(const char* lhs, const String& rhs) {
-    String result(lhs);
+    String result(lhs, rhs.allocator_);
     result += rhs;
     return result;
 }

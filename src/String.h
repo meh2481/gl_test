@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MemoryAllocator.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -14,9 +15,9 @@ public:
     // Special value returned by find() when pattern not found
     static const size_t npos = (size_t)-1;
     // Constructors
-    String();
-    String(const char* str);
-    String(const char* str, size_t length);
+    String(MemoryAllocator* allocator);
+    String(const char* str, MemoryAllocator* allocator);
+    String(const char* str, size_t length, MemoryAllocator* allocator);
     String(const String& other);
     String(String&& other) noexcept;
 
@@ -82,6 +83,7 @@ public:
     static char* strcpy(char* dest, const char* src);
     static char* strncpy(char* dest, const char* src, size_t n);
 
+    MemoryAllocator* allocator_;  // Memory allocator for string data
 private:
     char* data_;       // Pointer to string data
     size_t length_;    // Length of string in bytes (excluding null terminator)
