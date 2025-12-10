@@ -17,6 +17,8 @@ Build the project with the correct PKG_CONFIG_PATH and CMAKE_PREFIX_PATH to use 
 - Never use C++ exceptions or try-catch blocks. Use C-style assertions instead.
 - Use assertions liberally, where it makes sense to do so.
 - Always assert where there is any kind of error handling, including std::cerr calls.
+- Never use STL std::vector. Use the vector in core/Vector.h instead.
+- Never use STL std::map. Use the map in core/HashTable.h instead.
 - Never use STL std::string. Use the string in core/String.h instead.
 - Do not use char* for strings. Use the string library in core/String.h instead.
 - Don't generate markdown documentation for changes. Do not update README.md or any other documentation files with changes.
