@@ -35,6 +35,9 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, S
 }
 
 LuaInterface::~LuaInterface() {
+    // Clear nodes before deleting allocator (nodes contain Strings that use the allocator)
+    nodes_.clear();
+    
     if (luaState_) {
         lua_close(luaState_);
     }
