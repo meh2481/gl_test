@@ -3429,7 +3429,18 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
 
     ResourceData texData = pakResource_.getResource(placeholderTexId);
     if (texData.data != nullptr && texData.size > 0) {
-        renderer_.loadTexture(placeholderTexId, texData);
+        // Check if this is an atlas reference - if so, load the atlas first
+        AtlasUV atlasUV;
+        if (pakResource_.getAtlasUV(placeholderTexId, atlasUV)) {
+            // This is an atlas reference - load the atlas texture instead
+            ResourceData atlasData = pakResource_.getResource(atlasUV.atlasId);
+            if (atlasData.data != nullptr) {
+                renderer_.loadAtlasTexture(atlasUV.atlasId, atlasData);
+            }
+        } else {
+            // Standalone texture - load directly
+            renderer_.loadTexture(placeholderTexId, texData);
+        }
     }
 
     // 4. Calculate layer dimensions
