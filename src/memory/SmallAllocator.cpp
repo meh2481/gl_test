@@ -11,12 +11,14 @@ SmallAllocator::SmallAllocator()
     , lastBlock_(nullptr)
     , allocationCount_(0)
 {
+    // cerr instead of cout here to avoid race condition
     std::cerr << "SmallAllocator: Initializing with " << MIN_POOL_SIZE << " bytes" << std::endl;
     growPool(MIN_POOL_SIZE);
 }
 
 SmallAllocator::~SmallAllocator() {
     if (pool_) {
+        // cerr instead of cout here to avoid race condition
         std::cerr << "SmallAllocator: Destroying allocator with " << allocationCount_
                   << " leaked allocations" << std::endl;
         if (allocationCount_ > 0) {
