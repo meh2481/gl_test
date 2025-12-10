@@ -1598,8 +1598,7 @@ void Box2DPhysics::applyForceFields() {
 
                     if (field.isWater) {
                         int internalBodyId = findInternalBodyId(overlappingBodyId);
-                        String heavyType("heavy", stringAllocator_);
-                        if (internalBodyId >= 0 && bodyHasType(internalBodyId, heavyType)) {
+                        if (internalBodyId >= 0 && bodyHasType(internalBodyId, "heavy")) {
                             forceMultiplier = -0.5f;
                         }
                     }
@@ -2077,29 +2076,31 @@ void Box2DPhysics::getAllDynamicBodyInfo(int* bodyIds, float* posX, float* posY,
     SDL_UnlockMutex(physicsMutex_);
 }
 
-void Box2DPhysics::addBodyType(int bodyId, const String& type) {
+void Box2DPhysics::addBodyType(int bodyId, const char* type) {
     SDL_LockMutex(physicsMutex_);
     auto& types = bodyTypes_[bodyId];
+    String typeStr(type, stringAllocator_);
     bool found = false;
     for (const auto& t : types) {
-        if (t == type) {
+        if (t == typeStr) {
             found = true;
             break;
         }
     }
     if (!found) {
-        types.push_back(type);
+        types.push_back(typeStr);
     }
     SDL_UnlockMutex(physicsMutex_);
 }
 
-void Box2DPhysics::removeBodyType(int bodyId, const String& type) {
+void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
     SDL_LockMutex(physicsMutex_);
     auto it = bodyTypes_.find(bodyId);
     if (it != bodyTypes_.end()) {
+        String typeStr(type, stringAllocator_);
         auto& types = it->second;
         for (auto typeIt = types.begin(); typeIt != types.end(); ) {
-            if (*typeIt == type) {
+            if (*typeIt == typeStr) {
                 typeIt = types.erase(typeIt);
             } else {
                 ++typeIt;
@@ -2118,14 +2119,15 @@ void Box2DPhysics::clearBodyTypes(int bodyId) {
     SDL_UnlockMutex(physicsMutex_);
 }
 
-bool Box2DPhysics::bodyHasType(int bodyId, const String& type) const {
+bool Box2DPhysics::bodyHasType(int bodyId, const char* type) const {
     SDL_LockMutex(physicsMutex_);
     auto it = bodyTypes_.find(bodyId);
     bool result = false;
     if (it != bodyTypes_.end()) {
+        String typeStr(type, stringAllocator_);
         const auto& types = it->second;
         for (const auto& t : types) {
-            if (t == type) {
+            if (t == typeStr) {
                 result = true;
                 break;
             }

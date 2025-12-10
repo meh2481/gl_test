@@ -3500,8 +3500,7 @@ int LuaInterface::b2AddBodyType(lua_State* L) {
 
     int bodyId = luaL_checkinteger(L, 1);
     const char* typeStr = luaL_checkstring(L, 2);
-    String type(typeStr, interface->stringAllocator_);
-    interface->physics_->addBodyType(bodyId, type);
+    interface->physics_->addBodyType(bodyId, typeStr);
     return 0;
 }
 
@@ -3512,8 +3511,7 @@ int LuaInterface::b2RemoveBodyType(lua_State* L) {
 
     int bodyId = luaL_checkinteger(L, 1);
     const char* typeStr = luaL_checkstring(L, 2);
-    String type(typeStr, interface->stringAllocator_);
-    interface->physics_->removeBodyType(bodyId, type);
+    interface->physics_->removeBodyType(bodyId, typeStr);
     return 0;
 }
 
@@ -3534,8 +3532,7 @@ int LuaInterface::b2BodyHasType(lua_State* L) {
 
     int bodyId = luaL_checkinteger(L, 1);
     const char* typeStr = luaL_checkstring(L, 2);
-    String type(typeStr, interface->stringAllocator_);
-    bool hasType = interface->physics_->bodyHasType(bodyId, type);
+    bool hasType = interface->physics_->bodyHasType(bodyId, typeStr);
     lua_pushboolean(L, hasType);
     return 1;
 }

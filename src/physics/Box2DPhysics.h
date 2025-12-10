@@ -308,10 +308,10 @@ public:
     void reset();
 
     // Type system for object interactions
-    void addBodyType(int bodyId, const String& type);
-    void removeBodyType(int bodyId, const String& type);
+    void addBodyType(int bodyId, const char* type);
+    void removeBodyType(int bodyId, const char* type);
     void clearBodyTypes(int bodyId);
-    bool bodyHasType(int bodyId, const String& type) const;
+    bool bodyHasType(int bodyId, const char* type) const;
     std::vector<String> getBodyTypes(int bodyId) const;
 
     // Collision callback for type-based interactions
