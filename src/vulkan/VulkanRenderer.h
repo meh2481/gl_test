@@ -118,6 +118,9 @@ private:
     VulkanBuffer::IndexedBuffer m_spriteBuffer;
     VulkanBuffer::IndexedBuffer m_particleBuffer;
 
+    // Memory allocator for Vector members (must be before Vector members)
+    MemoryAllocator* m_allocator;
+
     // Sprite batch data
     struct BatchDrawData {
         uint64_t textureId;
@@ -183,9 +186,6 @@ private:
     uint64_t m_reflectionTextureId;
     bool m_reflectionEnabled;
     float m_reflectionSurfaceY;  // Y coordinate of water surface for reflection clipping
-
-    // Memory allocator for Vector members
-    MemoryAllocator* m_allocator;
 
 #ifdef DEBUG
     void (*m_imguiRenderCallback)(VkCommandBuffer);

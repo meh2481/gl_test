@@ -38,7 +38,7 @@ public:
     }
 
 private:
-    ConsoleBuffer() : lines_(*(stringAllocator_ = new SmallAllocator())) {
+    ConsoleBuffer() : stringAllocator_(nullptr), lines_(*(stringAllocator_ = new SmallAllocator())) {
     }
     ~ConsoleBuffer() {
         // Clear lines before deleting allocator (lines contain Strings that use the allocator)
@@ -48,9 +48,9 @@ private:
             stringAllocator_ = nullptr;
         }
     }
+    MemoryAllocator* stringAllocator_;
     Vector<String> lines_;
     std::mutex mutex_;
-    MemoryAllocator* stringAllocator_;
 };
 
 // Custom streambuf to capture cout

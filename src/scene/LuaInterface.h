@@ -223,6 +223,9 @@ private:
     // Particle editor state (DEBUG only)
     int particleEditorPipelineIds_[3]; // [0]=additive, [1]=alpha, [2]=subtractive
 
+    // Memory allocator for string operations (must be before Vector members)
+    MemoryAllocator* stringAllocator_;
+
     // Scene objects tracking - objects created via loadObject are tracked here
     // The C++ side calls update/cleanup on these automatically
     Vector<int> sceneObjects_; // Lua registry references to object tables
@@ -244,9 +247,6 @@ private:
     std::unordered_map<int, Node> nodes_; // nodeId -> Node
     std::unordered_map<int, int> bodyToNodeMap_; // bodyId -> nodeId
     int nextNodeId_;
-
-    // Memory allocator for string operations
-    MemoryAllocator* stringAllocator_;
 
     void updateNodes(float deltaTime);
     void handleNodeSensorEvent(const SensorEvent& event);

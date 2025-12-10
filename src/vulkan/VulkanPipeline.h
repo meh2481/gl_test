@@ -119,6 +119,10 @@ private:
     VkPipeline m_debugLinePipeline;
     VkPipeline m_debugTrianglePipeline;
     VkPipeline m_currentPipeline;
+
+    // Memory allocator for Vector members (must be before Vector members)
+    MemoryAllocator* m_allocator;
+
     Vector<uint64_t> m_pipelinesToDraw;
 
     // Pipeline info
@@ -132,9 +136,6 @@ private:
     // Per-pipeline water ripple data
     std::map<int, std::array<ShaderRippleData, MAX_SHADER_RIPPLES>> m_pipelineWaterRipples;
     std::map<int, int> m_pipelineWaterRippleCount;
-
-    // Memory allocator for Vector members
-    MemoryAllocator* m_allocator;
 
     // Shader data storage
     Vector<char> m_vertShaderData;

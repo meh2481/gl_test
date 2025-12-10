@@ -44,10 +44,10 @@ public:
 
 private:
     ResourceData m_pakData;
+    MemoryAllocator* m_allocator;
     std::map<uint64_t, Vector<char>> m_decompressedData;
     std::map<uint64_t, AtlasUV> m_atlasUVCache;  // Cache of atlas UV lookups
     SDL_Mutex* m_mutex;
-    MemoryAllocator* m_allocator;
 
 #ifdef _WIN32
     HANDLE m_hFile;
