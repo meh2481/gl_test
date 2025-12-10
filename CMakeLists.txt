@@ -86,9 +86,9 @@ add_custom_command(
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/VulkanBuffer.cpp src/VulkanTexture.cpp src/VulkanDescriptor.cpp src/VulkanPipeline.cpp src/VulkanLight.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp src/ParticleSystem.cpp src/ImGuiManager.cpp src/WaterEffect.cpp)
+    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/VulkanBuffer.cpp src/VulkanTexture.cpp src/VulkanDescriptor.cpp src/VulkanPipeline.cpp src/VulkanLight.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp src/ParticleSystem.cpp src/ImGuiManager.cpp src/WaterEffect.cpp src/SmallAllocator.cpp src/LargeMemoryAllocator.cpp src/String.cpp)
 else()
-    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/VulkanBuffer.cpp src/VulkanTexture.cpp src/VulkanDescriptor.cpp src/VulkanPipeline.cpp src/VulkanLight.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp src/ParticleSystem.cpp src/WaterEffect.cpp)
+    add_executable(shader_triangle src/main.cpp src/config.cpp src/resource.cpp src/VulkanRenderer.cpp src/VulkanBuffer.cpp src/VulkanTexture.cpp src/VulkanDescriptor.cpp src/VulkanPipeline.cpp src/VulkanLight.cpp src/LuaInterface.cpp src/SceneManager.cpp src/Box2DPhysics.cpp src/SceneLayer.cpp src/AudioManager.cpp src/ParticleSystem.cpp src/WaterEffect.cpp src/SmallAllocator.cpp src/LargeMemoryAllocator.cpp src/String.cpp)
 endif()
 add_dependencies(shader_triangle shaders res_pak)
 
