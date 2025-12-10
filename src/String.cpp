@@ -406,7 +406,7 @@ int String::utf8CharLength(unsigned char c) {
     if ((c & 0xE0) == 0xC0) return 2;    // 110xxxxx - 2 bytes
     if ((c & 0xF0) == 0xE0) return 3;    // 1110xxxx - 3 bytes
     if ((c & 0xF8) == 0xF0) return 4;    // 11110xxx - 4 bytes
-    std::cerr << "Invalid UTF-8 byte: 0x" << std::hex << (int)c << std::endl;
+    std::cerr << "Invalid UTF-8 byte in string" << std::endl;
     assert(false);
     return 1;
 }
