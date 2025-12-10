@@ -74,6 +74,9 @@ Box2DPhysics::~Box2DPhysics() {
     // Wait for any in-progress step to complete
     waitForStepComplete();
 
+    // Clear bodyTypes before deleting allocator (contains Strings that use the allocator)
+    bodyTypes_.clear();
+
     if (b2World_IsValid(worldId_)) {
         b2DestroyWorld(worldId_);
     }
