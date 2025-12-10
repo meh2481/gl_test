@@ -99,7 +99,9 @@ VulkanRenderer::VulkanRenderer() :
     m_allocator(nullptr),
     m_spriteBatches(*(m_allocator = new SmallAllocator())),
     m_particleBatches(*m_allocator),
-    m_allBatches(*m_allocator)
+    m_allBatches(*m_allocator),
+    m_tempVertexData(*m_allocator),
+    m_tempIndexData(*m_allocator)
 #ifdef DEBUG
     , m_imguiRenderCallback(nullptr)
 #endif
@@ -1008,8 +1010,8 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
 
     m_spriteBatches.clear();
 
-    Vector<float> allVertexData(*m_allocator);
-    Vector<uint16_t> allIndices(*m_allocator);
+    m_tempVertexData.clear();
+    m_tempIndexData.clear();
     uint32_t baseVertex = 0;
 
     for (const auto& batch : batches) {
@@ -1023,7 +1025,7 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
         drawData.descriptorId = batch.descriptorId;
         drawData.pipelineId = batch.pipelineId;
         drawData.parallaxDepth = batch.parallaxDepth;
-        drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
+        drawData.firstIndex = static_cast<uint32_t>(m_tempIndexData.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
         drawData.isParticle = false;
 
@@ -1050,27 +1052,27 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
         drawData.colorCycleTime = batch.colorCycleTime;
 
         for (const auto& v : batch.vertices) {
-            allVertexData.push_back(v.x);
-            allVertexData.push_back(v.y);
-            allVertexData.push_back(v.u);
-            allVertexData.push_back(v.v);
-            allVertexData.push_back(v.nu);
-            allVertexData.push_back(v.nv);
-            allVertexData.push_back(v.uvMinX);
-            allVertexData.push_back(v.uvMinY);
-            allVertexData.push_back(v.uvMaxX);
-            allVertexData.push_back(v.uvMaxY);
+            m_tempVertexData.push_back(v.x);
+            m_tempVertexData.push_back(v.y);
+            m_tempVertexData.push_back(v.u);
+            m_tempVertexData.push_back(v.v);
+            m_tempVertexData.push_back(v.nu);
+            m_tempVertexData.push_back(v.nv);
+            m_tempVertexData.push_back(v.uvMinX);
+            m_tempVertexData.push_back(v.uvMinY);
+            m_tempVertexData.push_back(v.uvMaxX);
+            m_tempVertexData.push_back(v.uvMaxY);
         }
 
         for (uint16_t idx : batch.indices) {
-            allIndices.push_back(idx + baseVertex);
+            m_tempIndexData.push_back(idx + baseVertex);
         }
 
         baseVertex += static_cast<uint32_t>(batch.vertices.size());
         m_spriteBatches.push_back(drawData);
     }
 
-    m_bufferManager.updateIndexedBuffer(m_spriteBuffer, allVertexData, allIndices, 10);
+    m_bufferManager.updateIndexedBuffer(m_spriteBuffer, m_tempVertexData, m_tempIndexData, 10);
     rebuildAllBatches();
 }
 
@@ -1081,8 +1083,8 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
 
     m_particleBatches.clear();
 
-    Vector<float> allVertexData(*m_allocator);
-    Vector<uint16_t> allIndices(*m_allocator);
+    m_tempVertexData.clear();
+    m_tempIndexData.clear();
     uint32_t baseVertex = 0;
 
     for (const auto& batch : batches) {
@@ -1096,7 +1098,7 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
         drawData.descriptorId = batch.textureId;  // Use texture ID as descriptor ID
         drawData.pipelineId = batch.pipelineId;
         drawData.parallaxDepth = batch.parallaxDepth;
-        drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
+        drawData.firstIndex = static_cast<uint32_t>(m_tempIndexData.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
         drawData.isParticle = true;
 
@@ -1123,29 +1125,29 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
         drawData.colorCycleTime = 0.0f;
 
         for (const auto& v : batch.vertices) {
-            allVertexData.push_back(v.x);
-            allVertexData.push_back(v.y);
-            allVertexData.push_back(v.u);
-            allVertexData.push_back(v.v);
-            allVertexData.push_back(v.r);
-            allVertexData.push_back(v.g);
-            allVertexData.push_back(v.b);
-            allVertexData.push_back(v.a);
-            allVertexData.push_back(v.uvMinX);
-            allVertexData.push_back(v.uvMinY);
-            allVertexData.push_back(v.uvMaxX);
-            allVertexData.push_back(v.uvMaxY);
+            m_tempVertexData.push_back(v.x);
+            m_tempVertexData.push_back(v.y);
+            m_tempVertexData.push_back(v.u);
+            m_tempVertexData.push_back(v.v);
+            m_tempVertexData.push_back(v.r);
+            m_tempVertexData.push_back(v.g);
+            m_tempVertexData.push_back(v.b);
+            m_tempVertexData.push_back(v.a);
+            m_tempVertexData.push_back(v.uvMinX);
+            m_tempVertexData.push_back(v.uvMinY);
+            m_tempVertexData.push_back(v.uvMaxX);
+            m_tempVertexData.push_back(v.uvMaxY);
         }
 
         for (uint16_t idx : batch.indices) {
-            allIndices.push_back(idx + baseVertex);
+            m_tempIndexData.push_back(idx + baseVertex);
         }
 
         baseVertex += static_cast<uint32_t>(batch.vertices.size());
         m_particleBatches.push_back(drawData);
     }
 
-    m_bufferManager.updateIndexedBuffer(m_particleBuffer, allVertexData, allIndices, 8);
+    m_bufferManager.updateIndexedBuffer(m_particleBuffer, m_tempVertexData, m_tempIndexData, 8);
     rebuildAllBatches();
 }
 

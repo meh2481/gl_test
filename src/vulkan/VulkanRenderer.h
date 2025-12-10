@@ -145,6 +145,10 @@ private:
     Vector<BatchDrawData> m_particleBatches;
     Vector<BatchDrawData> m_allBatches;  // Combined and sorted
 
+    // Reusable buffers for vertex/index data (cleared and reused each frame)
+    Vector<float> m_tempVertexData;
+    Vector<uint16_t> m_tempIndexData;
+
     // Helper to rebuild combined batch list from sprite and particle batches
     void rebuildAllBatches();
 
