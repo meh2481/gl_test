@@ -55,13 +55,18 @@ private:
 class ConsoleCapture : public std::streambuf {
 public:
     ConsoleCapture(std::ostream& stream, std::streambuf* oldBuf)
-        : stream_(stream), oldBuf_(oldBuf), stringAllocator_(new SmallAllocator()), buffer_(stringAllocator_) {
+        : stream_(stream), oldBuf_(oldBuf), stringAllocator_(new SmallAllocator()), buffer_(nullptr) {
+        buffer_ = new String(stringAllocator_);
     }
 
     ~ConsoleCapture() {
         // Restore original buffer
         stream_.rdbuf(oldBuf_);
-        // buffer_ will be destroyed automatically before stringAllocator_ due to declaration order
+        // Explicitly delete buffer before allocator
+        if (buffer_) {
+            delete buffer_;
+            buffer_ = nullptr;
+        }
         if (stringAllocator_) {
             delete stringAllocator_;
             stringAllocator_ = nullptr;
@@ -72,13 +77,13 @@ protected:
     virtual int_type overflow(int_type c) override {
         if (c != EOF) {
             if (c == '\n') {
-                ConsoleBuffer::getInstance().addLine(buffer_);
+                ConsoleBuffer::getInstance().addLine(*buffer_);
                 // Also write to original stream
-                oldBuf_->sputn(buffer_.c_str(), buffer_.length());
+                oldBuf_->sputn(buffer_->c_str(), buffer_->length());
                 oldBuf_->sputc('\n');
-                buffer_.clear();
+                buffer_->clear();
             } else {
-                buffer_ += static_cast<char>(c);
+                *buffer_ += static_cast<char>(c);
             }
         }
         return c;
@@ -88,7 +93,7 @@ private:
     std::ostream& stream_;
     std::streambuf* oldBuf_;
     MemoryAllocator* stringAllocator_;
-    String buffer_;
+    String* buffer_;
 };
 
 #endif // DEBUG
