@@ -1583,9 +1583,18 @@ void Box2DPhysics::applyForceFields() {
                 if (centerInField) {
                     b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);
 
+                    float forceMultiplier = 1.0f;
+
+                    if (field.isWater) {
+                        int internalBodyId = findInternalBodyId(overlappingBodyId);
+                        if (internalBodyId >= 0 && bodyHasType(internalBodyId, "heavy")) {
+                            forceMultiplier = -0.5f;
+                        }
+                    }
+
                     // Apply force
-                    vel.x += field.forceX * fixedTimestep_;
-                    vel.y += field.forceY * fixedTimestep_;
+                    vel.x += field.forceX * forceMultiplier * fixedTimestep_;
+                    vel.y += field.forceY * forceMultiplier * fixedTimestep_;
 
                     // Apply velocity damping if set (simulates water drag)
                     // Use stronger damping factor (3x) for effective water resistance
