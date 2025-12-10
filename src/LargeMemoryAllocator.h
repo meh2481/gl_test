@@ -1,20 +1,21 @@
 #pragma once
 
+#include "MemoryAllocator.h"
 #include <cstddef>
 #include <cstdint>
 
-class LargeMemoryAllocator {
+class LargeMemoryAllocator : public MemoryAllocator {
 public:
     LargeMemoryAllocator(size_t initialChunkSize = 1024 * 1024);
-    ~LargeMemoryAllocator();
+    ~LargeMemoryAllocator() override;
 
-    void* allocate(size_t size);
-    void deallocate(void* ptr);
-    void defragment();
+    void* allocate(size_t size) override;
+    void free(void* ptr) override;
+    size_t defragment() override;
 
-    size_t getTotalPoolSize() const { return m_totalPoolSize; }
-    size_t getUsedMemory() const { return m_usedMemory; }
-    size_t getFreeMemory() const { return m_totalPoolSize - m_usedMemory; }
+    size_t getTotalMemory() const override { return m_totalPoolSize; }
+    size_t getUsedMemory() const override { return m_usedMemory; }
+    size_t getFreeMemory() const override { return m_totalPoolSize - m_usedMemory; }
 
 private:
     struct MemoryChunk;

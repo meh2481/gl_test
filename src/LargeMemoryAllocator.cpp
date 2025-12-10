@@ -103,7 +103,7 @@ void* LargeMemoryAllocator::allocate(size_t size) {
     return ptr;
 }
 
-void LargeMemoryAllocator::deallocate(void* ptr) {
+void LargeMemoryAllocator::free(void* ptr) {
     assert(ptr != nullptr);
 
     BlockHeader* block = (BlockHeader*)((char*)ptr - sizeof(BlockHeader));
@@ -130,9 +130,10 @@ void LargeMemoryAllocator::deallocate(void* ptr) {
     }
 }
 
-void LargeMemoryAllocator::defragment() {
+size_t LargeMemoryAllocator::defragment() {
     std::cout << "LargeMemoryAllocator: Starting defragmentation..." << std::endl;
 
+    size_t mergedBlocks = 0;
     MemoryChunk* chunk = m_chunks;
     while (chunk) {
         BlockHeader* current = (BlockHeader*)chunk->memory;
@@ -153,6 +154,7 @@ void LargeMemoryAllocator::defragment() {
                     if (m_freeList == next) {
                         m_freeList = next->prev ? next->prev : next->next;
                     }
+                    mergedBlocks++;
                     continue;
                 }
             }
@@ -166,7 +168,8 @@ void LargeMemoryAllocator::defragment() {
         chunk = chunk->next;
     }
 
-    std::cout << "LargeMemoryAllocator: Defragmentation complete" << std::endl;
+    std::cout << "LargeMemoryAllocator: Defragmentation complete, merged " << mergedBlocks << " blocks" << std::endl;
+    return mergedBlocks;
 }
 
 void LargeMemoryAllocator::removeEmptyChunks() {
