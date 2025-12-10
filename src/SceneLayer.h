@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
+#include <cstddef>
 #include <unordered_map>
 
 // Maximum number of vertices for polygon layers (8 vertices * 2 floats per vertex = 16)
@@ -22,8 +22,12 @@ struct SpriteBatch {
     uint64_t descriptorId;   // Descriptor set ID to use for this batch
     int pipelineId;          // Pipeline ID to use for this batch
     float parallaxDepth;     // Parallax depth for sorting (lower = background, higher = foreground)
-    std::vector<SpriteVertex> vertices;
-    std::vector<uint16_t> indices;
+    SpriteVertex* vertices;
+    size_t verticesCount;
+    size_t verticesCapacity;
+    uint16_t* indices;
+    size_t indicesCount;
+    size_t indicesCapacity;
 
     // Animation parameters for this batch
     float spinSpeed;         // Degrees per second
@@ -41,6 +45,21 @@ struct SpriteBatch {
     float colorCycleTime;
     float colorPhase;
     float centerX, centerY;  // Center point for spin rotation
+
+    SpriteBatch() : textureId(0), normalMapId(0), descriptorId(0), pipelineId(0), parallaxDepth(0.0f),
+                    vertices(nullptr), verticesCount(0), verticesCapacity(0),
+                    indices(nullptr), indicesCount(0), indicesCapacity(0),
+                    spinSpeed(0.0f), blinkSecondsOn(0.0f), blinkSecondsOff(0.0f),
+                    blinkRiseTime(0.0f), blinkFallTime(0.0f), blinkPhase(0.0f),
+                    waveWavelength(0.0f), waveSpeed(0.0f), waveAngle(0.0f), waveAmplitude(0.0f),
+                    colorR(1.0f), colorG(1.0f), colorB(1.0f), colorA(1.0f),
+                    colorEndR(1.0f), colorEndG(1.0f), colorEndB(1.0f), colorEndA(1.0f),
+                    colorCycleTime(0.0f), colorPhase(0.0f), centerX(0.0f), centerY(0.0f) {}
+
+    ~SpriteBatch() {
+        delete[] vertices;
+        delete[] indices;
+    }
 };
 
 // Particle vertex structure with position, texture coordinates, and color
@@ -56,8 +75,21 @@ struct ParticleBatch {
     uint64_t textureId;      // Atlas texture ID
     int pipelineId;          // Pipeline ID to use for this batch
     float parallaxDepth;     // Parallax depth for sorting
-    std::vector<ParticleVertex> vertices;
-    std::vector<uint16_t> indices;
+    ParticleVertex* vertices;
+    size_t verticesCount;
+    size_t verticesCapacity;
+    uint16_t* indices;
+    size_t indicesCount;
+    size_t indicesCapacity;
+
+    ParticleBatch() : textureId(0), pipelineId(0), parallaxDepth(0.0f),
+                      vertices(nullptr), verticesCount(0), verticesCapacity(0),
+                      indices(nullptr), indicesCount(0), indicesCapacity(0) {}
+
+    ~ParticleBatch() {
+        delete[] vertices;
+        delete[] indices;
+    }
 };
 
 // Atlas UV coordinates for texture
