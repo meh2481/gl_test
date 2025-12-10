@@ -176,6 +176,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2CreateRevoluteJoint", "b2DestroyJoint",
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
+                                     "b2AddBodyType", "b2RemoveBodyType", "b2ClearBodyTypes", "b2BodyHasType", "b2GetBodyTypes", "b2SetCollisionCallback",
                                      "createForceField", "createRadialForceField",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "setLayerOffset", "setLayerUseLocalUV", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
                                      "setLayerSpin", "setLayerBlink", "setLayerWave", "setLayerColor", "setLayerColorCycle",
@@ -701,6 +702,14 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "b2SetBodyDestructibleLayer", b2SetBodyDestructibleLayer);
     lua_register(luaState_, "b2ClearBodyDestructible", b2ClearBodyDestructible);
     lua_register(luaState_, "b2CleanupAllFragments", b2CleanupAllFragments);
+
+    // Register body type system functions
+    lua_register(luaState_, "b2AddBodyType", b2AddBodyType);
+    lua_register(luaState_, "b2RemoveBodyType", b2RemoveBodyType);
+    lua_register(luaState_, "b2ClearBodyTypes", b2ClearBodyTypes);
+    lua_register(luaState_, "b2BodyHasType", b2BodyHasType);
+    lua_register(luaState_, "b2GetBodyTypes", b2GetBodyTypes);
+    lua_register(luaState_, "b2SetCollisionCallback", b2SetCollisionCallback);
 
     // Register force field functions
     lua_register(luaState_, "createForceField", createForceField);
@@ -3440,4 +3449,79 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
 
     std::cout << "Water visual setup complete: layer=" << waterLayerId
               << " shader=" << waterShaderId << " field=" << waterFieldId << std::endl;
+}
+
+int LuaInterface::b2AddBodyType(lua_State* L) {
+    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    int bodyId = luaL_checkinteger(L, 1);
+    const char* type = luaL_checkstring(L, 2);
+    interface->physics_->addBodyType(bodyId, type);
+    return 0;
+}
+
+int LuaInterface::b2RemoveBodyType(lua_State* L) {
+    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    int bodyId = luaL_checkinteger(L, 1);
+    const char* type = luaL_checkstring(L, 2);
+    interface->physics_->removeBodyType(bodyId, type);
+    return 0;
+}
+
+int LuaInterface::b2ClearBodyTypes(lua_State* L) {
+    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    int bodyId = luaL_checkinteger(L, 1);
+    interface->physics_->clearBodyTypes(bodyId);
+    return 0;
+}
+
+int LuaInterface::b2BodyHasType(lua_State* L) {
+    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    int bodyId = luaL_checkinteger(L, 1);
+    const char* type = luaL_checkstring(L, 2);
+    bool hasType = interface->physics_->bodyHasType(bodyId, type);
+    lua_pushboolean(L, hasType);
+    return 1;
+}
+
+int LuaInterface::b2GetBodyTypes(lua_State* L) {
+    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+    int bodyId = luaL_checkinteger(L, 1);
+    const std::vector<std::string>* types = interface->physics_->getBodyTypes(bodyId);
+
+    lua_newtable(L);
+    if (types) {
+        for (size_t i = 0; i < types->size(); ++i) {
+            lua_pushstring(L, (*types)[i].c_str());
+            lua_rawseti(L, -2, i + 1);
+        }
+    }
+    return 1;
+}
+
+int LuaInterface::b2SetCollisionCallback(lua_State* L) {
+    LuaInterface* interface = static_cast<LuaInterface*>(lua_touserdata(L, lua_upvalueindex(1)));
+
+    if (!lua_isfunction(L, 1)) {
+        return luaL_error(L, "Expected function as first argument");
+    }
+
+    int callbackRef = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    interface->physics_->setCollisionCallback([interface, callbackRef](int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed) {
+        lua_rawgeti(interface->luaState_, LUA_REGISTRYINDEX, callbackRef);
+        lua_pushinteger(interface->luaState_, bodyIdA);
+        lua_pushinteger(interface->luaState_, bodyIdB);
+        lua_pushnumber(interface->luaState_, pointX);
+        lua_pushnumber(interface->luaState_, pointY);
+        lua_pushnumber(interface->luaState_, normalX);
+        lua_pushnumber(interface->luaState_, normalY);
+        lua_pushnumber(interface->luaState_, approachSpeed);
+        if (lua_pcall(interface->luaState_, 7, 0, 0) != LUA_OK) {
+            const char* errorMsg = lua_tostring(interface->luaState_, -1);
+            std::cerr << "Collision callback error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+            lua_pop(interface->luaState_, 1);
+        }
+    });
+
+    return 0;
 }

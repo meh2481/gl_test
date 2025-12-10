@@ -108,6 +108,14 @@ private:
     static int b2ClearBodyDestructible(lua_State* L);
     static int b2CleanupAllFragments(lua_State* L);
 
+    // Body type system Lua bindings
+    static int b2AddBodyType(lua_State* L);
+    static int b2RemoveBodyType(lua_State* L);
+    static int b2ClearBodyTypes(lua_State* L);
+    static int b2BodyHasType(lua_State* L);
+    static int b2GetBodyTypes(lua_State* L);
+    static int b2SetCollisionCallback(lua_State* L);
+
     // Force field Lua bindings
     static int createForceField(lua_State* L);
     static int createRadialForceField(lua_State* L);

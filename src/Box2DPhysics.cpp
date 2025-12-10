@@ -133,6 +133,10 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
                     event.normalY = beginEvent.manifold.normal.y;
                     event.approachSpeed = approachSpeed;
                     collisionHitEvents_.push_back(event);
+
+                    if (collisionCallback_ && internalIdA >= 0 && internalIdB >= 0) {
+                        collisionCallback_(internalIdA, internalIdB, event.pointX, event.pointY, event.normalX, event.normalY, event.approachSpeed);
+                    }
                 }
             }
         }
@@ -2050,4 +2054,49 @@ void Box2DPhysics::getAllDynamicBodyInfo(int* bodyIds, float* posX, float* posY,
     *outCount = count;
 
     SDL_UnlockMutex(physicsMutex_);
+}
+
+void Box2DPhysics::addBodyType(int bodyId, const std::string& type) {
+    SDL_LockMutex(physicsMutex_);
+    auto& types = bodyTypes_[bodyId];
+    if (std::find(types.begin(), types.end(), type) == types.end()) {
+        types.push_back(type);
+    }
+    SDL_UnlockMutex(physicsMutex_);
+}
+
+void Box2DPhysics::removeBodyType(int bodyId, const std::string& type) {
+    SDL_LockMutex(physicsMutex_);
+    auto it = bodyTypes_.find(bodyId);
+    if (it != bodyTypes_.end()) {
+        auto& types = it->second;
+        types.erase(std::remove(types.begin(), types.end(), type), types.end());
+        if (types.empty()) {
+            bodyTypes_.erase(it);
+        }
+    }
+    SDL_UnlockMutex(physicsMutex_);
+}
+
+void Box2DPhysics::clearBodyTypes(int bodyId) {
+    SDL_LockMutex(physicsMutex_);
+    bodyTypes_.erase(bodyId);
+    SDL_UnlockMutex(physicsMutex_);
+}
+
+bool Box2DPhysics::bodyHasType(int bodyId, const std::string& type) const {
+    SDL_LockMutex(physicsMutex_);
+    auto it = bodyTypes_.find(bodyId);
+    bool result = false;
+    if (it != bodyTypes_.end()) {
+        const auto& types = it->second;
+        result = std::find(types.begin(), types.end(), type) != types.end();
+    }
+    SDL_UnlockMutex(physicsMutex_);
+    return result;
+}
+
+const std::vector<std::string>* Box2DPhysics::getBodyTypes(int bodyId) const {
+    auto it = bodyTypes_.find(bodyId);
+    return it != bodyTypes_.end() ? &it->second : nullptr;
 }
