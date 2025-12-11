@@ -83,6 +83,7 @@ String& String::operator=(String&& other) noexcept {
         data_ = other.data_;
         length_ = other.length_;
         capacity_ = other.capacity_;
+        // BUG: NOT updating allocator_ = other.allocator_
         other.data_ = nullptr;
         other.length_ = 0;
         other.capacity_ = 0;

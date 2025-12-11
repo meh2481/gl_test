@@ -1,8 +1,10 @@
 #include "src/memory/SmallAllocator.h"
 #include "src/memory/LargeMemoryAllocator.h"
 #include "src/core/Vector.h"
+#include "src/core/String.h"
 #include <iostream>
 #include <cassert>
+#include <map>
 
 void testSmallAllocatorFragmentation()
 {
@@ -120,6 +122,84 @@ void testSmallAllocatorRealisticScenePattern()
 	std::cout << "\nTest passed!" << std::endl;
 }
 
+void testStringMoveAssignmentDoubleFree()
+{
+	std::cout << "\n=== Test: String Move Assignment Double-Free Bug (F5 Refresh) ===" << std::endl;
+	
+	// This test reproduces the bug:
+	// On pressing F5 to refresh, assert(!block->isFree) fails in SmallAllocator::free()
+	// Callstack: SmallAllocator::free -> String::operator=(String&&) -> std::__assign_one
+	
+	SmallAllocator allocator1;
+	SmallAllocator allocator2;
+	
+	std::cout << "Creating two Strings with different allocators..." << std::endl;
+	
+	// Create a String with allocator1
+	String str1("Hello from allocator1", &allocator1);
+	std::cout << "str1 created with allocator1: '" << str1.c_str() << "'" << std::endl;
+	
+	// Create a String with allocator2  
+	String str2("Hello from allocator2", &allocator2);
+	std::cout << "str2 created with allocator2: '" << str2.c_str() << "'" << std::endl;
+	
+	std::cout << "\nNow move-assigning str2 to str1..." << std::endl;
+	std::cout << "BEFORE move: str1 allocator = allocator1, str1.data allocated by allocator1" << std::endl;
+	std::cout << "BEFORE move: str2 allocator = allocator2, str2.data allocated by allocator2" << std::endl;
+	
+	// This is where the bug manifests!
+	// String::operator=(String&&) does NOT update this->allocator_
+	// So after the move:
+	//   - str1.data_ points to memory allocated by allocator2
+	//   - but str1.allocator_ still points to allocator1
+	// When str1 is destroyed, it tries to free allocator2's memory using allocator1 -> DOUBLE FREE
+	str1 = std::move(str2);
+	
+	std::cout << "AFTER move: str1 = '" << str1.c_str() << "'" << std::endl;
+	std::cout << "AFTER move: str1.data points to memory allocated by allocator2" << std::endl;
+	std::cout << "AFTER move: BUT str1.allocator_ still points to allocator1 (BUG!)" << std::endl;
+	
+	std::cout << "\nWhen str1 goes out of scope, it will try to free allocator2's memory using allocator1..." << std::endl;
+	std::cout << "This causes assert(!block->isFree) to fail because allocator1 thinks it's freeing its own memory" << std::endl;
+	std::cout << "but the memory address actually belongs to allocator2!" << std::endl;
+	
+	// This will crash with assert(!block->isFree) when str1's destructor calls allocator1->free()
+	// on memory that was allocated by allocator2
+}
+
+void testStringInMapDoubleFree()
+{
+	std::cout << "\n=== Test: String in std::map Move Assignment (Simulates F5 Refresh) ===" << std::endl;
+	
+	// This simulates what happens when reloading a scene with std::map containing Strings
+	// std::map internally uses move assignment when reorganizing elements
+	
+	SmallAllocator allocator1;
+	SmallAllocator allocator2;
+	
+	std::cout << "Creating map with Strings using different allocators..." << std::endl;
+	
+	std::map<int, String> stringMap;
+	
+	// Insert strings with different allocators (simulating scene reload)
+	stringMap.emplace(1, String("First string", &allocator1));
+	std::cout << "Inserted string with allocator1" << std::endl;
+	
+	stringMap.emplace(2, String("Second string", &allocator2));
+	std::cout << "Inserted string with allocator2" << std::endl;
+	
+	// This might trigger internal map reorganization with move assignments
+	stringMap.emplace(3, String("Third string", &allocator1));
+	std::cout << "Inserted string with allocator1 (may trigger reorganization)" << std::endl;
+	
+	std::cout << "\nClearing map (will call destructors on moved Strings)..." << std::endl;
+	// When map is destroyed or reorganized, moved Strings' destructors will be called
+	// This is where the double-free happens
+	stringMap.clear();
+	
+	std::cout << "If we get here without crashing, the bug is fixed!" << std::endl;
+}
+
 int main()
 {
 	std::cout << "Starting allocator tests..." << std::endl;
@@ -129,6 +209,13 @@ int main()
 		testSmallAllocatorFragmentation();
 		testSmallAllocatorMultipleVectors();
 		testSmallAllocatorRealisticScenePattern();
+		
+		std::cout << "\n========================================" << std::endl;
+		std::cout << "Testing String move assignment bug..." << std::endl;
+		std::cout << "========================================" << std::endl;
+		
+		testStringMoveAssignmentDoubleFree();
+		testStringInMapDoubleFree();
 
 		std::cout << "\n=== ALL TESTS PASSED ===" << std::endl;
 		return 0;
