@@ -109,6 +109,10 @@ void* SmallAllocator::allocate(size_t size) {
     // Split block if it's much larger than needed
     splitBlock(block, alignedSize);
 
+#ifdef DEBUG
+    recordMemoryUsage();
+#endif
+
     // Return pointer after header
     void* ptr = (char*)block + sizeof(BlockHeader);
     SDL_UnlockMutex(mutex_);

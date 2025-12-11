@@ -109,6 +109,10 @@ void* LargeMemoryAllocator::allocate(size_t size) {
         block->next->prev = block->prev;
     }
 
+#ifdef DEBUG
+    recordMemoryUsage();
+#endif
+
     void* ptr = (char*)block + sizeof(BlockHeader);
     std::cout << "LargeMemoryAllocator: Allocated " << alignedSize << " bytes at " << ptr
               << " (used: " << m_usedMemory << "/" << m_totalPoolSize << ")" << std::endl;
