@@ -2,6 +2,7 @@
 #include "../core/ResourceTypes.h"
 #include "../scene/SceneLayer.h"
 #include "../memory/SmallAllocator.h"
+#include "../memory/LargeMemoryAllocator.h"
 #include <iostream>
 #include <cstring>
 #include <algorithm>
@@ -97,11 +98,12 @@ VulkanRenderer::VulkanRenderer() :
     m_reflectionEnabled(false),
     m_reflectionSurfaceY(0.0f),
     m_allocator(nullptr),
+    m_tempBufferAllocator(nullptr),
     m_spriteBatches(*(m_allocator = new SmallAllocator())),
     m_particleBatches(*m_allocator),
     m_allBatches(*m_allocator),
-    m_tempVertexData(*m_allocator),
-    m_tempIndexData(*m_allocator)
+    m_tempVertexData(*(m_tempBufferAllocator = new LargeMemoryAllocator())),
+    m_tempIndexData(*m_tempBufferAllocator)
 #ifdef DEBUG
     , m_imguiRenderCallback(nullptr)
 #endif
@@ -120,6 +122,10 @@ VulkanRenderer::VulkanRenderer() :
 }
 
 VulkanRenderer::~VulkanRenderer() {
+    if (m_tempBufferAllocator) {
+        delete m_tempBufferAllocator;
+        m_tempBufferAllocator = nullptr;
+    }
     if (m_allocator) {
         delete m_allocator;
         m_allocator = nullptr;

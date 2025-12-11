@@ -3,16 +3,21 @@
 #include "SceneLayer.h"
 #include "../effects/ParticleSystem.h"
 #include "../memory/SmallAllocator.h"
+#include "../memory/LargeMemoryAllocator.h"
 #include <cassert>
 #include <cmath>
 #include <iostream>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), allocator_(nullptr), m_tempDebugLineData(*(allocator_ = new SmallAllocator())), m_tempDebugTriangleData(*allocator_) {
+    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), allocator_(nullptr), tempBufferAllocator_(nullptr), m_tempDebugLineData(*(allocator_ = new SmallAllocator())), m_tempDebugTriangleData(*(tempBufferAllocator_ = new LargeMemoryAllocator())) {
 }
 
 SceneManager::~SceneManager() {
     // LuaInterface will be automatically cleaned up
+    if (tempBufferAllocator_) {
+        delete tempBufferAllocator_;
+        tempBufferAllocator_ = nullptr;
+    }
     if (allocator_) {
         delete allocator_;
         allocator_ = nullptr;

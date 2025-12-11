@@ -120,6 +120,7 @@ private:
 
     // Memory allocator for Vector members (must be before Vector members)
     MemoryAllocator* m_allocator;
+    MemoryAllocator* m_tempBufferAllocator;  // Large allocator for temp buffers
 
     // Sprite batch data
     struct BatchDrawData {
