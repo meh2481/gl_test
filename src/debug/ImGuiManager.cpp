@@ -1575,4 +1575,222 @@ String ImGuiManager::truncateTextureName(const char* fullName, float maxWidth) {
     return ellipsis;
 }
 
+void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator) {
+    if (!initialized_) {
+        return;
+    }
+
+    // Create memory allocator window
+    ImGui::SetNextWindowSize(ImVec2(900, 700), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiCond_FirstUseEver);
+
+    if (!ImGui::Begin("Memory Allocator Profiler", nullptr)) {
+        ImGui::End();
+        return;
+    }
+
+    // Get allocator info
+    SmallAllocator* small = static_cast<SmallAllocator*>(smallAllocator);
+    LargeMemoryAllocator* large = static_cast<LargeMemoryAllocator*>(largeAllocator);
+
+    if (ImGui::BeginTabBar("AllocatorTabs")) {
+        // Small Allocator Tab
+        if (ImGui::BeginTabItem("Small Allocator")) {
+            // Statistics
+            ImGui::Text("Small Allocator (for frequent small allocations)");
+            ImGui::Separator();
+
+            size_t totalMem = small->getTotalMemory();
+            size_t usedMem = small->getUsedMemory();
+            size_t freeMem = small->getFreeMemory();
+            size_t allocCount = small->getAllocationCount();
+
+            ImGui::Text("Total Memory: %zu bytes (%.2f KB)", totalMem, totalMem / 1024.0f);
+            ImGui::Text("Used Memory: %zu bytes (%.2f KB)", usedMem, usedMem / 1024.0f);
+            ImGui::Text("Free Memory: %zu bytes (%.2f KB)", freeMem, freeMem / 1024.0f);
+            ImGui::Text("Active Allocations: %zu", allocCount);
+
+            float usagePercent = totalMem > 0 ? (float)usedMem / totalMem * 100.0f : 0.0f;
+            ImGui::ProgressBar(usedMem / (float)totalMem, ImVec2(-1, 0), nullptr);
+            ImGui::SameLine();
+            ImGui::Text("%.1f%% used", usagePercent);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            // Memory usage history graph
+            size_t historyCount = 0;
+            size_t history[100];
+            small->getUsageHistory(history, &historyCount);
+
+            if (historyCount > 0) {
+                ImGui::Text("Memory Usage Over Time");
+                float values[100];
+                for (size_t i = 0; i < historyCount; i++) {
+                    values[i] = (float)history[i];
+                }
+                ImGui::PlotLines("##SmallHistory", values, (int)historyCount, 0, nullptr,
+                                0.0f, (float)totalMem, ImVec2(0, 80));
+            }
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            // Pool visualization
+            ImGui::Text("Memory Pools");
+            size_t poolCount = 0;
+            SmallAllocator::MemoryPoolInfo* poolInfo = small->getPoolInfo(&poolCount);
+
+            if (poolInfo && poolCount > 0) {
+                for (size_t i = 0; i < poolCount; i++) {
+                    ImGui::PushID((int)i);
+                    ImGui::Text("Pool %zu: %zu bytes (%.2f KB), %zu allocations",
+                               i, poolInfo[i].capacity, poolInfo[i].capacity / 1024.0f,
+                               poolInfo[i].allocCount);
+
+                    // Draw memory visualization
+                    ImDrawList* drawList = ImGui::GetWindowDrawList();
+                    ImVec2 pos = ImGui::GetCursorScreenPos();
+                    float width = ImGui::GetContentRegionAvail().x;
+                    float height = 40.0f;
+
+                    // Background
+                    drawList->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height),
+                                           IM_COL32(40, 40, 40, 255));
+
+                    // Draw blocks
+                    for (size_t j = 0; j < poolInfo[i].blockCount; j++) {
+                        SmallAllocator::BlockInfo& block = poolInfo[i].blocks[j];
+                        float blockStart = (float)block.offset / poolInfo[i].capacity * width;
+                        float blockSize = (float)(block.size + SmallAllocator::getBlockHeaderSize()) / poolInfo[i].capacity * width;
+
+                        ImU32 color = block.isFree ? IM_COL32(50, 200, 50, 255) : IM_COL32(200, 50, 50, 255);
+                        drawList->AddRectFilled(ImVec2(pos.x + blockStart, pos.y),
+                                               ImVec2(pos.x + blockStart + blockSize, pos.y + height),
+                                               color);
+                        drawList->AddRect(ImVec2(pos.x + blockStart, pos.y),
+                                         ImVec2(pos.x + blockStart + blockSize, pos.y + height),
+                                         IM_COL32(0, 0, 0, 255));
+                    }
+
+                    ImGui::Dummy(ImVec2(width, height));
+
+                    // Legend
+                    ImGui::TextColored(ImVec4(0.2f, 0.78f, 0.2f, 1.0f), "Green = Free");
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(0.78f, 0.2f, 0.2f, 1.0f), "Red = Used");
+
+                    ImGui::Spacing();
+                    ImGui::PopID();
+                }
+
+                small->freePoolInfo(poolInfo, poolCount);
+            } else {
+                ImGui::Text("No pools allocated");
+            }
+
+            ImGui::EndTabItem();
+        }
+
+        // Large Allocator Tab
+        if (ImGui::BeginTabItem("Large Allocator")) {
+            // Statistics
+            ImGui::Text("Large Allocator (for large allocations)");
+            ImGui::Separator();
+
+            size_t totalMem = large->getTotalMemory();
+            size_t usedMem = large->getUsedMemory();
+            size_t freeMem = large->getFreeMemory();
+
+            ImGui::Text("Total Memory: %zu bytes (%.2f MB)", totalMem, totalMem / (1024.0f * 1024.0f));
+            ImGui::Text("Used Memory: %zu bytes (%.2f MB)", usedMem, usedMem / (1024.0f * 1024.0f));
+            ImGui::Text("Free Memory: %zu bytes (%.2f MB)", freeMem, freeMem / (1024.0f * 1024.0f));
+
+            float usagePercent = totalMem > 0 ? (float)usedMem / totalMem * 100.0f : 0.0f;
+            ImGui::ProgressBar(usedMem / (float)totalMem, ImVec2(-1, 0), nullptr);
+            ImGui::SameLine();
+            ImGui::Text("%.1f%% used", usagePercent);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            // Memory usage history graph
+            size_t historyCount = 0;
+            size_t history[100];
+            large->getUsageHistory(history, &historyCount);
+
+            if (historyCount > 0) {
+                ImGui::Text("Memory Usage Over Time");
+                float values[100];
+                for (size_t i = 0; i < historyCount; i++) {
+                    values[i] = (float)history[i];
+                }
+                ImGui::PlotLines("##LargeHistory", values, (int)historyCount, 0, nullptr,
+                                0.0f, (float)totalMem, ImVec2(0, 80));
+            }
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            // Chunk visualization
+            ImGui::Text("Memory Chunks");
+            size_t chunkCount = 0;
+            LargeMemoryAllocator::ChunkInfo* chunkInfo = large->getChunkInfo(&chunkCount);
+
+            if (chunkInfo && chunkCount > 0) {
+                for (size_t i = 0; i < chunkCount; i++) {
+                    ImGui::PushID((int)i);
+                    ImGui::Text("Chunk %zu: %zu bytes (%.2f MB)",
+                               i, chunkInfo[i].size, chunkInfo[i].size / (1024.0f * 1024.0f));
+
+                    // Draw memory visualization
+                    ImDrawList* drawList = ImGui::GetWindowDrawList();
+                    ImVec2 pos = ImGui::GetCursorScreenPos();
+                    float width = ImGui::GetContentRegionAvail().x;
+                    float height = 40.0f;
+
+                    // Background
+                    drawList->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height),
+                                           IM_COL32(40, 40, 40, 255));
+
+                    // Draw blocks
+                    for (size_t j = 0; j < chunkInfo[i].blockCount; j++) {
+                        LargeMemoryAllocator::BlockInfo& block = chunkInfo[i].blocks[j];
+                        float blockStart = (float)block.offset / chunkInfo[i].size * width;
+                        float blockSize = (float)(block.size + LargeMemoryAllocator::getBlockHeaderSize()) / chunkInfo[i].size * width;
+
+                        ImU32 color = block.isFree ? IM_COL32(50, 200, 50, 255) : IM_COL32(200, 50, 50, 255);
+                        drawList->AddRectFilled(ImVec2(pos.x + blockStart, pos.y),
+                                               ImVec2(pos.x + blockStart + blockSize, pos.y + height),
+                                               color);
+                        drawList->AddRect(ImVec2(pos.x + blockStart, pos.y),
+                                         ImVec2(pos.x + blockStart + blockSize, pos.y + height),
+                                         IM_COL32(0, 0, 0, 255));
+                    }
+
+                    ImGui::Dummy(ImVec2(width, height));
+
+                    // Legend
+                    ImGui::TextColored(ImVec4(0.2f, 0.78f, 0.2f, 1.0f), "Green = Free");
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(0.78f, 0.2f, 0.2f, 1.0f), "Red = Used");
+
+                    ImGui::Spacing();
+                    ImGui::PopID();
+                }
+
+                large->freeChunkInfo(chunkInfo, chunkCount);
+            } else {
+                ImGui::Text("No chunks allocated");
+            }
+
+            ImGui::EndTabItem();
+        }
+
+        ImGui::EndTabBar();
+    }
+
+    ImGui::End();
+}
+
 #endif // DEBUG

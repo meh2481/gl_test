@@ -459,6 +459,9 @@ int main() {
         // Show console window
         imguiManager.showConsoleWindow();
 
+        // Show memory allocator window
+        imguiManager.showMemoryAllocatorWindow(&smallAllocator, &largeAllocator);
+
         // Show particle editor if scene wants it active
         bool sceneWantsEditor = sceneManager.isParticleEditorActive();
         bool editorWasActive = imguiManager.isParticleEditorActive();

@@ -17,6 +17,11 @@ LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
     assert(initialChunkSize > 0);
     m_mutex = SDL_CreateMutex();
     assert(m_mutex != nullptr);
+#ifdef DEBUG
+    historyIndex_ = 0;
+    historyCount_ = 0;
+    memset(usageHistory_, 0, sizeof(usageHistory_));
+#endif
     m_chunkSize = alignSize(initialChunkSize);
     addChunk(m_chunkSize);
     std::cout << "LargeMemoryAllocator: Initialized with chunk size " << m_chunkSize << " bytes" << std::endl;
@@ -138,6 +143,10 @@ void LargeMemoryAllocator::free(void* ptr) {
     if (m_totalPoolSize > 0 && (float)m_usedMemory / m_totalPoolSize < SHRINK_THRESHOLD && m_totalPoolSize > m_chunkSize) {
         removeEmptyChunks();
     }
+
+#ifdef DEBUG
+    recordMemoryUsage();
+#endif
 
     SDL_UnlockMutex(m_mutex);
 }
@@ -342,3 +351,117 @@ LargeMemoryAllocator::MemoryChunk* LargeMemoryAllocator::findChunkForPointer(voi
     }
     return nullptr;
 }
+
+#ifdef DEBUG
+LargeMemoryAllocator::ChunkInfo* LargeMemoryAllocator::getChunkInfo(size_t* outChunkCount) const {
+    SDL_LockMutex(m_mutex);
+
+    // Count chunks
+    size_t chunkCount = 0;
+    MemoryChunk* chunk = m_chunks;
+    while (chunk) {
+        chunkCount++;
+        chunk = chunk->next;
+    }
+
+    *outChunkCount = chunkCount;
+    if (chunkCount == 0) {
+        SDL_UnlockMutex(m_mutex);
+        return nullptr;
+    }
+
+    // Allocate chunk info array
+    ChunkInfo* chunkInfo = new ChunkInfo[chunkCount];
+
+    // Fill in chunk information
+    chunk = m_chunks;
+    for (size_t i = 0; i < chunkCount; i++) {
+        assert(chunk != nullptr);
+
+        chunkInfo[i].size = chunk->size;
+
+        // Count blocks in this chunk by traversing the memory
+        size_t blockCount = 0;
+        BlockHeader* block = (BlockHeader*)chunk->memory;
+        char* chunkEnd = chunk->memory + chunk->size;
+
+        while ((char*)block < chunkEnd) {
+            blockCount++;
+            BlockHeader* nextBlock = (BlockHeader*)((char*)block + sizeof(BlockHeader) + block->size);
+            if ((char*)nextBlock >= chunkEnd) {
+                break;
+            }
+            block = nextBlock;
+        }
+
+        chunkInfo[i].blockCount = blockCount;
+        chunkInfo[i].blocks = new BlockInfo[blockCount];
+
+        // Fill in block information
+        block = (BlockHeader*)chunk->memory;
+        for (size_t j = 0; j < blockCount; j++) {
+            chunkInfo[i].blocks[j].offset = (char*)block - chunk->memory;
+            chunkInfo[i].blocks[j].size = block->size;
+            chunkInfo[i].blocks[j].isFree = block->isFree;
+
+            BlockHeader* nextBlock = (BlockHeader*)((char*)block + sizeof(BlockHeader) + block->size);
+            if ((char*)nextBlock >= chunkEnd) {
+                break;
+            }
+            block = nextBlock;
+        }
+
+        chunk = chunk->next;
+    }
+
+    SDL_UnlockMutex(m_mutex);
+    return chunkInfo;
+}
+
+void LargeMemoryAllocator::freeChunkInfo(ChunkInfo* chunkInfo, size_t chunkCount) const {
+    if (chunkInfo) {
+        for (size_t i = 0; i < chunkCount; i++) {
+            delete[] chunkInfo[i].blocks;
+        }
+        delete[] chunkInfo;
+    }
+}
+
+void LargeMemoryAllocator::getUsageHistory(size_t* outHistory, size_t* outCount) const {
+    SDL_LockMutex(m_mutex);
+
+    *outCount = historyCount_;
+    if (historyCount_ > 0) {
+        // Copy history in chronological order
+        size_t count = historyCount_ < HISTORY_SIZE ? historyCount_ : HISTORY_SIZE;
+        if (historyCount_ < HISTORY_SIZE) {
+            // Haven't wrapped around yet
+            memcpy(outHistory, usageHistory_, count * sizeof(size_t));
+        } else {
+            // Wrapped around - need to copy in two parts
+            size_t firstPart = HISTORY_SIZE - historyIndex_;
+            memcpy(outHistory, &usageHistory_[historyIndex_], firstPart * sizeof(size_t));
+            if (historyIndex_ > 0) {
+                memcpy(&outHistory[firstPart], usageHistory_, historyIndex_ * sizeof(size_t));
+            }
+        }
+    }
+
+    SDL_UnlockMutex(m_mutex);
+}
+
+void LargeMemoryAllocator::recordMemoryUsage() {
+    // Record current memory usage (must be called with mutex locked)
+    usageHistory_[historyIndex_] = m_usedMemory;
+    historyIndex_ = (historyIndex_ + 1) % HISTORY_SIZE;
+    if (historyCount_ < HISTORY_SIZE) {
+        historyCount_++;
+    }
+}
+
+size_t LargeMemoryAllocator::getBlockHeaderSize() {
+    return sizeof(BlockHeader);
+}
+#endif
+
+

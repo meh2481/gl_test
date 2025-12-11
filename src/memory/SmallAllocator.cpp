@@ -11,6 +11,11 @@ SmallAllocator::SmallAllocator()
 {
     mutex_ = SDL_CreateMutex();
     assert(mutex_ != nullptr);
+#ifdef DEBUG
+    historyIndex_ = 0;
+    historyCount_ = 0;
+    memset(usageHistory_, 0, sizeof(usageHistory_));
+#endif
     std::cerr << "SmallAllocator: Initializing with multi-pool architecture" << std::endl;
     // Create initial pool
     createPool(MIN_POOL_SIZE);
@@ -130,6 +135,10 @@ void SmallAllocator::free(void* ptr) {
 
     // Remove empty pools
     removeEmptyPools();
+
+#ifdef DEBUG
+    recordMemoryUsage();
+#endif
 
     SDL_UnlockMutex(mutex_);
 }
@@ -366,3 +375,116 @@ void SmallAllocator::splitBlock(BlockHeader* block, size_t size) {
         // Note: pool->used doesn't change - we're just reorganizing existing space
     }
 }
+
+#ifdef DEBUG
+SmallAllocator::MemoryPoolInfo* SmallAllocator::getPoolInfo(size_t* outPoolCount) const {
+    SDL_LockMutex(mutex_);
+
+    // Count pools
+    size_t poolCount = 0;
+    MemoryPool* pool = firstPool_;
+    while (pool) {
+        poolCount++;
+        pool = pool->next;
+    }
+
+    *outPoolCount = poolCount;
+    if (poolCount == 0) {
+        SDL_UnlockMutex(mutex_);
+        return nullptr;
+    }
+
+    // Allocate pool info array
+    MemoryPoolInfo* poolInfo = new MemoryPoolInfo[poolCount];
+
+    // Fill in pool information
+    pool = firstPool_;
+    for (size_t i = 0; i < poolCount; i++) {
+        assert(pool != nullptr);
+
+        poolInfo[i].capacity = pool->capacity;
+        poolInfo[i].used = pool->used;
+        poolInfo[i].allocCount = pool->allocCount;
+
+        // Count blocks in this pool
+        size_t blockCount = 0;
+        BlockHeader* block = pool->firstBlock;
+        while (block) {
+            blockCount++;
+            block = block->next;
+        }
+
+        poolInfo[i].blockCount = blockCount;
+        poolInfo[i].blocks = new BlockInfo[blockCount];
+
+        // Fill in block information
+        block = pool->firstBlock;
+        for (size_t j = 0; j < blockCount; j++) {
+            assert(block != nullptr);
+            poolInfo[i].blocks[j].offset = (char*)block - pool->memory;
+            poolInfo[i].blocks[j].size = block->size;
+            poolInfo[i].blocks[j].isFree = block->isFree;
+            block = block->next;
+        }
+
+        pool = pool->next;
+    }
+
+    SDL_UnlockMutex(mutex_);
+    return poolInfo;
+}
+
+void SmallAllocator::freePoolInfo(MemoryPoolInfo* poolInfo, size_t poolCount) const {
+    if (poolInfo) {
+        for (size_t i = 0; i < poolCount; i++) {
+            delete[] poolInfo[i].blocks;
+        }
+        delete[] poolInfo;
+    }
+}
+
+void SmallAllocator::getUsageHistory(size_t* outHistory, size_t* outCount) const {
+    SDL_LockMutex(mutex_);
+
+    *outCount = historyCount_;
+    if (historyCount_ > 0) {
+        // Copy history in chronological order
+        size_t count = historyCount_ < HISTORY_SIZE ? historyCount_ : HISTORY_SIZE;
+        if (historyCount_ < HISTORY_SIZE) {
+            // Haven't wrapped around yet
+            memcpy(outHistory, usageHistory_, count * sizeof(size_t));
+        } else {
+            // Wrapped around - need to copy in two parts
+            size_t firstPart = HISTORY_SIZE - historyIndex_;
+            memcpy(outHistory, &usageHistory_[historyIndex_], firstPart * sizeof(size_t));
+            if (historyIndex_ > 0) {
+                memcpy(&outHistory[firstPart], usageHistory_, historyIndex_ * sizeof(size_t));
+            }
+        }
+    }
+
+    SDL_UnlockMutex(mutex_);
+}
+
+void SmallAllocator::recordMemoryUsage() {
+    // Calculate used memory (must be called with mutex locked)
+    size_t used = 0;
+    MemoryPool* pool = firstPool_;
+    while (pool) {
+        used += pool->used;
+        pool = pool->next;
+    }
+
+    usageHistory_[historyIndex_] = used;
+    historyIndex_ = (historyIndex_ + 1) % HISTORY_SIZE;
+    if (historyCount_ < HISTORY_SIZE) {
+        historyCount_++;
+    }
+}
+
+size_t SmallAllocator::getBlockHeaderSize() {
+    return sizeof(BlockHeader);
+}
+#endif
+
+

@@ -10,6 +10,8 @@
 #include "../effects/ParticleSystem.h"
 #include "../core/String.h"
 #include "../memory/MemoryAllocator.h"
+#include "../memory/SmallAllocator.h"
+#include "../memory/LargeMemoryAllocator.h"
 #include <cstdint>
 #include <map>
 
@@ -119,6 +121,9 @@ public:
 
     // Show console window
     void showConsoleWindow();
+
+    // Show memory allocator window
+    void showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator);
 
     // Check if ImGui wants to capture mouse input
     bool wantCaptureMouse() const;

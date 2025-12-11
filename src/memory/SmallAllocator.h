@@ -32,6 +32,34 @@ public:
     size_t getFreeMemory() const override;
     size_t getAllocationCount() const;
 
+#ifdef DEBUG
+    // Debug visualization helpers
+    struct MemoryPoolInfo;
+    struct BlockInfo {
+        size_t offset;      // Offset from pool start
+        size_t size;        // Size of block
+        bool isFree;        // Is this block free?
+    };
+
+    struct MemoryPoolInfo {
+        size_t capacity;
+        size_t used;
+        size_t allocCount;
+        BlockInfo* blocks;
+        size_t blockCount;
+    };
+
+    // Get pool information for visualization (caller must delete[] returned array)
+    MemoryPoolInfo* getPoolInfo(size_t* outPoolCount) const;
+    void freePoolInfo(MemoryPoolInfo* poolInfo, size_t poolCount) const;
+
+    // Get memory usage history
+    void getUsageHistory(size_t* outHistory, size_t* outCount) const;
+
+    // Get block header size
+    static size_t getBlockHeaderSize();
+#endif
+
 private:
     // Memory pool structure - each pool is independent
     struct MemoryPool;
@@ -66,6 +94,16 @@ private:
 
     // Thread safety
     SDL_Mutex* mutex_;
+
+#ifdef DEBUG
+    // Memory usage history (circular buffer)
+    static const size_t HISTORY_SIZE = 100;
+    size_t usageHistory_[HISTORY_SIZE];
+    size_t historyIndex_;
+    size_t historyCount_;
+
+    void recordMemoryUsage();
+#endif
 
     // Minimum pool size (64KB)
     static const size_t MIN_POOL_SIZE = 64 * 1024;
