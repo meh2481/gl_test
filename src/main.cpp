@@ -162,6 +162,17 @@ int main() {
     // Create single allocator instances for the entire application
     SmallAllocator smallAllocator;
     LargeMemoryAllocator largeAllocator;
+
+#ifdef DEBUG
+    // Initialize console buffer with allocator BEFORE any logging that might use it
+    ConsoleBuffer::getInstance(&smallAllocator);
+
+    // Setup console capture for std::cout
+    std::streambuf* coutBuf = std::cout.rdbuf();
+    ConsoleCapture consoleCapture(std::cout, coutBuf, &smallAllocator);
+    std::cout.rdbuf(&consoleCapture);
+#endif
+
     std::cout << "Memory allocators initialized" << std::endl;
 
     VulkanRenderer renderer;
@@ -209,14 +220,6 @@ int main() {
     sceneManager.pushScene(LUA_SCRIPT_ID);
 
 #ifdef DEBUG
-    // Initialize console buffer with allocator (must be done before console capture)
-    ConsoleBuffer::getInstance(&smallAllocator);
-
-    // Setup console capture for std::cout
-    std::streambuf* coutBuf = std::cout.rdbuf();
-    ConsoleCapture consoleCapture(std::cout, coutBuf, &smallAllocator);
-    std::cout.rdbuf(&consoleCapture);
-
     // Initialize ImGui
     ImGuiManager imguiManager(&smallAllocator);
     g_imguiManager = &imguiManager;
