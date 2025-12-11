@@ -181,13 +181,17 @@ public:
 
         T* newData = static_cast<T*>(allocator_->allocate(newCapacity * sizeof(T)));
         assert(newData != nullptr || newCapacity == 0);
-        for (size_t i = 0; i < size_; ++i) {
-            new (&newData[i]) T(static_cast<T&&>(data_[i]));
-            data_[i].~T();
-        }
+        
+        // Check if allocator returned the same memory (can happen with realloc-like behavior)
+        if (newData != data_) {
+            for (size_t i = 0; i < size_; ++i) {
+                new (&newData[i]) T(static_cast<T&&>(data_[i]));
+                data_[i].~T();
+            }
 
-        if (data_) {
-            allocator_->free(data_);
+            if (data_) {
+                allocator_->free(data_);
+            }
         }
 
         data_ = newData;
@@ -241,13 +245,17 @@ public:
             } else {
                 T* newData = static_cast<T*>(allocator_->allocate(size_ * sizeof(T)));
                 assert(newData != nullptr);
-                for (size_t i = 0; i < size_; ++i) {
-                    new (&newData[i]) T(static_cast<T&&>(data_[i]));
-                    data_[i].~T();
-                }
+                
+                // Check if allocator returned the same memory
+                if (newData != data_) {
+                    for (size_t i = 0; i < size_; ++i) {
+                        new (&newData[i]) T(static_cast<T&&>(data_[i]));
+                        data_[i].~T();
+                    }
 
-                if (data_) {
-                    allocator_->free(data_);
+                    if (data_) {
+                        allocator_->free(data_);
+                    }
                 }
 
                 data_ = newData;
