@@ -114,9 +114,6 @@ void LargeMemoryAllocator::free(void* ptr) {
     assert(!block->isFree);
     assert(findChunkForPointer(ptr) != nullptr);
 
-    std::cout << "LargeMemoryAllocator: Deallocating " << block->size << " bytes at " << ptr
-              << " (used: " << m_usedMemory << "/" << m_totalPoolSize << ")" << std::endl;
-
     m_usedMemory -= block->size + sizeof(BlockHeader);
     block->isFree = true;
 
@@ -280,16 +277,30 @@ void LargeMemoryAllocator::mergeAdjacentBlocks(BlockHeader* block) {
         if (nextBlock == block && current->isFree && current->chunk == chunk) {
             current->size += sizeof(BlockHeader) + block->size;
 
+            // Remove block from free list
             if (block->prev && block->prev != current) {
                 block->prev->next = block->next;
             }
-            if (block->next) {
+            if (block->next && block->next != current) {
                 block->next->prev = block->prev ? block->prev : current;
             }
             if (m_freeList == block) {
                 m_freeList = current;
             }
-            current->next = block->next;
+            
+            // Update current to take block's position in free list
+            // But if block->next == current, we're merging adjacent blocks in the list,
+            // so current should keep its original next to avoid creating a self-loop
+            if (block->next == current) {
+                if (current->next) {
+                    current->next->prev = current;
+                }
+            } else {
+                current->next = block->next;
+                if (block->next) {
+                    block->next->prev = current;
+                }
+            }
             break;
         }
 
