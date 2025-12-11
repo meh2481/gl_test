@@ -159,12 +159,13 @@ void testStringMoveAssignmentDoubleFree()
 	std::cout << "AFTER move: str1.data points to memory allocated by allocator2" << std::endl;
 	std::cout << "AFTER move: BUT str1.allocator_ still points to allocator1 (BUG!)" << std::endl;
 	
-	std::cout << "\nWhen str1 goes out of scope, it will try to free allocator2's memory using allocator1..." << std::endl;
-	std::cout << "This causes assert(!block->isFree) to fail because allocator1 thinks it's freeing its own memory" << std::endl;
-	std::cout << "but the memory address actually belongs to allocator2!" << std::endl;
+	std::cout << "\nNow reassigning str1 to trigger the double-free..." << std::endl;
+	std::cout << "str1 destructor will try to free allocator2's memory using allocator1" << std::endl;
 	
-	// This will crash with assert(!block->isFree) when str1's destructor calls allocator1->free()
-	// on memory that was allocated by allocator2
+	// Reassign to trigger the bug - str1's current data (from allocator2) will be freed by allocator1
+	str1 = "Trigger the bug";
+	
+	std::cout << "THIS LINE SHOULD NOT BE REACHED - should have crashed on assert(!block->isFree)" << std::endl;
 }
 
 void testStringInMapDoubleFree()
