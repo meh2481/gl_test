@@ -18,7 +18,7 @@ public:
 
     ~Vector() {
         clear();
-        if (data_) {
+        if (data_ && allocator_) {
             allocator_->free(data_);
             data_ = nullptr;
         }
