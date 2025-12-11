@@ -70,7 +70,7 @@ public:
     Vector& operator=(Vector&& other) noexcept {
         if (this != &other) {
             clear();
-            if (data_) {
+            if (data_ && allocator_) {
                 allocator_->free(data_);
             }
             data_ = other.data_;
