@@ -2095,7 +2095,7 @@ void Box2DPhysics::addBodyType(int bodyId, const char* type) {
         Vector<String> types(*stringAllocator_);
         String typeStr(type, stringAllocator_);
         types.push_back(typeStr);
-        bodyTypes_[bodyId] = types;
+        bodyTypes_.insert({bodyId, std::move(types)});
     } else {
         auto& types = it->second;
         String typeStr(type, stringAllocator_);

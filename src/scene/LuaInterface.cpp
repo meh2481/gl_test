@@ -552,7 +552,7 @@ void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
     auto it = scenePipelines_.find(sceneId);
     if (it != scenePipelines_.end()) {
         // Sort pipelines by z-index (lower z-index drawn first)
-        std::vector<std::pair<int, int>> sortedPipelines = it->second;
+        Vector<std::pair<int, int>> sortedPipelines = it->second;
         std::sort(sortedPipelines.begin(), sortedPipelines.end(),
                   [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
                       return a.second < b.second; // Sort by z-index ascending
@@ -884,7 +884,8 @@ int LuaInterface::loadShaders(lua_State* L) {
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
         // Create new vector for this scene
-        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        Vector<std::pair<int, int>> newVec(*interface->stringAllocator_);
+        interface->scenePipelines_.insert({interface->currentSceneId_, std::move(newVec)});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
     }
     auto& scenePipelines = it->second;
@@ -2169,7 +2170,8 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
     int pipelineId = interface->pipelineIndex_++;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        Vector<std::pair<int, int>> newVec(*interface->stringAllocator_);
+        interface->scenePipelines_.insert({interface->currentSceneId_, std::move(newVec)});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
     }
     it->second.push_back({pipelineId, zIndex});
@@ -2211,7 +2213,8 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     int pipelineId = interface->pipelineIndex_++;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        Vector<std::pair<int, int>> newVec(*interface->stringAllocator_);
+        interface->scenePipelines_.insert({interface->currentSceneId_, std::move(newVec)});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
     }
     it->second.push_back({pipelineId, zIndex});
@@ -2253,7 +2256,8 @@ int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
     int pipelineId = interface->pipelineIndex_++;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        Vector<std::pair<int, int>> newVec(*interface->stringAllocator_);
+        interface->scenePipelines_.insert({interface->currentSceneId_, std::move(newVec)});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
     }
     it->second.push_back({pipelineId, zIndex});
@@ -2295,7 +2299,8 @@ int LuaInterface::loadAnimTexturedShaders(lua_State* L) {
     int pipelineId = interface->pipelineIndex_++;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        Vector<std::pair<int, int>> newVec(*interface->stringAllocator_);
+        interface->scenePipelines_.insert({interface->currentSceneId_, std::move(newVec)});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
     }
     it->second.push_back({pipelineId, zIndex});
@@ -2690,7 +2695,8 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     int pipelineId = interface->pipelineIndex_++;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        Vector<std::pair<int, int>> newVec(*interface->stringAllocator_);
+        interface->scenePipelines_.insert({interface->currentSceneId_, std::move(newVec)});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
     }
     it->second.push_back({pipelineId, zIndex});
@@ -3439,7 +3445,8 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     int waterShaderId = pipelineIndex_++;
     auto it = scenePipelines_.find(currentSceneId_);
     if (it == scenePipelines_.end()) {
-        scenePipelines_[currentSceneId_] = Vector<std::pair<int, int>>(*stringAllocator_);
+        Vector<std::pair<int, int>> newVec(*stringAllocator_);
+        scenePipelines_.insert({currentSceneId_, std::move(newVec)});
         it = scenePipelines_.find(currentSceneId_);
     }
     it->second.push_back({waterShaderId, WATER_SHADER_Z_INDEX});
