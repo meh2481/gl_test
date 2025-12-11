@@ -2,12 +2,12 @@
 
 #ifdef DEBUG
 
-#include <vector>
 #include <SDL3/SDL.h>
 #include <sstream>
 #include <iostream>
 #include <functional>
 #include "../core/String.h"
+#include "../core/Vector.h"
 #include "../memory/MemoryAllocator.h"
 #include "../memory/SmallAllocator.h"
 
@@ -23,12 +23,12 @@ public:
         SDL_LockMutex(mutex_);
         lines_.push_back(String(line.c_str(), stringAllocator_));
         if (lines_.size() > 1000) {
-            lines_.erase(lines_.begin());
+            lines_.erase(0);
         }
         SDL_UnlockMutex(mutex_);
     }
 
-    const std::vector<String>& getLines() {
+    const Vector<String>& getLines() {
         return lines_;
     }
 
@@ -39,11 +39,11 @@ public:
     }
 
 private:
-    std::vector<String> lines_;
+    Vector<String> lines_;
     SDL_Mutex* mutex_;
     MemoryAllocator* stringAllocator_;
 
-    ConsoleBuffer(MemoryAllocator* allocator) : stringAllocator_(allocator) {
+    ConsoleBuffer(MemoryAllocator* allocator) : stringAllocator_(allocator), lines_(*allocator) {
         assert(stringAllocator_ != nullptr);
         mutex_ = SDL_CreateMutex();
     }
