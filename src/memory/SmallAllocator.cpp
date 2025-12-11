@@ -54,7 +54,7 @@ void* SmallAllocator::allocate(size_t size) {
 
     if (!block) {
         // Need to grow the pool
-        size_t neededSize = poolUsed_ + sizeof(BlockHeader) + alignedSize;
+        size_t neededSize = poolCapacity_ + sizeof(BlockHeader) + alignedSize;
         size_t newCapacity = poolCapacity_;
         if (newCapacity == 0) newCapacity = MIN_POOL_SIZE;
 
@@ -184,7 +184,7 @@ size_t SmallAllocator::getAllocationCount() const {
 }
 
 void SmallAllocator::growPool(size_t newCapacity) {
-    assert(newCapacity >= poolCapacity_);
+    assert(newCapacity > poolCapacity_);
 
     char* newPool = (char*)::malloc(newCapacity);
     assert(newPool != nullptr);
