@@ -87,7 +87,8 @@ static int hotReloadThread(void* data) {
         // Lock mutex to prevent concurrent reloads
         SDL_LockMutex(reloadData->mutex);
 
-        std::cout << "Hot-reloading resources in background thread..." << std::endl;
+        // Use stderr to avoid console capture from background thread
+        std::cerr << "Hot-reloading resources in background thread..." << std::endl;
 
         // Rebuild shaders and pak file using make
         int result = system("make shaders && make res_pak");
