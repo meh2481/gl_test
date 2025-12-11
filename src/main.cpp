@@ -513,6 +513,9 @@ int main() {
     }
 
 #ifdef DEBUG
+    // Clear console buffer before allocator destruction
+    ConsoleBuffer::getInstance().clear();
+    
     // Cleanup ImGui
     g_imguiManager = nullptr;
     imguiManager.cleanup();
