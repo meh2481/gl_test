@@ -187,6 +187,27 @@ size_t LargeMemoryAllocator::defragment() {
     return mergedBlocks;
 }
 
+size_t LargeMemoryAllocator::getTotalMemory() const {
+    SDL_LockMutex(m_mutex);
+    size_t result = m_totalPoolSize;
+    SDL_UnlockMutex(m_mutex);
+    return result;
+}
+
+size_t LargeMemoryAllocator::getUsedMemory() const {
+    SDL_LockMutex(m_mutex);
+    size_t result = m_usedMemory;
+    SDL_UnlockMutex(m_mutex);
+    return result;
+}
+
+size_t LargeMemoryAllocator::getFreeMemory() const {
+    SDL_LockMutex(m_mutex);
+    size_t result = m_totalPoolSize - m_usedMemory;
+    SDL_UnlockMutex(m_mutex);
+    return result;
+}
+
 void LargeMemoryAllocator::removeEmptyChunks() {
     std::cout << "LargeMemoryAllocator: Checking for empty chunks to remove..." << std::endl;
 

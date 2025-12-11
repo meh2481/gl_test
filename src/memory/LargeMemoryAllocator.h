@@ -14,9 +14,9 @@ public:
     void free(void* ptr) override;
     size_t defragment() override;
 
-    size_t getTotalMemory() const override { return m_totalPoolSize; }
-    size_t getUsedMemory() const override { return m_usedMemory; }
-    size_t getFreeMemory() const override { return m_totalPoolSize - m_usedMemory; }
+    size_t getTotalMemory() const override;
+    size_t getUsedMemory() const override;
+    size_t getFreeMemory() const override;
 
 private:
     struct MemoryChunk;

@@ -27,10 +27,10 @@ public:
     size_t defragment() override;
 
     // Get statistics
-    size_t getTotalMemory() const override { return poolCapacity_; }
-    size_t getUsedMemory() const override { return poolUsed_; }
-    size_t getFreeMemory() const override { return poolUsed_ <= poolCapacity_ ? poolCapacity_ - poolUsed_ : 0; }
-    size_t getAllocationCount() const { return allocationCount_; }
+    size_t getTotalMemory() const override;
+    size_t getUsedMemory() const override;
+    size_t getFreeMemory() const override;
+    size_t getAllocationCount() const;
 
 private:
     // Block header stored before each allocation

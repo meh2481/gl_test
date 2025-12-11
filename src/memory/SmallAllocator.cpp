@@ -155,6 +155,34 @@ size_t SmallAllocator::defragment() {
     return coalescedBlocks;
 }
 
+size_t SmallAllocator::getTotalMemory() const {
+    SDL_LockMutex(mutex_);
+    size_t result = poolCapacity_;
+    SDL_UnlockMutex(mutex_);
+    return result;
+}
+
+size_t SmallAllocator::getUsedMemory() const {
+    SDL_LockMutex(mutex_);
+    size_t result = poolUsed_;
+    SDL_UnlockMutex(mutex_);
+    return result;
+}
+
+size_t SmallAllocator::getFreeMemory() const {
+    SDL_LockMutex(mutex_);
+    size_t result = poolUsed_ <= poolCapacity_ ? poolCapacity_ - poolUsed_ : 0;
+    SDL_UnlockMutex(mutex_);
+    return result;
+}
+
+size_t SmallAllocator::getAllocationCount() const {
+    SDL_LockMutex(mutex_);
+    size_t result = allocationCount_;
+    SDL_UnlockMutex(mutex_);
+    return result;
+}
+
 void SmallAllocator::growPool(size_t newCapacity) {
     assert(newCapacity >= poolCapacity_);
 
