@@ -8,11 +8,11 @@
 #include "../scene/LuaInterface.h"
 #include "../memory/SmallAllocator.h"
 #include "../core/hash.h"
+#include "../core/Vector.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
 #include <cmath>
-#include <vector>
 
 // Check Vulkan result callback for ImGui
 static void check_vk_result(VkResult err) {
@@ -1369,8 +1369,9 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
         return false;
     }
 
-    // Read file content using vector for RAII
-    std::vector<char> content(fileSize + 1);
+    // Read file content using Vector for RAII
+    Vector<char> content(*stringAllocator_);
+    content.resize(fileSize + 1);
     size_t bytesRead = fread(content.data(), 1, fileSize, file);
     fclose(file);
     content[bytesRead] = '\0';

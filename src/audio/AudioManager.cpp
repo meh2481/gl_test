@@ -1,7 +1,7 @@
 #include "AudioManager.h"
+#include "../core/Vector.h"
 #include <iostream>
 #include <cstring>
-#include <vector>
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
@@ -45,10 +45,12 @@ static LPALDELETEAUXILIARYEFFECTSLOTS alDeleteAuxiliaryEffectSlots = nullptr;
 static LPALISAUXILIARYEFFECTSLOT alIsAuxiliaryEffectSlot = nullptr;
 static LPALAUXILIARYEFFECTSLOTI alAuxiliaryEffectSloti = nullptr;
 
-AudioManager::AudioManager()
+AudioManager::AudioManager(MemoryAllocator* allocator)
     : device(nullptr), context(nullptr), bufferCount(0),
       efxSupported(false), effectSlot(0), effect(0), filter(0),
-      currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f) {
+      currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f), allocator_(allocator) {
+    assert(allocator_ != nullptr);
+    std::cout << "AudioManager: Using shared memory allocator" << std::endl;
 
     // Initialize arrays
     for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
@@ -281,13 +283,15 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     int sampleRate = 48000; // OPUS always decodes to 48kHz
 
     // Read all audio data
-    std::vector<opus_int16> pcmData;
+    Vector<opus_int16> pcmData(*allocator_);
     const int bufferSize = 5760 * channels; // Max frame size for 120ms at 48kHz
     opus_int16 buffer[bufferSize];
 
     int samplesRead;
     while ((samplesRead = op_read(opusFile, buffer, bufferSize, nullptr)) > 0) {
-        pcmData.insert(pcmData.end(), buffer, buffer + samplesRead * channels);
+        for (int i = 0; i < samplesRead * channels; ++i) {
+            pcmData.push_back(buffer[i]);
+        }
     }
 
     if (samplesRead < 0) {

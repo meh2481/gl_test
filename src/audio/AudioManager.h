@@ -37,9 +37,11 @@ struct AudioBuffer {
     bool loaded;
 };
 
+class MemoryAllocator;
+
 class AudioManager {
 public:
-    AudioManager();
+    AudioManager(MemoryAllocator* allocator);
     ~AudioManager();
 
     // Initialize the audio system
@@ -142,6 +144,9 @@ private:
 
     // Apply current effect settings
     void applyEffect();
+
+    // Memory allocator for temporary allocations
+    MemoryAllocator* allocator_;
 };
 
 #endif // AUDIOMANAGER_H

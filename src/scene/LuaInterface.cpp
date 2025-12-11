@@ -21,7 +21,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
     luaL_openlibs(luaState_);
     physics_ = std::make_unique<Box2DPhysics>(stringAllocator_);
     layerManager_ = std::make_unique<SceneLayerManager>();
-    audioManager_ = std::make_unique<AudioManager>();
+    audioManager_ = std::make_unique<AudioManager>(stringAllocator_);
     particleManager_ = std::make_unique<ParticleSystemManager>();
     waterEffectManager_ = std::make_unique<WaterEffectManager>();
     audioManager_->initialize();
