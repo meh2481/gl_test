@@ -277,30 +277,24 @@ void LargeMemoryAllocator::mergeAdjacentBlocks(BlockHeader* block) {
         if (nextBlock == block && current->isFree && current->chunk == chunk) {
             current->size += sizeof(BlockHeader) + block->size;
 
-            // Remove block from free list
-            if (block->prev && block->prev != current) {
-                block->prev->next = block->next;
+            // Save block's free list pointers before we lose them
+            BlockHeader* blockNext = block->next;
+            BlockHeader* blockPrev = block->prev;
+            
+            // Remove block from free list completely first
+            if (blockPrev) {
+                blockPrev->next = blockNext;
             }
-            if (block->next && block->next != current) {
-                block->next->prev = block->prev ? block->prev : current;
+            if (blockNext) {
+                blockNext->prev = blockPrev;
             }
             if (m_freeList == block) {
                 m_freeList = current;
             }
             
-            // Update current to take block's position in free list
-            // But if block->next == current, we're merging adjacent blocks in the list,
-            // so current should keep its original next to avoid creating a self-loop
-            if (block->next == current) {
-                if (current->next) {
-                    current->next->prev = current;
-                }
-            } else {
-                current->next = block->next;
-                if (block->next) {
-                    block->next->prev = current;
-                }
-            }
+            // Now current stays in its current position in the free list
+            // No need to modify current->next or current->prev since
+            // current was already in the list and is just growing in size
             break;
         }
 
