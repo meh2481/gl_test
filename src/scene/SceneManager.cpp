@@ -9,7 +9,7 @@
 #include <iostream>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), allocator_(nullptr), tempBufferAllocator_(nullptr), m_tempDebugLineData(*(allocator_ = new SmallAllocator())), m_tempDebugTriangleData(*(tempBufferAllocator_ = new LargeMemoryAllocator())) {
+    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), allocator_(new SmallAllocator()), tempBufferAllocator_(new LargeMemoryAllocator()), m_tempDebugLineData(*tempBufferAllocator_), m_tempDebugTriangleData(*tempBufferAllocator_) {
 }
 
 SceneManager::~SceneManager() {

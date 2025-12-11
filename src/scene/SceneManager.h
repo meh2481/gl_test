@@ -65,8 +65,8 @@ private:
     int particleEditorPipelineId_;
     int editorPreviewSystemId_;
 
-    // Memory allocator for Vector members
-    MemoryAllocator* allocator_;
+    // Memory allocators
+    MemoryAllocator* allocator_;  // Small allocator for sprite/particle batches
     MemoryAllocator* tempBufferAllocator_;  // Large allocator for temp buffers
 
     // Reusable buffers for debug vertex data (cleared and reused each frame)
