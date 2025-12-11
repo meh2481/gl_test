@@ -3266,7 +3266,7 @@ int LuaInterface::createNode(lua_State* L) {
         lua_pop(L, 1); // Pop the table
     }
 
-    interface->nodes_[nodeId] = node;
+    interface->nodes_.emplace(nodeId, std::move(node));
     interface->bodyToNodeMap_[bodyId] = nodeId;
 
     lua_pushinteger(L, nodeId);
