@@ -58,6 +58,9 @@ public:
     // Water effect access
     WaterEffectManager& getWaterEffectManager() { return *waterEffectManager_; }
 
+    // Access to stringAllocator for temporary allocations
+    MemoryAllocator* getStringAllocator() { return stringAllocator_; }
+
     // Cursor position for drag operations (in world coordinates)
     void setCursorPosition(float x, float y) { cursorX_ = x; cursorY_ = y; }
     float getCursorX() const { return cursorX_; }

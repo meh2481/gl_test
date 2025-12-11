@@ -1,12 +1,14 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include "../core/Vector.h"
 #include <map>
 #include <vector>
 #include <cstdint>
 
 // Forward declarations
 class VulkanTexture;
+class MemoryAllocator;
 
 // Helper class for managing Vulkan descriptor sets, pools, and layouts
 class VulkanDescriptor {
@@ -47,7 +49,7 @@ public:
     // Create descriptor sets
     void createSingleTextureDescriptorSet(uint64_t textureId, VkImageView imageView, VkSampler sampler);
     void createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id);
-    void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
+    void createDescriptorSetForTextures(uint64_t descriptorId, const Vector<uint64_t>& textureIds);
 
     // Light descriptor set (special case - single set for all lights)
     void createLightDescriptorSet(VkBuffer lightUniformBuffer, VkDeviceSize bufferSize);

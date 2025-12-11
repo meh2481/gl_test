@@ -328,7 +328,7 @@ void VulkanDescriptor::createDualTextureDescriptorSet(uint64_t descriptorId, uin
     m_dualTextureDescriptorSets[descriptorId] = descriptorSet;
 }
 
-void VulkanDescriptor::createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds) {
+void VulkanDescriptor::createDescriptorSetForTextures(uint64_t descriptorId, const Vector<uint64_t>& textureIds) {
     if (textureIds.size() == 1) {
         auto it = m_singleTextureDescriptorSets.find(textureIds[0]);
         if (it != m_singleTextureDescriptorSets.end()) {

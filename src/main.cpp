@@ -154,15 +154,15 @@ int main() {
         assert(false);
     }
 
-    PakResource pakResource;
+    // Create single allocator instances for the entire application
+    SmallAllocator smallAllocator;
+    LargeMemoryAllocator largeAllocator;
+
+    PakResource pakResource(&largeAllocator);
     if (!pakResource.load(PAK_FILE)) {
         std::cerr << "Failed to load resource pak: " << PAK_FILE << std::endl;
         assert(false);
     }
-
-    // Create single allocator instances for the entire application
-    SmallAllocator smallAllocator;
-    LargeMemoryAllocator largeAllocator;
 
 #ifdef DEBUG
     // Initialize console buffer with allocator BEFORE any logging that might use it
@@ -176,7 +176,7 @@ int main() {
 
     std::cout << "Memory allocators initialized" << std::endl;
 
-    VulkanRenderer renderer;
+    VulkanRenderer renderer(&smallAllocator);
     VibrationManager vibrationManager;
     SceneManager sceneManager(pakResource, renderer, &smallAllocator, &vibrationManager);
     renderer.initialize(window, config.gpuIndex);

@@ -4,20 +4,21 @@
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
 #include "../resources/resource.h"
+#include "../core/Vector.h"
 #include "VulkanBuffer.h"
 #include "VulkanTexture.h"
 #include "VulkanDescriptor.h"
 #include "VulkanPipeline.h"
 #include "VulkanLight.h"
-#include <vector>
 
 // Forward declarations
 struct SpriteBatch;
 struct ParticleBatch;
+class MemoryAllocator;
 
 class VulkanRenderer {
 public:
-    VulkanRenderer();
+    VulkanRenderer(MemoryAllocator* allocator);
     ~VulkanRenderer();
 
     void initialize(SDL_Window* window, int preferredGpuIndex = -1);
@@ -30,17 +31,17 @@ public:
     void createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode = 0);
     void associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId);
     void setCurrentPipeline(uint64_t id);
-    void setPipelinesToDraw(const std::vector<uint64_t>& pipelineIds);
-    void setDebugDrawData(const std::vector<float>& vertexData);
-    void setDebugLineDrawData(const std::vector<float>& vertexData);
-    void setDebugTriangleDrawData(const std::vector<float>& vertexData);
-    void setSpriteDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices);
+    void setPipelinesToDraw(const Vector<uint64_t>& pipelineIds);
+    void setDebugDrawData(const Vector<float>& vertexData);
+    void setDebugLineDrawData(const Vector<float>& vertexData);
+    void setDebugTriangleDrawData(const Vector<float>& vertexData);
+    void setSpriteDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices);
     void setSpriteBatches(const std::vector<SpriteBatch>& batches);
     void setParticleBatches(const std::vector<ParticleBatch>& batches);
-    void setParticleDrawData(const std::vector<float>& vertexData, const std::vector<uint16_t>& indices, uint64_t textureId = 0);
+    void setParticleDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices, uint64_t textureId = 0);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);
-    void createDescriptorSetForTextures(uint64_t descriptorId, const std::vector<uint64_t>& textureIds);
+    void createDescriptorSetForTextures(uint64_t descriptorId, const Vector<uint64_t>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
     void setPipelineParallaxDepth(int pipelineId, float depth);
     void markPipelineAsWater(int pipelineId);
@@ -137,9 +138,9 @@ private:
         float colorEndR, colorEndG, colorEndB, colorEndA;
         float colorCycleTime;
     };
-    std::vector<BatchDrawData> m_spriteBatches;
-    std::vector<BatchDrawData> m_particleBatches;
-    std::vector<BatchDrawData> m_allBatches;  // Combined and sorted
+    Vector<BatchDrawData> m_spriteBatches;
+    Vector<BatchDrawData> m_particleBatches;
+    Vector<BatchDrawData> m_allBatches;  // Combined and sorted
 
     // Helper to rebuild combined batch list from sprite and particle batches
     void rebuildAllBatches();
@@ -175,6 +176,9 @@ private:
     // GPU selection
     int m_selectedGpuIndex;
     int m_preferredGpuIndex;
+
+    // Memory allocator
+    MemoryAllocator* m_allocator;
 
     // Reflection render target for water effects
     VkRenderPass m_reflectionRenderPass;

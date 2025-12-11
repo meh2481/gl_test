@@ -244,7 +244,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {
             const Vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
-            std::vector<float> lineVertexData;
+            Vector<float> lineVertexData(*luaInterface_->getStringAllocator());
             lineVertexData.reserve(debugLineVerts.size() * 6);
             for (const auto& v : debugLineVerts) {
                 lineVertexData.push_back(v.x);
@@ -257,7 +257,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             renderer_.setDebugLineDrawData(lineVertexData);
 
             const Vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
-            std::vector<float> triangleVertexData;
+            Vector<float> triangleVertexData(*luaInterface_->getStringAllocator());
             triangleVertexData.reserve(debugTriangleVerts.size() * 6);
             for (size_t i = 0; i < debugTriangleVerts.size(); i += 3) {
                 // Reverse winding order: v0, v2, v1 instead of v0, v1, v2
@@ -289,8 +289,9 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             renderer_.setDebugTriangleDrawData(triangleVertexData);
         } else {
             // Clear debug draw data
-            renderer_.setDebugLineDrawData({});
-            renderer_.setDebugTriangleDrawData({});
+            Vector<float> emptyData(*luaInterface_->getStringAllocator());
+            renderer_.setDebugLineDrawData(emptyData);
+            renderer_.setDebugTriangleDrawData(emptyData);
         }
 
         // Pop the scene after Lua execution is complete
