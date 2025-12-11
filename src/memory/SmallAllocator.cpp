@@ -46,6 +46,12 @@ void* SmallAllocator::allocate(size_t size) {
     BlockHeader* block = findFreeBlock(alignedSize);
 
     if (!block) {
+        // Coalesce free blocks before trying to grow
+        coalesce();
+        block = findFreeBlock(alignedSize);
+    }
+
+    if (!block) {
         // Need to grow the pool
         size_t neededSize = poolUsed_ + sizeof(BlockHeader) + alignedSize;
         size_t newCapacity = poolCapacity_;
