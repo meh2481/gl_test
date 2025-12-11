@@ -48,6 +48,7 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator) : nextBodyId_(0), nextJoi
                                 timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
                                 nextForceFieldId_(0), stringAllocator_(allocator) {
     assert(stringAllocator_ != nullptr);
+    std::cout << "Box2DPhysics: Using shared memory allocator" << std::endl;
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;

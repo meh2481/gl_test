@@ -21,6 +21,7 @@ static void check_vk_result(VkResult err) {
 
 ImGuiManager::ImGuiManager(MemoryAllocator* allocator) : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE), stringAllocator_(allocator) {
     assert(stringAllocator_ != nullptr);
+    std::cout << "ImGuiManager: Using shared memory allocator" << std::endl;
     initializeParticleEditorDefaults();
 }
 

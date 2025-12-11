@@ -13,6 +13,7 @@
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, SceneManager* sceneManager, VibrationManager* vibrationManager)
     : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), nextNodeId_(1), stringAllocator_(allocator) {
     assert(stringAllocator_ != nullptr);
+    std::cout << "LuaInterface: Using shared memory allocator" << std::endl;
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;
