@@ -2,7 +2,6 @@
 
 #include <lua.hpp>
 #include <unordered_map>
-#include <vector>
 #include <memory>
 #include "../resources/resource.h"
 #include "../vulkan/VulkanRenderer.h"
@@ -14,6 +13,7 @@
 #include "../input/VibrationManager.h"
 #include "../effects/WaterEffect.h"
 #include "../core/String.h"
+#include "../core/Vector.h"
 #include "../memory/MemoryAllocator.h"
 
 class SceneManager;
@@ -196,7 +196,7 @@ private:
     SceneManager* sceneManager_;
     int pipelineIndex_;
     uint64_t currentSceneId_;
-    std::unordered_map<uint64_t, std::vector<std::pair<int, int>> > scenePipelines_; // pipelineId, zIndex
+    std::unordered_map<uint64_t, Vector<std::pair<int, int>> > scenePipelines_; // pipelineId, zIndex
     std::unique_ptr<Box2DPhysics> physics_;
     std::unique_ptr<SceneLayerManager> layerManager_;
     std::unique_ptr<AudioManager> audioManager_;
@@ -222,7 +222,7 @@ private:
 
     // Scene objects tracking - objects created via loadObject are tracked here
     // The C++ side calls update/cleanup on these automatically
-    std::vector<int> sceneObjects_; // Lua registry references to object tables
+    Vector<int> sceneObjects_; // Lua registry references to object tables
 
     // Node system
     struct Node {

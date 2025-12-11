@@ -11,7 +11,7 @@
 #endif
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, SceneManager* sceneManager, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), nextNodeId_(1), stringAllocator_(allocator) {
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), nextNodeId_(1), stringAllocator_(allocator), sceneObjects_(*allocator) {
     assert(stringAllocator_ != nullptr);
     std::cout << "LuaInterface: Using shared memory allocator" << std::endl;
     particleEditorPipelineIds_[0] = -1;
@@ -569,7 +569,10 @@ void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
 }
 
 void LuaInterface::clearScenePipelines(uint64_t sceneId) {
-    scenePipelines_[sceneId].clear();
+    auto it = scenePipelines_.find(sceneId);
+    if (it != scenePipelines_.end()) {
+        it->second.clear();
+    }
 }
 
 void LuaInterface::registerFunctions() {
@@ -878,7 +881,13 @@ int LuaInterface::loadShaders(lua_State* L) {
     float parallaxDepth = (float)(-zIndex);
 
     // Check if this specific shader combination is already loaded for this scene
-    auto& scenePipelines = interface->scenePipelines_[interface->currentSceneId_];
+    auto it = interface->scenePipelines_.find(interface->currentSceneId_);
+    if (it == interface->scenePipelines_.end()) {
+        // Create new vector for this scene
+        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        it = interface->scenePipelines_.find(interface->currentSceneId_);
+    }
+    auto& scenePipelines = it->second;
     bool alreadyLoaded = false;
     for (const auto& pipeline : scenePipelines) {
         // We can't easily check the actual shader files, but we can check if we already have
@@ -922,7 +931,7 @@ int LuaInterface::loadShaders(lua_State* L) {
     }
 
     // Add to current scene's pipeline list with z-index
-    scenePipelines.emplace_back(pipelineId, zIndex);
+    scenePipelines.push_back({pipelineId, zIndex});
     interface->pipelineIndex_++;
 
     return 0; // No return values
@@ -2158,7 +2167,12 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
     assert(fragShader.data != nullptr);
 
     int pipelineId = interface->pipelineIndex_++;
-    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+    auto it = interface->scenePipelines_.find(interface->currentSceneId_);
+    if (it == interface->scenePipelines_.end()) {
+        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        it = interface->scenePipelines_.find(interface->currentSceneId_);
+    }
+    it->second.push_back({pipelineId, zIndex});
 
     // Create textured pipeline
     interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader);
@@ -2195,7 +2209,12 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     assert(fragShader.data != nullptr);
 
     int pipelineId = interface->pipelineIndex_++;
-    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+    auto it = interface->scenePipelines_.find(interface->currentSceneId_);
+    if (it == interface->scenePipelines_.end()) {
+        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        it = interface->scenePipelines_.find(interface->currentSceneId_);
+    }
+    it->second.push_back({pipelineId, zIndex});
 
     // Create textured pipeline with specified number of textures
     interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader, numTextures);
@@ -2232,7 +2251,12 @@ int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
     assert(fragShader.data != nullptr);
 
     int pipelineId = interface->pipelineIndex_++;
-    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+    auto it = interface->scenePipelines_.find(interface->currentSceneId_);
+    if (it == interface->scenePipelines_.end()) {
+        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        it = interface->scenePipelines_.find(interface->currentSceneId_);
+    }
+    it->second.push_back({pipelineId, zIndex});
 
     // Create textured pipeline with additive blending
     interface->renderer_.createTexturedPipelineAdditive(pipelineId, vertShader, fragShader, numTextures);
@@ -2269,7 +2293,12 @@ int LuaInterface::loadAnimTexturedShaders(lua_State* L) {
     assert(fragShader.data != nullptr);
 
     int pipelineId = interface->pipelineIndex_++;
-    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+    auto it = interface->scenePipelines_.find(interface->currentSceneId_);
+    if (it == interface->scenePipelines_.end()) {
+        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        it = interface->scenePipelines_.find(interface->currentSceneId_);
+    }
+    it->second.push_back({pipelineId, zIndex});
 
     // Create animated textured pipeline with extended push constants
     interface->renderer_.createAnimTexturedPipeline(pipelineId, vertShader, fragShader, numTextures);
@@ -2659,7 +2688,12 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     assert(fragShader.data != nullptr);
 
     int pipelineId = interface->pipelineIndex_++;
-    interface->scenePipelines_[interface->currentSceneId_].push_back({pipelineId, zIndex});
+    auto it = interface->scenePipelines_.find(interface->currentSceneId_);
+    if (it == interface->scenePipelines_.end()) {
+        interface->scenePipelines_[interface->currentSceneId_] = Vector<std::pair<int, int>>(*interface->stringAllocator_);
+        it = interface->scenePipelines_.find(interface->currentSceneId_);
+    }
+    it->second.push_back({pipelineId, zIndex});
 
     // Create particle pipeline
     interface->renderer_.createParticlePipeline(pipelineId, vertShader, fragShader, blendMode);
@@ -3403,7 +3437,12 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     }
 
     int waterShaderId = pipelineIndex_++;
-    scenePipelines_[currentSceneId_].push_back({waterShaderId, WATER_SHADER_Z_INDEX});
+    auto it = scenePipelines_.find(currentSceneId_);
+    if (it == scenePipelines_.end()) {
+        scenePipelines_[currentSceneId_] = Vector<std::pair<int, int>>(*stringAllocator_);
+        it = scenePipelines_.find(currentSceneId_);
+    }
+    it->second.push_back({waterShaderId, WATER_SHADER_Z_INDEX});
 
     // Create animation textured pipeline for water (uses 33 float push constants)
     // Water needs 2 textures: primary texture and reflection render target
