@@ -9,34 +9,44 @@ void testSmallAllocatorFragmentation()
 	std::cout << "\n=== Test: SmallAllocator Fragmentation (Reproduce SceneManager crash) ===" << std::endl;
 
 	SmallAllocator allocator;
-	Vector<float> persistentVec(allocator);
 
-	std::cout << "Simulating SceneManager pattern: persistent vector with clear/reserve cycles..." << std::endl;
-	std::cout << "This mimics m_tempDebugLineData which persists across frames" << std::endl;
+	// Create multiple persistent vectors like in real scene
+	Vector<float> debugLineData(allocator);
+	Vector<float> otherData1(allocator);
+	Vector<float> otherData2(allocator);
 
-	// Simulate varying frame loads like in a real scene
-	// Using larger sizes to stress the 65KB SmallAllocator pool
-	// Each float is 4 bytes, so 16000 floats = 64KB (near pool limit)
-	size_t frameSizes[] = {1000, 5000, 2000, 8000, 1500, 10000, 3000, 12000, 2500, 15000,
-	                       4000, 16000, 3500, 14000, 4500, 13000, 5000, 12000, 6000, 16000};
+	std::cout << "Simulating SceneManager pattern with multiple vectors and extreme fragmentation..." << std::endl;
 
-	for(int frame = 0; frame < 20; ++frame)
+	// Simulate many frame cycles with varying sizes to create fragmentation
+	for(int frame = 0; frame < 100; ++frame)
 	{
-		size_t targetSize = frameSizes[frame];
-		std::cout << "\nFrame " << frame << ": processing " << targetSize << " elements" << std::endl;
+		// Vary size to create fragmentation
+		size_t size1 = 100 + (frame % 7) * 200;
+		size_t size2 = 150 + (frame % 5) * 150;
+		size_t size3 = 200 + (frame % 3) * 300;
 
-		persistentVec.clear();
-		std::cout << "  After clear: size=" << persistentVec.size() << ", capacity=" << persistentVec.capacity() << std::endl;
-
-		std::cout << "  Reserving for " << targetSize << " floats (" << (targetSize * sizeof(float)) << " bytes)" << std::endl;
-		persistentVec.reserve(targetSize);
-		std::cout << "  After reserve: size=" << persistentVec.size() << ", capacity=" << persistentVec.capacity() << std::endl;
-
-		for(size_t i = 0; i < targetSize; ++i)
-		{
-			persistentVec.push_back(static_cast<float>(i * 0.1f));
+		if (frame % 10 == 0) {
+			std::cout << "\nFrame " << frame << ": sizes=" << size1 << "," << size2 << "," << size3 << std::endl;
 		}
-		std::cout << "  After filling: size=" << persistentVec.size() << std::endl;
+
+		// Clear and reserve in different patterns
+		debugLineData.clear();
+		debugLineData.reserve(size1);
+		for(size_t i = 0; i < size1; ++i) {
+			debugLineData.push_back(static_cast<float>(i));
+		}
+
+		otherData1.clear();
+		otherData1.reserve(size2);
+		for(size_t i = 0; i < size2; ++i) {
+			otherData1.push_back(static_cast<float>(i * 2));
+		}
+
+		otherData2.clear();
+		otherData2.reserve(size3);
+		for(size_t i = 0; i < size3; ++i) {
+			otherData2.push_back(static_cast<float>(i * 3));
+		}
 	}
 
 	std::cout << "\nTest passed!" << std::endl;
