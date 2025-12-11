@@ -103,7 +103,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         }
 
         // Generate sprite batches grouped by texture
-        std::vector<SpriteBatch> spriteBatches;
+        Vector<SpriteBatch> spriteBatches(*luaInterface_->getStringAllocator());
         float cameraX = luaInterface_->getCameraOffsetX();
         float cameraY = luaInterface_->getCameraOffsetY();
         float cameraZoom = luaInterface_->getCameraZoom();
@@ -130,7 +130,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         }
 
         // Generate particle batches - one per particle system for proper parallax sorting
-        std::vector<ParticleBatch> particleBatches;
+        Vector<ParticleBatch> particleBatches(*luaInterface_->getStringAllocator());
 
         for (int i = 0; i < particleManager.getSystemCount(); ++i) {
             ParticleSystem* system = &particleManager.getSystems()[i];
@@ -147,7 +147,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                 }
             }
 
-            ParticleBatch batch;
+            ParticleBatch batch(particleBatches.getAllocator());
             batch.textureId = textureId;
             batch.pipelineId = system->pipelineId;
             batch.parallaxDepth = system->parallaxDepth;

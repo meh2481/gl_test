@@ -36,8 +36,8 @@ public:
     void setDebugLineDrawData(const Vector<float>& vertexData);
     void setDebugTriangleDrawData(const Vector<float>& vertexData);
     void setSpriteDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices);
-    void setSpriteBatches(const std::vector<SpriteBatch>& batches);
-    void setParticleBatches(const std::vector<ParticleBatch>& batches);
+    void setSpriteBatches(const Vector<SpriteBatch>& batches);
+    void setParticleBatches(const Vector<ParticleBatch>& batches);
     void setParticleDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices, uint64_t textureId = 0);
     void loadTexture(uint64_t textureId, const ResourceData& imageData);
     void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);

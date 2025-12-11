@@ -308,6 +308,11 @@ public:
         return data_ + size_;
     }
 
+    // Get the allocator used by this vector
+    MemoryAllocator& getAllocator() const {
+        return *allocator_;
+    }
+
 private:
     void grow() {
         size_t newCapacity = capacity_ == 0 ? 8 : capacity_ * 2;

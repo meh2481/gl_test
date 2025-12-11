@@ -1,8 +1,11 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
 #include <unordered_map>
+#include "../core/Vector.h"
+
+// Forward declaration
+class MemoryAllocator;
 
 // Maximum number of vertices for polygon layers (8 vertices * 2 floats per vertex = 16)
 static const int MAX_POLYGON_VERTEX_FLOATS = 16;
@@ -22,8 +25,8 @@ struct SpriteBatch {
     uint64_t descriptorId;   // Descriptor set ID to use for this batch
     int pipelineId;          // Pipeline ID to use for this batch
     float parallaxDepth;     // Parallax depth for sorting (lower = background, higher = foreground)
-    std::vector<SpriteVertex> vertices;
-    std::vector<uint16_t> indices;
+    Vector<SpriteVertex> vertices;
+    Vector<uint16_t> indices;
 
     // Animation parameters for this batch
     float spinSpeed;         // Degrees per second
@@ -41,6 +44,17 @@ struct SpriteBatch {
     float colorCycleTime;
     float colorPhase;
     float centerX, centerY;  // Center point for spin rotation
+
+    // Constructor
+    SpriteBatch(MemoryAllocator& allocator)
+        : textureId(0), normalMapId(0), descriptorId(0), pipelineId(0), parallaxDepth(0.0f),
+          vertices(allocator), indices(allocator),
+          spinSpeed(0.0f), blinkSecondsOn(0.0f), blinkSecondsOff(0.0f),
+          blinkRiseTime(0.0f), blinkFallTime(0.0f), blinkPhase(0.0f),
+          waveWavelength(0.0f), waveSpeed(0.0f), waveAngle(0.0f), waveAmplitude(0.0f),
+          colorR(1.0f), colorG(1.0f), colorB(1.0f), colorA(1.0f),
+          colorEndR(1.0f), colorEndG(1.0f), colorEndB(1.0f), colorEndA(1.0f),
+          colorCycleTime(0.0f), colorPhase(0.0f), centerX(0.0f), centerY(0.0f) {}
 };
 
 // Particle vertex structure with position, texture coordinates, and color
@@ -56,8 +70,13 @@ struct ParticleBatch {
     uint64_t textureId;      // Atlas texture ID
     int pipelineId;          // Pipeline ID to use for this batch
     float parallaxDepth;     // Parallax depth for sorting
-    std::vector<ParticleVertex> vertices;
-    std::vector<uint16_t> indices;
+    Vector<ParticleVertex> vertices;
+    Vector<uint16_t> indices;
+
+    // Constructor
+    ParticleBatch(MemoryAllocator& allocator)
+        : textureId(0), pipelineId(0), parallaxDepth(0.0f),
+          vertices(allocator), indices(allocator) {}
 };
 
 // Atlas UV coordinates for texture
@@ -158,7 +177,7 @@ public:
 
     // Generate vertex data for all layers based on physics body positions
     // Groups sprites by texture for efficient batch rendering
-    void updateLayerVertices(std::vector<SpriteBatch>& batches) {
+    void updateLayerVertices(Vector<SpriteBatch>& batches) {
         updateLayerVertices(batches, 0.0f, 0.0f, 1.0f);
     }
 
@@ -183,7 +202,7 @@ public:
     void setLayerColorCycle(int layerId, float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float cycleTime);
 
     // Update layer vertices with camera info for parallax calculation
-    void updateLayerVertices(std::vector<SpriteBatch>& batches, float cameraX, float cameraY, float cameraZoom);
+    void updateLayerVertices(Vector<SpriteBatch>& batches, float cameraX, float cameraY, float cameraZoom);
 
     // Clear all layers (for scene cleanup)
     void clear();

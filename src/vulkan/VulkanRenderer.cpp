@@ -997,7 +997,7 @@ void VulkanRenderer::setParticleDrawData(const Vector<float>& vertexData, const 
     m_particleTextureId = textureId;
 }
 
-void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
+void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
     // Wait for all in-flight frames to complete before modifying shared buffers
     VkFence fences[] = {m_inFlightFences[0], m_inFlightFences[1]};
     vkWaitForFences(m_device, 2, fences, VK_TRUE, UINT64_MAX);
@@ -1070,7 +1070,7 @@ void VulkanRenderer::setSpriteBatches(const std::vector<SpriteBatch>& batches) {
     rebuildAllBatches();
 }
 
-void VulkanRenderer::setParticleBatches(const std::vector<ParticleBatch>& batches) {
+void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
     // Wait for all in-flight frames to complete before modifying shared buffers
     VkFence fences[] = {m_inFlightFences[0], m_inFlightFences[1]};
     vkWaitForFences(m_device, 2, fences, VK_TRUE, UINT64_MAX);
