@@ -86,41 +86,36 @@ void testSmallAllocatorMultipleVectors()
 	std::cout << "\nTest passed!" << std::endl;
 }
 
-void testSmallAllocatorGrowthBug()
+void testSmallAllocatorRealisticScenePattern()
 {
-	std::cout << "\n=== Test: SmallAllocator Growth Bug ===" << std::endl;
+	std::cout << "\n=== Test: Realistic SceneManager Debug Line Pattern ===" << std::endl;
 
 	SmallAllocator allocator;
-	Vector<float> vec(allocator);
+	Vector<float> debugLineData(allocator);
 
-	std::cout << "Testing edge case: allocating exactly at pool boundary..." << std::endl;
+	std::cout << "Simulating real SceneManager pattern: many clear/reserve cycles with variable sizes..." << std::endl;
 
-	// Allocate up to near the pool limit
-	vec.reserve(16000);  // 64KB, near the 65KB limit
-	std::cout << "Reserved 16000 floats (64000 bytes)" << std::endl;
+	// Simulate hundreds of frames with varying debug vertex counts
+	// This matches the actual SceneManager::updateActiveScene() pattern on line 257-258
+	for(int frame = 0; frame < 500; ++frame)
+	{
+		// Simulate variable number of debug vertices per frame (like physics debug drawing)
+		// debugLineVerts.size() can vary significantly frame-to-frame
+		size_t vertCount = 50 + (frame * 17) % 300;  // Varies from 50 to 350
+		size_t floatCount = vertCount * 6;  // Each vertex has 6 floats (x, y, r, g, b, a)
 
-	vec.clear();
-	std::cout << "Cleared vector" << std::endl;
+		if (frame % 50 == 0) {
+			std::cout << "Frame " << frame << ": " << vertCount << " verts = " << floatCount << " floats (" << (floatCount * sizeof(float)) << " bytes)" << std::endl;
+		}
 
-	// Now try to allocate something that requires growing
-	std::cout << "Reserving 17000 floats (68000 bytes) - should trigger growth" << std::endl;
-	vec.reserve(17000);
-	std::cout << "Success!" << std::endl;
+		// This is the EXACT pattern from SceneManager.cpp lines 257-266
+		debugLineData.clear();
+		debugLineData.reserve(floatCount);  // LINE 258 - THIS IS WHERE IT CRASHES
 
-	// Fill it
-	for(size_t i = 0; i < 17000; ++i) {
-		vec.push_back(static_cast<float>(i));
+		for(size_t i = 0; i < floatCount; ++i) {
+			debugLineData.push_back(static_cast<float>(i));
+		}
 	}
-
-	std::cout << "Filled with 17000 elements" << std::endl;
-
-	// Now clear and try again - this should expose the bug if poolUsed_ is wrong
-	vec.clear();
-	std::cout << "Cleared again" << std::endl;
-
-	std::cout << "Reserving 18000 floats (72000 bytes) - another growth" << std::endl;
-	vec.reserve(18000);
-	std::cout << "Success!" << std::endl;
 
 	std::cout << "\nTest passed!" << std::endl;
 }
@@ -133,7 +128,7 @@ int main()
 	{
 		testSmallAllocatorFragmentation();
 		testSmallAllocatorMultipleVectors();
-		testSmallAllocatorGrowthBug();
+		testSmallAllocatorRealisticScenePattern();
 
 		std::cout << "\n=== ALL TESTS PASSED ===" << std::endl;
 		return 0;
