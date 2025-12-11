@@ -193,9 +193,12 @@ void SmallAllocator::growPool(size_t newCapacity) {
     } else {
         // Extend the last block or create a new free block
         size_t additionalSpace = newCapacity - oldCapacity;
+        std::cerr << "SmallAllocator: Additional space=" << additionalSpace << ", lastBlock_=" << lastBlock_ << ", lastBlock_->isFree=" << (lastBlock_ ? lastBlock_->isFree : false) << std::endl;
         if (lastBlock_ && lastBlock_->isFree) {
             // Extend last free block
+            std::cerr << "SmallAllocator: Extending last free block from size=" << lastBlock_->size;
             lastBlock_->size += additionalSpace;
+            std::cerr << " to size=" << lastBlock_->size << std::endl;
             poolUsed_ += additionalSpace;
         } else {
             // Create new free block
@@ -204,6 +207,7 @@ void SmallAllocator::growPool(size_t newCapacity) {
             newBlock->isFree = true;
             newBlock->next = nullptr;
             newBlock->prev = lastBlock_;
+            std::cerr << "SmallAllocator: Created new free block at offset=" << poolUsed_ << ", size=" << newBlock->size << std::endl;
 
             if (lastBlock_) {
                 lastBlock_->next = newBlock;
@@ -216,6 +220,7 @@ void SmallAllocator::growPool(size_t newCapacity) {
 
             poolUsed_ += additionalSpace;
         }
+        std::cerr << "SmallAllocator: After growth, poolUsed_=" << poolUsed_ << ", poolCapacity_=" << poolCapacity_ << std::endl;
     }
 }
 

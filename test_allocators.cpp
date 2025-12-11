@@ -86,27 +86,41 @@ void testSmallAllocatorMultipleVectors()
 	std::cout << "\nTest passed!" << std::endl;
 }
 
-void testSmallAllocatorGrowthPattern()
+void testSmallAllocatorGrowthBug()
 {
-	std::cout << "\n=== Test: SmallAllocator Growth Pattern ===" << std::endl;
+	std::cout << "\n=== Test: SmallAllocator Growth Bug ===" << std::endl;
 
 	SmallAllocator allocator;
 	Vector<float> vec(allocator);
 
-	std::cout << "Testing grow pattern that triggers fragmentation..." << std::endl;
+	std::cout << "Testing edge case: allocating exactly at pool boundary..." << std::endl;
 
-	for(int cycle = 0; cycle < 20; ++cycle)
-	{
-		vec.clear();
-		size_t targetSize = 50 + cycle * 100;
-		std::cout << "Cycle " << cycle << ": reserve " << targetSize << " elements" << std::endl;
-		vec.reserve(targetSize);
+	// Allocate up to near the pool limit
+	vec.reserve(16000);  // 64KB, near the 65KB limit
+	std::cout << "Reserved 16000 floats (64000 bytes)" << std::endl;
 
-		for(size_t i = 0; i < targetSize; ++i)
-		{
-			vec.push_back(static_cast<float>(i));
-		}
+	vec.clear();
+	std::cout << "Cleared vector" << std::endl;
+
+	// Now try to allocate something that requires growing
+	std::cout << "Reserving 17000 floats (68000 bytes) - should trigger growth" << std::endl;
+	vec.reserve(17000);
+	std::cout << "Success!" << std::endl;
+
+	// Fill it
+	for(size_t i = 0; i < 17000; ++i) {
+		vec.push_back(static_cast<float>(i));
 	}
+
+	std::cout << "Filled with 17000 elements" << std::endl;
+
+	// Now clear and try again - this should expose the bug if poolUsed_ is wrong
+	vec.clear();
+	std::cout << "Cleared again" << std::endl;
+
+	std::cout << "Reserving 18000 floats (72000 bytes) - another growth" << std::endl;
+	vec.reserve(18000);
+	std::cout << "Success!" << std::endl;
 
 	std::cout << "\nTest passed!" << std::endl;
 }
@@ -119,7 +133,7 @@ int main()
 	{
 		testSmallAllocatorFragmentation();
 		testSmallAllocatorMultipleVectors();
-		testSmallAllocatorGrowthPattern();
+		testSmallAllocatorGrowthBug();
 
 		std::cout << "\n=== ALL TESTS PASSED ===" << std::endl;
 		return 0;
