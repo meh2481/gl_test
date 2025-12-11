@@ -33,25 +33,36 @@ public:
     size_t getAllocationCount() const;
 
 private:
+    // Memory pool structure - each pool is independent
+    struct MemoryPool;
+    
     // Block header stored before each allocation
     struct BlockHeader {
         size_t size;           // Size of the allocation (not including header)
         bool isFree;           // Is this block free?
         BlockHeader* next;     // Next block in the list
         BlockHeader* prev;     // Previous block in the list
+        MemoryPool* pool;      // Pool this block belongs to
     };
 
-    // Memory pool
-    char* pool_;
-    size_t poolCapacity_;
-    size_t poolUsed_;
+    // Memory pool structure - each pool is independent
+    struct MemoryPool {
+        char* memory;          // Pool memory
+        size_t capacity;       // Pool capacity
+        size_t used;           // Bytes used in pool
+        BlockHeader* firstBlock; // First block in this pool
+        BlockHeader* lastBlock;  // Last block in this pool
+        size_t allocCount;     // Number of active allocations in this pool
+        MemoryPool* next;      // Next pool in the list
+    };
 
-    // Block list
-    BlockHeader* firstBlock_;
-    BlockHeader* lastBlock_;
+    // Pool list
+    MemoryPool* firstPool_;
+    MemoryPool* lastPool_;
 
     // Statistics
     size_t allocationCount_;
+    size_t totalCapacity_;
 
     // Thread safety
     SDL_Mutex* mutex_;
@@ -59,16 +70,16 @@ private:
     // Minimum pool size (64KB)
     static const size_t MIN_POOL_SIZE = 64 * 1024;
 
-    // Grow the pool to newCapacity
-    void growPool(size_t newCapacity);
+    // Create a new pool with given capacity
+    MemoryPool* createPool(size_t capacity);
 
-    // Shrink the pool if possible
-    void shrinkPool();
+    // Remove empty pools
+    void removeEmptyPools();
 
-    // Merge adjacent free blocks
-    void coalesce();
+    // Merge adjacent free blocks within a pool
+    void coalescePool(MemoryPool* pool);
 
-    // Find a free block that fits size
+    // Find a free block that fits size across all pools
     BlockHeader* findFreeBlock(size_t size);
 
     // Split a block if it's larger than needed
