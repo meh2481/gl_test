@@ -3,6 +3,7 @@
 #include "MemoryAllocator.h"
 #include <cstddef>
 #include <cstdint>
+#include <SDL3/SDL.h>
 
 // Small memory allocator optimized for frequent small allocations
 // - Uses pooled memory for cache-friendly access
@@ -51,6 +52,9 @@ private:
 
     // Statistics
     size_t allocationCount_;
+
+    // Thread safety
+    SDL_Mutex* mutex_;
 
     // Minimum pool size (64KB)
     static const size_t MIN_POOL_SIZE = 64 * 1024;

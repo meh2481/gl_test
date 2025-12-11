@@ -15,6 +15,8 @@ static size_t alignSize(size_t size) {
 LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
     : m_chunks(nullptr), m_chunkSize(0), m_totalPoolSize(0), m_usedMemory(0), m_freeList(nullptr) {
     assert(initialChunkSize > 0);
+    m_mutex = SDL_CreateMutex();
+    assert(m_mutex != nullptr);
     m_chunkSize = alignSize(initialChunkSize);
     addChunk(m_chunkSize);
     std::cout << "LargeMemoryAllocator: Initialized with chunk size " << m_chunkSize << " bytes" << std::endl;
@@ -28,6 +30,9 @@ LargeMemoryAllocator::~LargeMemoryAllocator() {
         std::free(chunk->memory);
         std::free(chunk);
         chunk = next;
+    }
+    if (m_mutex) {
+        SDL_DestroyMutex(m_mutex);
     }
 }
 
@@ -64,6 +69,8 @@ void LargeMemoryAllocator::addChunk(size_t size) {
 }
 
 void* LargeMemoryAllocator::allocate(size_t size) {
+    SDL_LockMutex(m_mutex);
+
     assert(size > 0);
     size_t alignedSize = alignSize(size);
 
@@ -100,11 +107,14 @@ void* LargeMemoryAllocator::allocate(size_t size) {
     void* ptr = (char*)block + sizeof(BlockHeader);
     std::cout << "LargeMemoryAllocator: Allocated " << alignedSize << " bytes at " << ptr
               << " (used: " << m_usedMemory << "/" << m_totalPoolSize << ")" << std::endl;
+    SDL_UnlockMutex(m_mutex);
     return ptr;
 }
 
 void LargeMemoryAllocator::free(void* ptr) {
     assert(ptr != nullptr);
+
+    SDL_LockMutex(m_mutex);
 
     BlockHeader* block = (BlockHeader*)((char*)ptr - sizeof(BlockHeader));
     assert(!block->isFree);
@@ -128,9 +138,13 @@ void LargeMemoryAllocator::free(void* ptr) {
     if (m_totalPoolSize > 0 && (float)m_usedMemory / m_totalPoolSize < SHRINK_THRESHOLD && m_totalPoolSize > m_chunkSize) {
         removeEmptyChunks();
     }
+
+    SDL_UnlockMutex(m_mutex);
 }
 
 size_t LargeMemoryAllocator::defragment() {
+    SDL_LockMutex(m_mutex);
+
     std::cout << "LargeMemoryAllocator: Starting defragmentation..." << std::endl;
 
     size_t mergedBlocks = 0;
@@ -169,6 +183,7 @@ size_t LargeMemoryAllocator::defragment() {
     }
 
     std::cout << "LargeMemoryAllocator: Defragmentation complete, merged " << mergedBlocks << " blocks" << std::endl;
+    SDL_UnlockMutex(m_mutex);
     return mergedBlocks;
 }
 

@@ -3,6 +3,7 @@
 #include "MemoryAllocator.h"
 #include <cstddef>
 #include <cstdint>
+#include <SDL3/SDL.h>
 
 class LargeMemoryAllocator : public MemoryAllocator {
 public:
@@ -40,6 +41,7 @@ private:
     size_t m_totalPoolSize;
     size_t m_usedMemory;
     BlockHeader* m_freeList;
+    SDL_Mutex* m_mutex;
 
     void addChunk(size_t size);
     void removeEmptyChunks();

@@ -11,6 +11,8 @@ SmallAllocator::SmallAllocator()
     , lastBlock_(nullptr)
     , allocationCount_(0)
 {
+    mutex_ = SDL_CreateMutex();
+    assert(mutex_ != nullptr);
     // cerr instead of cout here to avoid race condition
     std::cerr << "SmallAllocator: Initializing with " << MIN_POOL_SIZE << " bytes" << std::endl;
     growPool(MIN_POOL_SIZE);
@@ -34,9 +36,14 @@ SmallAllocator::~SmallAllocator() {
         ::free(pool_);
         pool_ = nullptr;
     }
+    if (mutex_) {
+        SDL_DestroyMutex(mutex_);
+    }
 }
 
 void* SmallAllocator::allocate(size_t size) {
+    SDL_LockMutex(mutex_);
+
     assert(size > 0);
 
     // Align size to 8 bytes for better cache performance
@@ -74,11 +81,15 @@ void* SmallAllocator::allocate(size_t size) {
     splitBlock(block, alignedSize);
 
     // Return pointer after header
-    return (char*)block + sizeof(BlockHeader);
+    void* ptr = (char*)block + sizeof(BlockHeader);
+    SDL_UnlockMutex(mutex_);
+    return ptr;
 }
 
 void SmallAllocator::free(void* ptr) {
     if (!ptr) return;
+
+    SDL_LockMutex(mutex_);
 
     // Get block header
     BlockHeader* block = (BlockHeader*)((char*)ptr - sizeof(BlockHeader));
@@ -97,15 +108,22 @@ void SmallAllocator::free(void* ptr) {
                   << ", used=" << poolUsed_ << ")" << std::endl;
         shrinkPool();
     }
+
+    SDL_UnlockMutex(mutex_);
 }
 
 size_t SmallAllocator::defragment() {
+    SDL_LockMutex(mutex_);
+
     // For a general-purpose allocator, we can't move active allocations
     // as it would invalidate user pointers. Instead, we just coalesce
     // adjacent free blocks to reduce fragmentation.
     size_t coalescedBlocks = 0;
 
-    if (!firstBlock_) return 0;
+    if (!firstBlock_) {
+        SDL_UnlockMutex(mutex_);
+        return 0;
+    }
 
     BlockHeader* current = firstBlock_;
 
@@ -133,6 +151,7 @@ size_t SmallAllocator::defragment() {
         }
     }
 
+    SDL_UnlockMutex(mutex_);
     return coalescedBlocks;
 }
 
