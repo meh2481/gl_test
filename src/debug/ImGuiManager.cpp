@@ -1575,10 +1575,18 @@ String ImGuiManager::truncateTextureName(const char* fullName, float maxWidth) {
     return ellipsis;
 }
 
-void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator) {
+void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, float currentTime) {
     if (!initialized_) {
         return;
     }
+
+    // Get allocator info
+    SmallAllocator* small = static_cast<SmallAllocator*>(smallAllocator);
+    LargeMemoryAllocator* large = static_cast<LargeMemoryAllocator*>(largeAllocator);
+
+    // Update memory history (samples at regular intervals)
+    small->updateMemoryHistory(currentTime);
+    large->updateMemoryHistory(currentTime);
 
     // Create memory allocator window
     ImGui::SetNextWindowSize(ImVec2(900, 700), ImGuiCond_FirstUseEver);
@@ -1588,10 +1596,6 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
         ImGui::End();
         return;
     }
-
-    // Get allocator info
-    SmallAllocator* small = static_cast<SmallAllocator*>(smallAllocator);
-    LargeMemoryAllocator* large = static_cast<LargeMemoryAllocator*>(largeAllocator);
 
     if (ImGui::BeginTabBar("AllocatorTabs")) {
         // Small Allocator Tab

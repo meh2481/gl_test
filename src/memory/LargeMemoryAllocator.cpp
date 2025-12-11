@@ -20,6 +20,7 @@ LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
 #ifdef DEBUG
     historyIndex_ = 0;
     historyCount_ = 0;
+    lastSampleTime_ = 0.0f;
     memset(usageHistory_, 0, sizeof(usageHistory_));
 #endif
     m_chunkSize = alignSize(initialChunkSize);
@@ -109,10 +110,6 @@ void* LargeMemoryAllocator::allocate(size_t size) {
         block->next->prev = block->prev;
     }
 
-#ifdef DEBUG
-    recordMemoryUsage();
-#endif
-
     void* ptr = (char*)block + sizeof(BlockHeader);
     std::cout << "LargeMemoryAllocator: Allocated " << alignedSize << " bytes at " << ptr
               << " (used: " << m_usedMemory << "/" << m_totalPoolSize << ")" << std::endl;
@@ -147,10 +144,6 @@ void LargeMemoryAllocator::free(void* ptr) {
     if (m_totalPoolSize > 0 && (float)m_usedMemory / m_totalPoolSize < SHRINK_THRESHOLD && m_totalPoolSize > m_chunkSize) {
         removeEmptyChunks();
     }
-
-#ifdef DEBUG
-    recordMemoryUsage();
-#endif
 
     SDL_UnlockMutex(m_mutex);
 }
@@ -454,13 +447,25 @@ void LargeMemoryAllocator::getUsageHistory(size_t* outHistory, size_t* outCount)
     SDL_UnlockMutex(m_mutex);
 }
 
-void LargeMemoryAllocator::recordMemoryUsage() {
-    // Record current memory usage (must be called with mutex locked)
+void LargeMemoryAllocator::updateMemoryHistory(float currentTime) {
+    SDL_LockMutex(m_mutex);
+
+    // Only sample if enough time has passed
+    if (currentTime - lastSampleTime_ < SAMPLE_INTERVAL) {
+        SDL_UnlockMutex(m_mutex);
+        return;
+    }
+
+    lastSampleTime_ = currentTime;
+
+    // Record current memory usage
     usageHistory_[historyIndex_] = m_usedMemory;
     historyIndex_ = (historyIndex_ + 1) % HISTORY_SIZE;
     if (historyCount_ < HISTORY_SIZE) {
         historyCount_++;
     }
+
+    SDL_UnlockMutex(m_mutex);
 }
 
 size_t LargeMemoryAllocator::getBlockHeaderSize() {

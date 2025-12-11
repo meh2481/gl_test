@@ -123,7 +123,7 @@ public:
     void showConsoleWindow();
 
     // Show memory allocator window
-    void showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator);
+    void showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, float currentTime);
 
     // Check if ImGui wants to capture mouse input
     bool wantCaptureMouse() const;

@@ -14,6 +14,7 @@ SmallAllocator::SmallAllocator()
 #ifdef DEBUG
     historyIndex_ = 0;
     historyCount_ = 0;
+    lastSampleTime_ = 0.0f;
     memset(usageHistory_, 0, sizeof(usageHistory_));
 #endif
     std::cerr << "SmallAllocator: Initializing with multi-pool architecture" << std::endl;
@@ -109,10 +110,6 @@ void* SmallAllocator::allocate(size_t size) {
     // Split block if it's much larger than needed
     splitBlock(block, alignedSize);
 
-#ifdef DEBUG
-    recordMemoryUsage();
-#endif
-
     // Return pointer after header
     void* ptr = (char*)block + sizeof(BlockHeader);
     SDL_UnlockMutex(mutex_);
@@ -139,10 +136,6 @@ void SmallAllocator::free(void* ptr) {
 
     // Remove empty pools
     removeEmptyPools();
-
-#ifdef DEBUG
-    recordMemoryUsage();
-#endif
 
     SDL_UnlockMutex(mutex_);
 }
@@ -470,8 +463,18 @@ void SmallAllocator::getUsageHistory(size_t* outHistory, size_t* outCount) const
     SDL_UnlockMutex(mutex_);
 }
 
-void SmallAllocator::recordMemoryUsage() {
-    // Calculate used memory (must be called with mutex locked)
+void SmallAllocator::updateMemoryHistory(float currentTime) {
+    SDL_LockMutex(mutex_);
+
+    // Only sample if enough time has passed
+    if (currentTime - lastSampleTime_ < SAMPLE_INTERVAL) {
+        SDL_UnlockMutex(mutex_);
+        return;
+    }
+
+    lastSampleTime_ = currentTime;
+
+    // Calculate used memory
     size_t used = 0;
     MemoryPool* pool = firstPool_;
     while (pool) {
@@ -484,6 +487,8 @@ void SmallAllocator::recordMemoryUsage() {
     if (historyCount_ < HISTORY_SIZE) {
         historyCount_++;
     }
+
+    SDL_UnlockMutex(mutex_);
 }
 
 size_t SmallAllocator::getBlockHeaderSize() {

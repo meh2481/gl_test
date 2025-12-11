@@ -42,6 +42,9 @@ public:
 
     // Get block header size
     static size_t getBlockHeaderSize();
+
+    // Update memory usage history (call periodically, e.g., once per frame)
+    void updateMemoryHistory(float currentTime);
 #endif
 
 private:
@@ -75,8 +78,9 @@ private:
     size_t usageHistory_[HISTORY_SIZE];
     size_t historyIndex_;
     size_t historyCount_;
+    float lastSampleTime_;
 
-    void recordMemoryUsage();
+    static constexpr float SAMPLE_INTERVAL = 0.1f; // Sample every 100ms
 #endif
 
     void addChunk(size_t size);
