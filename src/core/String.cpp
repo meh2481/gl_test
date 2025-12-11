@@ -74,6 +74,26 @@ String& String::operator=(const String& other) {
     return *this;
 }
 
+// Move assignment operator
+String& String::operator=(String&& other) noexcept {
+    if (this != &other) {
+        // Free existing data
+        if (data_) {
+            allocator_->free(data_);
+        }
+        // Move data from other
+        data_ = other.data_;
+        length_ = other.length_;
+        capacity_ = other.capacity_;
+        allocator_ = other.allocator_;
+        // Null out other
+        other.data_ = nullptr;
+        other.length_ = 0;
+        other.capacity_ = 0;
+    }
+    return *this;
+}
+
 // Assignment from C-string
 String& String::operator=(const char* str) {
     clear();
