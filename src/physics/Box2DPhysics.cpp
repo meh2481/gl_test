@@ -299,6 +299,10 @@ void Box2DPhysics::destroyBody(int bodyId) {
         bodies_.erase(it);
     }
 
+    // Clear body types for this body to free String memory
+    bodyTypes_.erase(bodyId);
+    std::cerr << "Box2DPhysics: Destroyed body " << bodyId << ", cleared body types" << std::endl;
+
     SDL_UnlockMutex(physicsMutex_);
 }
 
@@ -2032,6 +2036,10 @@ void Box2DPhysics::reset() {
 
     // Clear destructible body layers
     destructibleBodyLayers_.clear();
+
+    // Clear body types to free String memory
+    std::cerr << "Box2DPhysics: Clearing " << bodyTypes_.size() << " body type entries" << std::endl;
+    bodyTypes_.clear();
 
     // Clear collision events
     collisionHitEvents_.clear();

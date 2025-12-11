@@ -534,6 +534,11 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
     // Reset physics (bodies, joints, force fields)
     physics_->reset();
 
+    // Clear all nodes (frees String memory)
+    std::cerr << "LuaInterface: Clearing " << nodes_.size() << " nodes" << std::endl;
+    nodes_.clear();
+    bodyToNodeMap_.clear();
+
     // Clear all lights
     renderer_.clearLights();
 
