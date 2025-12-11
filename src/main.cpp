@@ -14,6 +14,8 @@
 #include "input/InputActions.h"
 #include "input/VibrationManager.h"
 #include "scene/LuaInterface.h"
+#include "memory/SmallAllocator.h"
+#include "memory/LargeMemoryAllocator.h"
 
 #ifdef DEBUG
 #include "debug/ImGuiManager.h"
@@ -157,9 +159,14 @@ int main() {
         assert(false);
     }
 
+    // Create single allocator instances for the entire application
+    SmallAllocator smallAllocator;
+    LargeMemoryAllocator largeAllocator;
+    std::cout << "Memory allocators initialized" << std::endl;
+
     VulkanRenderer renderer;
     VibrationManager vibrationManager;
-    SceneManager sceneManager(pakResource, renderer, &vibrationManager);
+    SceneManager sceneManager(pakResource, renderer, &smallAllocator, &vibrationManager);
     renderer.initialize(window, config.gpuIndex);
 
     // Update config with the selected GPU index
@@ -202,13 +209,16 @@ int main() {
     sceneManager.pushScene(LUA_SCRIPT_ID);
 
 #ifdef DEBUG
+    // Initialize console buffer with allocator (must be done before console capture)
+    ConsoleBuffer::getInstance(&smallAllocator);
+
     // Setup console capture for std::cout
     std::streambuf* coutBuf = std::cout.rdbuf();
-    ConsoleCapture consoleCapture(std::cout, coutBuf);
+    ConsoleCapture consoleCapture(std::cout, coutBuf, &smallAllocator);
     std::cout.rdbuf(&consoleCapture);
 
     // Initialize ImGui
-    ImGuiManager imguiManager;
+    ImGuiManager imguiManager(&smallAllocator);
     g_imguiManager = &imguiManager;
     imguiManager.initialize(window, renderer.getInstance(), renderer.getPhysicalDevice(),
                            renderer.getDevice(), renderer.getGraphicsQueueFamilyIndex(),

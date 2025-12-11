@@ -44,10 +44,10 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
     }
 }
 
-Box2DPhysics::Box2DPhysics() : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
+Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator) : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
                                 timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
-                                nextForceFieldId_(0), stringAllocator_(nullptr) {
-    stringAllocator_ = new SmallAllocator();
+                                nextForceFieldId_(0), stringAllocator_(allocator) {
+    assert(stringAllocator_ != nullptr);
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;
@@ -74,7 +74,7 @@ Box2DPhysics::~Box2DPhysics() {
     // Wait for any in-progress step to complete
     waitForStepComplete();
 
-    // Clear bodyTypes before deleting allocator (contains Strings that use the allocator)
+    // Clear bodyTypes before destroying (contains Strings that use the allocator)
     bodyTypes_.clear();
 
     if (b2World_IsValid(worldId_)) {
@@ -85,10 +85,8 @@ Box2DPhysics::~Box2DPhysics() {
         SDL_DestroyMutex(physicsMutex_);
     }
 
-    if (stringAllocator_) {
-        delete stringAllocator_;
-        stringAllocator_ = nullptr;
-    }
+    // Don't delete stringAllocator_ - we don't own it anymore
+    stringAllocator_ = nullptr;
 }
 
 void Box2DPhysics::setGravity(float x, float y) {

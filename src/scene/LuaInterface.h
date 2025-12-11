@@ -20,7 +20,7 @@ class SceneManager;
 
 class LuaInterface {
 public:
-    LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager = nullptr, VibrationManager* vibrationManager = nullptr);
+    LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, SceneManager* sceneManager = nullptr, VibrationManager* vibrationManager = nullptr);
     ~LuaInterface();
 
     // Execute a Lua script from ResourceData

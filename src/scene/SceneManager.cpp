@@ -6,8 +6,8 @@
 #include <cmath>
 #include <iostream>
 
-SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1) {
+SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, VibrationManager* vibrationManager)
+    : pakResource_(pakResource), renderer_(renderer), luaInterface_(std::make_unique<LuaInterface>(pakResource, renderer, allocator, this, vibrationManager)), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1) {
 }
 
 SceneManager::~SceneManager() {

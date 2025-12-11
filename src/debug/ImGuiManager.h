@@ -97,7 +97,7 @@ struct ParticleEditorState {
 
 class ImGuiManager {
 public:
-    ImGuiManager();
+    ImGuiManager(MemoryAllocator* allocator);
     ~ImGuiManager();
 
     // Initialize ImGui with Vulkan and SDL3

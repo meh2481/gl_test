@@ -124,7 +124,7 @@ struct RadialForceField {
 
 class Box2DPhysics {
 public:
-    Box2DPhysics();
+    Box2DPhysics(MemoryAllocator* allocator);
     ~Box2DPhysics();
 
     // Set the layer manager for fragment layer creation

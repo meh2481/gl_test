@@ -14,8 +14,8 @@
 // Console buffer to capture output for ImGui display
 class ConsoleBuffer {
 public:
-    static ConsoleBuffer& getInstance() {
-        static ConsoleBuffer instance;
+    static ConsoleBuffer& getInstance(MemoryAllocator* allocator = nullptr) {
+        static ConsoleBuffer instance(allocator);
         return instance;
     }
 
@@ -43,44 +43,41 @@ private:
     SDL_Mutex* mutex_;
     MemoryAllocator* stringAllocator_;
 
-    ConsoleBuffer() {
-        stringAllocator_ = new SmallAllocator();
+    ConsoleBuffer(MemoryAllocator* allocator) : stringAllocator_(allocator) {
+        assert(stringAllocator_ != nullptr);
         mutex_ = SDL_CreateMutex();
     }
     ~ConsoleBuffer() {
-        // Clear lines before deleting allocator (lines contain Strings that use the allocator)
+        // Clear lines before destroying (lines contain Strings that use the allocator)
         lines_.clear();
-        if (stringAllocator_) {
-            delete stringAllocator_;
-            stringAllocator_ = nullptr;
-        }
         if (mutex_) {
             SDL_DestroyMutex(mutex_);
             mutex_ = nullptr;
         }
+        // Don't delete stringAllocator_ - we don't own it anymore
+        stringAllocator_ = nullptr;
     }
 };
 
 // Custom streambuf to capture cout
 class ConsoleCapture : public std::streambuf {
 public:
-    ConsoleCapture(std::ostream& stream, std::streambuf* oldBuf)
-        : stream_(stream), oldBuf_(oldBuf), stringAllocator_(new SmallAllocator()), buffer_(nullptr) {
+    ConsoleCapture(std::ostream& stream, std::streambuf* oldBuf, MemoryAllocator* allocator)
+        : stream_(stream), oldBuf_(oldBuf), stringAllocator_(allocator), buffer_(nullptr) {
+        assert(stringAllocator_ != nullptr);
         buffer_ = new String(stringAllocator_);
     }
 
     ~ConsoleCapture() {
         // Restore original buffer
         stream_.rdbuf(oldBuf_);
-        // Explicitly delete buffer before allocator
+        // Explicitly delete buffer before destroying
         if (buffer_) {
             delete buffer_;
             buffer_ = nullptr;
         }
-        if (stringAllocator_) {
-            delete stringAllocator_;
-            stringAllocator_ = nullptr;
-        }
+        // Don't delete stringAllocator_ - we don't own it anymore
+        stringAllocator_ = nullptr;
     }
 
 protected:

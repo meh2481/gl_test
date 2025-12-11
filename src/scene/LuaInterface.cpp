@@ -10,15 +10,15 @@
     #define M_PI 3.14159265358979323846
 #endif
 
-LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, SceneManager* sceneManager, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), nextNodeId_(1), stringAllocator_(nullptr) {
-    stringAllocator_ = new SmallAllocator();
+LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, SceneManager* sceneManager, VibrationManager* vibrationManager)
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), pipelineIndex_(0), currentSceneId_(0), cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), nextNodeId_(1), stringAllocator_(allocator) {
+    assert(stringAllocator_ != nullptr);
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
-    physics_ = std::make_unique<Box2DPhysics>();
+    physics_ = std::make_unique<Box2DPhysics>(stringAllocator_);
     layerManager_ = std::make_unique<SceneLayerManager>();
     audioManager_ = std::make_unique<AudioManager>();
     particleManager_ = std::make_unique<ParticleSystemManager>();
@@ -39,14 +39,12 @@ LuaInterface::~LuaInterface() {
         lua_close(luaState_);
         luaState_ = nullptr;
     }
-    
+
     // Clear nodes after Lua state is closed (nodes contain Strings that use the allocator)
     nodes_.clear();
-    
-    if (stringAllocator_) {
-        delete stringAllocator_;
-        stringAllocator_ = nullptr;
-    }
+
+    // Don't delete stringAllocator_ - we don't own it anymore
+    stringAllocator_ = nullptr;
 }
 
 void LuaInterface::handleSensorEvent(const SensorEvent& event) {

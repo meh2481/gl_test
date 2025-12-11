@@ -19,8 +19,8 @@ static void check_vk_result(VkResult err) {
     assert(err == VK_SUCCESS);
 }
 
-ImGuiManager::ImGuiManager() : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE), stringAllocator_(nullptr) {
-    stringAllocator_ = new SmallAllocator();
+ImGuiManager::ImGuiManager(MemoryAllocator* allocator) : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE), stringAllocator_(allocator) {
+    assert(stringAllocator_ != nullptr);
     initializeParticleEditorDefaults();
 }
 
@@ -131,10 +131,8 @@ ImGuiManager::~ImGuiManager() {
     if (initialized_) {
         cleanup();
     }
-    if (stringAllocator_) {
-        delete stringAllocator_;
-        stringAllocator_ = nullptr;
-    }
+    // Don't delete stringAllocator_ - we don't own it anymore
+    stringAllocator_ = nullptr;
 }
 
 void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysicalDevice physicalDevice,

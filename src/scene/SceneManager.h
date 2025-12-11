@@ -9,10 +9,11 @@
 #include "../input/VibrationManager.h"
 
 class LuaInterface;
+class MemoryAllocator;
 
 class SceneManager {
 public:
-    SceneManager(PakResource& pakResource, VulkanRenderer& renderer, VibrationManager* vibrationManager = nullptr);
+    SceneManager(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, VibrationManager* vibrationManager = nullptr);
     ~SceneManager();
 
     // Scene management
