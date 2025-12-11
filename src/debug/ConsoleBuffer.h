@@ -3,7 +3,7 @@
 #ifdef DEBUG
 
 #include <vector>
-#include <mutex>
+#include <SDL3/SDL.h>
 #include <sstream>
 #include <iostream>
 #include <functional>
@@ -20,12 +20,12 @@ public:
     }
 
     void addLine(const String& line) {
-        std::lock_guard<std::mutex> lock(mutex_);
+        SDL_LockMutex(mutex_);
         lines_.push_back(String(line.c_str(), stringAllocator_));
-        // Keep buffer size reasonable (max 1000 lines)
         if (lines_.size() > 1000) {
             lines_.erase(lines_.begin());
         }
+        SDL_UnlockMutex(mutex_);
     }
 
     const std::vector<String>& getLines() {
@@ -33,13 +33,19 @@ public:
     }
 
     void clear() {
-        std::lock_guard<std::mutex> lock(mutex_);
+        SDL_LockMutex(mutex_);
         lines_.clear();
+        SDL_UnlockMutex(mutex_);
     }
 
 private:
+    std::vector<String> lines_;
+    SDL_Mutex* mutex_;
+    MemoryAllocator* stringAllocator_;
+
     ConsoleBuffer() {
         stringAllocator_ = new SmallAllocator();
+        mutex_ = SDL_CreateMutex();
     }
     ~ConsoleBuffer() {
         // Clear lines before deleting allocator (lines contain Strings that use the allocator)
@@ -48,10 +54,11 @@ private:
             delete stringAllocator_;
             stringAllocator_ = nullptr;
         }
+        if (mutex_) {
+            SDL_DestroyMutex(mutex_);
+            mutex_ = nullptr;
+        }
     }
-    std::vector<String> lines_;
-    std::mutex mutex_;
-    MemoryAllocator* stringAllocator_;
 };
 
 // Custom streambuf to capture cout

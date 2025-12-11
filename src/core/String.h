@@ -26,7 +26,6 @@ public:
 
     // Assignment operators
     String& operator=(const String& other);
-    String& operator=(String&& other) noexcept;
     String& operator=(const char* str);
 
     // Comparison operators

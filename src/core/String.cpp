@@ -74,22 +74,6 @@ String& String::operator=(const String& other) {
     return *this;
 }
 
-// Move assignment operator
-String& String::operator=(String&& other) noexcept {
-    if (this != &other) {
-        if (data_) {
-            allocator_->free(data_);
-        }
-        data_ = other.data_;
-        length_ = other.length_;
-        capacity_ = other.capacity_;
-        other.data_ = nullptr;
-        other.length_ = 0;
-        other.capacity_ = 0;
-    }
-    return *this;
-}
-
 // Assignment from C-string
 String& String::operator=(const char* str) {
     clear();
@@ -267,6 +251,7 @@ void String::reserve(size_t newCapacity) {
         }
         if (data_) {
             allocator_->free(data_);
+            data_ = nullptr;
         }
         data_ = newData;
         capacity_ = newCapacity;
