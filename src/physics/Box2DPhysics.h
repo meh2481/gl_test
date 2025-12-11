@@ -1,11 +1,11 @@
 #pragma once
 
 #include <box2d/box2d.h>
-#include <vector>
 #include <unordered_map>
 #include <SDL3/SDL.h>
 #include <functional>
 #include "../core/String.h"
+#include "../core/Vector.h"
 #include "../memory/MemoryAllocator.h"
 
 #define LENGTH_UNITS_PER_METER 0.05f  // Define this smaller so box2d doesn't join polygon vertices
@@ -190,11 +190,11 @@ public:
     // Debug drawing
     void enableDebugDraw(bool enable);
     bool isDebugDrawEnabled() const { return debugDrawEnabled_; }
-    const std::vector<DebugVertex>& getDebugLineVertices();
-    const std::vector<DebugVertex>& getDebugTriangleVertices();
+    const Vector<DebugVertex>& getDebugLineVertices();
+    const Vector<DebugVertex>& getDebugTriangleVertices();
 
     // Collision events - returns hit events from last physics step
-    const std::vector<CollisionHitEvent>& getCollisionHitEvents() const { return collisionHitEvents_; }
+    const Vector<CollisionHitEvent>& getCollisionHitEvents() const { return collisionHitEvents_; }
 
     // Destructible object management
     void setBodyDestructible(int bodyId, float strength, float brittleness,
@@ -220,14 +220,14 @@ public:
     const DestructibleProperties* getDestructibleProperties(int bodyId) const;
 
     // Get fracture events from last physics step
-    const std::vector<FractureEvent>& getFractureEvents() const { return fractureEvents_; }
+    const Vector<FractureEvent>& getFractureEvents() const { return fractureEvents_; }
 
     // Clean up all fragment bodies and layers created during fractures
     // Call this before recreating destructible objects (e.g., on scene reset)
     void cleanupAllFragments();
 
     // Get fragment body IDs (for debugging/tracking)
-    const std::vector<int>& getFragmentBodyIds() const { return fragmentBodyIds_; }
+    const Vector<int>& getFragmentBodyIds() const { return fragmentBodyIds_; }
 
     // Process destructible collisions and generate fractures
     // Returns body/layer IDs that should be created (caller must create layers)
@@ -312,7 +312,7 @@ public:
     void removeBodyType(int bodyId, const char* type);
     void clearBodyTypes(int bodyId);
     bool bodyHasType(int bodyId, const char* type) const;
-    std::vector<String> getBodyTypes(int bodyId) const;
+    Vector<String> getBodyTypes(int bodyId) const;
 
     // Collision callback for type-based interactions
     using CollisionCallback = std::function<void(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed)>;
@@ -347,8 +347,8 @@ private:
     int nextBodyId_;
     int nextJointId_;
     bool debugDrawEnabled_;
-    std::vector<DebugVertex> debugLineVertices_;
-    std::vector<DebugVertex> debugTriangleVertices_;
+    Vector<DebugVertex> debugLineVertices_;
+    Vector<DebugVertex> debugTriangleVertices_;
 
     // Fixed timestep accumulator for framerate-independent physics
     float timeAccumulator_;
@@ -363,10 +363,10 @@ private:
     b2BodyId mouseJointGroundBody_;
 
     // Collision events from last physics step
-    std::vector<CollisionHitEvent> collisionHitEvents_;
+    Vector<CollisionHitEvent> collisionHitEvents_;
 
     // Fracture events from last physics step
-    std::vector<FractureEvent> fractureEvents_;
+    Vector<FractureEvent> fractureEvents_;
 
     // Layer manager for creating fragment layers (not owned)
     SceneLayerManager* layerManager_ = nullptr;
@@ -378,11 +378,11 @@ private:
     SensorCallback sensorCallback_;
 
     // Bodies pending destruction after fracture (processed after step)
-    std::vector<int> pendingDestructions_;
+    Vector<int> pendingDestructions_;
 
     // Fragment tracking for cleanup
-    std::vector<int> fragmentBodyIds_;   // All fragment body IDs
-    std::vector<int> fragmentLayerIds_;  // All fragment layer IDs
+    Vector<int> fragmentBodyIds_;   // All fragment body IDs
+    Vector<int> fragmentLayerIds_;  // All fragment layer IDs
 
     // Map from destructible body ID to its layer ID (for destroying layer when body fractures)
     std::unordered_map<int, int> destructibleBodyLayers_;
@@ -393,7 +393,7 @@ private:
     int nextForceFieldId_;
 
     // Type system for object interactions
-    std::unordered_map<int, std::vector<String>> bodyTypes_;
+    std::unordered_map<int, Vector<String>> bodyTypes_;
 
     // Memory allocator for string operations
     MemoryAllocator* stringAllocator_;

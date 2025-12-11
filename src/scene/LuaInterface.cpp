@@ -3547,7 +3547,7 @@ int LuaInterface::b2GetBodyTypes(lua_State* L) {
     lua_pop(L, 1);
 
     int bodyId = luaL_checkinteger(L, 1);
-    std::vector<String> types = interface->physics_->getBodyTypes(bodyId);
+    Vector<String> types = interface->physics_->getBodyTypes(bodyId);
 
     lua_newtable(L);
     for (size_t i = 0; i < types.size(); ++i) {

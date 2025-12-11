@@ -243,7 +243,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
 
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {
-            const std::vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
+            const Vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
             std::vector<float> lineVertexData;
             lineVertexData.reserve(debugLineVerts.size() * 6);
             for (const auto& v : debugLineVerts) {
@@ -256,7 +256,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             }
             renderer_.setDebugLineDrawData(lineVertexData);
 
-            const std::vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
+            const Vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
             std::vector<float> triangleVertexData;
             triangleVertexData.reserve(debugTriangleVerts.size() * 6);
             for (size_t i = 0; i < debugTriangleVerts.size(); i += 3) {
