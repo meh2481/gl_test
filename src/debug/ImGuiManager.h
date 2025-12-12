@@ -21,6 +21,7 @@ class ParticleSystemManager;
 class PakResource;
 class SceneManager;
 class LuaInterface;
+class ConsoleBuffer;
 
 // Maximum emission polygon vertices / textures
 static const int EDITOR_MAX_VERTICES = 8;
@@ -99,7 +100,7 @@ struct ParticleEditorState {
 
 class ImGuiManager {
 public:
-    ImGuiManager(MemoryAllocator* allocator);
+    ImGuiManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer);
     ~ImGuiManager();
 
     // Initialize ImGui with Vulkan and SDL3
@@ -151,6 +152,9 @@ private:
 
     // Memory allocator for string operations
     MemoryAllocator* stringAllocator_;
+
+    // Console buffer for displaying console output
+    ConsoleBuffer* consoleBuffer_;
 
     // Initialize particle editor state with defaults
     void initializeParticleEditorDefaults();

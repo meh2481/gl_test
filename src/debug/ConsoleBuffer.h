@@ -14,9 +14,20 @@
 // Console buffer to capture output for ImGui display
 class ConsoleBuffer {
 public:
-    static ConsoleBuffer& getInstance(MemoryAllocator* allocator = nullptr) {
-        static ConsoleBuffer instance(allocator);
-        return instance;
+    ConsoleBuffer(MemoryAllocator* allocator) : stringAllocator_(allocator), lines_(*allocator, "ConsoleBuffer::lines_") {
+        assert(stringAllocator_ != nullptr);
+        mutex_ = SDL_CreateMutex();
+    }
+
+    ~ConsoleBuffer() {
+        // Clear lines before destroying (lines contain Strings that use the allocator)
+        lines_.clear();
+        if (mutex_) {
+            SDL_DestroyMutex(mutex_);
+            mutex_ = nullptr;
+        }
+        // Don't delete stringAllocator_ - we don't own it anymore
+        stringAllocator_ = nullptr;
     }
 
     void addLine(const String& line) {
@@ -42,29 +53,15 @@ private:
     Vector<String> lines_;
     SDL_Mutex* mutex_;
     MemoryAllocator* stringAllocator_;
-
-    ConsoleBuffer(MemoryAllocator* allocator) : stringAllocator_(allocator), lines_(*allocator, "ConsoleBuffer::lines_") {
-        assert(stringAllocator_ != nullptr);
-        mutex_ = SDL_CreateMutex();
-    }
-    ~ConsoleBuffer() {
-        // Clear lines before destroying (lines contain Strings that use the allocator)
-        lines_.clear();
-        if (mutex_) {
-            SDL_DestroyMutex(mutex_);
-            mutex_ = nullptr;
-        }
-        // Don't delete stringAllocator_ - we don't own it anymore
-        stringAllocator_ = nullptr;
-    }
 };
 
 // Custom streambuf to capture cout
 class ConsoleCapture : public std::streambuf {
 public:
-    ConsoleCapture(std::ostream& stream, std::streambuf* oldBuf, MemoryAllocator* allocator)
-        : stream_(stream), oldBuf_(oldBuf), stringAllocator_(allocator), buffer_(nullptr) {
+    ConsoleCapture(std::ostream& stream, std::streambuf* oldBuf, MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
+        : stream_(stream), oldBuf_(oldBuf), stringAllocator_(allocator), consoleBuffer_(consoleBuffer), buffer_(nullptr) {
         assert(stringAllocator_ != nullptr);
+        assert(consoleBuffer_ != nullptr);
         buffer_ = new String(stringAllocator_);
     }
 
@@ -84,7 +81,7 @@ protected:
     virtual int_type overflow(int_type c) override {
         if (c != EOF) {
             if (c == '\n') {
-                ConsoleBuffer::getInstance().addLine(*buffer_);
+                consoleBuffer_->addLine(*buffer_);
                 // Also write to original stream
                 oldBuf_->sputn(buffer_->c_str(), buffer_->length());
                 oldBuf_->sputc('\n');
@@ -100,6 +97,7 @@ private:
     std::ostream& stream_;
     std::streambuf* oldBuf_;
     MemoryAllocator* stringAllocator_;
+    ConsoleBuffer* consoleBuffer_;
     String* buffer_;
 };
 

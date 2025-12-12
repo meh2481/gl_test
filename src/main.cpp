@@ -167,12 +167,12 @@ int main() {
         }
 
 #ifdef DEBUG
-        // Initialize console buffer with allocator BEFORE any logging that might use it
-        ConsoleBuffer::getInstance(&smallAllocator);
+        // Create console buffer with allocator BEFORE any logging that might use it
+        ConsoleBuffer consoleBuffer(&smallAllocator);
 
         // Setup console capture for std::cout
         std::streambuf* coutBuf = std::cout.rdbuf();
-        ConsoleCapture consoleCapture(std::cout, coutBuf, &smallAllocator);
+        ConsoleCapture consoleCapture(std::cout, coutBuf, &smallAllocator, &consoleBuffer);
         std::cout.rdbuf(&consoleCapture);
 #endif
 
@@ -224,7 +224,7 @@ int main() {
 
 #ifdef DEBUG
     // Initialize ImGui
-    ImGuiManager imguiManager(&smallAllocator);
+    ImGuiManager imguiManager(&smallAllocator, &consoleBuffer);
     g_imguiManager = &imguiManager;
     imguiManager.initialize(window, renderer.getInstance(), renderer.getPhysicalDevice(),
                            renderer.getDevice(), renderer.getGraphicsQueueFamilyIndex(),
@@ -519,7 +519,7 @@ int main() {
 
 #ifdef DEBUG
         // Clear console buffer before allocator destruction
-        ConsoleBuffer::getInstance().clear();
+        consoleBuffer.clear();
 
         // Cleanup ImGui
         g_imguiManager = nullptr;

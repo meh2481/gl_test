@@ -19,8 +19,9 @@ static void check_vk_result(VkResult err) {
     assert(err == VK_SUCCESS);
 }
 
-ImGuiManager::ImGuiManager(MemoryAllocator* allocator) : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE), stringAllocator_(allocator) {
+ImGuiManager::ImGuiManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer) : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE), stringAllocator_(allocator), consoleBuffer_(consoleBuffer) {
     assert(stringAllocator_ != nullptr);
+    assert(consoleBuffer_ != nullptr);
     std::cout << "ImGuiManager: Using shared memory allocator" << std::endl;
     initializeParticleEditorDefaults();
 }
@@ -132,8 +133,9 @@ ImGuiManager::~ImGuiManager() {
     if (initialized_) {
         cleanup();
     }
-    // Don't delete stringAllocator_ - we don't own it anymore
+    // Don't delete stringAllocator_ or consoleBuffer_ - we don't own them
     stringAllocator_ = nullptr;
+    consoleBuffer_ = nullptr;
 }
 
 void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysicalDevice physicalDevice,
@@ -246,7 +248,7 @@ void ImGuiManager::showConsoleWindow() {
     ImGui::Begin("Console Output", nullptr);
 
     // Get console lines
-    const auto& lines = ConsoleBuffer::getInstance().getLines();
+    const auto& lines = consoleBuffer_->getLines();
 
     // Display lines in a scrollable region
     ImGui::BeginChild("ScrollingRegion", ImVec2(0, -30), false, ImGuiWindowFlags_HorizontalScrollbar);
@@ -264,7 +266,7 @@ void ImGuiManager::showConsoleWindow() {
     // Add a separator and a clear button
     ImGui::Separator();
     if (ImGui::Button("Clear")) {
-        ConsoleBuffer::getInstance().clear();
+        consoleBuffer_->clear();
     }
 
     ImGui::End();
