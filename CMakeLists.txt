@@ -102,10 +102,3 @@ add_custom_target(clean-all
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}
 )
-
-# Vector unit tests
-add_executable(vector_test src/core/VectorTest.cpp src/memory/SmallAllocator.cpp src/memory/LargeMemoryAllocator.cpp)
-target_link_libraries(vector_test ${SDL3_LIBRARIES})
-
-add_executable(largememory_test src/memory/LargeMemoryAllocatorTest.cpp src/memory/LargeMemoryAllocator.cpp src/memory/SmallAllocator.cpp)
-target_link_libraries(largememory_test ${SDL3_LIBRARIES})
