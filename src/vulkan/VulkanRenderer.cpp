@@ -1405,12 +1405,15 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 const auto& singleTexDescSets = m_descriptorManager.getSingleTextureDescriptorSets();
                 if (!singleTexDescSets.empty()) {
                     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
-                    auto it = singleTexDescSets.find(batch.textureId);
-                    if (it != singleTexDescSets.end()) {
-                        descriptorSet = it->second;
+                    const VkDescriptorSet* descSetPtr = singleTexDescSets.find(batch.textureId);
+                    if (descSetPtr != nullptr) {
+                        descriptorSet = *descSetPtr;
                     }
                     if (descriptorSet == VK_NULL_HANDLE) {
-                        descriptorSet = singleTexDescSets.begin()->second;
+                        auto it = singleTexDescSets.begin();
+                        if (it != singleTexDescSets.end()) {
+                            descriptorSet = it.value();
+                        }
                     }
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                           info->layout, 0, 1, &descriptorSet, 0, nullptr);

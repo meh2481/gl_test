@@ -3,6 +3,7 @@
 #include "../memory/MemoryAllocator.h"
 #include <cstdint>
 #include <cassert>
+#include <cstring>
 
 // Hash function for integral types
 template<typename K>

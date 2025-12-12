@@ -66,10 +66,10 @@ public:
                                              uint64_t normalMapId, bool usesDualTexture);
 
     // Access for iteration
-    const std::map<uint64_t, VkDescriptorSet>& getSingleTextureDescriptorSets() const {
+    const HashTable<uint64_t, VkDescriptorSet>& getSingleTextureDescriptorSets() const {
         return m_singleTextureDescriptorSets;
     }
-    const std::map<uint64_t, VkDescriptorSet>& getDualTextureDescriptorSets() const {
+    const HashTable<uint64_t, VkDescriptorSet>& getDualTextureDescriptorSets() const {
         return m_dualTextureDescriptorSets;
     }
 
