@@ -1694,7 +1694,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
                                 if (relativeX >= blockStart && relativeX < blockStart + blockSize) {
                                     ImGui::BeginTooltip();
-                                    if (block.allocationId && block.allocationId[0] != '\0') {
+                                    if (!block.isFree && block.allocationId && block.allocationId[0] != '\0') {
                                         ImGui::Text("Allocation ID: %s", block.allocationId);
                                     } else {
                                         ImGui::Text("Allocation ID: (none)");
@@ -1815,7 +1815,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
                                 if (relativeX >= blockStart && relativeX < blockStart + blockSize) {
                                     ImGui::BeginTooltip();
-                                    if (block.allocationId && block.allocationId[0] != '\0') {
+                                    if (!block.isFree && block.allocationId && block.allocationId[0] != '\0') {
                                         ImGui::Text("Allocation ID: %s", block.allocationId);
                                     } else {
                                         ImGui::Text("Allocation ID: (none)");
