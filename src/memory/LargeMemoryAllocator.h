@@ -50,7 +50,7 @@ public:
 private:
     struct MemoryChunk;
 
-    struct BlockHeader {
+    struct alignas(16) BlockHeader {
         size_t size;
         bool isFree;
         BlockHeader* next;

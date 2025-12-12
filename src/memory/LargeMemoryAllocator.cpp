@@ -296,6 +296,7 @@ void LargeMemoryAllocator::mergeAdjacentBlocks(BlockHeader* block) {
     MemoryChunk* chunk = block->chunk;
     char* chunkEnd = chunk->memory + chunk->size;
 
+    // Merge with next block if it's free and adjacent
     BlockHeader* next = (BlockHeader*)((char*)block + sizeof(BlockHeader) + block->size);
     if ((char*)next < chunkEnd && next->isFree && next->chunk == chunk) {
         block->size += sizeof(BlockHeader) + next->size;
@@ -312,29 +313,36 @@ void LargeMemoryAllocator::mergeAdjacentBlocks(BlockHeader* block) {
         block->next = next->next;
     }
 
-    BlockHeader* current = (BlockHeader*)chunk->memory;
-    while ((char*)current < chunkEnd) {
-        BlockHeader* nextBlock = (BlockHeader*)((char*)current + sizeof(BlockHeader) + current->size);
-        if (nextBlock == block && current->isFree && current->chunk == chunk) {
-            current->size += sizeof(BlockHeader) + block->size;
+    // Merge with previous block if it's free and adjacent
+    // Only need to check if we're not at the start of the chunk
+    if ((char*)block > chunk->memory) {
+        BlockHeader* current = (BlockHeader*)chunk->memory;
+        while ((char*)current < (char*)block) {
+            BlockHeader* nextBlock = (BlockHeader*)((char*)current + sizeof(BlockHeader) + current->size);
+            
+            // Found the block immediately before us
+            if (nextBlock == block && current->isFree && current->chunk == chunk) {
+                current->size += sizeof(BlockHeader) + block->size;
 
-            if (block->prev && block->prev != current) {
-                block->prev->next = block->next;
+                if (block->prev && block->prev != current) {
+                    block->prev->next = block->next;
+                }
+                if (block->next) {
+                    block->next->prev = block->prev ? block->prev : current;
+                }
+                if (m_freeList == block) {
+                    m_freeList = current;
+                }
+                current->next = block->next;
+                break;
             }
-            if (block->next) {
-                block->next->prev = block->prev ? block->prev : current;
-            }
-            if (m_freeList == block) {
-                m_freeList = current;
-            }
-            current->next = block->next;
-            break;
-        }
 
-        if ((char*)nextBlock >= chunkEnd) {
-            break;
+            // Move to next block - add bounds check to prevent infinite loop
+            if ((char*)nextBlock >= chunkEnd || (char*)nextBlock <= (char*)current) {
+                break;
+            }
+            current = nextBlock;
         }
-        current = nextBlock;
     }
 }
 

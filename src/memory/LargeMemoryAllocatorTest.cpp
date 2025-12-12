@@ -214,22 +214,21 @@ void testAlignment() {
     TEST("alignment");
     LargeMemoryAllocator allocator(1024 * 1024);
     
-    // Note: LargeMemoryAllocator has a bug - it promises 16-byte alignment
-    // but actually only provides 8-byte alignment due to BlockHeader size
-    // BlockHeader contains pointers which are 8-byte aligned on 64-bit systems
+    // LargeMemoryAllocator should provide 16-byte alignment
+    // BlockHeader is now aligned to 16 bytes using alignas(16)
     
     // Allocate various sizes
     for (size_t size = 1; size <= 256; size *= 2) {
         void* ptr = allocator.allocate(size);
         assert(ptr != nullptr);
         
-        // Check actual alignment (8-byte on 64-bit systems)
+        // Check alignment
         uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
         std::cout << "  Size " << size << " -> address " << ptr 
                   << " (%" << (addr % 16 == 0 ? "16" : "8") << ")" << std::endl;
         
-        // At minimum should be 8-byte aligned
-        assert((addr % 8) == 0);
+        // Should be 16-byte aligned
+        assert((addr % 16) == 0);
         
         allocator.free(ptr);
     }
@@ -258,28 +257,16 @@ void testManySmallAllocations() {
     PASS();
 }
 
-// Test that demonstrates the infinite loop bug with 32+ allocations
+// Test that previously demonstrated the infinite loop bug with 32+ allocations
 void testInfiniteLoopBugWith32PlusAllocations() {
-    TEST("infinite loop bug with 32+ allocations (KNOWN BUG - WILL TIMEOUT)");
+    TEST("32+ allocations (previously triggered infinite loop bug)");
     
-    // This test is expected to hang/timeout due to the infinite loop bug
-    // in mergeAdjacentBlocks when growing capacity beyond 32 items
-    
-    std::cout << "  ⚠ WARNING: This test will hang due to infinite loop in mergeAdjacentBlocks" << std::endl;
-    std::cout << "  ⚠ The bug occurs when Vector capacity grows: 8->16->32->64" << std::endl;
-    std::cout << "  ⚠ At 33 items, Vector needs capacity 64, triggering the bug" << std::endl;
-    std::cout << "  ⚠ Skipping this test to avoid hanging the test suite" << std::endl;
-    
-    FAIL("Skipped due to known infinite loop bug");
-    
-    /* This code would hang:
     LargeMemoryAllocator allocator(1024 * 1024);
     
-    const int count = 40; // This will trigger the bug
+    const int count = 40; // This previously triggered the bug
     std::vector<void*> ptrs;
     
     for (int i = 0; i < count; ++i) {
-        std::cout << "  Allocation " << i << "..." << std::endl;
         void* ptr = allocator.allocate(32);
         assert(ptr != nullptr);
         ptrs.push_back(ptr);
@@ -288,7 +275,8 @@ void testInfiniteLoopBugWith32PlusAllocations() {
     for (void* ptr : ptrs) {
         allocator.free(ptr);
     }
-    */
+    
+    PASS();
 }
 
 // Test chunk removal threshold
@@ -420,20 +408,27 @@ void testFragmentation() {
     PASS();
 }
 
-// Test the specific sequence that triggers the bug
+// Test the specific sequence that previously triggered the bug
 void testBugTriggeringSequence() {
     TEST("bug-triggering sequence (growth from 32 to 64 capacity)");
     
-    std::cout << "  Testing the exact sequence that triggers infinite loop:" << std::endl;
-    std::cout << "  - Allocate 32 items (fits in capacity 32)" << std::endl;
-    std::cout << "  - Allocate 33rd item (requires capacity 64)" << std::endl;
-    std::cout << "  - Vector allocates new 64-item buffer" << std::endl;
-    std::cout << "  - Vector frees old 32-item buffer" << std::endl;
-    std::cout << "  - LargeMemoryAllocator::free calls mergeAdjacentBlocks" << std::endl;
-    std::cout << "  - mergeAdjacentBlocks enters infinite loop" << std::endl;
-    std::cout << "  ⚠ Skipping actual execution to avoid hang" << std::endl;
+    LargeMemoryAllocator allocator(1024 * 1024);
+    std::vector<void*> ptrs;
     
-    FAIL("Skipped due to known infinite loop bug");
+    // Allocate 32 items
+    for (int i = 0; i < 32; ++i) {
+        ptrs.push_back(allocator.allocate(32));
+    }
+    
+    // Allocate 33rd item - previously triggered infinite loop during realloc
+    ptrs.push_back(allocator.allocate(32));
+    
+    // Free all
+    for (void* ptr : ptrs) {
+        allocator.free(ptr);
+    }
+    
+    PASS();
 }
 
 // Test best-fit allocation strategy
@@ -529,10 +524,10 @@ int main() {
     std::cout << "Tests passed: " << testsPassed << std::endl;
     std::cout << "Tests failed: " << testsFailed << std::endl;
     
-    if (testsFailed > 0) {
-        std::cout << "\n⚠ WARNING: " << testsFailed << " test(s) failed" << std::endl;
-        std::cout << "Some failures are expected due to known bugs:" << std::endl;
-        std::cout << "  - Infinite loop in mergeAdjacentBlocks with 32+ allocations" << std::endl;
+    if (testsFailed == 0) {
+        std::cout << "\n✓ All tests passed!" << std::endl;
+    } else {
+        std::cout << "\n✗ " << testsFailed << " test(s) failed" << std::endl;
     }
     
     std::cout << "========================================" << std::endl;
