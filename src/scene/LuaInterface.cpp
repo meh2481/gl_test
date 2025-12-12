@@ -559,7 +559,7 @@ void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
                   });
 
         // Extract just the pipeline IDs in sorted order
-        Vector<uint64_t> pipelineIds(*stringAllocator_);
+        Vector<uint64_t> pipelineIds(*stringAllocator_, "LuaInterface::lua_renderSceneLayer::pipelineIds");
         for (const auto& pair : sortedPipelines) {
             pipelineIds.push_back(pair.first);
         }

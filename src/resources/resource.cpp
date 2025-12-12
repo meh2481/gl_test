@@ -146,7 +146,7 @@ ResourceData PakResource::getResource(uint64_t id) {
                 }
                 // Cache miss - decompress
                 std::cout << "Resource " << id << ": cache miss, decompressing " << comp->compressedSize << " -> " << comp->decompressedSize << " bytes" << std::endl;
-                Vector<char> decompressed(*m_allocator);
+                Vector<char> decompressed(*m_allocator, "ResourceManager::getResource::decompressed");
                 decompressed.resize(comp->decompressedSize);
                 int result = LZ4_decompress_safe(compressedData, decompressed.data(), comp->compressedSize, comp->decompressedSize);
                 if (result != (int)comp->decompressedSize) {

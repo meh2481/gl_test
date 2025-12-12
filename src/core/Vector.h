@@ -9,11 +9,12 @@
 template<typename T>
 class Vector {
 public:
-    explicit Vector(MemoryAllocator& allocator)
+    explicit Vector(MemoryAllocator& allocator, const char* callerId = nullptr)
         : data_(nullptr)
         , size_(0)
         , capacity_(0)
-        , allocator_(&allocator) {
+        , allocator_(&allocator)
+        , callerId_(callerId) {
     }
 
     ~Vector() {
@@ -29,7 +30,8 @@ public:
         : data_(nullptr)
         , size_(0)
         , capacity_(0)
-        , allocator_(nullptr) {
+        , allocator_(nullptr)
+        , callerId_(other.callerId_) {
         allocator_ = other.allocator_;
         reserve(other.size_);
         for (size_t i = 0; i < other.size_; ++i) {
@@ -60,11 +62,13 @@ public:
         : data_(other.data_)
         , size_(other.size_)
         , capacity_(other.capacity_)
-        , allocator_(other.allocator_) {
+        , allocator_(other.allocator_)
+        , callerId_(other.callerId_) {
         other.data_ = nullptr;
         other.size_ = 0;
         other.capacity_ = 0;
         other.allocator_ = nullptr;
+        other.callerId_ = nullptr;
     }
 
     Vector& operator=(Vector&& other) noexcept {
@@ -77,10 +81,12 @@ public:
             size_ = other.size_;
             capacity_ = other.capacity_;
             allocator_ = other.allocator_;
+            callerId_ = other.callerId_;
             other.data_ = nullptr;
             other.size_ = 0;
             other.capacity_ = 0;
             other.allocator_ = nullptr;
+            other.callerId_ = nullptr;
         }
         return *this;
     }
@@ -179,7 +185,7 @@ public:
             return;
         }
 
-        T* newData = static_cast<T*>(allocator_->allocate(newCapacity * sizeof(T), "Vector.h:182"));
+        T* newData = static_cast<T*>(allocator_->allocate(newCapacity * sizeof(T), callerId_ ? callerId_ : "Vector.h:182"));
         assert(newData != nullptr || newCapacity == 0);
         for (size_t i = 0; i < size_; ++i) {
             new (&newData[i]) T(static_cast<T&&>(data_[i]));
@@ -239,7 +245,7 @@ public:
                 }
                 capacity_ = 0;
             } else {
-                T* newData = static_cast<T*>(allocator_->allocate(size_ * sizeof(T), "Vector.h:242"));
+                T* newData = static_cast<T*>(allocator_->allocate(size_ * sizeof(T), callerId_ ? callerId_ : "Vector.h:242"));
                 assert(newData != nullptr);
                 for (size_t i = 0; i < size_; ++i) {
                     new (&newData[i]) T(static_cast<T&&>(data_[i]));
@@ -323,4 +329,5 @@ private:
     size_t size_;
     size_t capacity_;
     MemoryAllocator* allocator_;
+    const char* callerId_;
 };

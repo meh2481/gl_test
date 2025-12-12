@@ -48,9 +48,13 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
 Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator) : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
                                 timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
                                 nextForceFieldId_(0), stringAllocator_(allocator),
-                                debugLineVertices_(*allocator), debugTriangleVertices_(*allocator),
-                                collisionHitEvents_(*allocator), fractureEvents_(*allocator),
-                                pendingDestructions_(*allocator), fragmentBodyIds_(*allocator), fragmentLayerIds_(*allocator) {
+                                debugLineVertices_(*allocator, "Box2DPhysics::debugLineVertices_"),
+                                debugTriangleVertices_(*allocator, "Box2DPhysics::debugTriangleVertices_"),
+                                collisionHitEvents_(*allocator, "Box2DPhysics::collisionHitEvents_"),
+                                fractureEvents_(*allocator, "Box2DPhysics::fractureEvents_"),
+                                pendingDestructions_(*allocator, "Box2DPhysics::pendingDestructions_"),
+                                fragmentBodyIds_(*allocator, "Box2DPhysics::fragmentBodyIds_"),
+                                fragmentLayerIds_(*allocator, "Box2DPhysics::fragmentLayerIds_") {
     assert(stringAllocator_ != nullptr);
     std::cout << "Box2DPhysics: Using shared memory allocator" << std::endl;
     b2WorldDef worldDef = b2DefaultWorldDef();
@@ -1923,7 +1927,7 @@ void Box2DPhysics::processFractures() {
     }
 
     // Destroy joints attached to pending destruction bodies
-    Vector<int> jointsToDestroy(*stringAllocator_);
+    Vector<int> jointsToDestroy(*stringAllocator_, "Box2DPhysics::processCollisions::jointsToDestroy");
     for (int bodyId : pendingDestructions_) {
         auto bodyIt = bodies_.find(bodyId);
         if (bodyIt != bodies_.end()) {
@@ -1954,7 +1958,7 @@ void Box2DPhysics::processFractures() {
 void Box2DPhysics::clearAllForceFields() {
     SDL_LockMutex(physicsMutex_);
 
-    Vector<int> fieldIds(*stringAllocator_);
+    Vector<int> fieldIds(*stringAllocator_, "Box2DPhysics::clearAllForceFields::fieldIds");
     for (auto& pair : forceFields_) {
         fieldIds.push_back(pair.first);
     }
@@ -1969,7 +1973,7 @@ void Box2DPhysics::clearAllForceFields() {
 void Box2DPhysics::clearAllRadialForceFields() {
     SDL_LockMutex(physicsMutex_);
 
-    Vector<int> fieldIds(*stringAllocator_);
+    Vector<int> fieldIds(*stringAllocator_, "Box2DPhysics::clearAllRadialForceFields::fieldIds");
     for (auto& pair : radialForceFields_) {
         fieldIds.push_back(pair.first);
     }
@@ -1985,11 +1989,11 @@ void Box2DPhysics::reset() {
     SDL_LockMutex(physicsMutex_);
 
     // Destroy all force fields first (uses bodies)
-    Vector<int> forceFieldIds(*stringAllocator_);
+    Vector<int> forceFieldIds(*stringAllocator_, "Box2DPhysics::reset::forceFieldIds");
     for (auto& pair : forceFields_) {
         forceFieldIds.push_back(pair.first);
     }
-    Vector<int> radialForceFieldIds(*stringAllocator_);
+    Vector<int> radialForceFieldIds(*stringAllocator_, "Box2DPhysics::reset::radialForceFieldIds");
     for (auto& pair : radialForceFields_) {
         radialForceFieldIds.push_back(pair.first);
     }
@@ -2006,7 +2010,7 @@ void Box2DPhysics::reset() {
     SDL_LockMutex(physicsMutex_);
 
     // Destroy all joints
-    Vector<int> jointIds(*stringAllocator_);
+    Vector<int> jointIds(*stringAllocator_, "Box2DPhysics::reset::jointIds");
     for (auto& pair : joints_) {
         jointIds.push_back(pair.first);
     }
@@ -2020,7 +2024,7 @@ void Box2DPhysics::reset() {
     SDL_LockMutex(physicsMutex_);
 
     // Destroy all bodies
-    Vector<int> bodyIds(*stringAllocator_);
+    Vector<int> bodyIds(*stringAllocator_, "Box2DPhysics::reset::bodyIds");
     for (auto& pair : bodies_) {
         bodyIds.push_back(pair.first);
     }
@@ -2092,7 +2096,7 @@ void Box2DPhysics::addBodyType(int bodyId, const char* type) {
     auto it = bodyTypes_.find(bodyId);
     if (it == bodyTypes_.end()) {
         // Create new vector for this body
-        Vector<String> types(*stringAllocator_);
+        Vector<String> types(*stringAllocator_, "Box2DPhysics::addBodyType::types");
         String typeStr(type, stringAllocator_);
         types.push_back(typeStr);
         bodyTypes_.insert({bodyId, std::move(types)});
@@ -2160,7 +2164,7 @@ bool Box2DPhysics::bodyHasType(int bodyId, const char* type) const {
 Vector<String> Box2DPhysics::getBodyTypes(int bodyId) const {
     SDL_LockMutex(physicsMutex_);
     auto it = bodyTypes_.find(bodyId);
-    Vector<String> result(*stringAllocator_);
+    Vector<String> result(*stringAllocator_, "Box2DPhysics::getBodyTypes::result");
     if (it != bodyTypes_.end()) {
         result = it->second;
     }
