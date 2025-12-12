@@ -58,6 +58,7 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
 
 VulkanRenderer::VulkanRenderer(MemoryAllocator* allocator) :
     m_pipelineManager(allocator),
+    m_lightManager(allocator),
     m_instance(VK_NULL_HANDLE),
     m_surface(VK_NULL_HANDLE),
     m_physicalDevice(VK_NULL_HANDLE),

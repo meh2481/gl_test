@@ -72,16 +72,18 @@ inline uint32_t hashKey<int>(const int& key) {
 template<typename K, typename V>
 class HashTable {
 public:
-    // Constructor with custom allocator
-    explicit HashTable(MemoryAllocator& allocator)
+    // Constructor with custom allocator and allocation ID
+    explicit HashTable(MemoryAllocator& allocator, const char* callerId)
         : keys_(nullptr)
         , values_(nullptr)
         , occupied_(nullptr)
         , capacity_(0)
         , size_(0)
         , allocator_(&allocator)
+        , callerId_(callerId)
     {
         assert(allocator_ != nullptr);
+        assert(callerId_ != nullptr);
         // Start with a reasonable default capacity
         reserve(16);
     }
@@ -271,9 +273,9 @@ public:
         }
 
         // Allocate new arrays
-        K* newKeys = static_cast<K*>(allocator_->allocate(n * sizeof(K), "HashTable.h:274"));
-        V* newValues = static_cast<V*>(allocator_->allocate(n * sizeof(V), "HashTable.h:275"));
-        bool* newOccupied = static_cast<bool*>(allocator_->allocate(n * sizeof(bool), "HashTable.h:276"));
+        K* newKeys = static_cast<K*>(allocator_->allocate(n * sizeof(K), callerId_));
+        V* newValues = static_cast<V*>(allocator_->allocate(n * sizeof(V), callerId_));
+        bool* newOccupied = static_cast<bool*>(allocator_->allocate(n * sizeof(bool), callerId_));
 
         assert(newKeys != nullptr);
         assert(newValues != nullptr);
@@ -445,4 +447,5 @@ private:
     uint32_t size_;
 
     MemoryAllocator* allocator_;
+    const char* callerId_;
 };

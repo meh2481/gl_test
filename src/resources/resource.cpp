@@ -15,11 +15,16 @@
 #include <unistd.h>
 #endif
 
-PakResource::PakResource(MemoryAllocator* allocator) : m_pakData{nullptr, 0}, m_allocator(allocator)
+PakResource::PakResource(MemoryAllocator* allocator)
+    : m_pakData{nullptr, 0}
+    , m_decompressedData(*allocator, "PakResource::m_decompressedData")
+    , m_atlasUVCache(*allocator, "PakResource::m_atlasUVCache")
+    , m_allocator(allocator)
 #ifdef _WIN32
-, m_hFile(INVALID_HANDLE_VALUE), m_hMapping(NULL)
+    , m_hFile(INVALID_HANDLE_VALUE)
+    , m_hMapping(NULL)
 #else
-, m_fd(-1)
+    , m_fd(-1)
 #endif
 {
     assert(m_allocator != nullptr);
@@ -137,10 +142,10 @@ ResourceData PakResource::getResource(uint64_t id) {
                 return result;
             } else if (comp->compressionType == COMPRESSION_FLAGS_LZ4) {
                 // Check if already decompressed (cache hit)
-                auto it = m_decompressedData.find(id);
-                if (it != m_decompressedData.end()) {
+                Vector<char>* cachedData = m_decompressedData.find(id);
+                if (cachedData != nullptr) {
                     std::cout << "Resource " << id << ": cache hit (" << comp->decompressedSize << " bytes)" << std::endl;
-                    ResourceData result = ResourceData{(char*)it->second.data(), comp->decompressedSize, comp->type};
+                    ResourceData result = ResourceData{(char*)cachedData->data(), comp->decompressedSize, comp->type};
                     SDL_UnlockMutex(m_mutex);
                     return result;
                 }
@@ -155,9 +160,10 @@ ResourceData PakResource::getResource(uint64_t id) {
                     assert(false);
                     return ResourceData{nullptr, 0, 0};
                 }
-                m_decompressedData.insert({id, std::move(decompressed)});
-                it = m_decompressedData.find(id);
-                ResourceData resData = ResourceData{(char*)it->second.data(), comp->decompressedSize, comp->type};
+                m_decompressedData.insert(id, std::move(decompressed));
+                cachedData = m_decompressedData.find(id);
+                assert(cachedData != nullptr);
+                ResourceData resData = ResourceData{(char*)cachedData->data(), comp->decompressedSize, comp->type};
                 SDL_UnlockMutex(m_mutex);
                 return resData;
             }
@@ -174,9 +180,9 @@ bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
     SDL_LockMutex(m_mutex);
 
     // Check cache first
-    auto cacheIt = m_atlasUVCache.find(textureId);
-    if (cacheIt != m_atlasUVCache.end()) {
-        uv = cacheIt->second;
+    AtlasUV* cachedUV = m_atlasUVCache.find(textureId);
+    if (cachedUV != nullptr) {
+        uv = *cachedUV;
         SDL_UnlockMutex(m_mutex);
         return true;
     }
@@ -230,7 +236,7 @@ bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
 
         // Cache the result
         SDL_LockMutex(m_mutex);
-        m_atlasUVCache[textureId] = uv;
+        m_atlasUVCache.insert(textureId, uv);
         SDL_UnlockMutex(m_mutex);
 
         return true;
@@ -282,7 +288,7 @@ void PakResource::preloadResourceAsync(uint64_t id) {
 
 bool PakResource::isResourceReady(uint64_t id) {
     SDL_LockMutex(m_mutex);
-    bool ready = m_decompressedData.find(id) != m_decompressedData.end();
+    bool ready = m_decompressedData.find(id) != nullptr;
     SDL_UnlockMutex(m_mutex);
     return ready;
 }

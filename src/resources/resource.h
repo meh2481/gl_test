@@ -2,9 +2,9 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <map>
 #include <SDL3/SDL.h>
 #include "../core/Vector.h"
+#include "../core/HashTable.h"
 
 // Forward declarations
 class MemoryAllocator;
@@ -46,8 +46,8 @@ public:
 
 private:
     ResourceData m_pakData;
-    std::map<uint64_t, Vector<char>> m_decompressedData;
-    std::map<uint64_t, AtlasUV> m_atlasUVCache;  // Cache of atlas UV lookups
+    HashTable<uint64_t, Vector<char>> m_decompressedData;
+    HashTable<uint64_t, AtlasUV> m_atlasUVCache;  // Cache of atlas UV lookups
     SDL_Mutex* m_mutex;
     MemoryAllocator* m_allocator;
 
