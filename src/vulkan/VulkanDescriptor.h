@@ -2,7 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include "../core/Vector.h"
-#include <map>
+#include "../core/HashTable.h"
 #include <vector>
 #include <cstdint>
 
@@ -13,7 +13,7 @@ class MemoryAllocator;
 // Helper class for managing Vulkan descriptor sets, pools, and layouts
 class VulkanDescriptor {
 public:
-    VulkanDescriptor();
+    VulkanDescriptor(MemoryAllocator* allocator);
     ~VulkanDescriptor();
 
     // Initialization - must be called before any other operations
@@ -81,13 +81,13 @@ private:
     // Single texture descriptors
     VkDescriptorSetLayout m_singleTextureDescriptorSetLayout;
     VkDescriptorPool m_singleTextureDescriptorPool;
-    std::map<uint64_t, VkDescriptorSet> m_singleTextureDescriptorSets;
+    HashTable<uint64_t, VkDescriptorSet> m_singleTextureDescriptorSets;
     VkPipelineLayout m_singleTexturePipelineLayout;
 
     // Dual texture descriptors
     VkDescriptorSetLayout m_dualTextureDescriptorSetLayout;
     VkDescriptorPool m_dualTextureDescriptorPool;
-    std::map<uint64_t, VkDescriptorSet> m_dualTextureDescriptorSets;
+    HashTable<uint64_t, VkDescriptorSet> m_dualTextureDescriptorSets;
     VkPipelineLayout m_dualTexturePipelineLayout;
 
     // Animation pipeline layouts (extended push constants)
@@ -98,4 +98,6 @@ private:
     VkDescriptorSetLayout m_lightDescriptorSetLayout;
     VkDescriptorPool m_lightDescriptorPool;
     VkDescriptorSet m_lightDescriptorSet;
+
+    MemoryAllocator* m_allocator;
 };
