@@ -427,6 +427,7 @@ SmallAllocator::MemoryPoolInfo* SmallAllocator::getPoolInfo(size_t* outPoolCount
             poolInfo[i].blocks[j].offset = (char*)block - pool->memory;
             poolInfo[i].blocks[j].size = block->size;
             poolInfo[i].blocks[j].isFree = block->isFree;
+            poolInfo[i].blocks[j].allocationId = block->allocationId;
             block = block->next;
         }
 
