@@ -106,3 +106,6 @@ add_custom_target(clean-all
 # Vector unit tests
 add_executable(vector_test src/core/VectorTest.cpp src/memory/SmallAllocator.cpp src/memory/LargeMemoryAllocator.cpp)
 target_link_libraries(vector_test ${SDL3_LIBRARIES})
+
+add_executable(largememory_test src/memory/LargeMemoryAllocatorTest.cpp src/memory/LargeMemoryAllocator.cpp src/memory/SmallAllocator.cpp)
+target_link_libraries(largememory_test ${SDL3_LIBRARIES})
