@@ -103,7 +103,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         }
 
         // Generate sprite batches grouped by texture
-        Vector<SpriteBatch> spriteBatches(*luaInterface_->getStringAllocator());
+        Vector<SpriteBatch> spriteBatches(*luaInterface_->getStringAllocator(), "SceneManager::render::spriteBatches");
         float cameraX = luaInterface_->getCameraOffsetX();
         float cameraY = luaInterface_->getCameraOffsetY();
         float cameraZoom = luaInterface_->getCameraZoom();
@@ -130,7 +130,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         }
 
         // Generate particle batches - one per particle system for proper parallax sorting
-        Vector<ParticleBatch> particleBatches(*luaInterface_->getStringAllocator());
+        Vector<ParticleBatch> particleBatches(*luaInterface_->getStringAllocator(), "SceneManager::render::particleBatches");
 
         for (int i = 0; i < particleManager.getSystemCount(); ++i) {
             ParticleSystem* system = &particleManager.getSystems()[i];
@@ -244,7 +244,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {
             const Vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
-            Vector<float> lineVertexData(*luaInterface_->getStringAllocator());
+            Vector<float> lineVertexData(*luaInterface_->getStringAllocator(), "SceneManager::render::lineVertexData");
             lineVertexData.reserve(debugLineVerts.size() * 6);
             for (const auto& v : debugLineVerts) {
                 lineVertexData.push_back(v.x);
@@ -257,7 +257,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             renderer_.setDebugLineDrawData(lineVertexData);
 
             const Vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
-            Vector<float> triangleVertexData(*luaInterface_->getStringAllocator());
+            Vector<float> triangleVertexData(*luaInterface_->getStringAllocator(), "SceneManager::render::triangleVertexData");
             triangleVertexData.reserve(debugTriangleVerts.size() * 6);
             for (size_t i = 0; i < debugTriangleVerts.size(); i += 3) {
                 // Reverse winding order: v0, v2, v1 instead of v0, v1, v2
@@ -289,7 +289,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             renderer_.setDebugTriangleDrawData(triangleVertexData);
         } else {
             // Clear debug draw data
-            Vector<float> emptyData(*luaInterface_->getStringAllocator());
+            Vector<float> emptyData(*luaInterface_->getStringAllocator(), "SceneManager::render::emptyData");
             renderer_.setDebugLineDrawData(emptyData);
             renderer_.setDebugTriangleDrawData(emptyData);
         }

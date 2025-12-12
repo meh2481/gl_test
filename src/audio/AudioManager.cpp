@@ -283,7 +283,7 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     int sampleRate = 48000; // OPUS always decodes to 48kHz
 
     // Read all audio data
-    Vector<opus_int16> pcmData(*allocator_);
+    Vector<opus_int16> pcmData(*allocator_, "AudioManager::playMusic::pcmData");
     const int bufferSize = 5760 * channels; // Max frame size for 120ms at 48kHz
     opus_int16 buffer[bufferSize];
 

@@ -1004,8 +1004,8 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
 
     m_spriteBatches.clear();
 
-    Vector<float> allVertexData(*m_allocator);
-    Vector<uint16_t> allIndices(*m_allocator);
+    Vector<float> allVertexData(*m_allocator, "VulkanRenderer::generateSpriteBatches::allVertexData");
+    Vector<uint16_t> allIndices(*m_allocator, "VulkanRenderer::generateSpriteBatches::allIndices");
     uint32_t baseVertex = 0;
 
     for (const auto& batch : batches) {
@@ -1077,8 +1077,8 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
 
     m_particleBatches.clear();
 
-    Vector<float> allVertexData(*m_allocator);
-    Vector<uint16_t> allIndices(*m_allocator);
+    Vector<float> allVertexData(*m_allocator, "VulkanRenderer::generateParticleBatches::allVertexData");
+    Vector<uint16_t> allIndices(*m_allocator, "VulkanRenderer::generateParticleBatches::allIndices");
     uint32_t baseVertex = 0;
 
     for (const auto& batch : batches) {

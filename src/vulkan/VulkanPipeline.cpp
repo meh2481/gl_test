@@ -111,8 +111,8 @@ void VulkanPipeline::createBasePipelineLayout() {
 }
 
 void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline) {
-    Vector<char> vertData(*m_allocator);
-    Vector<char> fragData(*m_allocator);
+    Vector<char> vertData(*m_allocator, "VulkanPipeline::createPipeline::vertData");
+    Vector<char> fragData(*m_allocator, "VulkanPipeline::createPipeline::fragData");
     for (size_t i = 0; i < vertShader.size; ++i) {
         vertData.push_back(vertShader.data[i]);
     }

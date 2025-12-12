@@ -9,7 +9,7 @@
 template<typename T>
 class Vector {
 public:
-    explicit Vector(MemoryAllocator& allocator, const char* callerId = nullptr)
+    explicit Vector(MemoryAllocator& allocator, const char* callerId)
         : data_(nullptr)
         , size_(0)
         , capacity_(0)
@@ -185,7 +185,7 @@ public:
             return;
         }
 
-        T* newData = static_cast<T*>(allocator_->allocate(newCapacity * sizeof(T), callerId_ ? callerId_ : "Vector.h:182"));
+        T* newData = static_cast<T*>(allocator_->allocate(newCapacity * sizeof(T), callerId_));
         assert(newData != nullptr || newCapacity == 0);
         for (size_t i = 0; i < size_; ++i) {
             new (&newData[i]) T(static_cast<T&&>(data_[i]));
@@ -245,7 +245,7 @@ public:
                 }
                 capacity_ = 0;
             } else {
-                T* newData = static_cast<T*>(allocator_->allocate(size_ * sizeof(T), callerId_ ? callerId_ : "Vector.h:242"));
+                T* newData = static_cast<T*>(allocator_->allocate(size_ * sizeof(T), callerId_));
                 assert(newData != nullptr);
                 for (size_t i = 0; i < size_; ++i) {
                     new (&newData[i]) T(static_cast<T&&>(data_[i]));

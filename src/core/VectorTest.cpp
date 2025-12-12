@@ -75,7 +75,7 @@ void testBasicConstructDestruct() {
     SmallAllocator allocator;
 
     {
-        Vector<int> vec(allocator);
+        Vector<int> vec(allocator, "VectorTest.cpp:78:vec");
         assert(vec.size() == 0);
         assert(vec.capacity() == 0);
         assert(vec.empty());
@@ -90,7 +90,7 @@ void testPushBackPrimitive() {
     std::cout << "Testing push_back with primitive types..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:93:vec");
     vec.push_back(1);
     assert(vec.size() == 1);
     assert(vec[0] == 1);
@@ -118,7 +118,7 @@ void testPushBackObject() {
     TestObject::reset();
 
     {
-        Vector<TestObject> vec(allocator);
+        Vector<TestObject> vec(allocator, "VectorTest.cpp:121:vec");
         vec.push_back(TestObject(42));
         assert(vec.size() == 1);
         assert(vec[0].value == 42);
@@ -138,7 +138,7 @@ void testPopBack() {
     std::cout << "Testing pop_back..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:141:vec");
     vec.push_back(1);
     vec.push_back(2);
     vec.push_back(3);
@@ -165,7 +165,7 @@ void testIndexOperator() {
     std::cout << "Testing operator[]..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:168:vec");
     for (int i = 0; i < 10; ++i) {
         vec.push_back(i * 2);
     }
@@ -188,7 +188,7 @@ void testAt() {
     std::cout << "Testing at()..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:191:vec");
     vec.push_back(10);
     vec.push_back(20);
 
@@ -209,7 +209,7 @@ void testFrontBack() {
     std::cout << "Testing front() and back()..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:212:vec");
     vec.push_back(1);
     assert(vec.front() == 1);
     assert(vec.back() == 1);
@@ -235,7 +235,7 @@ void testData() {
     std::cout << "Testing data()..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:238:vec");
     vec.push_back(1);
     vec.push_back(2);
     vec.push_back(3);
@@ -262,7 +262,7 @@ void testClear() {
     TestObject::reset();
 
     {
-        Vector<TestObject> vec(allocator);
+        Vector<TestObject> vec(allocator, "VectorTest.cpp:265:vec");
         for (int i = 0; i < 10; ++i) {
             vec.push_back(TestObject(i));
         }
@@ -284,7 +284,7 @@ void testReserve() {
     std::cout << "Testing reserve()..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:287:vec");
     assert(vec.capacity() == 0);
 
     vec.reserve(10);
@@ -313,7 +313,7 @@ void testResize() {
     std::cout << "Testing resize()..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:316:vec");
     vec.resize(5);
     assert(vec.size() == 5);
     for (size_t i = 0; i < vec.size(); ++i) {
@@ -343,7 +343,7 @@ void testShrinkToFit() {
     std::cout << "Testing shrink_to_fit()..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:346:vec");
     vec.reserve(100);
     vec.push_back(1);
     vec.push_back(2);
@@ -367,7 +367,7 @@ void testErase() {
     std::cout << "Testing erase()..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:370:vec");
     for (int i = 0; i < 5; ++i) {
         vec.push_back(i);
     }
@@ -398,7 +398,7 @@ void testInsert() {
     std::cout << "Testing insert()..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:401:vec");
     vec.insert(0, 10);
     assert(vec.size() == 1);
     assert(vec[0] == 10);
@@ -429,7 +429,7 @@ void testIterators() {
     std::cout << "Testing iterators..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:432:vec");
     for (int i = 0; i < 5; ++i) {
         vec.push_back(i);
     }
@@ -455,7 +455,7 @@ void testCopyConstructor() {
     std::cout << "Testing copy constructor..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec1(allocator);
+    Vector<int> vec1(allocator, "VectorTest.cpp:458:vec1");
     for (int i = 0; i < 10; ++i) {
         vec1.push_back(i);
     }
@@ -477,12 +477,12 @@ void testCopyAssignment() {
     std::cout << "Testing copy assignment..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec1(allocator);
+    Vector<int> vec1(allocator, "VectorTest.cpp:480:vec1");
     for (int i = 0; i < 10; ++i) {
         vec1.push_back(i);
     }
 
-    Vector<int> vec2(allocator);
+    Vector<int> vec2(allocator, "VectorTest.cpp:485:vec2");
     vec2.push_back(999);
     vec2 = vec1;
 
@@ -505,7 +505,7 @@ void testMoveConstructor() {
     std::cout << "Testing move constructor..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec1(allocator);
+    Vector<int> vec1(allocator, "VectorTest.cpp:508:vec1");
     for (int i = 0; i < 10; ++i) {
         vec1.push_back(i);
     }
@@ -534,7 +534,7 @@ void testMoveAssignment() {
     std::cout << "Testing move assignment..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec1(allocator);
+    Vector<int> vec1(allocator, "VectorTest.cpp:537:vec1");
     for (int i = 0; i < 10; ++i) {
         vec1.push_back(i);
     }
@@ -542,7 +542,7 @@ void testMoveAssignment() {
     size_t oldSize = vec1.size();
     size_t oldCapacity = vec1.capacity();
 
-    Vector<int> vec2(allocator);
+    Vector<int> vec2(allocator, "VectorTest.cpp:545:vec2");
     vec2.push_back(999);
     vec2 = std::move(vec1);
 
@@ -571,7 +571,7 @@ void testWithStdMap() {
 
     {
         std::map<int, Vector<int>> map;
-        Vector<int> vec(allocator);
+        Vector<int> vec(allocator, "VectorTest.cpp:574:vec");
         vec.push_back(1);
         vec.push_back(2);
         vec.push_back(3);
@@ -582,7 +582,7 @@ void testWithStdMap() {
         assert(it->second.size() == 3);
         assert(it->second[0] == 1);
 
-        Vector<int> vec2(allocator);
+        Vector<int> vec2(allocator, "VectorTest.cpp:585:vec2");
         vec2.push_back(10);
         vec2.push_back(20);
         map.insert(std::make_pair(2, std::move(vec2)));
@@ -608,7 +608,7 @@ void testWithStdUnorderedMap() {
 
     {
         std::unordered_map<int, Vector<int>> map;
-        Vector<int> vec(allocator);
+        Vector<int> vec(allocator, "VectorTest.cpp:611:vec");
         vec.push_back(1);
         vec.push_back(2);
 
@@ -617,7 +617,7 @@ void testWithStdUnorderedMap() {
         assert(it != map.end());
         assert(it->second.size() == 2);
 
-        Vector<int> vec2(allocator);
+        Vector<int> vec2(allocator, "VectorTest.cpp:620:vec2");
         vec2.push_back(10);
         map.insert(std::make_pair(2, std::move(vec2)));
         it = map.find(2);
@@ -636,14 +636,14 @@ void testNestedVectors() {
     SmallAllocator allocator;
 
     {
-        Vector<Vector<int>> outer(allocator);
+        Vector<Vector<int>> outer(allocator, "VectorTest.cpp:639:outer");
 
-        Vector<int> inner1(allocator);
+        Vector<int> inner1(allocator, "VectorTest.cpp:641:inner1");
         inner1.push_back(1);
         inner1.push_back(2);
         outer.push_back(std::move(inner1));
 
-        Vector<int> inner2(allocator);
+        Vector<int> inner2(allocator, "VectorTest.cpp:646:inner2");
         inner2.push_back(10);
         inner2.push_back(20);
         inner2.push_back(30);
@@ -664,7 +664,7 @@ void testCapacityGrowth() {
     std::cout << "Testing capacity growth..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:667:vec");
     assert(vec.capacity() == 0);
 
     vec.push_back(1);
@@ -689,7 +689,7 @@ void testWithLargeAllocator() {
     LargeMemoryAllocator allocator;
 
     {
-        Vector<int> vec(allocator);
+        Vector<int> vec(allocator, "VectorTest.cpp:692:vec");
         for (int i = 0; i < VEC_ITEMS; ++i) {
             vec.push_back(i);
         }
@@ -707,7 +707,7 @@ void testEmptyVector() {
     std::cout << "Testing empty vector operations..." << std::endl;
     SmallAllocator allocator;
 
-    Vector<int> vec(allocator);
+    Vector<int> vec(allocator, "VectorTest.cpp:710:vec");
     assert(vec.empty());
     assert(vec.size() == 0);
     assert(vec.capacity() == 0);
@@ -732,7 +732,7 @@ void testObjectLifecycle() {
     TestObject::reset();
 
     {
-        Vector<TestObject> vec(allocator);
+        Vector<TestObject> vec(allocator, "VectorTest.cpp:735:vec");
         vec.push_back(TestObject(1));
         vec.push_back(TestObject(2));
         vec.push_back(TestObject(3));
@@ -755,8 +755,8 @@ void testGetAllocator() {
     SmallAllocator allocator1;
     SmallAllocator allocator2;
 
-    Vector<int> vec1(allocator1);
-    Vector<int> vec2(allocator2);
+    Vector<int> vec1(allocator1, "VectorTest.cpp:758:vec1");
+    Vector<int> vec2(allocator2, "VectorTest.cpp:759:vec2");
 
     assert(&vec1.getAllocator() == &allocator1);
     assert(&vec2.getAllocator() == &allocator2);
