@@ -474,6 +474,11 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
         assert(false);
     }
 
+    // Destroy existing pipeline if it exists to prevent memory leaks
+    if (hasPipeline(id)) {
+        destroyPipeline(id);
+    }
+
     m_pipelines.insert(id, pipeline);
 
     void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createTexturedPipeline::PipelineInfo");
@@ -664,6 +669,11 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     if (result != VK_SUCCESS) {
         std::cerr << "vkCreateGraphicsPipelines (textured additive) failed: " << vkResultToString(result) << std::endl;
         assert(false);
+    }
+
+    // Destroy existing pipeline if it exists to prevent memory leaks
+    if (hasPipeline(id)) {
+        destroyPipeline(id);
     }
 
     m_pipelines.insert(id, pipeline);
@@ -859,6 +869,11 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
         assert(false);
     }
 
+    // Destroy existing pipeline if it exists to prevent memory leaks
+    if (hasPipeline(id)) {
+        destroyPipeline(id);
+    }
+
     m_pipelines.insert(id, pipeline);
 
     void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createAnimTexturedPipeline::PipelineInfo");
@@ -1032,6 +1047,11 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
     if (result != VK_SUCCESS) {
         std::cerr << "vkCreateGraphicsPipelines (particle) failed: " << vkResultToString(result) << std::endl;
         assert(false);
+    }
+
+    // Destroy existing pipeline if it exists to prevent memory leaks
+    if (hasPipeline(id)) {
+        destroyPipeline(id);
     }
 
     m_pipelines.insert(id, pipeline);
