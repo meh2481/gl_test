@@ -3,7 +3,7 @@
 #include <vulkan/vulkan.h>
 #include "../resources/resource.h"
 #include "../core/Vector.h"
-#include <map>
+#include "../core/HashTable.h"
 #include <set>
 #include <array>
 #include <cstdint>
@@ -114,24 +114,24 @@ private:
     VkPipelineLayout m_pipelineLayout;
 
     // Pipelines
-    std::map<uint64_t, VkPipeline> m_pipelines;
-    std::map<uint64_t, bool> m_debugPipelines;
+    HashTable<uint64_t, VkPipeline> m_pipelines;
+    HashTable<uint64_t, bool> m_debugPipelines;
     VkPipeline m_debugLinePipeline;
     VkPipeline m_debugTrianglePipeline;
     VkPipeline m_currentPipeline;
     Vector<uint64_t> m_pipelinesToDraw;
 
     // Pipeline info
-    std::map<uint64_t, PipelineInfo> m_pipelineInfo;
+    HashTable<uint64_t, PipelineInfo> m_pipelineInfo;
 
     // Per-pipeline shader parameters
-    std::map<int, std::array<float, 7>> m_pipelineShaderParams;
-    std::map<int, int> m_pipelineShaderParamCount;
-    std::map<int, float> m_pipelineParallaxDepth;
+    HashTable<int, std::array<float, 7>> m_pipelineShaderParams;
+    HashTable<int, int> m_pipelineShaderParamCount;
+    HashTable<int, float> m_pipelineParallaxDepth;
 
     // Per-pipeline water ripple data
-    std::map<int, std::array<ShaderRippleData, MAX_SHADER_RIPPLES>> m_pipelineWaterRipples;
-    std::map<int, int> m_pipelineWaterRippleCount;
+    HashTable<int, std::array<ShaderRippleData, MAX_SHADER_RIPPLES>> m_pipelineWaterRipples;
+    HashTable<int, int> m_pipelineWaterRippleCount;
 
     // Shader data storage
     Vector<char> m_vertShaderData;

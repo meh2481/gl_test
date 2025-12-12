@@ -23,10 +23,18 @@ VulkanPipeline::VulkanPipeline(MemoryAllocator* allocator) :
     m_descriptorManager(nullptr),
     m_initialized(false),
     m_pipelineLayout(VK_NULL_HANDLE),
+    m_pipelines(*allocator, "VulkanPipeline::m_pipelines"),
+    m_debugPipelines(*allocator, "VulkanPipeline::m_debugPipelines"),
     m_debugLinePipeline(VK_NULL_HANDLE),
     m_debugTrianglePipeline(VK_NULL_HANDLE),
     m_currentPipeline(VK_NULL_HANDLE),
     m_pipelinesToDraw(*allocator, "VulkanPipeline::m_pipelinesToDraw"),
+    m_pipelineInfo(*allocator, "VulkanPipeline::m_pipelineInfo"),
+    m_pipelineShaderParams(*allocator, "VulkanPipeline::m_pipelineShaderParams"),
+    m_pipelineShaderParamCount(*allocator, "VulkanPipeline::m_pipelineShaderParamCount"),
+    m_pipelineParallaxDepth(*allocator, "VulkanPipeline::m_pipelineParallaxDepth"),
+    m_pipelineWaterRipples(*allocator, "VulkanPipeline::m_pipelineWaterRipples"),
+    m_pipelineWaterRippleCount(*allocator, "VulkanPipeline::m_pipelineWaterRippleCount"),
     m_vertShaderData(*allocator, "VulkanPipeline::m_vertShaderData"),
     m_fragShaderData(*allocator, "VulkanPipeline::m_fragShaderData"),
     m_allocator(allocator)
@@ -46,9 +54,9 @@ void VulkanPipeline::init(VkDevice device, VkRenderPass renderPass, VkSampleCoun
 }
 
 void VulkanPipeline::cleanup() {
-    for (auto& pair : m_pipelines) {
-        if (pair.second != VK_NULL_HANDLE) {
-            vkDestroyPipeline(m_device, pair.second, nullptr);
+    for (auto it = m_pipelines.begin(); it != m_pipelines.end(); ++it) {
+        if (it.value() != VK_NULL_HANDLE) {
+            vkDestroyPipeline(m_device, it.value(), nullptr);
         }
     }
     m_pipelines.clear();
@@ -268,7 +276,7 @@ void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader,
             assert(false);
         }
 
-        m_debugPipelines[id] = true;
+        m_debugPipelines.insert(id, true);
     } else {
         VkPipeline pipeline;
         result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
@@ -277,8 +285,8 @@ void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader,
             assert(false);
         }
 
-        m_pipelines[id] = pipeline;
-        m_debugPipelines[id] = false;
+        m_pipelines.insert(id, pipeline);
+        m_debugPipelines.insert(id, false);
     }
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
@@ -460,7 +468,7 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
         assert(false);
     }
 
-    m_pipelines[id] = pipeline;
+    m_pipelines.insert(id, pipeline);
 
     PipelineInfo info;
     info.layout = pipelineLayout;
@@ -470,7 +478,7 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
     info.usesAnimationPushConstants = false;
     info.isParticlePipeline = false;
     info.isWaterPipeline = false;
-    m_pipelineInfo[id] = info;
+    m_pipelineInfo.insert(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
@@ -651,7 +659,7 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
         assert(false);
     }
 
-    m_pipelines[id] = pipeline;
+    m_pipelines.insert(id, pipeline);
 
     PipelineInfo info;
     info.layout = pipelineLayout;
@@ -661,7 +669,7 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     info.usesAnimationPushConstants = false;
     info.isParticlePipeline = false;
     info.isWaterPipeline = false;
-    m_pipelineInfo[id] = info;
+    m_pipelineInfo.insert(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
@@ -843,7 +851,7 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
         assert(false);
     }
 
-    m_pipelines[id] = pipeline;
+    m_pipelines.insert(id, pipeline);
 
     PipelineInfo info;
     info.layout = pipelineLayout;
@@ -853,7 +861,7 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
     info.usesAnimationPushConstants = true;
     info.isParticlePipeline = false;
     info.isWaterPipeline = false;
-    m_pipelineInfo[id] = info;
+    m_pipelineInfo.insert(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
@@ -1017,7 +1025,7 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
         assert(false);
     }
 
-    m_pipelines[id] = pipeline;
+    m_pipelines.insert(id, pipeline);
 
     PipelineInfo info;
     info.layout = m_descriptorManager->getSingleTexturePipelineLayout();
@@ -1027,80 +1035,75 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
     info.usesAnimationPushConstants = false;
     info.isParticlePipeline = true;
     info.isWaterPipeline = false;
-    m_pipelineInfo[id] = info;
+    m_pipelineInfo.insert(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
 }
 
 VkPipeline VulkanPipeline::getPipeline(uint64_t id) const {
-    auto it = m_pipelines.find(id);
-    if (it != m_pipelines.end()) {
-        return it->second;
+    const VkPipeline* pipelinePtr = m_pipelines.find(id);
+    if (pipelinePtr != nullptr) {
+        return *pipelinePtr;
     }
     return VK_NULL_HANDLE;
 }
 
 bool VulkanPipeline::hasPipeline(uint64_t id) const {
-    return m_pipelines.find(id) != m_pipelines.end();
+    return m_pipelines.find(id) != nullptr;
 }
 
 bool VulkanPipeline::isDebugPipeline(uint64_t id) const {
-    auto it = m_debugPipelines.find(id);
-    return it != m_debugPipelines.end() && it->second;
+    const bool* isDebugPtr = m_debugPipelines.find(id);
+    return isDebugPtr != nullptr && *isDebugPtr;
 }
 
 const PipelineInfo* VulkanPipeline::getPipelineInfo(uint64_t id) const {
-    auto it = m_pipelineInfo.find(id);
-    if (it != m_pipelineInfo.end()) {
-        return &it->second;
-    }
-    return nullptr;
+    return m_pipelineInfo.find(id);
 }
 
 PipelineInfo* VulkanPipeline::getPipelineInfoMutable(uint64_t id) {
-    auto it = m_pipelineInfo.find(id);
-    if (it != m_pipelineInfo.end()) {
-        return &it->second;
-    }
-    return nullptr;
+    return m_pipelineInfo.find(id);
 }
 
 void VulkanPipeline::associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId) {
-    auto it = m_pipelineInfo.find(pipelineId);
-    if (it != m_pipelineInfo.end()) {
-        it->second.descriptorIds.insert(descriptorId);
+    PipelineInfo* infoPtr = m_pipelineInfo.find(pipelineId);
+    if (infoPtr != nullptr) {
+        infoPtr->descriptorIds.insert(descriptorId);
     }
 }
 
 void VulkanPipeline::setShaderParameters(int pipelineId, int paramCount, const float* params) {
-    m_pipelineShaderParamCount[pipelineId] = paramCount;
+    m_pipelineShaderParamCount.insert(pipelineId, paramCount);
+
+    std::array<float, 7> paramsArray;
     for (int i = 0; i < paramCount && i < 7; ++i) {
-        m_pipelineShaderParams[pipelineId][i] = params[i];
+        paramsArray[i] = params[i];
     }
     for (int i = paramCount; i < 7; ++i) {
-        m_pipelineShaderParams[pipelineId][i] = 0.0f;
+        paramsArray[i] = 0.0f;
     }
+    m_pipelineShaderParams.insert(pipelineId, paramsArray);
 
-    auto infoIt = m_pipelineInfo.find(pipelineId);
-    if (infoIt != m_pipelineInfo.end()) {
-        infoIt->second.usesExtendedPushConstants = true;
+    PipelineInfo* infoPtr = m_pipelineInfo.find(pipelineId);
+    if (infoPtr != nullptr) {
+        infoPtr->usesExtendedPushConstants = true;
     }
 }
 
 const std::array<float, 7>& VulkanPipeline::getShaderParams(int pipelineId) const {
     static const std::array<float, 7> defaultParams = {0, 0, 0, 0, 0, 0, 0};
-    auto it = m_pipelineShaderParams.find(pipelineId);
-    if (it != m_pipelineShaderParams.end()) {
-        return it->second;
+    const std::array<float, 7>* paramsPtr = m_pipelineShaderParams.find(pipelineId);
+    if (paramsPtr != nullptr) {
+        return *paramsPtr;
     }
     return defaultParams;
 }
 
 int VulkanPipeline::getShaderParamCount(int pipelineId) const {
-    auto it = m_pipelineShaderParamCount.find(pipelineId);
-    if (it != m_pipelineShaderParamCount.end()) {
-        return it->second;
+    const int* countPtr = m_pipelineShaderParamCount.find(pipelineId);
+    if (countPtr != nullptr) {
+        return *countPtr;
     }
     return 0;
 }
@@ -1109,61 +1112,64 @@ void VulkanPipeline::setWaterRipples(int pipelineId, int rippleCount, const Shad
     if (rippleCount > MAX_SHADER_RIPPLES) {
         rippleCount = MAX_SHADER_RIPPLES;
     }
-    m_pipelineWaterRippleCount[pipelineId] = rippleCount;
+    m_pipelineWaterRippleCount.insert(pipelineId, rippleCount);
+
+    std::array<ShaderRippleData, MAX_SHADER_RIPPLES> ripplesArray;
     for (int i = 0; i < rippleCount; ++i) {
-        m_pipelineWaterRipples[pipelineId][i] = ripples[i];
+        ripplesArray[i] = ripples[i];
     }
     for (int i = rippleCount; i < MAX_SHADER_RIPPLES; ++i) {
-        m_pipelineWaterRipples[pipelineId][i] = {0.0f, 0.0f, 0.0f};
+        ripplesArray[i] = {0.0f, 0.0f, 0.0f};
     }
+    m_pipelineWaterRipples.insert(pipelineId, ripplesArray);
 
-    auto infoIt = m_pipelineInfo.find(pipelineId);
-    if (infoIt != m_pipelineInfo.end()) {
-        infoIt->second.isWaterPipeline = true;
+    PipelineInfo* infoPtr = m_pipelineInfo.find(pipelineId);
+    if (infoPtr != nullptr) {
+        infoPtr->isWaterPipeline = true;
     }
 }
 
 void VulkanPipeline::getWaterRipples(int pipelineId, int& outRippleCount, ShaderRippleData* outRipples) const {
-    auto countIt = m_pipelineWaterRippleCount.find(pipelineId);
-    if (countIt == m_pipelineWaterRippleCount.end()) {
+    const int* countPtr = m_pipelineWaterRippleCount.find(pipelineId);
+    if (countPtr == nullptr) {
         outRippleCount = 0;
         return;
     }
-    outRippleCount = countIt->second;
-    auto rippleIt = m_pipelineWaterRipples.find(pipelineId);
-    if (rippleIt != m_pipelineWaterRipples.end()) {
+    outRippleCount = *countPtr;
+    const std::array<ShaderRippleData, MAX_SHADER_RIPPLES>* ripplesPtr = m_pipelineWaterRipples.find(pipelineId);
+    if (ripplesPtr != nullptr) {
         for (int i = 0; i < outRippleCount; ++i) {
-            outRipples[i] = rippleIt->second[i];
+            outRipples[i] = (*ripplesPtr)[i];
         }
     }
 }
 
 void VulkanPipeline::setPipelineParallaxDepth(int pipelineId, float depth) {
-    m_pipelineParallaxDepth[pipelineId] = depth;
+    m_pipelineParallaxDepth.insert(pipelineId, depth);
 }
 
 float VulkanPipeline::getPipelineParallaxDepth(int pipelineId) const {
-    auto it = m_pipelineParallaxDepth.find(pipelineId);
-    if (it != m_pipelineParallaxDepth.end()) {
-        return it->second;
+    const float* depthPtr = m_pipelineParallaxDepth.find(pipelineId);
+    if (depthPtr != nullptr) {
+        return *depthPtr;
     }
     return 0.0f;
 }
 
 void VulkanPipeline::setCurrentPipeline(uint64_t id) {
-    auto it = m_pipelines.find(id);
-    assert(it != m_pipelines.end());
-    m_currentPipeline = it->second;
+    const VkPipeline* pipelinePtr = m_pipelines.find(id);
+    assert(pipelinePtr != nullptr);
+    m_currentPipeline = *pipelinePtr;
 }
 
 void VulkanPipeline::destroyPipeline(uint64_t id) {
-    auto it = m_pipelines.find(id);
-    if (it != m_pipelines.end()) {
-        vkDestroyPipeline(m_device, it->second, nullptr);
-        m_pipelines.erase(it);
+    VkPipeline* pipelinePtr = m_pipelines.find(id);
+    if (pipelinePtr != nullptr) {
+        vkDestroyPipeline(m_device, *pipelinePtr, nullptr);
+        m_pipelines.remove(id);
     }
-    m_debugPipelines.erase(id);
-    m_pipelineInfo.erase(id);
+    m_debugPipelines.remove(id);
+    m_pipelineInfo.remove(id);
 }
 
 void VulkanPipeline::setShaders(const ResourceData& vertShader, const ResourceData& fragShader) {
