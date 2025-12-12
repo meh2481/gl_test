@@ -158,27 +158,29 @@ int main() {
     SmallAllocator smallAllocator;
     LargeMemoryAllocator largeAllocator;
 
-    PakResource pakResource(&largeAllocator);
-    if (!pakResource.load(PAK_FILE)) {
-        std::cerr << "Failed to load resource pak: " << PAK_FILE << std::endl;
-        assert(false);
-    }
+    // Scope to ensure objects using allocators are destroyed before allocators
+    {
+        PakResource pakResource(&largeAllocator);
+        if (!pakResource.load(PAK_FILE)) {
+            std::cerr << "Failed to load resource pak: " << PAK_FILE << std::endl;
+            assert(false);
+        }
 
 #ifdef DEBUG
-    // Initialize console buffer with allocator BEFORE any logging that might use it
-    ConsoleBuffer::getInstance(&smallAllocator);
+        // Initialize console buffer with allocator BEFORE any logging that might use it
+        ConsoleBuffer::getInstance(&smallAllocator);
 
-    // Setup console capture for std::cout
-    std::streambuf* coutBuf = std::cout.rdbuf();
-    ConsoleCapture consoleCapture(std::cout, coutBuf, &smallAllocator);
-    std::cout.rdbuf(&consoleCapture);
+        // Setup console capture for std::cout
+        std::streambuf* coutBuf = std::cout.rdbuf();
+        ConsoleCapture consoleCapture(std::cout, coutBuf, &smallAllocator);
+        std::cout.rdbuf(&consoleCapture);
 #endif
 
-    std::cout << "Memory allocators initialized" << std::endl;
+        std::cout << "Memory allocators initialized" << std::endl;
 
-    VulkanRenderer renderer(&smallAllocator);
-    VibrationManager vibrationManager;
-    SceneManager sceneManager(pakResource, renderer, &smallAllocator, &vibrationManager);
+        VulkanRenderer renderer(&smallAllocator);
+        VibrationManager vibrationManager;
+        SceneManager sceneManager(pakResource, renderer, &smallAllocator, &vibrationManager);
     renderer.initialize(window, config.gpuIndex);
 
     // Update config with the selected GPU index
@@ -516,22 +518,24 @@ int main() {
     }
 
 #ifdef DEBUG
-    // Clear console buffer before allocator destruction
-    ConsoleBuffer::getInstance().clear();
-    
-    // Cleanup ImGui
-    g_imguiManager = nullptr;
-    imguiManager.cleanup();
+        // Clear console buffer before allocator destruction
+        ConsoleBuffer::getInstance().clear();
 
-    // Cleanup hot-reload thread
-    // Note: We can't cleanly stop the thread since it's in an infinite loop
-    // In a production app, we'd use a flag to signal thread exit
-    // For debug builds this is acceptable as the process is exiting anyway
-    SDL_DetachThread(reloadThread);
-    SDL_DestroyMutex(reloadData.mutex);
+        // Cleanup ImGui
+        g_imguiManager = nullptr;
+        imguiManager.cleanup();
+
+        // Cleanup hot-reload thread
+        // Note: We can't cleanly stop the thread since it's in an infinite loop
+        // In a production app, we'd use a flag to signal thread exit
+        // For debug builds this is acceptable as the process is exiting anyway
+        SDL_DetachThread(reloadThread);
+        SDL_DestroyMutex(reloadData.mutex);
 #endif
 
-    renderer.cleanup();
+        renderer.cleanup();
+    } // End scope - destroy all objects using allocators before allocators are destroyed
+
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
