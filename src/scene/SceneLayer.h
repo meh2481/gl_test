@@ -48,7 +48,7 @@ struct SpriteBatch {
     // Constructor
     SpriteBatch(MemoryAllocator& allocator)
         : textureId(0), normalMapId(0), descriptorId(0), pipelineId(0), parallaxDepth(0.0f),
-          vertices(allocator), indices(allocator),
+          vertices(allocator, "SpriteBatch::vertices"), indices(allocator, "SpriteBatch::indices"),
           spinSpeed(0.0f), blinkSecondsOn(0.0f), blinkSecondsOff(0.0f),
           blinkRiseTime(0.0f), blinkFallTime(0.0f), blinkPhase(0.0f),
           waveWavelength(0.0f), waveSpeed(0.0f), waveAngle(0.0f), waveAmplitude(0.0f),
@@ -76,7 +76,7 @@ struct ParticleBatch {
     // Constructor
     ParticleBatch(MemoryAllocator& allocator)
         : textureId(0), pipelineId(0), parallaxDepth(0.0f),
-          vertices(allocator), indices(allocator) {}
+          vertices(allocator, "ParticleBatch::vertices"), indices(allocator, "ParticleBatch::indices") {}
 };
 
 // Atlas UV coordinates for texture

@@ -43,7 +43,7 @@ private:
     SDL_Mutex* mutex_;
     MemoryAllocator* stringAllocator_;
 
-    ConsoleBuffer(MemoryAllocator* allocator) : stringAllocator_(allocator), lines_(*allocator) {
+    ConsoleBuffer(MemoryAllocator* allocator) : stringAllocator_(allocator), lines_(*allocator, "ConsoleBuffer::lines_") {
         assert(stringAllocator_ != nullptr);
         mutex_ = SDL_CreateMutex();
     }

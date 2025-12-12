@@ -96,9 +96,9 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* allocator) :
     m_reflectionTextureId(REFLECTION_TEXTURE_ID_INVALID),
     m_reflectionEnabled(false),
     m_reflectionSurfaceY(0.0f),
-    m_spriteBatches(*allocator),
-    m_particleBatches(*allocator),
-    m_allBatches(*allocator),
+    m_spriteBatches(*allocator, "VulkanRenderer::m_spriteBatches"),
+    m_particleBatches(*allocator, "VulkanRenderer::m_particleBatches"),
+    m_allBatches(*allocator, "VulkanRenderer::m_allBatches"),
     m_allocator(allocator)
 #ifdef DEBUG
     , m_imguiRenderCallback(nullptr)

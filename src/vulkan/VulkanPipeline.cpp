@@ -26,9 +26,9 @@ VulkanPipeline::VulkanPipeline(MemoryAllocator* allocator) :
     m_debugLinePipeline(VK_NULL_HANDLE),
     m_debugTrianglePipeline(VK_NULL_HANDLE),
     m_currentPipeline(VK_NULL_HANDLE),
-    m_pipelinesToDraw(*allocator),
-    m_vertShaderData(*allocator),
-    m_fragShaderData(*allocator),
+    m_pipelinesToDraw(*allocator, "VulkanPipeline::m_pipelinesToDraw"),
+    m_vertShaderData(*allocator, "VulkanPipeline::m_vertShaderData"),
+    m_fragShaderData(*allocator, "VulkanPipeline::m_fragShaderData"),
     m_allocator(allocator)
 {
     assert(m_allocator != nullptr);
