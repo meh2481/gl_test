@@ -73,10 +73,6 @@ void* SmallAllocator::allocate(size_t size, const char* allocationId) {
     assert(size > 0);
     assert(allocationId != nullptr);
 
-    if (size == 1024) {
-        std::cerr << "SmallAllocator: Allocating 1024 bytes from " << allocationId << std::endl;
-    }
-
     // Align size to 8 bytes for better cache performance
     size_t alignedSize = (size + 7) & ~7;
 
