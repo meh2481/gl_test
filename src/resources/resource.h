@@ -46,7 +46,7 @@ public:
 
 private:
     ResourceData m_pakData;
-    HashTable<uint64_t, Vector<char>> m_decompressedData;
+    HashTable<uint64_t, Vector<char>*> m_decompressedData;
     HashTable<uint64_t, AtlasUV> m_atlasUVCache;  // Cache of atlas UV lookups
     SDL_Mutex* m_mutex;
     MemoryAllocator* m_allocator;

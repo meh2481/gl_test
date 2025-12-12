@@ -76,7 +76,9 @@ void VulkanPipeline::cleanup() {
 
     // Delete all dynamically allocated PipelineInfo objects
     for (auto it = m_pipelineInfo.begin(); it != m_pipelineInfo.end(); ++it) {
-        delete it.value();
+        PipelineInfo* info = it.value();
+        info->~PipelineInfo();
+        m_allocator->free(info);
     }
     m_pipelineInfo.clear();
     m_debugPipelines.clear();
@@ -474,7 +476,8 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
 
     m_pipelines.insert(id, pipeline);
 
-    PipelineInfo* info = new PipelineInfo();
+    void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createTexturedPipeline::PipelineInfo");
+    PipelineInfo* info = new (infoMem) PipelineInfo();
     info->layout = pipelineLayout;
     info->descriptorSetLayout = descriptorSetLayout;
     info->usesDualTexture = usesDualTexture;
@@ -665,7 +668,8 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
 
     m_pipelines.insert(id, pipeline);
 
-    PipelineInfo* info = new PipelineInfo();
+    void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createTexturedPipelineAdditive::PipelineInfo");
+    PipelineInfo* info = new (infoMem) PipelineInfo();
     info->layout = pipelineLayout;
     info->descriptorSetLayout = descriptorSetLayout;
     info->usesDualTexture = usesDualTexture;
@@ -857,7 +861,8 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
 
     m_pipelines.insert(id, pipeline);
 
-    PipelineInfo* info = new PipelineInfo();
+    void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createAnimTexturedPipeline::PipelineInfo");
+    PipelineInfo* info = new (infoMem) PipelineInfo();
     info->layout = pipelineLayout;
     info->descriptorSetLayout = descriptorSetLayout;
     info->usesDualTexture = usesDualTexture;
@@ -1031,7 +1036,8 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
 
     m_pipelines.insert(id, pipeline);
 
-    PipelineInfo* info = new PipelineInfo();
+    void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createParticlePipeline::PipelineInfo");
+    PipelineInfo* info = new (infoMem) PipelineInfo();
     info->layout = m_descriptorManager->getSingleTexturePipelineLayout();
     info->descriptorSetLayout = m_descriptorManager->getSingleTextureLayout();
     info->usesDualTexture = false;
@@ -1179,7 +1185,9 @@ void VulkanPipeline::destroyPipeline(uint64_t id) {
     // Delete the dynamically allocated PipelineInfo
     PipelineInfo** infoPtrPtr = m_pipelineInfo.find(id);
     if (infoPtrPtr != nullptr) {
-        delete *infoPtrPtr;
+        PipelineInfo* info = *infoPtrPtr;
+        info->~PipelineInfo();
+        m_allocator->free(info);
         m_pipelineInfo.remove(id);
     }
 }
