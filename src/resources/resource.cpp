@@ -113,7 +113,12 @@ bool PakResource::reload(const char* filename) {
 #endif
         m_pakData = {nullptr, 0};
     }
-    // Clear caches
+    // Clear caches - first free allocated Vector objects
+    for (auto it = m_decompressedData.begin(); it != m_decompressedData.end(); ++it) {
+        Vector<char>* vec = it.value();
+        vec->~Vector<char>();
+        m_allocator->free(vec);
+    }
     m_decompressedData.clear();
     m_atlasUVCache.clear();
     // Load again
