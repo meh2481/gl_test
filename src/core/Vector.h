@@ -49,6 +49,7 @@ public:
                 capacity_ = 0;
             }
             allocator_ = other.allocator_;
+            callerId_ = other.callerId_;
             reserve(other.size_);
             for (size_t i = 0; i < other.size_; ++i) {
                 new (&data_[i]) T(other.data_[i]);
