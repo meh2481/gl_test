@@ -74,6 +74,10 @@ void VulkanPipeline::cleanup() {
         m_pipelineLayout = VK_NULL_HANDLE;
     }
 
+    // Delete all dynamically allocated PipelineInfo objects
+    for (auto it = m_pipelineInfo.begin(); it != m_pipelineInfo.end(); ++it) {
+        delete it.value();
+    }
     m_pipelineInfo.clear();
     m_debugPipelines.clear();
     m_pipelineShaderParams.clear();
@@ -470,14 +474,14 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
 
     m_pipelines.insert(id, pipeline);
 
-    PipelineInfo info;
-    info.layout = pipelineLayout;
-    info.descriptorSetLayout = descriptorSetLayout;
-    info.usesDualTexture = usesDualTexture;
-    info.usesExtendedPushConstants = false;
-    info.usesAnimationPushConstants = false;
-    info.isParticlePipeline = false;
-    info.isWaterPipeline = false;
+    PipelineInfo* info = new PipelineInfo();
+    info->layout = pipelineLayout;
+    info->descriptorSetLayout = descriptorSetLayout;
+    info->usesDualTexture = usesDualTexture;
+    info->usesExtendedPushConstants = false;
+    info->usesAnimationPushConstants = false;
+    info->isParticlePipeline = false;
+    info->isWaterPipeline = false;
     m_pipelineInfo.insert(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
@@ -661,14 +665,14 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
 
     m_pipelines.insert(id, pipeline);
 
-    PipelineInfo info;
-    info.layout = pipelineLayout;
-    info.descriptorSetLayout = descriptorSetLayout;
-    info.usesDualTexture = usesDualTexture;
-    info.usesExtendedPushConstants = false;
-    info.usesAnimationPushConstants = false;
-    info.isParticlePipeline = false;
-    info.isWaterPipeline = false;
+    PipelineInfo* info = new PipelineInfo();
+    info->layout = pipelineLayout;
+    info->descriptorSetLayout = descriptorSetLayout;
+    info->usesDualTexture = usesDualTexture;
+    info->usesExtendedPushConstants = false;
+    info->usesAnimationPushConstants = false;
+    info->isParticlePipeline = false;
+    info->isWaterPipeline = false;
     m_pipelineInfo.insert(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
@@ -853,14 +857,14 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
 
     m_pipelines.insert(id, pipeline);
 
-    PipelineInfo info;
-    info.layout = pipelineLayout;
-    info.descriptorSetLayout = descriptorSetLayout;
-    info.usesDualTexture = usesDualTexture;
-    info.usesExtendedPushConstants = true;
-    info.usesAnimationPushConstants = true;
-    info.isParticlePipeline = false;
-    info.isWaterPipeline = false;
+    PipelineInfo* info = new PipelineInfo();
+    info->layout = pipelineLayout;
+    info->descriptorSetLayout = descriptorSetLayout;
+    info->usesDualTexture = usesDualTexture;
+    info->usesExtendedPushConstants = true;
+    info->usesAnimationPushConstants = true;
+    info->isParticlePipeline = false;
+    info->isWaterPipeline = false;
     m_pipelineInfo.insert(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
@@ -1027,14 +1031,14 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
 
     m_pipelines.insert(id, pipeline);
 
-    PipelineInfo info;
-    info.layout = m_descriptorManager->getSingleTexturePipelineLayout();
-    info.descriptorSetLayout = m_descriptorManager->getSingleTextureLayout();
-    info.usesDualTexture = false;
-    info.usesExtendedPushConstants = false;
-    info.usesAnimationPushConstants = false;
-    info.isParticlePipeline = true;
-    info.isWaterPipeline = false;
+    PipelineInfo* info = new PipelineInfo();
+    info->layout = m_descriptorManager->getSingleTexturePipelineLayout();
+    info->descriptorSetLayout = m_descriptorManager->getSingleTextureLayout();
+    info->usesDualTexture = false;
+    info->usesExtendedPushConstants = false;
+    info->usesAnimationPushConstants = false;
+    info->isParticlePipeline = true;
+    info->isWaterPipeline = false;
     m_pipelineInfo.insert(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
@@ -1059,17 +1063,19 @@ bool VulkanPipeline::isDebugPipeline(uint64_t id) const {
 }
 
 const PipelineInfo* VulkanPipeline::getPipelineInfo(uint64_t id) const {
-    return m_pipelineInfo.find(id);
+    PipelineInfo* const* infoPtr = m_pipelineInfo.find(id);
+    return infoPtr ? *infoPtr : nullptr;
 }
 
 PipelineInfo* VulkanPipeline::getPipelineInfoMutable(uint64_t id) {
-    return m_pipelineInfo.find(id);
+    PipelineInfo** infoPtr = m_pipelineInfo.find(id);
+    return infoPtr ? *infoPtr : nullptr;
 }
 
 void VulkanPipeline::associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId) {
-    PipelineInfo* infoPtr = m_pipelineInfo.find(pipelineId);
-    if (infoPtr != nullptr) {
-        infoPtr->descriptorIds.insert(descriptorId);
+    PipelineInfo** infoPtrPtr = m_pipelineInfo.find(pipelineId);
+    if (infoPtrPtr != nullptr) {
+        (*infoPtrPtr)->descriptorIds.insert(descriptorId);
     }
 }
 
@@ -1085,9 +1091,9 @@ void VulkanPipeline::setShaderParameters(int pipelineId, int paramCount, const f
     }
     m_pipelineShaderParams.insert(pipelineId, paramsArray);
 
-    PipelineInfo* infoPtr = m_pipelineInfo.find(pipelineId);
-    if (infoPtr != nullptr) {
-        infoPtr->usesExtendedPushConstants = true;
+    PipelineInfo** infoPtrPtr = m_pipelineInfo.find(pipelineId);
+    if (infoPtrPtr != nullptr) {
+        (*infoPtrPtr)->usesExtendedPushConstants = true;
     }
 }
 
@@ -1123,9 +1129,9 @@ void VulkanPipeline::setWaterRipples(int pipelineId, int rippleCount, const Shad
     }
     m_pipelineWaterRipples.insert(pipelineId, ripplesArray);
 
-    PipelineInfo* infoPtr = m_pipelineInfo.find(pipelineId);
-    if (infoPtr != nullptr) {
-        infoPtr->isWaterPipeline = true;
+    PipelineInfo** infoPtrPtr = m_pipelineInfo.find(pipelineId);
+    if (infoPtrPtr != nullptr) {
+        (*infoPtrPtr)->isWaterPipeline = true;
     }
 }
 
@@ -1169,7 +1175,13 @@ void VulkanPipeline::destroyPipeline(uint64_t id) {
         m_pipelines.remove(id);
     }
     m_debugPipelines.remove(id);
-    m_pipelineInfo.remove(id);
+    
+    // Delete the dynamically allocated PipelineInfo
+    PipelineInfo** infoPtrPtr = m_pipelineInfo.find(id);
+    if (infoPtrPtr != nullptr) {
+        delete *infoPtrPtr;
+        m_pipelineInfo.remove(id);
+    }
 }
 
 void VulkanPipeline::setShaders(const ResourceData& vertShader, const ResourceData& fragShader) {

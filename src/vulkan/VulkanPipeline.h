@@ -122,7 +122,7 @@ private:
     Vector<uint64_t> m_pipelinesToDraw;
 
     // Pipeline info
-    HashTable<uint64_t, PipelineInfo> m_pipelineInfo;
+    HashTable<uint64_t, PipelineInfo*> m_pipelineInfo;
 
     // Per-pipeline shader parameters
     HashTable<int, std::array<float, 7>> m_pipelineShaderParams;
