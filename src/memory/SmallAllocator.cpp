@@ -26,7 +26,7 @@ SmallAllocator::~SmallAllocator() {
     // cerr instead of cout here to avoid race condition
     std::cerr << "SmallAllocator: Destroying allocator with " << allocationCount_
               << " leaked allocations across " ;
-    
+
     // Count pools
     size_t poolCount = 0;
     MemoryPool* pool = firstPool_;
@@ -35,7 +35,7 @@ SmallAllocator::~SmallAllocator() {
         pool = pool->next;
     }
     std::cerr << poolCount << " pools" << std::endl;
-    
+
     if (allocationCount_ > 0) {
         pool = firstPool_;
         while (pool) {
@@ -50,7 +50,7 @@ SmallAllocator::~SmallAllocator() {
         }
     }
     assert(allocationCount_ == 0);
-    
+
     // Free all pools
     pool = firstPool_;
     while (pool) {
@@ -59,7 +59,7 @@ SmallAllocator::~SmallAllocator() {
         delete pool;
         pool = next;
     }
-    
+
     if (mutex_) {
         SDL_DestroyMutex(mutex_);
     }
@@ -80,12 +80,12 @@ void* SmallAllocator::allocate(size_t size) {
         // Need to create a new pool
         size_t neededSize = sizeof(BlockHeader) + alignedSize;
         size_t newPoolSize = MIN_POOL_SIZE;
-        
+
         // If we need more than MIN_POOL_SIZE, round up to next power of 2
         while (newPoolSize < neededSize) {
             newPoolSize *= 2;
         }
-        
+
         // Make new pool at least 2x the last pool size for exponential growth
         if (lastPool_) {
             size_t minNewSize = lastPool_->capacity * 2;
@@ -96,7 +96,7 @@ void* SmallAllocator::allocate(size_t size) {
 
         std::cerr << "SmallAllocator: Creating new pool of " << newPoolSize << " bytes" << std::endl;
         MemoryPool* newPool = createPool(newPoolSize);
-        
+
         // Try again in the new pool
         block = findFreeBlock(alignedSize);
         assert(block != nullptr);
@@ -225,12 +225,12 @@ SmallAllocator::MemoryPool* SmallAllocator::createPool(size_t capacity) {
     MemoryPool* pool = new MemoryPool();
     pool->memory = (char*)::malloc(capacity);
     assert(pool->memory != nullptr);
-    
+
     pool->capacity = capacity;
     pool->used = capacity; // Initially all space is in the free block
     pool->allocCount = 0;
     pool->next = nullptr;
-    
+
     // Create initial free block spanning entire pool
     BlockHeader* freeBlock = (BlockHeader*)pool->memory;
     freeBlock->size = capacity - sizeof(BlockHeader);
@@ -238,10 +238,10 @@ SmallAllocator::MemoryPool* SmallAllocator::createPool(size_t capacity) {
     freeBlock->next = nullptr;
     freeBlock->prev = nullptr;
     freeBlock->pool = pool;
-    
+
     pool->firstBlock = freeBlock;
     pool->lastBlock = freeBlock;
-    
+
     // Add pool to list
     if (!firstPool_) {
         firstPool_ = pool;
@@ -250,41 +250,41 @@ SmallAllocator::MemoryPool* SmallAllocator::createPool(size_t capacity) {
         lastPool_->next = pool;
         lastPool_ = pool;
     }
-    
+
     totalCapacity_ += capacity;
-    
+
     return pool;
 }
 
 void SmallAllocator::removeEmptyPools() {
     MemoryPool* pool = firstPool_;
     MemoryPool* prev = nullptr;
-    
+
     while (pool) {
         MemoryPool* next = pool->next;
-        
+
         // Remove pool if it has no active allocations and it's not the only pool
         if (pool->allocCount == 0 && (firstPool_ != lastPool_)) {
             std::cerr << "SmallAllocator: Removing empty pool of " << pool->capacity << " bytes" << std::endl;
-            
+
             // Unlink from list
             if (prev) {
                 prev->next = next;
             } else {
                 firstPool_ = next;
             }
-            
+
             if (pool == lastPool_) {
                 lastPool_ = prev;
             }
-            
+
             totalCapacity_ -= pool->capacity;
             ::free(pool->memory);
             delete pool;
         } else {
             prev = pool;
         }
-        
+
         pool = next;
     }
 }
@@ -321,10 +321,10 @@ void SmallAllocator::coalescePool(MemoryPool* pool) {
 SmallAllocator::BlockHeader* SmallAllocator::findFreeBlock(size_t size) {
     // Search all pools for a suitable free block
     MemoryPool* pool = firstPool_;
-    
+
     while (pool) {
         BlockHeader* current = pool->firstBlock;
-        
+
         // First-fit strategy within this pool
         while (current) {
             if (current->isFree && current->size >= size) {
@@ -332,7 +332,7 @@ SmallAllocator::BlockHeader* SmallAllocator::findFreeBlock(size_t size) {
             }
             current = current->next;
         }
-        
+
         pool = pool->next;
     }
 
@@ -349,7 +349,7 @@ void SmallAllocator::splitBlock(BlockHeader* block, size_t size) {
     size_t remainingSize = block->size - size;
     if (remainingSize >= sizeof(BlockHeader) + 8) {
         MemoryPool* pool = block->pool;
-        
+
         // Create new free block from the remainder
         BlockHeader* newBlock = (BlockHeader*)((char*)block + sizeof(BlockHeader) + size);
         newBlock->size = remainingSize - sizeof(BlockHeader);
