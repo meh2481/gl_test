@@ -132,14 +132,24 @@ void LargeMemoryAllocator::free(void* ptr) {
     m_usedMemory -= block->size + sizeof(BlockHeader);
     block->isFree = true;
 
-    block->next = m_freeList;
+    // Set up temporary linkage for merge detection, but don't add to free list yet
+    block->next = nullptr;
     block->prev = nullptr;
-    if (m_freeList) {
-        m_freeList->prev = block;
-    }
-    m_freeList = block;
 
-    mergeAdjacentBlocks(block);
+    // Merge with adjacent blocks first - this may change which block we add to free list
+    BlockHeader* finalBlock = mergeAdjacentBlocks(block);
+
+    // Only add to free list if the final block is not already in it
+    // (If we merged with a previous block, that block is already in the free list)
+    if (finalBlock == block) {
+        // This is a new block (not merged with a previous one), add it to free list
+        finalBlock->next = m_freeList;
+        finalBlock->prev = nullptr;
+        if (m_freeList) {
+            m_freeList->prev = finalBlock;
+        }
+        m_freeList = finalBlock;
+    }
 
     if (m_totalPoolSize > 0 && (float)m_usedMemory / m_totalPoolSize < SHRINK_THRESHOLD && m_totalPoolSize > m_chunkSize) {
         removeEmptyChunks();
@@ -289,18 +299,20 @@ void LargeMemoryAllocator::splitBlock(BlockHeader* block, size_t size) {
     block->size = size;
 }
 
-void LargeMemoryAllocator::mergeAdjacentBlocks(BlockHeader* block) {
+LargeMemoryAllocator::BlockHeader* LargeMemoryAllocator::mergeAdjacentBlocks(BlockHeader* block) {
     assert(block != nullptr);
     assert(block->isFree);
 
     MemoryChunk* chunk = block->chunk;
     char* chunkEnd = chunk->memory + chunk->size;
+    BlockHeader* result = block;
 
     // Merge with next block if it's free and adjacent
     BlockHeader* next = (BlockHeader*)((char*)block + sizeof(BlockHeader) + block->size);
     if ((char*)next < chunkEnd && next->isFree && next->chunk == chunk) {
         block->size += sizeof(BlockHeader) + next->size;
 
+        // Remove next block from free list
         if (next->prev) {
             next->prev->next = next->next;
         }
@@ -308,9 +320,8 @@ void LargeMemoryAllocator::mergeAdjacentBlocks(BlockHeader* block) {
             next->next->prev = next->prev;
         }
         if (m_freeList == next) {
-            m_freeList = next->prev ? next->prev : next->next;
+            m_freeList = next->next;
         }
-        block->next = next->next;
     }
 
     // Merge with previous block if it's free and adjacent
@@ -323,17 +334,8 @@ void LargeMemoryAllocator::mergeAdjacentBlocks(BlockHeader* block) {
             // Found the block immediately before us
             if (nextBlock == block && current->isFree && current->chunk == chunk) {
                 current->size += sizeof(BlockHeader) + block->size;
-
-                if (block->prev && block->prev != current) {
-                    block->prev->next = block->next;
-                }
-                if (block->next) {
-                    block->next->prev = block->prev ? block->prev : current;
-                }
-                if (m_freeList == block) {
-                    m_freeList = current;
-                }
-                current->next = block->next;
+                // Return the previous block as the result since it absorbed our block
+                result = current;
                 break;
             }
 
@@ -344,6 +346,8 @@ void LargeMemoryAllocator::mergeAdjacentBlocks(BlockHeader* block) {
             current = nextBlock;
         }
     }
+
+    return result;
 }
 
 LargeMemoryAllocator::MemoryChunk* LargeMemoryAllocator::findChunkForPointer(void* ptr) const {

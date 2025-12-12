@@ -87,6 +87,6 @@ private:
     void removeEmptyChunks();
     BlockHeader* findFreeBlock(size_t size);
     void splitBlock(BlockHeader* block, size_t size);
-    void mergeAdjacentBlocks(BlockHeader* block);
+    BlockHeader* mergeAdjacentBlocks(BlockHeader* block);
     MemoryChunk* findChunkForPointer(void* ptr) const;
 };
