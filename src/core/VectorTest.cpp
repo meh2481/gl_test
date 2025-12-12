@@ -681,6 +681,8 @@ void testCapacityGrowth() {
     std::cout << "  ✓ capacity growth passed" << std::endl;
 }
 
+#define VEC_ITEMS 1000
+
 // Test with large allocator
 void testWithLargeAllocator() {
     std::cout << "Testing with LargeMemoryAllocator..." << std::endl;
@@ -688,13 +690,11 @@ void testWithLargeAllocator() {
 
     {
         Vector<int> vec(allocator);
-        // Note: LargeMemoryAllocator has a known performance issue with >32 items
-        // due to an infinite loop bug in mergeAdjacentBlocks. Limiting to 30 items.
-        for (int i = 0; i < 30; ++i) {
+        for (int i = 0; i < VEC_ITEMS; ++i) {
             vec.push_back(i);
         }
-        assert(vec.size() == 30);
-        for (int i = 0; i < 30; ++i) {
+        assert(vec.size() == VEC_ITEMS);
+        for (int i = 0; i < VEC_ITEMS; ++i) {
             assert(vec[i] == i);
         }
     }
