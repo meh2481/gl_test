@@ -19,7 +19,13 @@ static void check_vk_result(VkResult err) {
     assert(err == VK_SUCCESS);
 }
 
-ImGuiManager::ImGuiManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer) : initialized_(false), device_(VK_NULL_HANDLE), imguiPool_(VK_NULL_HANDLE), stringAllocator_(allocator), consoleBuffer_(consoleBuffer) {
+ImGuiManager::ImGuiManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
+    : initialized_(false)
+    , device_(VK_NULL_HANDLE)
+    , imguiPool_(VK_NULL_HANDLE)
+    , imguiTextureCache_(*allocator, "ImGuiManager::imguiTextureCache_")
+    , stringAllocator_(allocator)
+    , consoleBuffer_(consoleBuffer) {
     assert(stringAllocator_ != nullptr);
     assert(consoleBuffer_ != nullptr);
     std::cout << "ImGuiManager: Using shared memory allocator" << std::endl;
@@ -812,14 +818,14 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
             VkSampler sampler;
             if (renderer->getTextureForImGui(lookupTexId, &imageView, &sampler)) {
                 // Check if we already have an ImGui descriptor for this texture
-                auto it = imguiTextureCache_.find(lookupTexId);
+                VkDescriptorSet* descSetPtr = imguiTextureCache_.find(lookupTexId);
                 VkDescriptorSet imguiTexture;
-                if (it != imguiTextureCache_.end()) {
-                    imguiTexture = it->second;
+                if (descSetPtr != nullptr) {
+                    imguiTexture = *descSetPtr;
                 } else {
                     // Create a new ImGui texture descriptor
                     imguiTexture = ImGui_ImplVulkan_AddTexture(sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                    imguiTextureCache_[lookupTexId] = imguiTexture;
+                    imguiTextureCache_.insert(lookupTexId, imguiTexture);
                 }
 
                 // Show texture preview as a clickable image button

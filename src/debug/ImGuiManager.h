@@ -9,11 +9,11 @@
 #include <imgui_impl_vulkan.h>
 #include "../effects/ParticleSystem.h"
 #include "../core/String.h"
+#include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
 #include "../memory/SmallAllocator.h"
 #include "../memory/LargeMemoryAllocator.h"
 #include <cstdint>
-#include <map>
 
 // Forward declarations
 class VulkanRenderer;
@@ -182,7 +182,7 @@ private:
     String truncateTextureName(const char* fullName, float maxWidth);
 
     // ImGui texture cache for preview images
-    std::map<uint64_t, VkDescriptorSet> imguiTextureCache_;
+    HashTable<uint64_t, VkDescriptorSet> imguiTextureCache_;
 };
 
 #endif // DEBUG
