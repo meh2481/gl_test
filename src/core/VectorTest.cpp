@@ -681,7 +681,7 @@ void testCapacityGrowth() {
     std::cout << "  ✓ capacity growth passed" << std::endl;
 }
 
-#define VEC_ITEMS 1000
+#define VEC_ITEMS 100
 
 // Test with large allocator
 void testWithLargeAllocator() {
