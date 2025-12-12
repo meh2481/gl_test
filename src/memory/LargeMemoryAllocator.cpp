@@ -25,14 +25,12 @@ LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
 #endif
     m_chunkSize = alignSize(initialChunkSize);
     addChunk(m_chunkSize);
-    std::cout << "LargeMemoryAllocator: Initialized with chunk size " << m_chunkSize << " bytes" << std::endl;
 }
 
 LargeMemoryAllocator::~LargeMemoryAllocator() {
     MemoryChunk* chunk = m_chunks;
     while (chunk) {
         MemoryChunk* next = chunk->next;
-        std::cout << "LargeMemoryAllocator: Deallocating chunk of " << chunk->size << " bytes" << std::endl;
         std::free(chunk->memory);
         std::free(chunk);
         chunk = next;
@@ -69,9 +67,6 @@ void LargeMemoryAllocator::addChunk(size_t size) {
     }
     m_freeList = block;
     newChunk->firstBlock = block;
-
-    std::cout << "LargeMemoryAllocator: Added chunk of " << chunkSize << " bytes (total pool: "
-              << m_totalPoolSize << ")" << std::endl;
 }
 
 void* LargeMemoryAllocator::allocate(size_t size) {
@@ -111,8 +106,6 @@ void* LargeMemoryAllocator::allocate(size_t size) {
     }
 
     void* ptr = (char*)block + sizeof(BlockHeader);
-    std::cout << "LargeMemoryAllocator: Allocated " << alignedSize << " bytes at " << ptr
-              << " (used: " << m_usedMemory << "/" << m_totalPoolSize << ")" << std::endl;
     SDL_UnlockMutex(m_mutex);
     return ptr;
 }
@@ -125,9 +118,6 @@ void LargeMemoryAllocator::free(void* ptr) {
     BlockHeader* block = (BlockHeader*)((char*)ptr - sizeof(BlockHeader));
     assert(!block->isFree);
     assert(findChunkForPointer(ptr) != nullptr);
-
-    std::cout << "LargeMemoryAllocator: Deallocating " << block->size << " bytes at " << ptr
-              << " (used: " << m_usedMemory << "/" << m_totalPoolSize << ")" << std::endl;
 
     m_usedMemory -= block->size + sizeof(BlockHeader);
     block->isFree = true;
@@ -160,8 +150,6 @@ void LargeMemoryAllocator::free(void* ptr) {
 
 size_t LargeMemoryAllocator::defragment() {
     SDL_LockMutex(m_mutex);
-
-    std::cout << "LargeMemoryAllocator: Starting defragmentation..." << std::endl;
 
     size_t mergedBlocks = 0;
     MemoryChunk* chunk = m_chunks;
@@ -198,7 +186,6 @@ size_t LargeMemoryAllocator::defragment() {
         chunk = chunk->next;
     }
 
-    std::cout << "LargeMemoryAllocator: Defragmentation complete, merged " << mergedBlocks << " blocks" << std::endl;
     SDL_UnlockMutex(m_mutex);
     return mergedBlocks;
 }
@@ -225,8 +212,6 @@ size_t LargeMemoryAllocator::getFreeMemory() const {
 }
 
 void LargeMemoryAllocator::removeEmptyChunks() {
-    std::cout << "LargeMemoryAllocator: Checking for empty chunks to remove..." << std::endl;
-
     MemoryChunk** chunkPtr = &m_chunks;
     while (*chunkPtr) {
         MemoryChunk* chunk = *chunkPtr;
@@ -237,8 +222,6 @@ void LargeMemoryAllocator::removeEmptyChunks() {
                        chunk != m_chunks);
 
         if (isEmpty) {
-            std::cout << "LargeMemoryAllocator: Removing empty chunk of " << chunk->size << " bytes" << std::endl;
-
             if (block->prev) {
                 block->prev->next = block->next;
             }
@@ -330,7 +313,7 @@ LargeMemoryAllocator::BlockHeader* LargeMemoryAllocator::mergeAdjacentBlocks(Blo
         BlockHeader* current = (BlockHeader*)chunk->memory;
         while ((char*)current < (char*)block) {
             BlockHeader* nextBlock = (BlockHeader*)((char*)current + sizeof(BlockHeader) + current->size);
-            
+
             // Found the block immediately before us
             if (nextBlock == block && current->isFree && current->chunk == chunk) {
                 current->size += sizeof(BlockHeader) + block->size;

@@ -156,10 +156,10 @@ int main() {
 
     // Create single allocator instances for the entire application
     SmallAllocator smallAllocator;
-    LargeMemoryAllocator largeAllocator;
 
     // Scope to ensure objects using allocators are destroyed before allocators
     {
+        LargeMemoryAllocator largeAllocator;
         PakResource pakResource(&largeAllocator);
         if (!pakResource.load(PAK_FILE)) {
             std::cerr << "Failed to load resource pak: " << PAK_FILE << std::endl;
