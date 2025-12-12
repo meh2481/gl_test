@@ -13,7 +13,6 @@ Build the project with the correct PKG_CONFIG_PATH and CMAKE_PREFIX_PATH to use 
   cmake -DCMAKE_PREFIX_PATH=$HOME/.local:/usr/local ..
 
 ## Coding Guidelines
-- Never write unit tests.
 - Never use C++ exceptions or try-catch blocks. Use C-style assertions instead.
 - Use assertions liberally.
 - Always assert where there is any kind of error handling, including std::cerr calls.
