@@ -2,13 +2,14 @@
 
 #include <vulkan/vulkan.h>
 #include "../resources/resource.h"
-#include <map>
+#include "../core/HashTable.h"
+#include "../memory/MemoryAllocator.h"
 #include <cstdint>
 
 // Helper class for managing Vulkan textures
 class VulkanTexture {
 public:
-    VulkanTexture();
+    VulkanTexture(MemoryAllocator* allocator);
     ~VulkanTexture();
 
     // Initialization - must be called before any other operations
@@ -46,7 +47,7 @@ public:
     void destroyAllTextures();
 
     // Access textures map directly for iteration
-    const std::map<uint64_t, TextureData>& getTextures() const { return m_textures; }
+    const HashTable<uint64_t, TextureData>& getTextures() const { return m_textures; }
 
 private:
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -57,5 +58,6 @@ private:
     VkQueue m_graphicsQueue;
     bool m_initialized;
 
-    std::map<uint64_t, TextureData> m_textures;
+    HashTable<uint64_t, TextureData> m_textures;
+    MemoryAllocator* m_allocator;
 };
