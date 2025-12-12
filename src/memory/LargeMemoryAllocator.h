@@ -25,6 +25,7 @@ public:
         size_t offset;      // Offset from chunk start
         size_t size;        // Size of block
         bool isFree;        // Is this block free?
+        const char* allocationId; // Identifier for tracking allocation source
     };
 
     struct ChunkInfo {

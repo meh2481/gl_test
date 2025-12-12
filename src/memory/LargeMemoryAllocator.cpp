@@ -430,6 +430,7 @@ LargeMemoryAllocator::ChunkInfo* LargeMemoryAllocator::getChunkInfo(size_t* outC
             chunkInfo[i].blocks[j].offset = (char*)block - chunk->memory;
             chunkInfo[i].blocks[j].size = block->size;
             chunkInfo[i].blocks[j].isFree = block->isFree;
+            chunkInfo[i].blocks[j].allocationId = block->allocationId;
 
             BlockHeader* nextBlock = (BlockHeader*)((char*)block + sizeof(BlockHeader) + block->size);
             if ((char*)nextBlock >= chunkEnd) {

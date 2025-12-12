@@ -1682,6 +1682,32 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
                     ImGui::Dummy(ImVec2(width, height));
 
+                    // Check for hover and show tooltip with allocationId
+                    if (ImGui::IsItemHovered()) {
+                        ImVec2 mousePos = ImGui::GetMousePos();
+                        float relativeX = mousePos.x - pos.x;
+                        if (relativeX >= 0 && relativeX <= width) {
+                            for (size_t j = 0; j < poolInfo[i].blockCount; j++) {
+                                SmallAllocator::BlockInfo& block = poolInfo[i].blocks[j];
+                                float blockStart = (float)block.offset / poolInfo[i].capacity * width;
+                                float blockSize = (float)(block.size + SmallAllocator::getBlockHeaderSize()) / poolInfo[i].capacity * width;
+
+                                if (relativeX >= blockStart && relativeX < blockStart + blockSize) {
+                                    ImGui::BeginTooltip();
+                                    if (block.allocationId && block.allocationId[0] != '\0') {
+                                        ImGui::Text("Allocation ID: %s", block.allocationId);
+                                    } else {
+                                        ImGui::Text("Allocation ID: (none)");
+                                    }
+                                    ImGui::Text("Size: %zu bytes", block.size);
+                                    ImGui::Text("Status: %s", block.isFree ? "Free" : "Used");
+                                    ImGui::EndTooltip();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
                     // Legend
                     ImGui::TextColored(ImVec4(0.2f, 0.78f, 0.2f, 1.0f), "Green = Free");
                     ImGui::SameLine();
@@ -1776,6 +1802,32 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                     }
 
                     ImGui::Dummy(ImVec2(width, height));
+
+                    // Check for hover and show tooltip with allocationId
+                    if (ImGui::IsItemHovered()) {
+                        ImVec2 mousePos = ImGui::GetMousePos();
+                        float relativeX = mousePos.x - pos.x;
+                        if (relativeX >= 0 && relativeX <= width) {
+                            for (size_t j = 0; j < chunkInfo[i].blockCount; j++) {
+                                LargeMemoryAllocator::BlockInfo& block = chunkInfo[i].blocks[j];
+                                float blockStart = (float)block.offset / chunkInfo[i].size * width;
+                                float blockSize = (float)(block.size + LargeMemoryAllocator::getBlockHeaderSize()) / chunkInfo[i].size * width;
+
+                                if (relativeX >= blockStart && relativeX < blockStart + blockSize) {
+                                    ImGui::BeginTooltip();
+                                    if (block.allocationId && block.allocationId[0] != '\0') {
+                                        ImGui::Text("Allocation ID: %s", block.allocationId);
+                                    } else {
+                                        ImGui::Text("Allocation ID: (none)");
+                                    }
+                                    ImGui::Text("Size: %zu bytes", block.size);
+                                    ImGui::Text("Status: %s", block.isFree ? "Free" : "Used");
+                                    ImGui::EndTooltip();
+                                    break;
+                                }
+                            }
+                        }
+                    }
 
                     // Legend
                     ImGui::TextColored(ImVec4(0.2f, 0.78f, 0.2f, 1.0f), "Green = Free");
