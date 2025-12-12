@@ -72,6 +72,8 @@ void VulkanPipeline::cleanup() {
     m_pipelineShaderParamCount.clear();
     m_pipelineParallaxDepth.clear();
     m_pipelinesToDraw.clear();
+    m_vertShaderData.clear();
+    m_fragShaderData.clear();
     m_currentPipeline = VK_NULL_HANDLE;
     m_initialized = false;
 }
