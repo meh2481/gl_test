@@ -42,7 +42,9 @@ SmallAllocator::~SmallAllocator() {
             BlockHeader* current = pool->firstBlock;
             while (current) {
                 if (!current->isFree) {
-                    std::cerr << "Leaked block: size=" << current->size << std::endl;
+                    std::cerr << "Leaked block: size=" << current->size
+                              << ", allocationId=" << (current->allocationId ? current->allocationId : "unknown")
+                              << std::endl;
                 }
                 current = current->next;
             }
@@ -65,13 +67,14 @@ SmallAllocator::~SmallAllocator() {
     }
 }
 
-void* SmallAllocator::allocate(size_t size) {
+void* SmallAllocator::allocate(size_t size, const char* allocationId) {
     SDL_LockMutex(mutex_);
 
     assert(size > 0);
+    assert(allocationId != nullptr);
 
     if (size == 1024) {
-        std::cerr << "SmallAllocator: Allocating 1024 bytes" << std::endl;
+        std::cerr << "SmallAllocator: Allocating 1024 bytes from " << allocationId << std::endl;
     }
 
     // Align size to 8 bytes for better cache performance
@@ -108,6 +111,7 @@ void* SmallAllocator::allocate(size_t size) {
 
     // Mark block as used
     block->isFree = false;
+    block->allocationId = allocationId;
     allocationCount_++;
     block->pool->allocCount++;
 
@@ -242,6 +246,7 @@ SmallAllocator::MemoryPool* SmallAllocator::createPool(size_t capacity) {
     freeBlock->next = nullptr;
     freeBlock->prev = nullptr;
     freeBlock->pool = pool;
+    freeBlock->allocationId = nullptr;
 
     pool->firstBlock = freeBlock;
     pool->lastBlock = freeBlock;
@@ -361,6 +366,7 @@ void SmallAllocator::splitBlock(BlockHeader* block, size_t size) {
         newBlock->next = block->next;
         newBlock->prev = block;
         newBlock->pool = pool;
+        newBlock->allocationId = nullptr;
 
         if (block->next) {
             block->next->prev = newBlock;

@@ -34,7 +34,7 @@ void testBasicAllocation() {
     TEST("basic allocation");
     LargeMemoryAllocator allocator(1024 * 1024);
 
-    void* ptr = allocator.allocate(128);
+    void* ptr = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:37");
     assert(ptr != nullptr);
 
     size_t usedBefore = allocator.getUsedMemory();
@@ -53,9 +53,9 @@ void testMultipleAllocations() {
     TEST("multiple allocations");
     LargeMemoryAllocator allocator(1024 * 1024);
 
-    void* ptr1 = allocator.allocate(64);
-    void* ptr2 = allocator.allocate(128);
-    void* ptr3 = allocator.allocate(256);
+    void* ptr1 = allocator.allocate(64, "LargeMemoryAllocatorTest.cpp:56");
+    void* ptr2 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:57");
+    void* ptr3 = allocator.allocate(256, "LargeMemoryAllocatorTest.cpp:58");
 
     assert(ptr1 != nullptr);
     assert(ptr2 != nullptr);
@@ -76,9 +76,9 @@ void testFreeDifferentOrder() {
     TEST("free in different order");
     LargeMemoryAllocator allocator(1024 * 1024);
 
-    void* ptr1 = allocator.allocate(64);
-    void* ptr2 = allocator.allocate(128);
-    void* ptr3 = allocator.allocate(256);
+    void* ptr1 = allocator.allocate(64, "LargeMemoryAllocatorTest.cpp:79");
+    void* ptr2 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:80");
+    void* ptr3 = allocator.allocate(256, "LargeMemoryAllocatorTest.cpp:81");
 
     // Free in reverse order
     allocator.free(ptr3);
@@ -93,10 +93,10 @@ void testReuseFreedMemory() {
     TEST("reuse freed memory");
     LargeMemoryAllocator allocator(1024 * 1024);
 
-    void* ptr1 = allocator.allocate(128);
+    void* ptr1 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:96");
     allocator.free(ptr1);
 
-    void* ptr2 = allocator.allocate(128);
+    void* ptr2 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:99");
     assert(ptr2 != nullptr);
     // ptr2 might or might not be the same as ptr1 depending on implementation
 
@@ -112,7 +112,7 @@ void testLargeAllocation() {
 
     size_t totalBefore = allocator.getTotalMemory();
 
-    void* ptr = allocator.allocate(2048); // Larger than initial chunk
+    void* ptr = allocator.allocate(2048, "LargeMemoryAllocatorTest.cpp:115"); // Larger than initial chunk
     assert(ptr != nullptr);
 
     size_t totalAfter = allocator.getTotalMemory();
@@ -129,11 +129,11 @@ void testBlockSplitting() {
     LargeMemoryAllocator allocator(1024 * 1024);
 
     // Allocate small amount from large block
-    void* ptr1 = allocator.allocate(64);
+    void* ptr1 = allocator.allocate(64, "LargeMemoryAllocatorTest.cpp:132");
     assert(ptr1 != nullptr);
 
     // Should still have plenty of free space
-    void* ptr2 = allocator.allocate(64);
+    void* ptr2 = allocator.allocate(64, "LargeMemoryAllocatorTest.cpp:136");
     assert(ptr2 != nullptr);
 
     allocator.free(ptr1);
@@ -147,9 +147,9 @@ void testAdjacentBlockMerging() {
     TEST("adjacent block merging");
     LargeMemoryAllocator allocator(1024 * 1024);
 
-    void* ptr1 = allocator.allocate(128);
-    void* ptr2 = allocator.allocate(128);
-    void* ptr3 = allocator.allocate(128);
+    void* ptr1 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:150");
+    void* ptr2 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:151");
+    void* ptr3 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:152");
 
     size_t usedBefore = allocator.getUsedMemory();
 
@@ -171,9 +171,9 @@ void testDefragmentation() {
     TEST("defragmentation");
     LargeMemoryAllocator allocator(1024 * 1024);
 
-    void* ptr1 = allocator.allocate(128);
-    void* ptr2 = allocator.allocate(128);
-    void* ptr3 = allocator.allocate(128);
+    void* ptr1 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:174");
+    void* ptr2 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:175");
+    void* ptr3 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:176");
 
     allocator.free(ptr1);
     allocator.free(ptr3);
@@ -200,7 +200,7 @@ void testMemoryUsageTracking() {
     assert(free > 0);
     assert(used + free <= total); // Account for headers
 
-    void* ptr = allocator.allocate(1024);
+    void* ptr = allocator.allocate(1024, "LargeMemoryAllocatorTest.cpp:203");
     size_t usedAfter = allocator.getUsedMemory();
     assert(usedAfter > used);
 
@@ -219,7 +219,7 @@ void testAlignment() {
 
     // Allocate various sizes
     for (size_t size = 1; size <= 256; size *= 2) {
-        void* ptr = allocator.allocate(size);
+        void* ptr = allocator.allocate(size, "LargeMemoryAllocatorTest.cpp:222");
         assert(ptr != nullptr);
 
         // Check alignment
@@ -245,7 +245,7 @@ void testManySmallAllocations() {
     std::vector<void*> ptrs;
 
     for (int i = 0; i < count; ++i) {
-        void* ptr = allocator.allocate(32);
+        void* ptr = allocator.allocate(32, "LargeMemoryAllocatorTest.cpp:248");
         assert(ptr != nullptr);
         ptrs.push_back(ptr);
     }
@@ -267,7 +267,7 @@ void testInfiniteLoopBugWith32PlusAllocations() {
     std::vector<void*> ptrs;
 
     for (int i = 0; i < count; ++i) {
-        void* ptr = allocator.allocate(32);
+        void* ptr = allocator.allocate(32, "LargeMemoryAllocatorTest.cpp:270");
         assert(ptr != nullptr);
         ptrs.push_back(ptr);
     }
@@ -285,7 +285,7 @@ void testChunkRemovalThreshold() {
     LargeMemoryAllocator allocator(1024); // Small chunks
 
     // Allocate enough to trigger new chunk
-    void* large = allocator.allocate(2048);
+    void* large = allocator.allocate(2048, "LargeMemoryAllocatorTest.cpp:288");
     assert(large != nullptr);
 
     size_t totalBefore = allocator.getTotalMemory();
@@ -306,7 +306,7 @@ void testMemoryReadWrite() {
     LargeMemoryAllocator allocator(1024 * 1024);
 
     size_t size = 128;
-    char* ptr = static_cast<char*>(allocator.allocate(size));
+    char* ptr = static_cast<char*>(allocator.allocate(size, "LargeMemoryAllocatorTest.cpp:309"));
     assert(ptr != nullptr);
 
     // Write pattern
@@ -333,7 +333,7 @@ void testZeroSizedAllocation() {
 
     /* This would assert:
     LargeMemoryAllocator allocator(1024 * 1024);
-    void* ptr = allocator.allocate(0);
+    void* ptr = allocator.allocate(0, "LargeMemoryAllocatorTest.cpp:336");
     */
 }
 
@@ -346,7 +346,7 @@ void testDoubleFree() {
 
     /* This would assert:
     LargeMemoryAllocator allocator(1024 * 1024);
-    void* ptr = allocator.allocate(128);
+    void* ptr = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:349");
     allocator.free(ptr);
     allocator.free(ptr); // Double free - should assert
     */
@@ -361,7 +361,7 @@ void testGrowingAllocations() {
 
     // Allocate progressively larger blocks
     for (size_t size = 16; size <= 512; size *= 2) {
-        void* ptr = allocator.allocate(size);
+        void* ptr = allocator.allocate(size, "LargeMemoryAllocatorTest.cpp:364");
         assert(ptr != nullptr);
         ptrs.push_back(ptr);
     }
@@ -383,7 +383,7 @@ void testFragmentation() {
 
     // Allocate many blocks
     for (int i = 0; i < 20; ++i) {
-        ptrs.push_back(allocator.allocate(64));
+        ptrs.push_back(allocator.allocate(64, "LargeMemoryAllocatorTest.cpp:386"));
     }
 
     // Free every other block
@@ -393,7 +393,7 @@ void testFragmentation() {
     }
 
     // Try to allocate large block - might fail due to fragmentation
-    void* large = allocator.allocate(512);
+    void* large = allocator.allocate(512, "LargeMemoryAllocatorTest.cpp:396");
     if (large) {
         allocator.free(large);
     }
@@ -417,11 +417,11 @@ void testBugTriggeringSequence() {
 
     // Allocate 32 items
     for (int i = 0; i < 32; ++i) {
-        ptrs.push_back(allocator.allocate(32));
+        ptrs.push_back(allocator.allocate(32, "LargeMemoryAllocatorTest.cpp:420"));
     }
 
     // Allocate 33rd item - previously triggered infinite loop during realloc
-    ptrs.push_back(allocator.allocate(32));
+    ptrs.push_back(allocator.allocate(32, "LargeMemoryAllocatorTest.cpp:424"));
 
     // Free all
     for (void* ptr : ptrs) {
@@ -437,15 +437,15 @@ void testBestFitStrategy() {
     LargeMemoryAllocator allocator(1024 * 1024);
 
     // Create holes of different sizes
-    void* ptr1 = allocator.allocate(128);
-    void* ptr2 = allocator.allocate(256);
-    void* ptr3 = allocator.allocate(512);
+    void* ptr1 = allocator.allocate(128, "LargeMemoryAllocatorTest.cpp:440");
+    void* ptr2 = allocator.allocate(256, "LargeMemoryAllocatorTest.cpp:441");
+    void* ptr3 = allocator.allocate(512, "LargeMemoryAllocatorTest.cpp:442");
 
     allocator.free(ptr1); // 128-byte hole
     allocator.free(ptr3); // 512-byte hole
 
     // Allocate 100 bytes - should use best fit (128-byte hole)
-    void* ptr4 = allocator.allocate(100);
+    void* ptr4 = allocator.allocate(100, "LargeMemoryAllocatorTest.cpp:448");
     assert(ptr4 != nullptr);
 
     allocator.free(ptr2);
@@ -460,8 +460,8 @@ void testShrinkingBehavior() {
     LargeMemoryAllocator allocator(1024);
 
     // Allocate large amount
-    void* large1 = allocator.allocate(2048);
-    void* large2 = allocator.allocate(2048);
+    void* large1 = allocator.allocate(2048, "LargeMemoryAllocatorTest.cpp:463");
+    void* large2 = allocator.allocate(2048, "LargeMemoryAllocatorTest.cpp:464");
 
     size_t totalMax = allocator.getTotalMemory();
     std::cout << "  Max total memory: " << totalMax << std::endl;

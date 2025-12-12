@@ -271,9 +271,9 @@ public:
         }
 
         // Allocate new arrays
-        K* newKeys = static_cast<K*>(allocator_->allocate(n * sizeof(K)));
-        V* newValues = static_cast<V*>(allocator_->allocate(n * sizeof(V)));
-        bool* newOccupied = static_cast<bool*>(allocator_->allocate(n * sizeof(bool)));
+        K* newKeys = static_cast<K*>(allocator_->allocate(n * sizeof(K), "HashTable.h:274"));
+        V* newValues = static_cast<V*>(allocator_->allocate(n * sizeof(V), "HashTable.h:275"));
+        bool* newOccupied = static_cast<bool*>(allocator_->allocate(n * sizeof(bool), "HashTable.h:276"));
 
         assert(newKeys != nullptr);
         assert(newValues != nullptr);

@@ -13,7 +13,7 @@ static size_t alignSize(size_t size) {
 }
 
 LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
-    : m_chunks(nullptr), m_chunkSize(0), m_totalPoolSize(0), m_usedMemory(0), m_freeList(nullptr) {
+    : m_chunks(nullptr), m_chunkSize(0), m_totalPoolSize(0), m_usedMemory(0), m_allocationCount(0), m_freeList(nullptr) {
     assert(initialChunkSize > 0);
     m_mutex = SDL_CreateMutex();
     assert(m_mutex != nullptr);
@@ -28,6 +28,34 @@ LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
 }
 
 LargeMemoryAllocator::~LargeMemoryAllocator() {
+    // cerr instead of cout here to avoid race condition
+    std::cerr << "LargeMemoryAllocator: Destroying allocator with " << m_allocationCount
+              << " leaked allocations" << std::endl;
+
+    if (m_allocationCount > 0) {
+        MemoryChunk* chunk = m_chunks;
+        while (chunk) {
+            BlockHeader* current = (BlockHeader*)chunk->memory;
+            char* chunkEnd = chunk->memory + chunk->size;
+
+            while ((char*)current < chunkEnd) {
+                if (!current->isFree) {
+                    std::cerr << "Leaked block: size=" << current->size
+                              << ", allocationId=" << (current->allocationId ? current->allocationId : "unknown")
+                              << std::endl;
+                }
+
+                BlockHeader* next = (BlockHeader*)((char*)current + sizeof(BlockHeader) + current->size);
+                if ((char*)next >= chunkEnd) {
+                    break;
+                }
+                current = next;
+            }
+            chunk = chunk->next;
+        }
+    }
+    assert(m_allocationCount == 0);
+
     MemoryChunk* chunk = m_chunks;
     while (chunk) {
         MemoryChunk* next = chunk->next;
@@ -61,6 +89,7 @@ void LargeMemoryAllocator::addChunk(size_t size) {
     block->next = m_freeList;
     block->prev = nullptr;
     block->chunk = newChunk;
+    block->allocationId = nullptr;
 
     if (m_freeList) {
         m_freeList->prev = block;
@@ -69,10 +98,11 @@ void LargeMemoryAllocator::addChunk(size_t size) {
     newChunk->firstBlock = block;
 }
 
-void* LargeMemoryAllocator::allocate(size_t size) {
+void* LargeMemoryAllocator::allocate(size_t size, const char* allocationId) {
     SDL_LockMutex(m_mutex);
 
     assert(size > 0);
+    assert(allocationId != nullptr);
     size_t alignedSize = alignSize(size);
 
     BlockHeader* block = findFreeBlock(alignedSize);
@@ -93,7 +123,9 @@ void* LargeMemoryAllocator::allocate(size_t size) {
     }
 
     block->isFree = false;
+    block->allocationId = allocationId;
     m_usedMemory += block->size + sizeof(BlockHeader);
+    m_allocationCount++;
 
     if (m_freeList == block) {
         m_freeList = block->next;
@@ -120,7 +152,9 @@ void LargeMemoryAllocator::free(void* ptr) {
     assert(findChunkForPointer(ptr) != nullptr);
 
     m_usedMemory -= block->size + sizeof(BlockHeader);
+    m_allocationCount--;
     block->isFree = true;
+    block->allocationId = nullptr;
 
     // Set up temporary linkage for merge detection, but don't add to free list yet
     block->next = nullptr;
@@ -274,6 +308,7 @@ void LargeMemoryAllocator::splitBlock(BlockHeader* block, size_t size) {
     newBlock->chunk = block->chunk;
     newBlock->next = block->next;
     newBlock->prev = block;
+    newBlock->allocationId = nullptr;
 
     if (block->next) {
         block->next->prev = newBlock;

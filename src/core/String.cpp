@@ -262,7 +262,7 @@ void String::clear() {
 // Reserve capacity
 void String::reserve(size_t newCapacity) {
     if (newCapacity > capacity_) {
-        char* newData = (char*)allocator_->allocate(newCapacity + 1);
+        char* newData = (char*)allocator_->allocate(newCapacity + 1, "String.cpp:265");
         assert(newData != nullptr);
         if (data_ && length_ > 0) {
             strcpy(newData, data_);

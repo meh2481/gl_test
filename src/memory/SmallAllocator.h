@@ -17,7 +17,7 @@ public:
 
     // Allocate memory of given size
     // Returns nullptr if allocation fails
-    void* allocate(size_t size) override;
+    void* allocate(size_t size, const char* allocationId) override;
 
     // Free previously allocated memory
     void free(void* ptr) override;
@@ -66,7 +66,7 @@ public:
 private:
     // Memory pool structure - each pool is independent
     struct MemoryPool;
-    
+
     // Block header stored before each allocation
     struct BlockHeader {
         size_t size;           // Size of the allocation (not including header)
@@ -74,6 +74,7 @@ private:
         BlockHeader* next;     // Next block in the list
         BlockHeader* prev;     // Previous block in the list
         MemoryPool* pool;      // Pool this block belongs to
+        const char* allocationId; // Identifier for tracking allocation source
     };
 
     // Memory pool structure - each pool is independent

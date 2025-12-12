@@ -179,7 +179,7 @@ public:
             return;
         }
 
-        T* newData = static_cast<T*>(allocator_->allocate(newCapacity * sizeof(T)));
+        T* newData = static_cast<T*>(allocator_->allocate(newCapacity * sizeof(T), "Vector.h:182"));
         assert(newData != nullptr || newCapacity == 0);
         for (size_t i = 0; i < size_; ++i) {
             new (&newData[i]) T(static_cast<T&&>(data_[i]));
@@ -239,7 +239,7 @@ public:
                 }
                 capacity_ = 0;
             } else {
-                T* newData = static_cast<T*>(allocator_->allocate(size_ * sizeof(T)));
+                T* newData = static_cast<T*>(allocator_->allocate(size_ * sizeof(T), "Vector.h:242"));
                 assert(newData != nullptr);
                 for (size_t i = 0; i < size_; ++i) {
                     new (&newData[i]) T(static_cast<T&&>(data_[i]));

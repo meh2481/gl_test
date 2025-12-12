@@ -10,7 +10,7 @@ public:
     LargeMemoryAllocator(size_t initialChunkSize = 1024 * 1024);
     ~LargeMemoryAllocator() override;
 
-    void* allocate(size_t size) override;
+    void* allocate(size_t size, const char* allocationId) override;
     void free(void* ptr) override;
     size_t defragment() override;
 
@@ -56,6 +56,7 @@ private:
         BlockHeader* next;
         BlockHeader* prev;
         MemoryChunk* chunk;
+        const char* allocationId;
     };
 
     struct MemoryChunk {
@@ -69,6 +70,7 @@ private:
     size_t m_chunkSize;
     size_t m_totalPoolSize;
     size_t m_usedMemory;
+    size_t m_allocationCount;
     BlockHeader* m_freeList;
     SDL_Mutex* m_mutex;
 
