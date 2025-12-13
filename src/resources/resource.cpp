@@ -179,7 +179,7 @@ ResourceData PakResource::getResource(uint64_t id) {
                     return ResourceData{nullptr, 0, 0};
                 }
                 
-                m_decompressedData.insert(id, decompressed);
+                m_decompressedData.insertNew(id, decompressed);
                 ResourceData resData = ResourceData{(char*)decompressed->data(), comp->decompressedSize, comp->type};
                 SDL_UnlockMutex(m_mutex);
                 return resData;

@@ -479,7 +479,7 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
         destroyPipeline(id);
     }
 
-    m_pipelines.insert(id, pipeline);
+    m_pipelines.insertNew(id, pipeline);
 
     void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createTexturedPipeline::PipelineInfo");
     PipelineInfo* info = new (infoMem) PipelineInfo();
@@ -490,7 +490,7 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
     info->usesAnimationPushConstants = false;
     info->isParticlePipeline = false;
     info->isWaterPipeline = false;
-    m_pipelineInfo.insert(id, info);
+    m_pipelineInfo.insertNew(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
@@ -676,7 +676,7 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
         destroyPipeline(id);
     }
 
-    m_pipelines.insert(id, pipeline);
+    m_pipelines.insertNew(id, pipeline);
 
     void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createTexturedPipelineAdditive::PipelineInfo");
     PipelineInfo* info = new (infoMem) PipelineInfo();
@@ -687,7 +687,7 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     info->usesAnimationPushConstants = false;
     info->isParticlePipeline = false;
     info->isWaterPipeline = false;
-    m_pipelineInfo.insert(id, info);
+    m_pipelineInfo.insertNew(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
@@ -874,7 +874,7 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
         destroyPipeline(id);
     }
 
-    m_pipelines.insert(id, pipeline);
+    m_pipelines.insertNew(id, pipeline);
 
     void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createAnimTexturedPipeline::PipelineInfo");
     PipelineInfo* info = new (infoMem) PipelineInfo();
@@ -885,7 +885,7 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
     info->usesAnimationPushConstants = true;
     info->isParticlePipeline = false;
     info->isWaterPipeline = false;
-    m_pipelineInfo.insert(id, info);
+    m_pipelineInfo.insertNew(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
@@ -1054,7 +1054,7 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
         destroyPipeline(id);
     }
 
-    m_pipelines.insert(id, pipeline);
+    m_pipelines.insertNew(id, pipeline);
 
     void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createParticlePipeline::PipelineInfo");
     PipelineInfo* info = new (infoMem) PipelineInfo();
@@ -1065,7 +1065,7 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
     info->usesAnimationPushConstants = false;
     info->isParticlePipeline = true;
     info->isWaterPipeline = false;
-    m_pipelineInfo.insert(id, info);
+    m_pipelineInfo.insertNew(id, info);
 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);

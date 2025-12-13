@@ -111,6 +111,9 @@ public:
 
     // Insert or update a key-value pair
     // Returns true if a new entry was inserted, false if an existing entry was updated
+    // IMPORTANT: For pointer types, check if key exists and clean up old value before calling insert
+    // to avoid memory leaks. Use find() to check for existing values, or use insertNew() which asserts
+    // that the key doesn't exist.
     bool insert(const K& key, const V& value) {
         assert(keys_ != nullptr);
         assert(values_ != nullptr);
@@ -143,6 +146,15 @@ public:
         occupied_[index] = true;
         size_++;
         return true;
+    }
+
+    // Insert a new key-value pair
+    // Asserts that the key does not already exist - use this when you're certain the key is new
+    // This is safer for pointer types as it prevents accidental overwrites
+    void insertNew(const K& key, const V& value) {
+        assert(find(key) == nullptr && "insertNew called with existing key - use insert() or remove old value first");
+        bool inserted = insert(key, value);
+        assert(inserted && "insertNew failed to insert new entry");
     }
 
     // Lookup a value by key
