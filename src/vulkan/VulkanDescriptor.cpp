@@ -19,22 +19,26 @@ static const char* vkResultToString(VkResult result) {
     }
 }
 
-VulkanDescriptor::VulkanDescriptor() :
+VulkanDescriptor::VulkanDescriptor(MemoryAllocator* allocator) :
     m_device(VK_NULL_HANDLE),
     m_textureManager(nullptr),
     m_initialized(false),
     m_singleTextureDescriptorSetLayout(VK_NULL_HANDLE),
     m_singleTextureDescriptorPool(VK_NULL_HANDLE),
+    m_singleTextureDescriptorSets(*allocator, "VulkanDescriptor::m_singleTextureDescriptorSets"),
     m_singleTexturePipelineLayout(VK_NULL_HANDLE),
     m_dualTextureDescriptorSetLayout(VK_NULL_HANDLE),
     m_dualTextureDescriptorPool(VK_NULL_HANDLE),
+    m_dualTextureDescriptorSets(*allocator, "VulkanDescriptor::m_dualTextureDescriptorSets"),
     m_dualTexturePipelineLayout(VK_NULL_HANDLE),
     m_animSingleTexturePipelineLayout(VK_NULL_HANDLE),
     m_animDualTexturePipelineLayout(VK_NULL_HANDLE),
     m_lightDescriptorSetLayout(VK_NULL_HANDLE),
     m_lightDescriptorPool(VK_NULL_HANDLE),
-    m_lightDescriptorSet(VK_NULL_HANDLE)
+    m_lightDescriptorSet(VK_NULL_HANDLE),
+    m_allocator(allocator)
 {
+    assert(m_allocator != nullptr);
 }
 
 VulkanDescriptor::~VulkanDescriptor() {
@@ -237,7 +241,7 @@ void VulkanDescriptor::createLightDescriptorPool() {
 }
 
 void VulkanDescriptor::createSingleTextureDescriptorSet(uint64_t textureId, VkImageView imageView, VkSampler sampler) {
-    if (m_singleTextureDescriptorSets.find(textureId) != m_singleTextureDescriptorSets.end()) {
+    if (m_singleTextureDescriptorSets.find(textureId) != nullptr) {
         return;
     }
 
@@ -266,11 +270,11 @@ void VulkanDescriptor::createSingleTextureDescriptorSet(uint64_t textureId, VkIm
 
     vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
 
-    m_singleTextureDescriptorSets[textureId] = descriptorSet;
+    m_singleTextureDescriptorSets.insert(textureId, descriptorSet);
 }
 
 void VulkanDescriptor::createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id) {
-    if (m_dualTextureDescriptorSets.find(descriptorId) != m_dualTextureDescriptorSets.end()) {
+    if (m_dualTextureDescriptorSets.find(descriptorId) != nullptr) {
         return;
     }
 
@@ -325,14 +329,14 @@ void VulkanDescriptor::createDualTextureDescriptorSet(uint64_t descriptorId, uin
 
     vkUpdateDescriptorSets(m_device, 2, descriptorWrites, 0, nullptr);
 
-    m_dualTextureDescriptorSets[descriptorId] = descriptorSet;
+    m_dualTextureDescriptorSets.insert(descriptorId, descriptorSet);
 }
 
 void VulkanDescriptor::createDescriptorSetForTextures(uint64_t descriptorId, const Vector<uint64_t>& textureIds) {
     if (textureIds.size() == 1) {
-        auto it = m_singleTextureDescriptorSets.find(textureIds[0]);
-        if (it != m_singleTextureDescriptorSets.end()) {
-            m_singleTextureDescriptorSets[descriptorId] = it->second;
+        const VkDescriptorSet* descSetPtr = m_singleTextureDescriptorSets.find(textureIds[0]);
+        if (descSetPtr != nullptr) {
+            m_singleTextureDescriptorSets.insert(descriptorId, *descSetPtr);
         }
     } else if (textureIds.size() == 2) {
         createDualTextureDescriptorSet(descriptorId, textureIds[0], textureIds[1]);
@@ -366,51 +370,53 @@ void VulkanDescriptor::createLightDescriptorSet(VkBuffer lightUniformBuffer, VkD
 }
 
 VkDescriptorSet VulkanDescriptor::getSingleTextureDescriptorSet(uint64_t textureId) const {
-    auto it = m_singleTextureDescriptorSets.find(textureId);
-    if (it != m_singleTextureDescriptorSets.end()) {
-        return it->second;
+    const VkDescriptorSet* descSetPtr = m_singleTextureDescriptorSets.find(textureId);
+    if (descSetPtr != nullptr) {
+        return *descSetPtr;
     }
     return VK_NULL_HANDLE;
 }
 
 VkDescriptorSet VulkanDescriptor::getDualTextureDescriptorSet(uint64_t descriptorId) const {
-    auto it = m_dualTextureDescriptorSets.find(descriptorId);
-    if (it != m_dualTextureDescriptorSets.end()) {
-        return it->second;
+    const VkDescriptorSet* descSetPtr = m_dualTextureDescriptorSets.find(descriptorId);
+    if (descSetPtr != nullptr) {
+        return *descSetPtr;
     }
     return VK_NULL_HANDLE;
 }
 
 bool VulkanDescriptor::hasSingleTextureDescriptorSet(uint64_t textureId) const {
-    return m_singleTextureDescriptorSets.find(textureId) != m_singleTextureDescriptorSets.end();
+    return m_singleTextureDescriptorSets.find(textureId) != nullptr;
 }
 
 bool VulkanDescriptor::hasDualTextureDescriptorSet(uint64_t descriptorId) const {
-    return m_dualTextureDescriptorSets.find(descriptorId) != m_dualTextureDescriptorSets.end();
+    return m_dualTextureDescriptorSets.find(descriptorId) != nullptr;
 }
 
 VkDescriptorSet VulkanDescriptor::getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId,
                                                            uint64_t normalMapId, bool usesDualTexture) {
     if (usesDualTexture) {
-        auto it = m_dualTextureDescriptorSets.find(descriptorId);
-        if (it != m_dualTextureDescriptorSets.end()) {
-            return it->second;
+        const VkDescriptorSet* descSetPtr = m_dualTextureDescriptorSets.find(descriptorId);
+        if (descSetPtr != nullptr) {
+            return *descSetPtr;
         }
 
         if (normalMapId != 0) {
             createDualTextureDescriptorSet(descriptorId, textureId, normalMapId);
-            return m_dualTextureDescriptorSets[descriptorId];
+            const VkDescriptorSet* newDescSetPtr = m_dualTextureDescriptorSets.find(descriptorId);
+            assert(newDescSetPtr != nullptr);
+            return *newDescSetPtr;
         }
     } else {
-        auto it = m_singleTextureDescriptorSets.find(descriptorId);
-        if (it != m_singleTextureDescriptorSets.end()) {
-            return it->second;
+        const VkDescriptorSet* descSetPtr = m_singleTextureDescriptorSets.find(descriptorId);
+        if (descSetPtr != nullptr) {
+            return *descSetPtr;
         }
 
-        auto texIt = m_singleTextureDescriptorSets.find(textureId);
-        if (texIt != m_singleTextureDescriptorSets.end()) {
-            m_singleTextureDescriptorSets[descriptorId] = texIt->second;
-            return texIt->second;
+        const VkDescriptorSet* texDescSetPtr = m_singleTextureDescriptorSets.find(textureId);
+        if (texDescSetPtr != nullptr) {
+            m_singleTextureDescriptorSets.insert(descriptorId, *texDescSetPtr);
+            return *texDescSetPtr;
         }
     }
 

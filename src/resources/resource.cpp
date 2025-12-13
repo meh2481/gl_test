@@ -15,11 +15,16 @@
 #include <unistd.h>
 #endif
 
-PakResource::PakResource(MemoryAllocator* allocator) : m_pakData{nullptr, 0}, m_allocator(allocator)
+PakResource::PakResource(MemoryAllocator* allocator)
+    : m_pakData{nullptr, 0}
+    , m_decompressedData(*allocator, "PakResource::m_decompressedData")
+    , m_atlasUVCache(*allocator, "PakResource::m_atlasUVCache")
+    , m_allocator(allocator)
 #ifdef _WIN32
-, m_hFile(INVALID_HANDLE_VALUE), m_hMapping(NULL)
+    , m_hFile(INVALID_HANDLE_VALUE)
+    , m_hMapping(NULL)
 #else
-, m_fd(-1)
+    , m_fd(-1)
 #endif
 {
     assert(m_allocator != nullptr);
@@ -28,6 +33,13 @@ PakResource::PakResource(MemoryAllocator* allocator) : m_pakData{nullptr, 0}, m_
 }
 
 PakResource::~PakResource() {
+    // Clean up decompressed data
+    for (auto it = m_decompressedData.begin(); it != m_decompressedData.end(); ++it) {
+        Vector<char>* vec = it.value();
+        vec->~Vector<char>();
+        m_allocator->free(vec);
+    }
+    
     if (m_pakData.data) {
 #ifdef _WIN32
         if (m_pakData.data) UnmapViewOfFile(m_pakData.data);
@@ -101,7 +113,12 @@ bool PakResource::reload(const char* filename) {
 #endif
         m_pakData = {nullptr, 0};
     }
-    // Clear caches
+    // Clear caches - first free allocated Vector objects
+    for (auto it = m_decompressedData.begin(); it != m_decompressedData.end(); ++it) {
+        Vector<char>* vec = it.value();
+        vec->~Vector<char>();
+        m_allocator->free(vec);
+    }
     m_decompressedData.clear();
     m_atlasUVCache.clear();
     // Load again
@@ -137,27 +154,33 @@ ResourceData PakResource::getResource(uint64_t id) {
                 return result;
             } else if (comp->compressionType == COMPRESSION_FLAGS_LZ4) {
                 // Check if already decompressed (cache hit)
-                auto it = m_decompressedData.find(id);
-                if (it != m_decompressedData.end()) {
+                Vector<char>** cachedDataPtr = m_decompressedData.find(id);
+                if (cachedDataPtr != nullptr) {
                     std::cout << "Resource " << id << ": cache hit (" << comp->decompressedSize << " bytes)" << std::endl;
-                    ResourceData result = ResourceData{(char*)it->second.data(), comp->decompressedSize, comp->type};
+                    ResourceData result = ResourceData{(char*)(*cachedDataPtr)->data(), comp->decompressedSize, comp->type};
                     SDL_UnlockMutex(m_mutex);
                     return result;
                 }
                 // Cache miss - decompress
                 std::cout << "Resource " << id << ": cache miss, decompressing " << comp->compressedSize << " -> " << comp->decompressedSize << " bytes" << std::endl;
-                Vector<char> decompressed(*m_allocator, "ResourceManager::getResource::decompressed");
-                decompressed.resize(comp->decompressedSize);
-                int result = LZ4_decompress_safe(compressedData, decompressed.data(), comp->compressedSize, comp->decompressedSize);
+                
+                // Allocate Vector using memory allocator
+                void* vecMem = m_allocator->allocate(sizeof(Vector<char>), "PakResource::getResource::Vector");
+                Vector<char>* decompressed = new (vecMem) Vector<char>(*m_allocator, "PakResource::getResource::decompressed");
+                decompressed->resize(comp->decompressedSize);
+                
+                int result = LZ4_decompress_safe(compressedData, decompressed->data(), comp->compressedSize, comp->decompressedSize);
                 if (result != (int)comp->decompressedSize) {
                     std::cerr << "LZ4 decompression failed for resource " << id << std::endl;
+                    decompressed->~Vector<char>();
+                    m_allocator->free(vecMem);
                     SDL_UnlockMutex(m_mutex);
                     assert(false);
                     return ResourceData{nullptr, 0, 0};
                 }
-                m_decompressedData.insert({id, std::move(decompressed)});
-                it = m_decompressedData.find(id);
-                ResourceData resData = ResourceData{(char*)it->second.data(), comp->decompressedSize, comp->type};
+                
+                m_decompressedData.insertNew(id, decompressed);
+                ResourceData resData = ResourceData{(char*)decompressed->data(), comp->decompressedSize, comp->type};
                 SDL_UnlockMutex(m_mutex);
                 return resData;
             }
@@ -174,9 +197,9 @@ bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
     SDL_LockMutex(m_mutex);
 
     // Check cache first
-    auto cacheIt = m_atlasUVCache.find(textureId);
-    if (cacheIt != m_atlasUVCache.end()) {
-        uv = cacheIt->second;
+    AtlasUV* cachedUV = m_atlasUVCache.find(textureId);
+    if (cachedUV != nullptr) {
+        uv = *cachedUV;
         SDL_UnlockMutex(m_mutex);
         return true;
     }
@@ -230,7 +253,7 @@ bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
 
         // Cache the result
         SDL_LockMutex(m_mutex);
-        m_atlasUVCache[textureId] = uv;
+        m_atlasUVCache.insert(textureId, uv);
         SDL_UnlockMutex(m_mutex);
 
         return true;
@@ -282,7 +305,8 @@ void PakResource::preloadResourceAsync(uint64_t id) {
 
 bool PakResource::isResourceReady(uint64_t id) {
     SDL_LockMutex(m_mutex);
-    bool ready = m_decompressedData.find(id) != m_decompressedData.end();
+    Vector<char>** vecPtr = m_decompressedData.find(id);
+    bool ready = (vecPtr != nullptr);
     SDL_UnlockMutex(m_mutex);
     return ready;
 }

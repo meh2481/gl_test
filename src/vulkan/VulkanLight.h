@@ -1,7 +1,8 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <map>
+#include "../core/HashTable.h"
+#include "../memory/MemoryAllocator.h"
 #include <cstdint>
 #include <cstring>
 
@@ -28,7 +29,7 @@ struct LightBufferData {
 // Helper class for managing Vulkan light system
 class VulkanLight {
 public:
-    VulkanLight();
+    VulkanLight(MemoryAllocator* allocator);
     ~VulkanLight();
 
     // Initialization - must be called before any other operations
@@ -70,6 +71,7 @@ private:
 
     // Light tracking
     int m_nextLightId;
-    std::map<int, int> m_lightIdToIndex;
+    HashTable<int, int> m_lightIdToIndex;
     bool m_lightBufferDirty;
+    MemoryAllocator* m_allocator;
 };

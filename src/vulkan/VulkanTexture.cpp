@@ -5,13 +5,16 @@
 #include <iostream>
 #include <set>
 
-VulkanTexture::VulkanTexture() :
+VulkanTexture::VulkanTexture(MemoryAllocator* allocator) :
     m_device(VK_NULL_HANDLE),
     m_physicalDevice(VK_NULL_HANDLE),
     m_commandPool(VK_NULL_HANDLE),
     m_graphicsQueue(VK_NULL_HANDLE),
-    m_initialized(false)
+    m_initialized(false),
+    m_textures(*allocator, "VulkanTexture::m_textures"),
+    m_allocator(allocator)
 {
+    assert(m_allocator != nullptr);
 }
 
 VulkanTexture::~VulkanTexture() {
@@ -203,12 +206,12 @@ void VulkanTexture::createTextureImage(uint64_t textureId, const void* imageData
     assert(vkCreateImageView(m_device, &viewInfo, nullptr, &tex.imageView) == VK_SUCCESS);
 
     tex.sampler = VK_NULL_HANDLE; // Will be created by createTextureSampler
-    m_textures[textureId] = tex;
+    m_textures.insert(textureId, tex);
 }
 
 void VulkanTexture::createTextureSampler(uint64_t textureId) {
-    auto it = m_textures.find(textureId);
-    assert(it != m_textures.end());
+    TextureData* texPtr = m_textures.find(textureId);
+    assert(texPtr != nullptr);
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -228,37 +231,37 @@ void VulkanTexture::createTextureSampler(uint64_t textureId) {
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 0.0f;
 
-    assert(vkCreateSampler(m_device, &samplerInfo, nullptr, &it->second.sampler) == VK_SUCCESS);
+    assert(vkCreateSampler(m_device, &samplerInfo, nullptr, &texPtr->sampler) == VK_SUCCESS);
 }
 
 bool VulkanTexture::getTexture(uint64_t textureId, TextureData* outData) const {
-    auto it = m_textures.find(textureId);
-    if (it == m_textures.end()) {
+    const TextureData* texPtr = m_textures.find(textureId);
+    if (texPtr == nullptr) {
         return false;
     }
     if (outData) {
-        *outData = it->second;
+        *outData = *texPtr;
     }
     return true;
 }
 
 bool VulkanTexture::hasTexture(uint64_t textureId) const {
-    return m_textures.find(textureId) != m_textures.end();
+    return m_textures.find(textureId) != nullptr;
 }
 
 bool VulkanTexture::getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const {
-    auto it = m_textures.find(textureId);
-    if (it == m_textures.end()) {
+    const TextureData* texPtr = m_textures.find(textureId);
+    if (texPtr == nullptr) {
         return false;
     }
-    if (width) *width = it->second.width;
-    if (height) *height = it->second.height;
+    if (width) *width = texPtr->width;
+    if (height) *height = texPtr->height;
     return true;
 }
 
 void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageData) {
     // If texture already exists, skip reloading (textures don't change during hot-reload)
-    if (m_textures.find(textureId) != m_textures.end()) {
+    if (m_textures.find(textureId) != nullptr) {
         std::cout << "Texture " << textureId << ": already in GPU memory (cache hit)" << std::endl;
         return;
     }
@@ -275,14 +278,15 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
         uint64_t atlasId = texHeader->atlasId;
         std::cout << "Texture " << textureId << ": atlas reference (atlas id: " << atlasId << ", UV: " << texHeader->coordinates[0] << "," << texHeader->coordinates[1] << " - " << texHeader->coordinates[4] << "," << texHeader->coordinates[5] << ")" << std::endl;
         // Load the atlas if not already loaded
-        if (m_textures.find(atlasId) == m_textures.end()) {
+        const TextureData* atlasTexPtr = m_textures.find(atlasId);
+        if (atlasTexPtr == nullptr) {
             // Atlas not loaded, but we can't load it here without data
             std::cerr << "Atlas " << atlasId << " not loaded for texture " << textureId << std::endl;
             assert(false && "Atlas texture not loaded");
             return;
         }
         // Associate the texture ID with the atlas texture
-        m_textures[textureId] = m_textures[atlasId];
+        m_textures.insert(textureId, *atlasTexPtr);
         createTextureSampler(textureId);
         return;
     } else {
@@ -320,7 +324,7 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
 
 void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData) {
     // If atlas texture already exists, skip reloading
-    if (m_textures.find(atlasId) != m_textures.end()) {
+    if (m_textures.find(atlasId) != nullptr) {
         std::cout << "Atlas " << atlasId << ": already in GPU memory (cache hit)" << std::endl;
         return;
     }
@@ -359,25 +363,25 @@ void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlas
 }
 
 void VulkanTexture::destroyTexture(uint64_t textureId) {
-    auto it = m_textures.find(textureId);
-    if (it == m_textures.end()) {
+    TextureData* texPtr = m_textures.find(textureId);
+    if (texPtr == nullptr) {
         return;
     }
 
-    if (it->second.sampler != VK_NULL_HANDLE) {
-        vkDestroySampler(m_device, it->second.sampler, nullptr);
+    if (texPtr->sampler != VK_NULL_HANDLE) {
+        vkDestroySampler(m_device, texPtr->sampler, nullptr);
     }
-    if (it->second.imageView != VK_NULL_HANDLE) {
-        vkDestroyImageView(m_device, it->second.imageView, nullptr);
+    if (texPtr->imageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(m_device, texPtr->imageView, nullptr);
     }
-    if (it->second.image != VK_NULL_HANDLE) {
-        vkDestroyImage(m_device, it->second.image, nullptr);
+    if (texPtr->image != VK_NULL_HANDLE) {
+        vkDestroyImage(m_device, texPtr->image, nullptr);
     }
-    if (it->second.memory != VK_NULL_HANDLE) {
-        vkFreeMemory(m_device, it->second.memory, nullptr);
+    if (texPtr->memory != VK_NULL_HANDLE) {
+        vkFreeMemory(m_device, texPtr->memory, nullptr);
     }
 
-    m_textures.erase(it);
+    m_textures.remove(textureId);
 }
 
 void VulkanTexture::destroyAllTextures() {
@@ -386,22 +390,22 @@ void VulkanTexture::destroyAllTextures() {
     std::set<VkImage> destroyedImages;
     std::set<VkDeviceMemory> destroyedMemories;
 
-    for (auto& pair : m_textures) {
-        if (pair.second.sampler != VK_NULL_HANDLE && destroyedSamplers.find(pair.second.sampler) == destroyedSamplers.end()) {
-            vkDestroySampler(m_device, pair.second.sampler, nullptr);
-            destroyedSamplers.insert(pair.second.sampler);
+    for (auto it = m_textures.begin(); it != m_textures.end(); ++it) {
+        if (it.value().sampler != VK_NULL_HANDLE && destroyedSamplers.find(it.value().sampler) == destroyedSamplers.end()) {
+            vkDestroySampler(m_device, it.value().sampler, nullptr);
+            destroyedSamplers.insert(it.value().sampler);
         }
-        if (pair.second.imageView != VK_NULL_HANDLE && destroyedImageViews.find(pair.second.imageView) == destroyedImageViews.end()) {
-            vkDestroyImageView(m_device, pair.second.imageView, nullptr);
-            destroyedImageViews.insert(pair.second.imageView);
+        if (it.value().imageView != VK_NULL_HANDLE && destroyedImageViews.find(it.value().imageView) == destroyedImageViews.end()) {
+            vkDestroyImageView(m_device, it.value().imageView, nullptr);
+            destroyedImageViews.insert(it.value().imageView);
         }
-        if (pair.second.image != VK_NULL_HANDLE && destroyedImages.find(pair.second.image) == destroyedImages.end()) {
-            vkDestroyImage(m_device, pair.second.image, nullptr);
-            destroyedImages.insert(pair.second.image);
+        if (it.value().image != VK_NULL_HANDLE && destroyedImages.find(it.value().image) == destroyedImages.end()) {
+            vkDestroyImage(m_device, it.value().image, nullptr);
+            destroyedImages.insert(it.value().image);
         }
-        if (pair.second.memory != VK_NULL_HANDLE && destroyedMemories.find(pair.second.memory) == destroyedMemories.end()) {
-            vkFreeMemory(m_device, pair.second.memory, nullptr);
-            destroyedMemories.insert(pair.second.memory);
+        if (it.value().memory != VK_NULL_HANDLE && destroyedMemories.find(it.value().memory) == destroyedMemories.end()) {
+            vkFreeMemory(m_device, it.value().memory, nullptr);
+            destroyedMemories.insert(it.value().memory);
         }
     }
     m_textures.clear();
@@ -409,7 +413,7 @@ void VulkanTexture::destroyAllTextures() {
 
 void VulkanTexture::createRenderTargetTexture(uint64_t textureId, uint32_t width, uint32_t height, VkFormat format) {
     // Destroy existing texture if present
-    if (m_textures.find(textureId) != m_textures.end()) {
+    if (m_textures.find(textureId) != nullptr) {
         destroyTexture(textureId);
     }
 
@@ -533,7 +537,7 @@ void VulkanTexture::createRenderTargetTexture(uint64_t textureId, uint32_t width
 
     assert(vkCreateSampler(m_device, &samplerInfo, nullptr, &tex.sampler) == VK_SUCCESS);
 
-    m_textures[textureId] = tex;
+    m_textures.insert(textureId, tex);
 
     std::cout << "Created render target texture " << textureId << " (" << width << "x" << height << ")" << std::endl;
 }

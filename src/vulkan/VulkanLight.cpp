@@ -1,7 +1,7 @@
 #include "VulkanLight.h"
 #include <cassert>
 
-VulkanLight::VulkanLight() :
+VulkanLight::VulkanLight(MemoryAllocator* allocator) :
     m_device(VK_NULL_HANDLE),
     m_physicalDevice(VK_NULL_HANDLE),
     m_initialized(false),
@@ -9,8 +9,11 @@ VulkanLight::VulkanLight() :
     m_lightUniformBufferMemory(VK_NULL_HANDLE),
     m_lightUniformBufferMapped(nullptr),
     m_nextLightId(1),
-    m_lightBufferDirty(true)
+    m_lightIdToIndex(*allocator, "VulkanLight::m_lightIdToIndex"),
+    m_lightBufferDirty(true),
+    m_allocator(allocator)
 {
+    assert(m_allocator != nullptr);
     memset(&m_lightBufferData, 0, sizeof(m_lightBufferData));
     m_lightBufferData.numLights = 0;
     m_lightBufferData.ambientR = 0.1f;
@@ -105,19 +108,19 @@ int VulkanLight::addLight(float x, float y, float z, float r, float g, float b, 
     m_lightBufferData.lights[index].intensity = intensity;
     m_lightBufferData.numLights++;
 
-    m_lightIdToIndex[lightId] = index;
+    m_lightIdToIndex.insert(lightId, index);
     m_lightBufferDirty = true;
 
     return lightId;
 }
 
 void VulkanLight::updateLight(int lightId, float x, float y, float z, float r, float g, float b, float intensity) {
-    auto it = m_lightIdToIndex.find(lightId);
-    if (it == m_lightIdToIndex.end()) {
+    int* indexPtr = m_lightIdToIndex.find(lightId);
+    if (indexPtr == nullptr) {
         return;
     }
 
-    int index = it->second;
+    int index = *indexPtr;
     m_lightBufferData.lights[index].posX = x;
     m_lightBufferData.lights[index].posY = y;
     m_lightBufferData.lights[index].posZ = z;
@@ -129,12 +132,12 @@ void VulkanLight::updateLight(int lightId, float x, float y, float z, float r, f
 }
 
 void VulkanLight::removeLight(int lightId) {
-    auto it = m_lightIdToIndex.find(lightId);
-    if (it == m_lightIdToIndex.end()) {
+    int* indexPtr = m_lightIdToIndex.find(lightId);
+    if (indexPtr == nullptr) {
         return;
     }
 
-    int indexToRemove = it->second;
+    int indexToRemove = *indexPtr;
     int lastIndex = m_lightBufferData.numLights - 1;
 
     // If not the last light, swap with the last one
@@ -142,16 +145,16 @@ void VulkanLight::removeLight(int lightId) {
         m_lightBufferData.lights[indexToRemove] = m_lightBufferData.lights[lastIndex];
 
         // Update the index mapping for the swapped light
-        for (auto& pair : m_lightIdToIndex) {
-            if (pair.second == lastIndex) {
-                pair.second = indexToRemove;
+        for (auto it = m_lightIdToIndex.begin(); it != m_lightIdToIndex.end(); ++it) {
+            if (it.value() == lastIndex) {
+                m_lightIdToIndex.insert(it.key(), indexToRemove);
                 break;
             }
         }
     }
 
     m_lightBufferData.numLights--;
-    m_lightIdToIndex.erase(it);
+    m_lightIdToIndex.remove(lightId);
     m_lightBufferDirty = true;
 }
 

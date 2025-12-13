@@ -57,7 +57,10 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
 }
 
 VulkanRenderer::VulkanRenderer(MemoryAllocator* allocator) :
+    m_textureManager(allocator),
+    m_descriptorManager(allocator),
     m_pipelineManager(allocator),
+    m_lightManager(allocator),
     m_instance(VK_NULL_HANDLE),
     m_surface(VK_NULL_HANDLE),
     m_physicalDevice(VK_NULL_HANDLE),
@@ -1402,12 +1405,15 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 const auto& singleTexDescSets = m_descriptorManager.getSingleTextureDescriptorSets();
                 if (!singleTexDescSets.empty()) {
                     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
-                    auto it = singleTexDescSets.find(batch.textureId);
-                    if (it != singleTexDescSets.end()) {
-                        descriptorSet = it->second;
+                    const VkDescriptorSet* descSetPtr = singleTexDescSets.find(batch.textureId);
+                    if (descSetPtr != nullptr) {
+                        descriptorSet = *descSetPtr;
                     }
                     if (descriptorSet == VK_NULL_HANDLE) {
-                        descriptorSet = singleTexDescSets.begin()->second;
+                        auto it = singleTexDescSets.begin();
+                        if (it != singleTexDescSets.end()) {
+                            descriptorSet = it.value();
+                        }
                     }
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                           info->layout, 0, 1, &descriptorSet, 0, nullptr);

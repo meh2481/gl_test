@@ -3,6 +3,7 @@
 #include "../memory/MemoryAllocator.h"
 #include <cstdint>
 #include <cassert>
+#include <cstring>
 
 // Hash function for integral types
 template<typename K>
@@ -72,16 +73,18 @@ inline uint32_t hashKey<int>(const int& key) {
 template<typename K, typename V>
 class HashTable {
 public:
-    // Constructor with custom allocator
-    explicit HashTable(MemoryAllocator& allocator)
+    // Constructor with custom allocator and allocation ID
+    explicit HashTable(MemoryAllocator& allocator, const char* callerId)
         : keys_(nullptr)
         , values_(nullptr)
         , occupied_(nullptr)
         , capacity_(0)
         , size_(0)
         , allocator_(&allocator)
+        , callerId_(callerId)
     {
         assert(allocator_ != nullptr);
+        assert(callerId_ != nullptr);
         // Start with a reasonable default capacity
         reserve(16);
     }
@@ -108,6 +111,9 @@ public:
 
     // Insert or update a key-value pair
     // Returns true if a new entry was inserted, false if an existing entry was updated
+    // IMPORTANT: For pointer types, check if key exists and clean up old value before calling insert
+    // to avoid memory leaks. Use find() to check for existing values, or use insertNew() which asserts
+    // that the key doesn't exist.
     bool insert(const K& key, const V& value) {
         assert(keys_ != nullptr);
         assert(values_ != nullptr);
@@ -140,6 +146,15 @@ public:
         occupied_[index] = true;
         size_++;
         return true;
+    }
+
+    // Insert a new key-value pair
+    // Asserts that the key does not already exist - use this when you're certain the key is new
+    // This is safer for pointer types as it prevents accidental overwrites
+    void insertNew(const K& key, const V& value) {
+        assert(find(key) == nullptr && "insertNew called with existing key - use insert() or remove old value first");
+        bool inserted = insert(key, value);
+        assert(inserted && "insertNew failed to insert new entry");
     }
 
     // Lookup a value by key
@@ -271,9 +286,9 @@ public:
         }
 
         // Allocate new arrays
-        K* newKeys = static_cast<K*>(allocator_->allocate(n * sizeof(K), "HashTable.h:274"));
-        V* newValues = static_cast<V*>(allocator_->allocate(n * sizeof(V), "HashTable.h:275"));
-        bool* newOccupied = static_cast<bool*>(allocator_->allocate(n * sizeof(bool), "HashTable.h:276"));
+        K* newKeys = static_cast<K*>(allocator_->allocate(n * sizeof(K), callerId_));
+        V* newValues = static_cast<V*>(allocator_->allocate(n * sizeof(V), callerId_));
+        bool* newOccupied = static_cast<bool*>(allocator_->allocate(n * sizeof(bool), callerId_));
 
         assert(newKeys != nullptr);
         assert(newValues != nullptr);
@@ -445,4 +460,5 @@ private:
     uint32_t size_;
 
     MemoryAllocator* allocator_;
+    const char* callerId_;
 };
