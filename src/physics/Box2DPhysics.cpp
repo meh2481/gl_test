@@ -83,7 +83,13 @@ Box2DPhysics::~Box2DPhysics() {
     // Wait for any in-progress step to complete
     waitForStepComplete();
 
-    // Clear bodyTypes before destroying (contains Strings that use the allocator)
+    // Clean up allocated vectors in bodyTypes_ - manually destruct and free through allocator
+    for (auto& pair : bodyTypes_) {
+        assert(pair.second != nullptr);
+        Vector<String>* vec = pair.second;
+        vec->~Vector();  // Call destructor to free internal data
+        stringAllocator_->free(vec);  // Free the Vector object itself
+    }
     bodyTypes_.clear();
 
     if (b2World_IsValid(worldId_)) {
@@ -308,7 +314,14 @@ void Box2DPhysics::destroyBody(int bodyId) {
     }
 
     // Clear body types for this body to free String memory
-    bodyTypes_.erase(bodyId);
+    auto typeIt = bodyTypes_.find(bodyId);
+    if (typeIt != bodyTypes_.end()) {
+        assert(typeIt->second != nullptr);
+        Vector<String>* vec = typeIt->second;
+        vec->~Vector();  // Call destructor
+        stringAllocator_->free(vec);  // Free through allocator
+        bodyTypes_.erase(typeIt);
+    }
     std::cerr << "Box2DPhysics: Destroyed body " << bodyId << ", cleared body types" << std::endl;
 
     SDL_UnlockMutex(physicsMutex_);
@@ -2047,6 +2060,12 @@ void Box2DPhysics::reset() {
 
     // Clear body types to free String memory
     std::cerr << "Box2DPhysics: Clearing " << bodyTypes_.size() << " body type entries" << std::endl;
+    for (auto& pair : bodyTypes_) {
+        assert(pair.second != nullptr);
+        Vector<String>* vec = pair.second;
+        vec->~Vector();  // Call destructor to free internal data
+        stringAllocator_->free(vec);  // Free the Vector object itself
+    }
     bodyTypes_.clear();
 
     // Clear collision events
@@ -2093,25 +2112,33 @@ void Box2DPhysics::getAllDynamicBodyInfo(int* bodyIds, float* posX, float* posY,
 
 void Box2DPhysics::addBodyType(int bodyId, const char* type) {
     SDL_LockMutex(physicsMutex_);
+    std::cout << "Box2DPhysics::addBodyType: bodyId=" << bodyId << ", type=" << type << std::endl;
     auto it = bodyTypes_.find(bodyId);
     if (it == bodyTypes_.end()) {
-        // Create new vector for this body
-        Vector<String> types(*stringAllocator_, "Box2DPhysics::addBodyType::types");
+        // Create new vector for this body - allocate through allocator using placement new
+        void* vectorMem = stringAllocator_->allocate(sizeof(Vector<String>), "Box2DPhysics::addBodyType::Vector");
+        assert(vectorMem != nullptr);
+        Vector<String>* types = new (vectorMem) Vector<String>(*stringAllocator_, "Box2DPhysics::addBodyType::data");
         String typeStr(type, stringAllocator_);
-        types.push_back(typeStr);
-        bodyTypes_.insert({bodyId, std::move(types)});
+        types->push_back(typeStr);
+        bodyTypes_.insert({bodyId, types});
+        std::cout << "Box2DPhysics::addBodyType: created new vector with type " << type << std::endl;
     } else {
-        auto& types = it->second;
+        assert(it->second != nullptr);
+        Vector<String>* types = it->second;
         String typeStr(type, stringAllocator_);
         bool found = false;
-        for (const auto& t : types) {
+        for (const auto& t : *types) {
             if (t == typeStr) {
                 found = true;
                 break;
             }
         }
         if (!found) {
-            types.push_back(typeStr);
+            types->push_back(typeStr);
+            std::cout << "Box2DPhysics::addBodyType: added type " << type << " to existing vector" << std::endl;
+        } else {
+            std::cout << "Box2DPhysics::addBodyType: type " << type << " already exists" << std::endl;
         }
     }
     SDL_UnlockMutex(physicsMutex_);
@@ -2119,18 +2146,24 @@ void Box2DPhysics::addBodyType(int bodyId, const char* type) {
 
 void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
     SDL_LockMutex(physicsMutex_);
+    std::cout << "Box2DPhysics::removeBodyType: bodyId=" << bodyId << ", type=" << type << std::endl;
     auto it = bodyTypes_.find(bodyId);
     if (it != bodyTypes_.end()) {
+        assert(it->second != nullptr);
         String typeStr(type, stringAllocator_);
-        auto& types = it->second;
-        for (size_t i = 0; i < types.size(); ) {
-            if (types[i] == typeStr) {
-                types.erase(i);
+        Vector<String>* types = it->second;
+        for (size_t i = 0; i < types->size(); ) {
+            if ((*types)[i] == typeStr) {
+                types->erase(i);
+                std::cout << "Box2DPhysics::removeBodyType: removed type " << type << std::endl;
             } else {
                 ++i;
             }
         }
-        if (types.empty()) {
+        if (types->empty()) {
+            std::cout << "Box2DPhysics::removeBodyType: vector empty, deleting" << std::endl;
+            types->~Vector();  // Call destructor
+            stringAllocator_->free(types);  // Free through allocator
             bodyTypes_.erase(it);
         }
     }
@@ -2139,7 +2172,16 @@ void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
 
 void Box2DPhysics::clearBodyTypes(int bodyId) {
     SDL_LockMutex(physicsMutex_);
-    bodyTypes_.erase(bodyId);
+    std::cout << "Box2DPhysics::clearBodyTypes: bodyId=" << bodyId << std::endl;
+    auto it = bodyTypes_.find(bodyId);
+    if (it != bodyTypes_.end()) {
+        assert(it->second != nullptr);
+        Vector<String>* vec = it->second;
+        vec->~Vector();  // Call destructor
+        stringAllocator_->free(vec);  // Free through allocator
+        bodyTypes_.erase(it);
+        std::cout << "Box2DPhysics::clearBodyTypes: deleted vector for bodyId " << bodyId << std::endl;
+    }
     SDL_UnlockMutex(physicsMutex_);
 }
 
@@ -2148,9 +2190,10 @@ bool Box2DPhysics::bodyHasType(int bodyId, const char* type) const {
     auto it = bodyTypes_.find(bodyId);
     bool result = false;
     if (it != bodyTypes_.end()) {
+        assert(it->second != nullptr);
         String typeStr(type, stringAllocator_);
-        const auto& types = it->second;
-        for (const auto& t : types) {
+        const Vector<String>* types = it->second;
+        for (const auto& t : *types) {
             if (t == typeStr) {
                 result = true;
                 break;
@@ -2163,10 +2206,16 @@ bool Box2DPhysics::bodyHasType(int bodyId, const char* type) const {
 
 Vector<String> Box2DPhysics::getBodyTypes(int bodyId) const {
     SDL_LockMutex(physicsMutex_);
+    std::cout << "Box2DPhysics::getBodyTypes: bodyId=" << bodyId << std::endl;
     auto it = bodyTypes_.find(bodyId);
     Vector<String> result(*stringAllocator_, "Box2DPhysics::getBodyTypes::result");
     if (it != bodyTypes_.end()) {
-        result = it->second;
+        assert(it->second != nullptr);
+        const Vector<String>* types = it->second;
+        for (const auto& t : *types) {
+            result.push_back(t);
+        }
+        std::cout << "Box2DPhysics::getBodyTypes: returning " << result.size() << " types" << std::endl;
     }
     SDL_UnlockMutex(physicsMutex_);
     return result;

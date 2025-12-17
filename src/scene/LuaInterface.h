@@ -199,7 +199,7 @@ private:
     SceneManager* sceneManager_;
     int pipelineIndex_;
     uint64_t currentSceneId_;
-    std::unordered_map<uint64_t, Vector<std::pair<int, int>> > scenePipelines_; // pipelineId, zIndex
+    std::unordered_map<uint64_t, Vector<std::pair<int, int>>* > scenePipelines_; // pipelineId, zIndex
     std::unique_ptr<Box2DPhysics> physics_;
     std::unique_ptr<SceneLayerManager> layerManager_;
     std::unique_ptr<AudioManager> audioManager_;
@@ -241,7 +241,7 @@ private:
         int updateFuncRef;    // Lua registry reference to update function (or LUA_NOREF)
         int onEnterFuncRef;   // Lua registry reference to onEnter function (or LUA_NOREF)
     };
-    std::unordered_map<int, Node> nodes_; // nodeId -> Node
+    std::unordered_map<int, Node*> nodes_; // nodeId -> Node
     std::unordered_map<int, int> bodyToNodeMap_; // bodyId -> nodeId
     int nextNodeId_;
 

@@ -39,7 +39,7 @@ PakResource::~PakResource() {
         vec->~Vector<char>();
         m_allocator->free(vec);
     }
-    
+    m_decompressedData.clear();
     if (m_pakData.data) {
 #ifdef _WIN32
         if (m_pakData.data) UnmapViewOfFile(m_pakData.data);
@@ -163,7 +163,6 @@ ResourceData PakResource::getResource(uint64_t id) {
                 }
                 // Cache miss - decompress
                 std::cout << "Resource " << id << ": cache miss, decompressing " << comp->compressedSize << " -> " << comp->decompressedSize << " bytes" << std::endl;
-                
                 // Allocate Vector using memory allocator
                 void* vecMem = m_allocator->allocate(sizeof(Vector<char>), "PakResource::getResource::Vector");
                 Vector<char>* decompressed = new (vecMem) Vector<char>(*m_allocator, "PakResource::getResource::decompressed");
@@ -178,7 +177,6 @@ ResourceData PakResource::getResource(uint64_t id) {
                     assert(false);
                     return ResourceData{nullptr, 0, 0};
                 }
-                
                 m_decompressedData.insertNew(id, decompressed);
                 ResourceData resData = ResourceData{(char*)decompressed->data(), comp->decompressedSize, comp->type};
                 SDL_UnlockMutex(m_mutex);

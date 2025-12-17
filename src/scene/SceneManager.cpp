@@ -235,7 +235,8 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             }
 
             if (!batch.vertices.empty()) {
-                particleBatches.push_back(std::move(batch));
+                std::cout << "SceneManager::updateActiveScene: adding ParticleBatch with " << batch.vertices.size() << " vertices" << std::endl;
+                particleBatches.push_back(batch);
             }
         }
 
