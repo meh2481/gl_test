@@ -110,7 +110,13 @@ bool PakResource::reload(const char* filename) {
 #endif
         m_pakData = {nullptr, 0};
     }
-    // Clear caches
+    // Clear caches - free all allocated vectors before clearing map
+    for (auto& pair : m_decompressedData) {
+        assert(pair.second != nullptr);
+        Vector<char>* vec = pair.second;
+        vec->~Vector();  // Call destructor to free internal data
+        m_allocator->free(vec);  // Free the Vector object itself
+    }
     m_decompressedData.clear();
     m_atlasUVCache.clear();
     // Load again
