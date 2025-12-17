@@ -167,7 +167,7 @@ ResourceData PakResource::getResource(uint64_t id) {
                 void* vecMem = m_allocator->allocate(sizeof(Vector<char>), "PakResource::getResource::Vector");
                 Vector<char>* decompressed = new (vecMem) Vector<char>(*m_allocator, "PakResource::getResource::decompressed");
                 decompressed->resize(comp->decompressedSize);
-                
+
                 int result = LZ4_decompress_safe(compressedData, decompressed->data(), comp->compressedSize, comp->decompressedSize);
                 if (result != (int)comp->decompressedSize) {
                     std::cerr << "LZ4 decompression failed for resource " << id << std::endl;
