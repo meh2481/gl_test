@@ -83,10 +83,12 @@ Box2DPhysics::~Box2DPhysics() {
     // Wait for any in-progress step to complete
     waitForStepComplete();
 
-    // Clean up allocated vectors in bodyTypes_
+    // Clean up allocated vectors in bodyTypes_ - manually destruct and free through allocator
     for (auto& pair : bodyTypes_) {
         assert(pair.second != nullptr);
-        delete pair.second;
+        Vector<String>* vec = pair.second;
+        vec->~Vector();  // Call destructor to free internal data
+        stringAllocator_->free(vec);  // Free the Vector object itself
     }
     bodyTypes_.clear();
 
@@ -2100,9 +2102,10 @@ void Box2DPhysics::addBodyType(int bodyId, const char* type) {
     std::cout << "Box2DPhysics::addBodyType: bodyId=" << bodyId << ", type=" << type << std::endl;
     auto it = bodyTypes_.find(bodyId);
     if (it == bodyTypes_.end()) {
-        // Create new vector for this body
-        Vector<String>* types = new Vector<String>(*stringAllocator_, "Box2DPhysics::addBodyType::types");
-        assert(types != nullptr);
+        // Create new vector for this body - allocate through allocator using placement new
+        void* vectorMem = stringAllocator_->allocate(sizeof(Vector<String>), "Box2DPhysics::addBodyType::Vector");
+        assert(vectorMem != nullptr);
+        Vector<String>* types = new (vectorMem) Vector<String>(*stringAllocator_, "Box2DPhysics::addBodyType::data");
         String typeStr(type, stringAllocator_);
         types->push_back(typeStr);
         bodyTypes_.insert({bodyId, types});
@@ -2146,7 +2149,8 @@ void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
         }
         if (types->empty()) {
             std::cout << "Box2DPhysics::removeBodyType: vector empty, deleting" << std::endl;
-            delete types;
+            types->~Vector();  // Call destructor
+            stringAllocator_->free(types);  // Free through allocator
             bodyTypes_.erase(it);
         }
     }
@@ -2159,7 +2163,9 @@ void Box2DPhysics::clearBodyTypes(int bodyId) {
     auto it = bodyTypes_.find(bodyId);
     if (it != bodyTypes_.end()) {
         assert(it->second != nullptr);
-        delete it->second;
+        Vector<String>* vec = it->second;
+        vec->~Vector();  // Call destructor
+        stringAllocator_->free(vec);  // Free through allocator
         bodyTypes_.erase(it);
         std::cout << "Box2DPhysics::clearBodyTypes: deleted vector for bodyId " << bodyId << std::endl;
     }

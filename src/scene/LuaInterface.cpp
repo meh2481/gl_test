@@ -41,17 +41,21 @@ LuaInterface::~LuaInterface() {
         luaState_ = nullptr;
     }
 
-    // Clean up allocated nodes
+    // Clean up allocated nodes - manually destruct and free through allocator
     for (auto& pair : nodes_) {
         assert(pair.second != nullptr);
-        delete pair.second;
+        Node* node = pair.second;
+        node->~Node();  // Call destructor
+        stringAllocator_->free(node);  // Free through allocator
     }
     nodes_.clear();
 
-    // Clean up allocated scenePipelines vectors
+    // Clean up allocated scenePipelines vectors - manually destruct and free through allocator
     for (auto& pair : scenePipelines_) {
         assert(pair.second != nullptr);
-        delete pair.second;
+        Vector<std::pair<int, int>>* vec = pair.second;
+        vec->~Vector();  // Call destructor
+        stringAllocator_->free(vec);  // Free through allocator
     }
     scenePipelines_.clear();
 
@@ -591,7 +595,9 @@ void LuaInterface::clearScenePipelines(uint64_t sceneId) {
     auto it = scenePipelines_.find(sceneId);
     if (it != scenePipelines_.end()) {
         assert(it->second != nullptr);
-        delete it->second;
+        Vector<std::pair<int, int>>* vec = it->second;
+        vec->~Vector();  // Call destructor
+        stringAllocator_->free(vec);  // Free through allocator
         scenePipelines_.erase(it);
         std::cout << "LuaInterface::clearScenePipelines: cleared pipelines for sceneId " << sceneId << std::endl;
     }
@@ -906,9 +912,10 @@ int LuaInterface::loadShaders(lua_State* L) {
     std::cout << "LuaInterface::loadShaders: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        // Create new vector for this scene
-        Vector<std::pair<int, int>>* newVec = new Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadShaders::newVec");
-        assert(newVec != nullptr);
+        // Create new vector for this scene - allocate through allocator using placement new
+        void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadShaders::Vector");
+        assert(vectorMem != nullptr);
+        Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadShaders::data");
         interface->scenePipelines_.insert({interface->currentSceneId_, newVec});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
         std::cout << "LuaInterface::loadShaders: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
@@ -2198,8 +2205,9 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
     std::cout << "LuaInterface::loadTexturedShaders: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        Vector<std::pair<int, int>>* newVec = new Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadTexturedShaders::newVec");
-        assert(newVec != nullptr);
+        void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadTexturedShaders::Vector");
+        assert(vectorMem != nullptr);
+        Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadTexturedShaders::data");
         interface->scenePipelines_.insert({interface->currentSceneId_, newVec});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
         std::cout << "LuaInterface::loadTexturedShaders: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
@@ -2246,8 +2254,9 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     std::cout << "LuaInterface::loadTexturedShadersEx: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        Vector<std::pair<int, int>>* newVec = new Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadTexturedShadersEx::newVec");
-        assert(newVec != nullptr);
+        void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadTexturedShadersEx::Vector");
+        assert(vectorMem != nullptr);
+        Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadTexturedShadersEx::data");
         interface->scenePipelines_.insert({interface->currentSceneId_, newVec});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
         std::cout << "LuaInterface::loadTexturedShadersEx: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
@@ -2294,8 +2303,9 @@ int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
     std::cout << "LuaInterface::loadTexturedShadersAdditive: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        Vector<std::pair<int, int>>* newVec = new Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadTexturedShadersAdditive::newVec");
-        assert(newVec != nullptr);
+        void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadTexturedShadersAdditive::Vector");
+        assert(vectorMem != nullptr);
+        Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadTexturedShadersAdditive::data");
         interface->scenePipelines_.insert({interface->currentSceneId_, newVec});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
         std::cout << "LuaInterface::loadTexturedShadersAdditive: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
@@ -2342,8 +2352,9 @@ int LuaInterface::loadAnimTexturedShaders(lua_State* L) {
     std::cout << "LuaInterface::loadAnimTexturedShaders: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        Vector<std::pair<int, int>>* newVec = new Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadAnimTexturedShaders::newVec");
-        assert(newVec != nullptr);
+        void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadAnimTexturedShaders::Vector");
+        assert(vectorMem != nullptr);
+        Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadAnimTexturedShaders::data");
         interface->scenePipelines_.insert({interface->currentSceneId_, newVec});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
         std::cout << "LuaInterface::loadAnimTexturedShaders: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
@@ -2743,8 +2754,9 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     std::cout << "LuaInterface::loadParticleShaders: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
     auto it = interface->scenePipelines_.find(interface->currentSceneId_);
     if (it == interface->scenePipelines_.end()) {
-        Vector<std::pair<int, int>>* newVec = new Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadParticleShaders::newVec");
-        assert(newVec != nullptr);
+        void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadParticleShaders::Vector");
+        assert(vectorMem != nullptr);
+        Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadParticleShaders::data");
         interface->scenePipelines_.insert({interface->currentSceneId_, newVec});
         it = interface->scenePipelines_.find(interface->currentSceneId_);
         std::cout << "LuaInterface::loadParticleShaders: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
@@ -3293,11 +3305,12 @@ int LuaInterface::createNode(lua_State* L) {
         interface->physics_->addCircleSensor(bodyId, radius);
     }
 
-    // Create node entry
+    // Create node entry - allocate through allocator using placement new
     int nodeId = interface->nextNodeId_++;
     std::cout << "LuaInterface::createNode: creating node " << nodeId << " with bodyId " << bodyId << std::endl;
-    Node* node = new Node(interface->stringAllocator_);
-    assert(node != nullptr);
+    void* nodeMem = interface->stringAllocator_->allocate(sizeof(Node), "LuaInterface::createNode::Node");
+    assert(nodeMem != nullptr);
+    Node* node = new (nodeMem) Node(interface->stringAllocator_);
     node->bodyId = bodyId;
     node->name = nodeName;
     node->centerX = centerX;
@@ -3401,8 +3414,9 @@ int LuaInterface::destroyNode(lua_State* L) {
         // Destroy physics body
         interface->physics_->destroyBody(node->bodyId);
 
-        // Remove node
-        delete node;
+        // Remove node - manually destruct and free through allocator
+        node->~Node();  // Call destructor
+        interface->stringAllocator_->free(node);  // Free through allocator
         interface->nodes_.erase(it);
         std::cout << "LuaInterface::destroyNode: deleted node " << nodeId << std::endl;
     }
@@ -3509,8 +3523,9 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     std::cout << "LuaInterface::setupWaterVisuals: currentSceneId_=" << currentSceneId_ << ", zIndex=" << WATER_SHADER_Z_INDEX << std::endl;
     auto it = scenePipelines_.find(currentSceneId_);
     if (it == scenePipelines_.end()) {
-        Vector<std::pair<int, int>>* newVec = new Vector<std::pair<int, int>>(*stringAllocator_, "LuaInterface::setupWaterVisuals::newVec");
-        assert(newVec != nullptr);
+        void* vectorMem = stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::setupWaterVisuals::Vector");
+        assert(vectorMem != nullptr);
+        Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*stringAllocator_, "LuaInterface::setupWaterVisuals::data");
         scenePipelines_.insert({currentSceneId_, newVec});
         it = scenePipelines_.find(currentSceneId_);
         std::cout << "LuaInterface::setupWaterVisuals: created new vector for sceneId " << currentSceneId_ << std::endl;

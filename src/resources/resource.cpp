@@ -28,10 +28,12 @@ PakResource::PakResource(MemoryAllocator* allocator) : m_pakData{nullptr, 0}, m_
 }
 
 PakResource::~PakResource() {
-    // Clean up allocated vectors
+    // Clean up allocated vectors - manually destruct and free through allocator
     for (auto& pair : m_decompressedData) {
         assert(pair.second != nullptr);
-        delete pair.second;
+        Vector<char>* vec = pair.second;
+        vec->~Vector();  // Call destructor to free internal data
+        m_allocator->free(vec);  // Free the Vector object itself
     }
     m_decompressedData.clear();
 
@@ -154,13 +156,16 @@ ResourceData PakResource::getResource(uint64_t id) {
                 }
                 // Cache miss - decompress
                 std::cout << "Resource " << id << ": cache miss, decompressing " << comp->compressedSize << " -> " << comp->decompressedSize << " bytes" << std::endl;
-                Vector<char>* decompressed = new Vector<char>(*m_allocator, "ResourceManager::getResource::decompressed");
-                assert(decompressed != nullptr);
+                // Allocate Vector object through the allocator using placement new
+                void* vectorMem = m_allocator->allocate(sizeof(Vector<char>), "ResourceManager::getResource::decompressed::Vector");
+                assert(vectorMem != nullptr);
+                Vector<char>* decompressed = new (vectorMem) Vector<char>(*m_allocator, "ResourceManager::getResource::decompressed::data");
                 decompressed->resize(comp->decompressedSize);
                 int result = LZ4_decompress_safe(compressedData, decompressed->data(), comp->compressedSize, comp->decompressedSize);
                 if (result != (int)comp->decompressedSize) {
                     std::cerr << "LZ4 decompression failed for resource " << id << std::endl;
-                    delete decompressed;
+                    decompressed->~Vector();
+                    m_allocator->free(vectorMem);
                     SDL_UnlockMutex(m_mutex);
                     assert(false);
                     return ResourceData{nullptr, 0, 0};
