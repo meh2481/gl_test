@@ -28,6 +28,13 @@ PakResource::PakResource(MemoryAllocator* allocator) : m_pakData{nullptr, 0}, m_
 }
 
 PakResource::~PakResource() {
+    // Clean up allocated vectors
+    for (auto& pair : m_decompressedData) {
+        assert(pair.second != nullptr);
+        delete pair.second;
+    }
+    m_decompressedData.clear();
+
     if (m_pakData.data) {
 #ifdef _WIN32
         if (m_pakData.data) UnmapViewOfFile(m_pakData.data);
@@ -140,24 +147,26 @@ ResourceData PakResource::getResource(uint64_t id) {
                 auto it = m_decompressedData.find(id);
                 if (it != m_decompressedData.end()) {
                     std::cout << "Resource " << id << ": cache hit (" << comp->decompressedSize << " bytes)" << std::endl;
-                    ResourceData result = ResourceData{(char*)it->second.data(), comp->decompressedSize, comp->type};
+                    assert(it->second != nullptr);
+                    ResourceData result = ResourceData{(char*)it->second->data(), comp->decompressedSize, comp->type};
                     SDL_UnlockMutex(m_mutex);
                     return result;
                 }
                 // Cache miss - decompress
                 std::cout << "Resource " << id << ": cache miss, decompressing " << comp->compressedSize << " -> " << comp->decompressedSize << " bytes" << std::endl;
-                Vector<char> decompressed(*m_allocator, "ResourceManager::getResource::decompressed");
-                decompressed.resize(comp->decompressedSize);
-                int result = LZ4_decompress_safe(compressedData, decompressed.data(), comp->compressedSize, comp->decompressedSize);
+                Vector<char>* decompressed = new Vector<char>(*m_allocator, "ResourceManager::getResource::decompressed");
+                assert(decompressed != nullptr);
+                decompressed->resize(comp->decompressedSize);
+                int result = LZ4_decompress_safe(compressedData, decompressed->data(), comp->compressedSize, comp->decompressedSize);
                 if (result != (int)comp->decompressedSize) {
                     std::cerr << "LZ4 decompression failed for resource " << id << std::endl;
+                    delete decompressed;
                     SDL_UnlockMutex(m_mutex);
                     assert(false);
                     return ResourceData{nullptr, 0, 0};
                 }
-                m_decompressedData.insert({id, std::move(decompressed)});
-                it = m_decompressedData.find(id);
-                ResourceData resData = ResourceData{(char*)it->second.data(), comp->decompressedSize, comp->type};
+                m_decompressedData.insert({id, decompressed});
+                ResourceData resData = ResourceData{(char*)decompressed->data(), comp->decompressedSize, comp->type};
                 SDL_UnlockMutex(m_mutex);
                 return resData;
             }

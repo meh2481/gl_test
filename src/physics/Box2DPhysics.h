@@ -393,7 +393,7 @@ private:
     int nextForceFieldId_;
 
     // Type system for object interactions
-    std::unordered_map<int, Vector<String>> bodyTypes_;
+    std::unordered_map<int, Vector<String>*> bodyTypes_;
 
     // Memory allocator for string operations
     MemoryAllocator* stringAllocator_;
