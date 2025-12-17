@@ -314,7 +314,14 @@ void Box2DPhysics::destroyBody(int bodyId) {
     }
 
     // Clear body types for this body to free String memory
-    bodyTypes_.erase(bodyId);
+    auto typeIt = bodyTypes_.find(bodyId);
+    if (typeIt != bodyTypes_.end()) {
+        assert(typeIt->second != nullptr);
+        Vector<String>* vec = typeIt->second;
+        vec->~Vector();  // Call destructor
+        stringAllocator_->free(vec);  // Free through allocator
+        bodyTypes_.erase(typeIt);
+    }
     std::cerr << "Box2DPhysics: Destroyed body " << bodyId << ", cleared body types" << std::endl;
 
     SDL_UnlockMutex(physicsMutex_);
@@ -2053,6 +2060,12 @@ void Box2DPhysics::reset() {
 
     // Clear body types to free String memory
     std::cerr << "Box2DPhysics: Clearing " << bodyTypes_.size() << " body type entries" << std::endl;
+    for (auto& pair : bodyTypes_) {
+        assert(pair.second != nullptr);
+        Vector<String>* vec = pair.second;
+        vec->~Vector();  // Call destructor to free internal data
+        stringAllocator_->free(vec);  // Free the Vector object itself
+    }
     bodyTypes_.clear();
 
     // Clear collision events

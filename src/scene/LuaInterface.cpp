@@ -551,6 +551,12 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
 
     // Clear all nodes (frees String memory)
     std::cerr << "LuaInterface: Clearing " << nodes_.size() << " nodes" << std::endl;
+    for (auto& pair : nodes_) {
+        assert(pair.second != nullptr);
+        Node* node = pair.second;
+        node->~Node();  // Call destructor
+        stringAllocator_->free(node);  // Free through allocator
+    }
     nodes_.clear();
     bodyToNodeMap_.clear();
 
