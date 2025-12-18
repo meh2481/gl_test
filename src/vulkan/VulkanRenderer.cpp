@@ -1152,6 +1152,8 @@ void VulkanRenderer::rebuildAllBatches() {
     // Merge sprite batches and particle batches in sorted order by parallax depth
     // Sprite batches are already sorted by parallax depth (descending)
     // Particle batches need to be sorted first, then merged
+    std::cout << "VulkanRenderer::rebuildAllBatches: merging " << m_spriteBatches.size()
+              << " sprite batches and " << m_particleBatches.size() << " particle batches" << std::endl;
     m_allBatches.clear();
     m_allBatches.reserve(m_spriteBatches.size() + m_particleBatches.size());
 

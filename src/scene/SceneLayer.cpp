@@ -3,6 +3,7 @@
 #include <cassert>
 #include <algorithm>
 #include <functional>
+#include <iostream>
 
 // Epsilon for parallax depth comparisons
 static const float PARALLAX_EPSILON = 0.001f;
@@ -413,6 +414,10 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
             // Insert the batch at the correct position
             batches.insert(insertPos, newBatch);
             batchIndex = insertPos;
+            std::cout << "SceneLayerManager::updateLayerVertices: inserted batch at position " << insertPos
+                      << " (parallaxDepth=" << newBatch.parallaxDepth
+                      << ", pipelineId=" << newBatch.pipelineId
+                      << ", descriptorId=" << newBatch.descriptorId << ")" << std::endl;
 
             // Update all indices in batchMap that are >= insertPos
             for (auto it = batchMap.begin(); it != batchMap.end(); ++it) {
