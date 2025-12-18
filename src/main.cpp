@@ -187,7 +187,7 @@ int main() {
     config.gpuIndex = renderer.getSelectedGpuIndex();
 
     // Initialize keybinding manager
-    KeybindingManager keybindings;
+    KeybindingManager keybindings(&smallAllocator);
 
     // Load keybindings from config if available
     if (config.keybindings[0] != '\0') {

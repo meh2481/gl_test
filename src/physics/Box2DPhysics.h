@@ -1,11 +1,11 @@
 #pragma once
 
 #include <box2d/box2d.h>
-#include <unordered_map>
 #include <SDL3/SDL.h>
 #include <functional>
 #include "../core/String.h"
 #include "../core/Vector.h"
+#include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
 
 #define LENGTH_UNITS_PER_METER 0.05f  // Define this smaller so box2d doesn't join polygon vertices
@@ -295,10 +295,9 @@ public:
     void clearAllRadialForceFields();
 
     // Accessors for force fields (for callbacks)
-    const std::unordered_map<int, ForceField>& getForceFields() const { return forceFields_; }
+    const HashTable<int, ForceField>& getForceFields() const { return forceFields_; }
     const ForceField* getForceField(int id) const {
-        auto it = forceFields_.find(id);
-        return it != forceFields_.end() ? &it->second : nullptr;
+        return forceFields_.find(id);
     }
 
     // Get all dynamic body IDs for splash detection
@@ -341,9 +340,9 @@ private:
     };
 
     b2WorldId worldId_;
-    std::unordered_map<int, b2BodyId> bodies_;
-    std::unordered_map<int, b2JointId> joints_;
-    std::unordered_map<int, DestructibleProperties> destructibles_;  // Destructible properties per body
+    HashTable<int, b2BodyId> bodies_;
+    HashTable<int, b2JointId> joints_;
+    HashTable<int, DestructibleProperties> destructibles_;  // Destructible properties per body
     int nextBodyId_;
     int nextJointId_;
     bool debugDrawEnabled_;
@@ -385,15 +384,15 @@ private:
     Vector<int> fragmentLayerIds_;  // All fragment layer IDs
 
     // Map from destructible body ID to its layer ID (for destroying layer when body fractures)
-    std::unordered_map<int, int> destructibleBodyLayers_;
+    HashTable<int, int> destructibleBodyLayers_;
 
     // Force field tracking
-    std::unordered_map<int, ForceField> forceFields_;
-    std::unordered_map<int, RadialForceField> radialForceFields_;
+    HashTable<int, ForceField> forceFields_;
+    HashTable<int, RadialForceField> radialForceFields_;
     int nextForceFieldId_;
 
     // Type system for object interactions
-    std::unordered_map<int, Vector<String>*> bodyTypes_;
+    HashTable<int, Vector<String>*> bodyTypes_;
 
     // Memory allocator for string operations
     MemoryAllocator* stringAllocator_;

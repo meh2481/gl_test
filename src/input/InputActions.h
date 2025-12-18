@@ -1,8 +1,9 @@
 #pragma once
 
 #include <SDL3/SDL.h>
-#include <unordered_map>
 #include <cassert>
+#include "core/HashTable.h"
+#include "memory/MemoryAllocator.h"
 
 // Define all possible actions in the application
 enum Action {
@@ -106,7 +107,11 @@ struct GamepadButtonList {
 // Maps keys/gamepad buttons to actions and vice versa (many-to-many)
 class KeybindingManager {
 public:
-    KeybindingManager() {
+    KeybindingManager(MemoryAllocator* allocator)
+        : keyToActions_(*allocator, "KeybindingManager::keyToActions_"),
+          actionToKeys_(*allocator, "KeybindingManager::actionToKeys_"),
+          gamepadButtonToActions_(*allocator, "KeybindingManager::gamepadButtonToActions_"),
+          actionToGamepadButtons_(*allocator, "KeybindingManager::actionToGamepadButtons_") {
         // Set up default keybindings
         bind(SDLK_ESCAPE, ACTION_EXIT);
         bind(SDLK_RETURN, ACTION_MENU);
@@ -132,34 +137,78 @@ public:
 
     // Bind a key to an action
     void bind(int keyCode, Action action) {
-        keyToActions_[keyCode].add(action);
-        actionToKeys_[action].add(keyCode);
+        ActionList* actions = keyToActions_.find(keyCode);
+        if (actions == nullptr) {
+            ActionList newList;
+            newList.add(action);
+            keyToActions_.insert(keyCode, newList);
+        } else {
+            actions->add(action);
+        }
+
+        KeyList* keys = actionToKeys_.find(action);
+        if (keys == nullptr) {
+            KeyList newList;
+            newList.add(keyCode);
+            actionToKeys_.insert(action, newList);
+        } else {
+            keys->add(keyCode);
+        }
     }
 
     // Unbind a key from an action
     void unbind(int keyCode, Action action) {
-        keyToActions_[keyCode].remove(action);
-        actionToKeys_[action].remove(keyCode);
+        ActionList* actions = keyToActions_.find(keyCode);
+        if (actions != nullptr) {
+            actions->remove(action);
+        }
+
+        KeyList* keys = actionToKeys_.find(action);
+        if (keys != nullptr) {
+            keys->remove(keyCode);
+        }
     }
 
     // Bind a gamepad button to an action
     void bindGamepad(int buttonCode, Action action) {
-        gamepadButtonToActions_[buttonCode].add(action);
-        actionToGamepadButtons_[action].add(buttonCode);
+        ActionList* actions = gamepadButtonToActions_.find(buttonCode);
+        if (actions == nullptr) {
+            ActionList newList;
+            newList.add(action);
+            gamepadButtonToActions_.insert(buttonCode, newList);
+        } else {
+            actions->add(action);
+        }
+
+        GamepadButtonList* buttons = actionToGamepadButtons_.find(action);
+        if (buttons == nullptr) {
+            GamepadButtonList newList;
+            newList.add(buttonCode);
+            actionToGamepadButtons_.insert(action, newList);
+        } else {
+            buttons->add(buttonCode);
+        }
     }
 
     // Unbind a gamepad button from an action
     void unbindGamepad(int buttonCode, Action action) {
-        gamepadButtonToActions_[buttonCode].remove(action);
-        actionToGamepadButtons_[action].remove(buttonCode);
+        ActionList* actions = gamepadButtonToActions_.find(buttonCode);
+        if (actions != nullptr) {
+            actions->remove(action);
+        }
+
+        GamepadButtonList* buttons = actionToGamepadButtons_.find(action);
+        if (buttons != nullptr) {
+            buttons->remove(buttonCode);
+        }
     }
 
     // Get all actions bound to a key
     const ActionList& getActionsForKey(int keyCode) const {
         static const ActionList empty;
-        auto it = keyToActions_.find(keyCode);
-        if (it != keyToActions_.end()) {
-            return it->second;
+        const ActionList* actions = keyToActions_.find(keyCode);
+        if (actions != nullptr) {
+            return *actions;
         }
         return empty;
     }
@@ -167,9 +216,9 @@ public:
     // Get all actions bound to a gamepad button
     const ActionList& getActionsForGamepadButton(int buttonCode) const {
         static const ActionList empty;
-        auto it = gamepadButtonToActions_.find(buttonCode);
-        if (it != gamepadButtonToActions_.end()) {
-            return it->second;
+        const ActionList* actions = gamepadButtonToActions_.find(buttonCode);
+        if (actions != nullptr) {
+            return *actions;
         }
         return empty;
     }
@@ -177,9 +226,9 @@ public:
     // Get all keys bound to an action
     const KeyList& getKeysForAction(Action action) const {
         static const KeyList empty;
-        auto it = actionToKeys_.find(action);
-        if (it != actionToKeys_.end()) {
-            return it->second;
+        const KeyList* keys = actionToKeys_.find(action);
+        if (keys != nullptr) {
+            return *keys;
         }
         return empty;
     }
@@ -187,9 +236,9 @@ public:
     // Get all gamepad buttons bound to an action
     const GamepadButtonList& getGamepadButtonsForAction(Action action) const {
         static const GamepadButtonList empty;
-        auto it = actionToGamepadButtons_.find(action);
-        if (it != actionToGamepadButtons_.end()) {
-            return it->second;
+        const GamepadButtonList* buttons = actionToGamepadButtons_.find(action);
+        if (buttons != nullptr) {
+            return *buttons;
         }
         return empty;
     }
@@ -221,8 +270,10 @@ public:
         bool firstKey = true;
 
         // Serialize keyboard bindings
-        for (const auto& pair : keyToActions_) {
-            if (pair.second.count == 0) continue;
+        for (uint32_t idx = 0; idx < keyToActions_.size(); ++idx) {
+            const int& keyCode = keyToActions_.keys()[idx];
+            const ActionList& actions = keyToActions_.values()[idx];
+            if (actions.count == 0) continue;
 
             if (!firstKey && offset < bufferSize - 1) {
                 buffer[offset++] = ';';
@@ -230,14 +281,14 @@ public:
             firstKey = false;
 
             // Write key code
-            offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d:", pair.first);
+            offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d:", keyCode);
 
             // Write actions
-            for (int i = 0; i < pair.second.count; ++i) {
+            for (int i = 0; i < actions.count; ++i) {
                 if (i > 0 && offset < bufferSize - 1) {
                     buffer[offset++] = ',';
                 }
-                offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d", pair.second.actions[i]);
+                offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d", actions.actions[i]);
             }
         }
 
@@ -248,8 +299,10 @@ public:
 
         // Serialize gamepad bindings
         bool firstButton = true;
-        for (const auto& pair : gamepadButtonToActions_) {
-            if (pair.second.count == 0) continue;
+        for (uint32_t idx = 0; idx < gamepadButtonToActions_.size(); ++idx) {
+            const int& buttonCode = gamepadButtonToActions_.keys()[idx];
+            const ActionList& actions = gamepadButtonToActions_.values()[idx];
+            if (actions.count == 0) continue;
 
             if (!firstButton && offset < bufferSize - 1) {
                 buffer[offset++] = ';';
@@ -257,14 +310,14 @@ public:
             firstButton = false;
 
             // Write button code
-            offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d:", pair.first);
+            offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d:", buttonCode);
 
             // Write actions
-            for (int i = 0; i < pair.second.count; ++i) {
+            for (int i = 0; i < actions.count; ++i) {
                 if (i > 0 && offset < bufferSize - 1) {
                     buffer[offset++] = ',';
                 }
-                offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d", pair.second.actions[i]);
+                offset += SDL_snprintf(buffer + offset, bufferSize - offset, "%d", actions.actions[i]);
             }
         }
 
@@ -393,8 +446,8 @@ public:
     }
 
 private:
-    std::unordered_map<int, ActionList> keyToActions_;
-    std::unordered_map<Action, KeyList> actionToKeys_;
-    std::unordered_map<int, ActionList> gamepadButtonToActions_;
-    std::unordered_map<Action, GamepadButtonList> actionToGamepadButtons_;
+    HashTable<int, ActionList> keyToActions_;
+    HashTable<Action, KeyList> actionToKeys_;
+    HashTable<int, ActionList> gamepadButtonToActions_;
+    HashTable<Action, GamepadButtonList> actionToGamepadButtons_;
 };
