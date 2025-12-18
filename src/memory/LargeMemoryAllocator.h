@@ -10,11 +10,8 @@ class ConsoleBuffer;
 
 class LargeMemoryAllocator : public MemoryAllocator {
 public:
-    LargeMemoryAllocator(size_t initialChunkSize = 1024 * 1024);
+    LargeMemoryAllocator(ConsoleBuffer* consoleBuffer);
     ~LargeMemoryAllocator() override;
-
-    // Set console buffer for logging (must be set before allocator operations)
-    void setConsoleBuffer(ConsoleBuffer* consoleBuffer) { m_consoleBuffer = consoleBuffer; }
 
     void* allocate(size_t size, const char* allocationId) override;
     void free(void* ptr) override;

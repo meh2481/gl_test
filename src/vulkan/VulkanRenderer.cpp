@@ -211,17 +211,7 @@ void VulkanRenderer::render(float time) {
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-#ifdef DEBUG
-        if (m_consoleBuffer) {
-            char buffer[256];
-            SDL_snprintf(buffer, sizeof(buffer), "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
-            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, buffer);
-        } else {
-            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
-        }
-#else
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
-#endif
         assert(false);
     }
 
@@ -385,17 +375,7 @@ void VulkanRenderer::createInstance(SDL_Window* window) {
     Uint32 count;
     const char* const* extensions = SDL_Vulkan_GetInstanceExtensions(&count);
     if (extensions == nullptr) {
-#ifdef DEBUG
-        if (m_consoleBuffer) {
-            char buffer[256];
-            SDL_snprintf(buffer, sizeof(buffer), "SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
-            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, buffer);
-        } else {
-            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
-        }
-#else
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
-#endif
         assert(false);
     }
     createInfo.enabledExtensionCount = count;
@@ -406,17 +386,7 @@ void VulkanRenderer::createInstance(SDL_Window* window) {
 
 void VulkanRenderer::createSurface(SDL_Window* window) {
     if (!SDL_Vulkan_CreateSurface(window, m_instance, nullptr, &m_surface)) {
-#ifdef DEBUG
-        if (m_consoleBuffer) {
-            char buffer[256];
-            SDL_snprintf(buffer, sizeof(buffer), "SDL_Vulkan_CreateSurface failed: %s", SDL_GetError());
-            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, buffer);
-        } else {
-            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "SDL_Vulkan_CreateSurface failed: %s", SDL_GetError());
-        }
-#else
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "SDL_Vulkan_CreateSurface failed: %s", SDL_GetError());
-#endif
         assert(false);
     }
 }

@@ -10,16 +10,11 @@
 // - Dynamically grows/shrinks by powers of 2
 // - Automatic defragmentation
 // - No STL dependencies
-// Forward declaration
-class ConsoleBuffer;
 
 class SmallAllocator : public MemoryAllocator {
 public:
     SmallAllocator();
     ~SmallAllocator() override;
-
-    // Set console buffer for logging (must be set before allocator operations)
-    void setConsoleBuffer(ConsoleBuffer* consoleBuffer) { consoleBuffer_ = consoleBuffer; }
 
     // Allocate memory of given size
     // Returns nullptr if allocation fails
@@ -105,9 +100,6 @@ private:
 
     // Thread safety
     SDL_Mutex* mutex_;
-
-    // Console buffer for logging
-    ConsoleBuffer* consoleBuffer_;
 
 #ifdef DEBUG
     // Memory usage history (circular buffer)

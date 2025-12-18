@@ -36,20 +36,12 @@ SceneManager::~SceneManager() {
 void SceneManager::pushScene(uint64_t sceneId) {
     // Load the scene if not already loaded
     if (loadedScenes_.find(sceneId) == loadedScenes_.end()) {
-        if (consoleBuffer_) {
-            char buffer[128];
-            SDL_snprintf(buffer, sizeof(buffer), "Loading scene %llu", (unsigned long long)sceneId);
-            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, buffer);
-        }
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading scene %llu", (unsigned long long)sceneId);
         ResourceData sceneScript = pakResource_.getResource(sceneId);
         luaInterface_->loadScene(sceneId, sceneScript);
         loadedScenes_.insert(sceneId);
     } else {
-        if (consoleBuffer_) {
-            char buffer[128];
-            SDL_snprintf(buffer, sizeof(buffer), "Scene %llu already loaded (cache hit)", (unsigned long long)sceneId);
-            consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, buffer);
-        }
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Scene %llu already loaded (cache hit)", (unsigned long long)sceneId);
     }
 
     // Push scene onto stack
@@ -57,11 +49,7 @@ void SceneManager::pushScene(uint64_t sceneId) {
 
     // Initialize the scene if not already initialized
     if (initializedScenes_.find(sceneId) == initializedScenes_.end()) {
-        if (consoleBuffer_) {
-            char buffer[128];
-            SDL_snprintf(buffer, sizeof(buffer), "Initializing scene %llu", (unsigned long long)sceneId);
-            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, buffer);
-        }
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Initializing scene %llu", (unsigned long long)sceneId);
         luaInterface_->initScene(sceneId);
         initializedScenes_.insert(sceneId);
     }
@@ -267,11 +255,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             }
 
             if (!batch.vertices.empty()) {
-                if (consoleBuffer_) {
-                    char buffer[128];
-                    SDL_snprintf(buffer, sizeof(buffer), "SceneManager::updateActiveScene: adding ParticleBatch with %zu vertices", batch.vertices.size());
-                    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, buffer);
-                }
+                consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "SceneManager::updateActiveScene: adding ParticleBatch with %zu vertices", batch.vertices.size());
                 particleBatches.push_back(batch);
             }
         }

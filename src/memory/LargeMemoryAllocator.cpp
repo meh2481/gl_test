@@ -7,14 +7,14 @@
 static const size_t MIN_BLOCK_SIZE = 64;
 static const size_t ALIGNMENT = 16;
 static const float SHRINK_THRESHOLD = 0.25f;
+static const size_t DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1 MB
 
 static size_t alignSize(size_t size) {
     return (size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
 }
 
-LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
-    : m_chunks(nullptr), m_chunkSize(0), m_totalPoolSize(0), m_usedMemory(0), m_allocationCount(0), m_freeList(nullptr), m_consoleBuffer(nullptr) {
-    assert(initialChunkSize > 0);
+LargeMemoryAllocator::LargeMemoryAllocator(ConsoleBuffer* consoleBuffer)
+    : m_chunks(nullptr), m_chunkSize(0), m_totalPoolSize(0), m_usedMemory(0), m_allocationCount(0), m_freeList(nullptr), m_consoleBuffer(consoleBuffer) {
     m_mutex = SDL_CreateMutex();
     assert(m_mutex != nullptr);
 #ifdef DEBUG
@@ -23,15 +23,11 @@ LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
     lastSampleTime_ = 0.0f;
     memset(usageHistory_, 0, sizeof(usageHistory_));
 #endif
-    m_chunkSize = alignSize(initialChunkSize);
+    m_chunkSize = alignSize(DEFAULT_CHUNK_SIZE);
     addChunk(m_chunkSize);
 }
 
 LargeMemoryAllocator::~LargeMemoryAllocator() {
-    if (m_consoleBuffer) {
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "LargeMemoryAllocator: Destroying allocator with %zu leaked allocations", m_allocationCount);
-    }
-
     if (m_allocationCount > 0) {
         MemoryChunk* chunk = m_chunks;
         while (chunk) {
@@ -40,10 +36,8 @@ LargeMemoryAllocator::~LargeMemoryAllocator() {
 
             while ((char*)current < chunkEnd) {
                 if (!current->isFree) {
-                    if (m_consoleBuffer) {
-                        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Leaked block: size=%zu, allocationId=%s",
-                                     current->size, current->allocationId ? current->allocationId : "unknown");
-                    }
+                    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Leaked block: size=%zu, allocationId=%s",
+                                    current->size, current->allocationId ? current->allocationId : "unknown");
                 }
 
                 BlockHeader* next = (BlockHeader*)((char*)current + sizeof(BlockHeader) + current->size);
