@@ -2,7 +2,6 @@
 
 #include <stack>
 #include <unordered_set>
-#include <memory>
 #include "../resources/resource.h"
 #include "../vulkan/VulkanRenderer.h"
 #include "../input/InputActions.h"
@@ -10,6 +9,11 @@
 
 class LuaInterface;
 class MemoryAllocator;
+class Box2DPhysics;
+class SceneLayerManager;
+class AudioManager;
+class ParticleSystemManager;
+class WaterEffectManager;
 
 class SceneManager {
 public:
@@ -46,7 +50,7 @@ public:
     int getEditorPreviewSystemId() const;
 
     // Access to LuaInterface for particle system manager
-    LuaInterface* getLuaInterface() { return luaInterface_.get(); }
+    LuaInterface* getLuaInterface() { return luaInterface_; }
 
     // Access to PakResource for texture list
     PakResource& getPakResource() { return pakResource_; }
@@ -54,7 +58,12 @@ public:
 private:
     PakResource& pakResource_;
     VulkanRenderer& renderer_;
-    std::unique_ptr<LuaInterface> luaInterface_;
+    Box2DPhysics* physics_;
+    SceneLayerManager* layerManager_;
+    AudioManager* audioManager_;
+    ParticleSystemManager* particleManager_;
+    WaterEffectManager* waterEffectManager_;
+    LuaInterface* luaInterface_;
     std::stack<uint64_t> sceneStack_;
     std::unordered_set<uint64_t> loadedScenes_;
     std::unordered_set<uint64_t> initializedScenes_;

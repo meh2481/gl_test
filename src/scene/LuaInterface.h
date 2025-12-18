@@ -20,7 +20,10 @@ class SceneManager;
 
 class LuaInterface {
 public:
-    LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, SceneManager* sceneManager = nullptr, VibrationManager* vibrationManager = nullptr);
+    LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
+                 Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
+                 ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
+                 SceneManager* sceneManager = nullptr, VibrationManager* vibrationManager = nullptr);
     ~LuaInterface();
 
     // Execute a Lua script from ResourceData
@@ -200,11 +203,11 @@ private:
     int pipelineIndex_;
     uint64_t currentSceneId_;
     HashTable<uint64_t, Vector<std::pair<int, int>>* > scenePipelines_; // pipelineId, zIndex
-    std::unique_ptr<Box2DPhysics> physics_;
-    std::unique_ptr<SceneLayerManager> layerManager_;
-    std::unique_ptr<AudioManager> audioManager_;
-    std::unique_ptr<ParticleSystemManager> particleManager_;
-    std::unique_ptr<WaterEffectManager> waterEffectManager_;
+    Box2DPhysics* physics_;
+    SceneLayerManager* layerManager_;
+    AudioManager* audioManager_;
+    ParticleSystemManager* particleManager_;
+    WaterEffectManager* waterEffectManager_;
     VibrationManager* vibrationManager_;
     float cursorX_;
     float cursorY_;

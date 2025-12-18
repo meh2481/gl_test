@@ -9,7 +9,10 @@
     #define M_PI 3.14159265358979323846
 #endif
 
-LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, SceneManager* sceneManager, VibrationManager* vibrationManager)
+LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
+                           Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
+                           ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
+                           SceneManager* sceneManager, VibrationManager* vibrationManager)
     : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager),
       pipelineIndex_(0), currentSceneId_(0),
       scenePipelines_(*allocator, "LuaInterface::scenePipelines"),
@@ -17,23 +20,26 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       nodes_(*allocator, "LuaInterface::nodes"),
       bodyToNodeMap_(*allocator, "LuaInterface::bodyToNodeMap"),
       cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f),
-      nextNodeId_(1), stringAllocator_(allocator), sceneObjects_(*allocator, "LuaInterface::sceneObjects_") {
+      nextNodeId_(1), stringAllocator_(allocator), sceneObjects_(*allocator, "LuaInterface::sceneObjects_"),
+      physics_(physics), layerManager_(layerManager), audioManager_(audioManager),
+      particleManager_(particleManager), waterEffectManager_(waterEffectManager) {
     assert(stringAllocator_ != nullptr);
-    std::cout << "LuaInterface: Using shared memory allocator" << std::endl;
+    assert(physics_ != nullptr);
+    assert(layerManager_ != nullptr);
+    assert(audioManager_ != nullptr);
+    assert(particleManager_ != nullptr);
+    assert(waterEffectManager_ != nullptr);
+    std::cout << "LuaInterface: Using shared memory allocator and pre-created managers" << std::endl;
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
-    physics_ = std::make_unique<Box2DPhysics>(stringAllocator_);
-    layerManager_ = std::make_unique<SceneLayerManager>(stringAllocator_);
-    audioManager_ = std::make_unique<AudioManager>(stringAllocator_);
-    particleManager_ = std::make_unique<ParticleSystemManager>();
-    waterEffectManager_ = std::make_unique<WaterEffectManager>();
+
     audioManager_->initialize();
 
     // Set layer manager on physics so it can create fragment layers during fracture
-    physics_->setLayerManager(layerManager_.get());
+    physics_->setLayerManager(layerManager_);
 
     registerFunctions();
 
