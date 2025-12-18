@@ -67,9 +67,7 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerM
       fragmentLayerIds_(*allocator, "Box2DPhysics::fragmentLayerIds_") {
     assert(stringAllocator_ != nullptr);
     assert(layerManager_ != nullptr);
-    if (consoleBuffer_) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Box2DPhysics: Using shared memory allocator and layer manager");
-    }
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Box2DPhysics: Using shared memory allocator and layer manager");
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;
@@ -2174,9 +2172,7 @@ void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
             }
         }
         if (types->empty()) {
-            if (consoleBuffer_) {
-                consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::removeBodyType: vector empty, deleting");
-            }
+            consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::removeBodyType: vector empty, deleting");
             types->~Vector();  // Call destructor
             stringAllocator_->free(types);  // Free through allocator
             bodyTypes_.remove(bodyId);

@@ -1,4 +1,5 @@
 #include "VulkanDescriptor.h"
+#include "../debug/ConsoleBuffer.h"
 #include "VulkanTexture.h"
 #include <cassert>
 #include <vector>
@@ -43,7 +44,9 @@ VulkanDescriptor::VulkanDescriptor(MemoryAllocator* allocator) :
 VulkanDescriptor::~VulkanDescriptor() {
 }
 
-void VulkanDescriptor::init(VkDevice device) {
+void VulkanDescriptor::init(VkDevice device, ConsoleBuffer* consoleBuffer) {
+    m_consoleBuffer = consoleBuffer;
+    assert(m_consoleBuffer != nullptr);
     m_device = device;
     m_initialized = true;
 }
@@ -111,7 +114,7 @@ void VulkanDescriptor::createSingleTextureDescriptorSetLayout() {
 
     VkResult result = vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_singleTextureDescriptorSetLayout);
     if (result != VK_SUCCESS) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateDescriptorSetLayout (single texture) failed: %s", vkResultToString(result));
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreateDescriptorSetLayout (single texture) failed: %s", vkResultToString(result));
         assert(false);
     }
 }
@@ -131,7 +134,7 @@ void VulkanDescriptor::createSingleTexturePipelineLayout() {
 
     VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_singleTexturePipelineLayout);
     if (result != VK_SUCCESS) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreatePipelineLayout (single texture) failed: %s", vkResultToString(result));
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreatePipelineLayout (single texture) failed: %s", vkResultToString(result));
         assert(false);
     }
 }
@@ -149,7 +152,7 @@ void VulkanDescriptor::createSingleTextureDescriptorPool() {
 
     VkResult result = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_singleTextureDescriptorPool);
     if (result != VK_SUCCESS) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateDescriptorPool (single texture) failed: %s", vkResultToString(result));
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreateDescriptorPool (single texture) failed: %s", vkResultToString(result));
         assert(false);
     }
 }
@@ -437,7 +440,7 @@ void VulkanDescriptor::createAnimSingleTexturePipelineLayout() {
 
     VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_animSingleTexturePipelineLayout);
     if (result != VK_SUCCESS) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreatePipelineLayout (anim single texture) failed: %s", vkResultToString(result));
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreatePipelineLayout (anim single texture) failed: %s", vkResultToString(result));
         assert(false);
     }
 }
@@ -459,7 +462,7 @@ void VulkanDescriptor::createAnimDualTexturePipelineLayout() {
 
     VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_animDualTexturePipelineLayout);
     if (result != VK_SUCCESS) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreatePipelineLayout (anim dual texture) failed: %s", vkResultToString(result));
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreatePipelineLayout (anim dual texture) failed: %s", vkResultToString(result));
         assert(false);
     }
 }

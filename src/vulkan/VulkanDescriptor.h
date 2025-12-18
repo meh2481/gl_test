@@ -9,6 +9,7 @@
 // Forward declarations
 class VulkanTexture;
 class MemoryAllocator;
+class ConsoleBuffer;
 
 // Helper class for managing Vulkan descriptor sets, pools, and layouts
 class VulkanDescriptor {
@@ -17,7 +18,7 @@ public:
     ~VulkanDescriptor();
 
     // Initialization - must be called before any other operations
-    void init(VkDevice device);
+    void init(VkDevice device, ConsoleBuffer* consoleBuffer);
     void cleanup();
 
     // Set texture manager reference (needed for creating descriptor sets)
@@ -100,4 +101,5 @@ private:
     VkDescriptorSet m_lightDescriptorSet;
 
     MemoryAllocator* m_allocator;
+    ConsoleBuffer* m_consoleBuffer;
 };

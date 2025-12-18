@@ -1,4 +1,5 @@
 #include "VulkanBuffer.h"
+#include "../debug/ConsoleBuffer.h"
 #include <SDL3/SDL.h>
 #include <cstring>
 #include <cassert>
@@ -17,6 +18,7 @@ static const char* vkResultToString(VkResult result) {
 VulkanBuffer::VulkanBuffer() :
     m_device(VK_NULL_HANDLE),
     m_physicalDevice(VK_NULL_HANDLE),
+    m_consoleBuffer(nullptr),
     m_initialized(false)
 {
 }
@@ -24,9 +26,11 @@ VulkanBuffer::VulkanBuffer() :
 VulkanBuffer::~VulkanBuffer() {
 }
 
-void VulkanBuffer::init(VkDevice device, VkPhysicalDevice physicalDevice) {
+void VulkanBuffer::init(VkDevice device, VkPhysicalDevice physicalDevice, ConsoleBuffer* consoleBuffer) {
     m_device = device;
     m_physicalDevice = physicalDevice;
+    m_consoleBuffer = consoleBuffer;
+    assert(m_consoleBuffer != nullptr);
     m_initialized = true;
 }
 
@@ -42,7 +46,7 @@ uint32_t VulkanBuffer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
             return i;
         }
     }
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "VulkanBuffer: failed to find suitable memory type for buffer allocation");
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "VulkanBuffer: failed to find suitable memory type for buffer allocation");
     assert(false);
     return 0;
 }
@@ -56,7 +60,7 @@ void VulkanBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     VkResult result = vkCreateBuffer(m_device, &bufferInfo, nullptr, &buffer);
     if (result != VK_SUCCESS) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateBuffer failed: %s", vkResultToString(result));
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreateBuffer failed: %s", vkResultToString(result));
         assert(false);
     }
 
@@ -69,7 +73,7 @@ void VulkanBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
     result = vkAllocateMemory(m_device, &allocInfo, nullptr, &bufferMemory);
     if (result != VK_SUCCESS) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkAllocateMemory failed: %s", vkResultToString(result));
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkAllocateMemory failed: %s", vkResultToString(result));
         assert(false);
     }
     vkBindBufferMemory(m_device, buffer, bufferMemory, 0);

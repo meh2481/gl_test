@@ -1,6 +1,7 @@
 #include "resource.h"
 #include "../core/ResourceTypes.h"
 #include "../core/Vector.h"
+#include "../debug/ConsoleBuffer.h"
 #include <cstring>
 #include <cassert>
 #include <lz4.h>
@@ -14,11 +15,12 @@
 #include <unistd.h>
 #endif
 
-PakResource::PakResource(MemoryAllocator* allocator)
+PakResource::PakResource(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
     : m_pakData{nullptr, 0}
     , m_decompressedData(*allocator, "PakResource::m_decompressedData")
     , m_atlasUVCache(*allocator, "PakResource::m_atlasUVCache")
     , m_allocator(allocator)
+    , m_consoleBuffer(consoleBuffer)
 #ifdef _WIN32
     , m_hFile(INVALID_HANDLE_VALUE)
     , m_hMapping(NULL)
@@ -27,6 +29,7 @@ PakResource::PakResource(MemoryAllocator* allocator)
 #endif
 {
     assert(m_allocator != nullptr);
+    assert(m_consoleBuffer != nullptr);
     m_mutex = SDL_CreateMutex();
     assert(m_mutex != nullptr);
 }
@@ -128,7 +131,7 @@ ResourceData PakResource::getResource(uint64_t id) {
     SDL_LockMutex(m_mutex);
 
     if (!m_pakData.data) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Resource pak not loaded, cannot get resource id %llu", (unsigned long long)id);
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Resource pak not loaded, cannot get resource id %llu", (unsigned long long)id);
         SDL_UnlockMutex(m_mutex);
         assert(false);
         return ResourceData{nullptr, 0, 0};
@@ -136,7 +139,7 @@ ResourceData PakResource::getResource(uint64_t id) {
 
     PakFileHeader* header = (PakFileHeader*)m_pakData.data;
     if (memcmp(header->sig, "PAKC", 4) != 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Invalid pak file signature");
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Invalid pak file signature");
         SDL_UnlockMutex(m_mutex);
         assert(false);
         return ResourceData{nullptr, 0, 0};
@@ -155,13 +158,13 @@ ResourceData PakResource::getResource(uint64_t id) {
                 // Check if already decompressed (cache hit)
                 Vector<char>** cachedDataPtr = m_decompressedData.find(id);
                 if (cachedDataPtr != nullptr) {
-                    SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "Resource %llu: cache hit (%u bytes)", (unsigned long long)id, comp->decompressedSize);
+                    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Resource %llu: cache hit (%u bytes)", (unsigned long long)id, comp->decompressedSize);
                     ResourceData result = ResourceData{(char*)(*cachedDataPtr)->data(), comp->decompressedSize, comp->type};
                     SDL_UnlockMutex(m_mutex);
                     return result;
                 }
                 // Cache miss - decompress
-                SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "Resource %llu: cache miss, decompressing %u -> %u bytes", (unsigned long long)id, comp->compressedSize, comp->decompressedSize);
+                m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Resource %llu: cache miss, decompressing %u -> %u bytes", (unsigned long long)id, comp->compressedSize, comp->decompressedSize);
                 // Allocate Vector using memory allocator
                 void* vecMem = m_allocator->allocate(sizeof(Vector<char>), "PakResource::getResource::Vector");
                 Vector<char>* decompressed = new (vecMem) Vector<char>(*m_allocator, "PakResource::getResource::decompressed");
@@ -169,7 +172,7 @@ ResourceData PakResource::getResource(uint64_t id) {
 
                 int result = LZ4_decompress_safe(compressedData, decompressed->data(), comp->compressedSize, comp->decompressedSize);
                 if (result != (int)comp->decompressedSize) {
-                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "LZ4 decompression failed for resource %llu", (unsigned long long)id);
+                    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "LZ4 decompression failed for resource %llu", (unsigned long long)id);
                     decompressed->~Vector<char>();
                     m_allocator->free(vecMem);
                     SDL_UnlockMutex(m_mutex);
@@ -184,7 +187,7 @@ ResourceData PakResource::getResource(uint64_t id) {
         }
     }
 
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Resource %llu not found in pak", (unsigned long long)id);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Resource %llu not found in pak", (unsigned long long)id);
     SDL_UnlockMutex(m_mutex);
     assert(false);
     return ResourceData{nullptr, 0, 0};

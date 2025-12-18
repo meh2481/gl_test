@@ -8,6 +8,7 @@
 
 // Forward declarations
 class MemoryAllocator;
+class ConsoleBuffer;
 
 struct ResourceData {
     char* data;
@@ -26,7 +27,7 @@ struct AtlasUV {
 
 class PakResource {
 public:
-    PakResource(MemoryAllocator* allocator);
+    PakResource(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer);
     ~PakResource();
     bool load(const char* filename);
     bool reload(const char* filename);
@@ -50,6 +51,7 @@ private:
     HashTable<uint64_t, AtlasUV> m_atlasUVCache;  // Cache of atlas UV lookups
     SDL_Mutex* m_mutex;
     MemoryAllocator* m_allocator;
+    ConsoleBuffer* m_consoleBuffer;
 
 #ifdef _WIN32
     HANDLE m_hFile;

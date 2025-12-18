@@ -54,9 +54,7 @@ AudioManager::AudioManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
       consoleBuffer_(consoleBuffer)
 {
     assert(allocator_ != nullptr);
-    if (consoleBuffer_) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: Using shared memory allocator");
-    }
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: Using shared memory allocator");
 
     // Initialize arrays
     for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
@@ -95,14 +93,10 @@ void AudioManager::initialize() {
 
     // Check for EFX support
     if (alcIsExtensionPresent(device, "ALC_EXT_EFX")) {
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "OpenAL EFX extension supported");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "OpenAL EFX extension supported");
         initializeEFX();
     } else {
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "OpenAL EFX extension not supported - effects disabled");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "OpenAL EFX extension not supported - effects disabled");
         efxSupported = false;
     }
 
@@ -192,14 +186,10 @@ void AudioManager::initializeEFX() {
             (alIsEffect == nullptr || alIsEffect(effect)) &&
             (alIsFilter == nullptr || alIsFilter(filter))) {
             efxSupported = true;
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "EFX initialized successfully");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "EFX initialized successfully");
         } else {
             efxSupported = false;
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "EFX initialization failed");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "EFX initialization failed");
         }
     } else {
         efxSupported = false;
@@ -227,9 +217,7 @@ int AudioManager::findFreeBufferSlot() {
 int AudioManager::loadAudioBufferFromMemory(const void* data, size_t size, int sampleRate, int channels, int bitsPerSample) {
     int slot = findFreeBufferSlot();
     if (slot == -1) {
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
         assert(false);
         return -1;
     }
@@ -289,9 +277,7 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     // Get audio info
     const OpusHead* head = op_head(opusFile, -1);
     if (!head) {
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to get OPUS header");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to get OPUS header");
         assert(false);
         op_free(opusFile);
         return -1;
@@ -322,9 +308,7 @@ if (consoleBuffer_) {
     op_free(opusFile);
 
     if (pcmData.empty()) {
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No audio data decoded from OPUS");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No audio data decoded from OPUS");
         assert(false);
         return -1;
     }
@@ -345,9 +329,7 @@ int AudioManager::createAudioSource(int bufferId, bool looping, float volume) {
 
     int slot = findFreeSourceSlot();
     if (slot == -1) {
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free source slots available");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free source slots available");
         assert(false);
         return -1;
     }
@@ -518,9 +500,7 @@ void AudioManager::setGlobalVolume(float volume) {
 
 void AudioManager::setGlobalEffect(AudioEffect effect, float intensity) {
     if (!efxSupported) {
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "EFX not supported, cannot set global effect");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "EFX not supported, cannot set global effect");
         assert(false);
         return;
     }

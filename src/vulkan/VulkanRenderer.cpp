@@ -137,9 +137,9 @@ void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     createCommandPool();
 
     // Initialize helper managers
-    m_bufferManager.init(m_device, m_physicalDevice);
+    m_bufferManager.init(m_device, m_physicalDevice, m_consoleBuffer);
     m_textureManager.init(m_device, m_physicalDevice, m_commandPool, m_graphicsQueue);
-    m_descriptorManager.init(m_device);
+    m_descriptorManager.init(m_device, m_consoleBuffer);
     m_descriptorManager.setTextureManager(&m_textureManager);
     m_lightManager.init(m_device, m_physicalDevice);
 
@@ -160,7 +160,7 @@ void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     m_descriptorManager.createLightDescriptorSet(m_lightManager.getUniformBuffer(), m_lightManager.getBufferSize());
 
     // Initialize pipeline manager
-    m_pipelineManager.init(m_device, m_renderPass, m_msaaSamples, m_swapchainExtent);
+    m_pipelineManager.init(m_device, m_renderPass, m_msaaSamples, m_swapchainExtent, m_consoleBuffer);
     m_pipelineManager.setDescriptorManager(&m_descriptorManager);
     m_pipelineManager.createBasePipelineLayout();
 
@@ -217,10 +217,10 @@ void VulkanRenderer::render(float time) {
             SDL_snprintf(buffer, sizeof(buffer), "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
             m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, buffer);
         } else {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
         }
 #else
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
 #endif
         assert(false);
     }
@@ -391,10 +391,10 @@ void VulkanRenderer::createInstance(SDL_Window* window) {
             SDL_snprintf(buffer, sizeof(buffer), "SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
             m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, buffer);
         } else {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
         }
 #else
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
 #endif
         assert(false);
     }
@@ -412,10 +412,10 @@ void VulkanRenderer::createSurface(SDL_Window* window) {
             SDL_snprintf(buffer, sizeof(buffer), "SDL_Vulkan_CreateSurface failed: %s", SDL_GetError());
             m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, buffer);
         } else {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Vulkan_CreateSurface failed: %s", SDL_GetError());
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "SDL_Vulkan_CreateSurface failed: %s", SDL_GetError());
         }
 #else
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Vulkan_CreateSurface failed: %s", SDL_GetError());
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "SDL_Vulkan_CreateSurface failed: %s", SDL_GetError());
 #endif
         assert(false);
     }

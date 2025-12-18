@@ -32,9 +32,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
     assert(audioManager_ != nullptr);
     assert(particleManager_ != nullptr);
     assert(waterEffectManager_ != nullptr);
-    if (consoleBuffer_) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "LuaInterface: Using shared memory allocator and pre-created managers");
-    }
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "LuaInterface: Using shared memory allocator and pre-created managers");
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;
@@ -3427,9 +3425,7 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     ResourceData fragShader = pakResource_.getResource(fragId);
 
     if (vertShader.data == nullptr || fragShader.data == nullptr) {
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
         assert(false);
         return;
     }
@@ -3503,9 +3499,7 @@ if (consoleBuffer_) {
                                                    reflectionTexId, waterShaderId);
 
     if (waterLayerId < 0) {
-if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
-        }
+consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
         assert(false);
         return;
     }

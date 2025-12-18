@@ -4,6 +4,9 @@
 #include "../core/Vector.h"
 #include <cstdint>
 
+// Forward declaration
+class ConsoleBuffer;
+
 // Helper class for managing Vulkan buffers
 class VulkanBuffer {
 public:
@@ -11,7 +14,7 @@ public:
     ~VulkanBuffer();
 
     // Initialization - must be called before any other operations
-    void init(VkDevice device, VkPhysicalDevice physicalDevice);
+    void init(VkDevice device, VkPhysicalDevice physicalDevice, ConsoleBuffer* consoleBuffer);
     void cleanup();
 
     // Buffer creation and management
@@ -55,5 +58,6 @@ public:
 private:
     VkDevice m_device;
     VkPhysicalDevice m_physicalDevice;
+    ConsoleBuffer* m_consoleBuffer;
     bool m_initialized;
 };

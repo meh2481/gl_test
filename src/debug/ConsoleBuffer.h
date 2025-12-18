@@ -48,6 +48,21 @@ public:
         SDL_UnlockMutex(mutex_);
     }
 
+    // Variadic logging method for formatted messages
+    template<typename... Args>
+    void log(SDL_LogPriority priority, const char* format, Args... args) {
+        char buffer[1024];
+        SDL_snprintf(buffer, sizeof(buffer), format, args...);
+        SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, priority, "%s", buffer);
+        // Store in buffer for ImGui display
+        SDL_LockMutex(mutex_);
+        lines_.push_back(String(buffer, stringAllocator_));
+        if (lines_.size() > 1000) {
+            lines_.erase(0);
+        }
+        SDL_UnlockMutex(mutex_);
+    }
+
     // Start building a log message with streaming
     ConsoleBuffer& operator<<(SDL_LogPriority priority) {
         currentPriority_ = priority;

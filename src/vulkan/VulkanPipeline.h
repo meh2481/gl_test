@@ -11,6 +11,7 @@
 // Forward declarations
 class VulkanDescriptor;
 class MemoryAllocator;
+class ConsoleBuffer;
 
 // Maximum number of water ripples that can be passed to shader
 static const int MAX_SHADER_RIPPLES = 4;
@@ -41,7 +42,7 @@ public:
     ~VulkanPipeline();
 
     // Initialization - must be called before any other operations
-    void init(VkDevice device, VkRenderPass renderPass, VkSampleCountFlagBits msaaSamples, VkExtent2D swapchainExtent);
+    void init(VkDevice device, VkRenderPass renderPass, VkSampleCountFlagBits msaaSamples, VkExtent2D swapchainExtent, ConsoleBuffer* consoleBuffer);
     void cleanup();
 
     // Set descriptor manager reference
@@ -139,4 +140,5 @@ private:
 
     // Memory allocator
     MemoryAllocator* m_allocator;
+    ConsoleBuffer* m_consoleBuffer;
 };

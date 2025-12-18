@@ -26,15 +26,11 @@ SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
     assert(waterEffectManager_ != nullptr);
     assert(luaInterface_ != nullptr);
 
-    if (consoleBuffer_) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Received all managers and LuaInterface from main.cpp");
-    }
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Received all managers and LuaInterface from main.cpp");
 }
 
 SceneManager::~SceneManager() {
-    if (consoleBuffer_) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Destructor (managers owned by main.cpp)");
-    }
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Destructor (managers owned by main.cpp)");
 }
 
 void SceneManager::pushScene(uint64_t sceneId) {
