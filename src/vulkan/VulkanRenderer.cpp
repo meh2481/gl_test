@@ -1,7 +1,8 @@
 #include "VulkanRenderer.h"
-#include "../core/ResourceTypes.h"
-#include "../scene/SceneLayer.h"
 #include <iostream>
+#include "../core/ResourceTypes.h"
+#include <iostream>
+#include "../scene/SceneLayer.h"
 #include <cstring>
 #include <cassert>
 #include <SDL3/SDL_vulkan.h>
@@ -481,7 +482,7 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
 
     vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices);
 
-    std::cout << "Available Vulkan devices:" << std::endl;
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Available Vulkan devices:");
     for (uint32_t i = 0; i < deviceCount; ++i) {
         VkPhysicalDeviceProperties props{};
         vkGetPhysicalDeviceProperties(devices[i], &props);
@@ -1503,7 +1504,7 @@ void VulkanRenderer::disableReflection() {
     destroyReflectionResources();
     m_reflectionEnabled = false;
 
-    std::cout << "Reflection disabled" << std::endl;
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Reflection disabled");
 }
 
 void VulkanRenderer::createReflectionResources() {

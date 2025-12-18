@@ -1,9 +1,12 @@
 #include "LuaInterface.h"
+#include <iostream>
+#include <SDL3/SDL.h>
 #include "SceneManager.h"
+#include <iostream>
+#include <SDL3/SDL.h>
 #include "../physics/Box2DPhysics.h"
 #include "../memory/SmallAllocator.h"
 #include "../core/hash.h"
-#include <iostream>
 #include <cassert>
 #ifndef M_PI
     #define M_PI 3.14159265358979323846
@@ -29,7 +32,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
     assert(audioManager_ != nullptr);
     assert(particleManager_ != nullptr);
     assert(waterEffectManager_ != nullptr);
-    std::cout << "LuaInterface: Using shared memory allocator and pre-created managers" << std::endl;
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "LuaInterface: Using shared memory allocator and pre-created managers");
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;
@@ -2074,7 +2077,7 @@ int LuaInterface::loadTexture(lua_State* L) {
         // The UV coordinates are stored in the atlas entry and will be used by SceneLayer
     } else {
         // Standalone image - load directly
-        std::cout << "  -> Standalone texture" << std::endl;
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  -> Standalone texture");
         interface->renderer_.loadTexture(textureId, imageData);
     }
 
@@ -3420,7 +3423,7 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     ResourceData fragShader = pakResource_.getResource(fragId);
 
     if (vertShader.data == nullptr || fragShader.data == nullptr) {
-        std::cerr << "Failed to load water shaders" << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load water shaders");
         assert(false);
         return;
     }
@@ -3494,7 +3497,7 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
                                                    reflectionTexId, waterShaderId);
 
     if (waterLayerId < 0) {
-        std::cerr << "Failed to create water layer" << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create water layer");
         assert(false);
         return;
     }

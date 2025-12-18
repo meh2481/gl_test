@@ -1,8 +1,9 @@
 #include "VulkanTexture.h"
+#include <iostream>
 #include "../core/ResourceTypes.h"
+#include <iostream>
 #include <cstring>
 #include <cassert>
-#include <iostream>
 #include <set>
 
 VulkanTexture::VulkanTexture(MemoryAllocator* allocator) :

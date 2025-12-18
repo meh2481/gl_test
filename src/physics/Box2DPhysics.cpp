@@ -1,11 +1,14 @@
 #include "Box2DPhysics.h"
+#include <iostream>
+#include <SDL3/SDL.h>
 #include "../scene/SceneLayer.h"
+#include <iostream>
+#include <SDL3/SDL.h>
 #include "../memory/SmallAllocator.h"
 #include "../core/Vector.h"
 #include <cassert>
 #include <cmath>
 #include <cstring>
-#include <iostream>
 
 // Default fixed timestep for physics simulation (Box2D recommended value)
 static constexpr float DEFAULT_FIXED_TIMESTEP = 1.0f / 250.0f;
@@ -64,7 +67,7 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerM
       fragmentLayerIds_(*allocator, "Box2DPhysics::fragmentLayerIds_") {
     assert(stringAllocator_ != nullptr);
     assert(layerManager_ != nullptr);
-    std::cout << "Box2DPhysics: Using shared memory allocator and layer manager" << std::endl;
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Box2DPhysics: Using shared memory allocator and layer manager");
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;
@@ -2169,7 +2172,7 @@ void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
             }
         }
         if (types->empty()) {
-            std::cout << "Box2DPhysics::removeBodyType: vector empty, deleting" << std::endl;
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Box2DPhysics::removeBodyType: vector empty, deleting");
             types->~Vector();  // Call destructor
             stringAllocator_->free(types);  // Free through allocator
             bodyTypes_.remove(bodyId);

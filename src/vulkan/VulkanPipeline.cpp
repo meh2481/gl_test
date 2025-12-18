@@ -2,7 +2,6 @@
 #include "VulkanDescriptor.h"
 #include "../core/Vector.h"
 #include <cassert>
-#include <iostream>
 
 // Helper function to convert VkResult to readable string for error logging
 static const char* vkResultToString(VkResult result) {

@@ -1,6 +1,9 @@
 #include "AudioManager.h"
+#include <iostream>
+#include <SDL3/SDL.h>
 #include "../core/Vector.h"
 #include <iostream>
+#include <SDL3/SDL.h>
 #include <cstring>
 #include <AL/al.h>
 #include <AL/alc.h>
@@ -50,7 +53,7 @@ AudioManager::AudioManager(MemoryAllocator* allocator)
       efxSupported(false), effectSlot(0), effect(0), filter(0),
       currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f), allocator_(allocator) {
     assert(allocator_ != nullptr);
-    std::cout << "AudioManager: Using shared memory allocator" << std::endl;
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "AudioManager: Using shared memory allocator");
 
     // Initialize arrays
     for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
@@ -89,10 +92,10 @@ void AudioManager::initialize() {
 
     // Check for EFX support
     if (alcIsExtensionPresent(device, "ALC_EXT_EFX")) {
-        std::cout << "OpenAL EFX extension supported" << std::endl;
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "OpenAL EFX extension supported");
         initializeEFX();
     } else {
-        std::cout << "OpenAL EFX extension not supported - effects disabled" << std::endl;
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "OpenAL EFX extension not supported - effects disabled");
         efxSupported = false;
     }
 
@@ -182,10 +185,10 @@ void AudioManager::initializeEFX() {
             (alIsEffect == nullptr || alIsEffect(effect)) &&
             (alIsFilter == nullptr || alIsFilter(filter))) {
             efxSupported = true;
-            std::cout << "EFX initialized successfully" << std::endl;
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "EFX initialized successfully");
         } else {
             efxSupported = false;
-            std::cout << "EFX initialization failed" << std::endl;
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "EFX initialization failed");
         }
     } else {
         efxSupported = false;
@@ -213,7 +216,7 @@ int AudioManager::findFreeBufferSlot() {
 int AudioManager::loadAudioBufferFromMemory(const void* data, size_t size, int sampleRate, int channels, int bitsPerSample) {
     int slot = findFreeBufferSlot();
     if (slot == -1) {
-        std::cerr << "No free buffer slots available" << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "No free buffer slots available");
         assert(false);
         return -1;
     }
@@ -273,7 +276,7 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     // Get audio info
     const OpusHead* head = op_head(opusFile, -1);
     if (!head) {
-        std::cerr << "Failed to get OPUS header" << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get OPUS header");
         assert(false);
         op_free(opusFile);
         return -1;
@@ -304,7 +307,7 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     op_free(opusFile);
 
     if (pcmData.empty()) {
-        std::cerr << "No audio data decoded from OPUS" << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "No audio data decoded from OPUS");
         assert(false);
         return -1;
     }
@@ -325,7 +328,7 @@ int AudioManager::createAudioSource(int bufferId, bool looping, float volume) {
 
     int slot = findFreeSourceSlot();
     if (slot == -1) {
-        std::cerr << "No free source slots available" << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "No free source slots available");
         assert(false);
         return -1;
     }
@@ -496,7 +499,7 @@ void AudioManager::setGlobalVolume(float volume) {
 
 void AudioManager::setGlobalEffect(AudioEffect effect, float intensity) {
     if (!efxSupported) {
-        std::cerr << "EFX not supported, cannot set global effect" << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "EFX not supported, cannot set global effect");
         assert(false);
         return;
     }

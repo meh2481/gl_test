@@ -2,7 +2,6 @@
 #include "VulkanTexture.h"
 #include <cassert>
 #include <vector>
-#include <iostream>
 
 // Animation push constant size: 6 base + 7 params + 20 animation = 33 floats
 static const uint32_t ANIM_PUSH_CONSTANT_FLOAT_COUNT = 33;
