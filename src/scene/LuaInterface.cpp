@@ -588,7 +588,6 @@ void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
         for (const auto& pair : *pipelines) {
             sortedPipelines.push_back(pair);
         }
-        // This happens once on scene load and is fine
         std::sort(sortedPipelines.begin(), sortedPipelines.end(),
                   [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
                       return a.second < b.second; // Sort by z-index ascending

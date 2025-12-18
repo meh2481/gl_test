@@ -1158,8 +1158,6 @@ void VulkanRenderer::rebuildAllBatches() {
         m_allBatches.push_back(b);
     }
     // Sort by parallax depth (higher = background = drawn first)
-
-    // This happens every frame and is not fine
     std::sort(m_allBatches.begin(), m_allBatches.end(), [](const BatchDrawData& a, const BatchDrawData& b) {
         return a.parallaxDepth > b.parallaxDepth;
     });
