@@ -320,7 +320,110 @@ public:
         return *allocator_;
     }
 
+    // Sort the vector using the provided comparison function
+    // Uses a hybrid quicksort with insertion sort for small partitions
+    template<typename Compare>
+    void sort(Compare comp) {
+        if (size_ <= 1) {
+            return;
+        }
+        quicksort(0, size_ - 1, comp);
+    }
+
 private:
+    // Threshold for switching to insertion sort
+    static const size_t INSERTION_SORT_THRESHOLD = 16;
+
+    // Swap two elements
+    void swap(size_t i, size_t j) {
+        assert(i < size_);
+        assert(j < size_);
+        if (i != j) {
+            T temp(static_cast<T&&>(data_[i]));
+            data_[i] = static_cast<T&&>(data_[j]);
+            data_[j] = static_cast<T&&>(temp);
+        }
+    }
+
+    // Insertion sort for small partitions
+    template<typename Compare>
+    void insertionSort(size_t left, size_t right, Compare comp) {
+        for (size_t i = left + 1; i <= right; ++i) {
+            T key(static_cast<T&&>(data_[i]));
+            size_t j = i;
+            while (j > left && comp(key, data_[j - 1])) {
+                data_[j] = static_cast<T&&>(data_[j - 1]);
+                --j;
+            }
+            data_[j] = static_cast<T&&>(key);
+        }
+    }
+
+    // Median-of-three pivot selection
+    template<typename Compare>
+    size_t medianOfThree(size_t left, size_t right, Compare comp) {
+        size_t mid = left + (right - left) / 2;
+
+        // Sort left, mid, right so that data_[left] <= data_[mid] <= data_[right]
+        if (comp(data_[mid], data_[left])) {
+            swap(left, mid);
+        }
+        if (comp(data_[right], data_[left])) {
+            swap(left, right);
+        }
+        if (comp(data_[right], data_[mid])) {
+            swap(mid, right);
+        }
+
+        // Place median at right-1
+        swap(mid, right - 1);
+        return right - 1;
+    }
+
+    // Partition the array around a pivot
+    template<typename Compare>
+    size_t partition(size_t left, size_t right, size_t pivotIndex, Compare comp) {
+        T pivotValue(static_cast<T&&>(data_[pivotIndex]));
+        swap(pivotIndex, right);
+
+        size_t storeIndex = left;
+        for (size_t i = left; i < right; ++i) {
+            if (comp(data_[i], pivotValue)) {
+                swap(i, storeIndex);
+                ++storeIndex;
+            }
+        }
+
+        data_[right] = static_cast<T&&>(data_[storeIndex]);
+        data_[storeIndex] = static_cast<T&&>(pivotValue);
+        return storeIndex;
+    }
+
+    // Quicksort implementation
+    template<typename Compare>
+    void quicksort(size_t left, size_t right, Compare comp) {
+        if (left >= right) {
+            return;
+        }
+
+        // Use insertion sort for small partitions
+        if (right - left + 1 <= INSERTION_SORT_THRESHOLD) {
+            insertionSort(left, right, comp);
+            return;
+        }
+
+        // Use median-of-three for pivot selection
+        size_t pivotIndex = medianOfThree(left, right, comp);
+        pivotIndex = partition(left, right, pivotIndex, comp);
+
+        // Recursively sort left and right partitions
+        if (pivotIndex > left) {
+            quicksort(left, pivotIndex - 1, comp);
+        }
+        if (pivotIndex < right) {
+            quicksort(pivotIndex + 1, right, comp);
+        }
+    }
     void grow() {
         size_t newCapacity = capacity_ == 0 ? 8 : capacity_ * 2;
         reserve(newCapacity);
