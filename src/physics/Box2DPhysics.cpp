@@ -336,123 +336,123 @@ void Box2DPhysics::destroyBody(int bodyId) {
 
 void Box2DPhysics::setBodyPosition(int bodyId, float x, float y) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Rot rotation = b2Body_GetRotation(it->second);
-    b2Body_SetTransform(it->second, (b2Vec2){x, y}, rotation);
+    b2Rot rotation = b2Body_GetRotation(*it);
+    b2Body_SetTransform(*it, (b2Vec2){x, y}, rotation);
 }
 
 void Box2DPhysics::setBodyAngle(int bodyId, float angle) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Vec2 position = b2Body_GetPosition(it->second);
-    b2Body_SetTransform(it->second, position, b2MakeRot(angle));
+    b2Vec2 position = b2Body_GetPosition(*it);
+    b2Body_SetTransform(*it, position, b2MakeRot(angle));
 }
 
 void Box2DPhysics::setBodyLinearVelocity(int bodyId, float vx, float vy) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Body_SetLinearVelocity(it->second, (b2Vec2){vx, vy});
+    b2Body_SetLinearVelocity(*it, (b2Vec2){vx, vy});
 }
 
 void Box2DPhysics::setBodyAngularVelocity(int bodyId, float omega) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Body_SetAngularVelocity(it->second, omega);
+    b2Body_SetAngularVelocity(*it, omega);
 }
 
 void Box2DPhysics::setBodyAwake(int bodyId, bool awake) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Body_SetAwake(it->second, awake);
+    b2Body_SetAwake(*it, awake);
 }
 
 void Box2DPhysics::enableBody(int bodyId) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Body_Enable(it->second);
+    b2Body_Enable(*it);
 }
 
 void Box2DPhysics::disableBody(int bodyId) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Body_Disable(it->second);
+    b2Body_Disable(*it);
 }
 
 void Box2DPhysics::applyForce(int bodyId, float fx, float fy, float px, float py) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Body_ApplyForce(it->second, (b2Vec2){fx, fy}, (b2Vec2){px, py}, true);
+    b2Body_ApplyForce(*it, (b2Vec2){fx, fy}, (b2Vec2){px, py}, true);
 }
 
 void Box2DPhysics::applyTorque(int bodyId, float torque) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Body_ApplyTorque(it->second, torque, true);
+    b2Body_ApplyTorque(*it, torque, true);
 }
 
 float Box2DPhysics::getBodyPositionX(int bodyId) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Vec2 position = b2Body_GetPosition(it->second);
+    b2Vec2 position = b2Body_GetPosition(*it);
     return position.x;
 }
 
 float Box2DPhysics::getBodyPositionY(int bodyId) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Vec2 position = b2Body_GetPosition(it->second);
+    b2Vec2 position = b2Body_GetPosition(*it);
     return position.y;
 }
 
 float Box2DPhysics::getBodyAngle(int bodyId) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Rot rotation = b2Body_GetRotation(it->second);
+    b2Rot rotation = b2Body_GetRotation(*it);
     return b2Rot_GetAngle(rotation);
 }
 
 float Box2DPhysics::getBodyLinearVelocityX(int bodyId) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Vec2 velocity = b2Body_GetLinearVelocity(it->second);
+    b2Vec2 velocity = b2Body_GetLinearVelocity(*it);
     return velocity.x;
 }
 
 float Box2DPhysics::getBodyLinearVelocityY(int bodyId) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    b2Vec2 velocity = b2Body_GetLinearVelocity(it->second);
+    b2Vec2 velocity = b2Body_GetLinearVelocity(*it);
     return velocity.y;
 }
 
 float Box2DPhysics::getBodyAngularVelocity(int bodyId) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    return b2Body_GetAngularVelocity(it->second);
+    return b2Body_GetAngularVelocity(*it);
 }
 
 bool Box2DPhysics::isBodyValid(int bodyId) const {
-    return bodies_.find(bodyId) != bodies_.end();
+    return bodies_.find(bodyId) != nullptr;
 }
 
 void Box2DPhysics::addBoxFixture(int bodyId, float halfWidth, float halfHeight, float density, float friction, float restitution) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
     b2Polygon box = b2MakeBox(halfWidth, halfHeight);
 
@@ -463,12 +463,12 @@ void Box2DPhysics::addBoxFixture(int bodyId, float halfWidth, float halfHeight, 
     shapeDef.enableContactEvents = true;
     shapeDef.enableSensorEvents = true;
 
-    b2CreatePolygonShape(it->second, &shapeDef, &box);
+    b2CreatePolygonShape(*it, &shapeDef, &box);
 }
 
 void Box2DPhysics::addCircleFixture(int bodyId, float radius, float density, float friction, float restitution) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
     b2Circle circle;
     circle.center = (b2Vec2){0.0f, 0.0f};
@@ -481,12 +481,12 @@ void Box2DPhysics::addCircleFixture(int bodyId, float radius, float density, flo
     shapeDef.enableContactEvents = true;
     shapeDef.enableSensorEvents = true;
 
-    b2CreateCircleShape(it->second, &shapeDef, &circle);
+    b2CreateCircleShape(*it, &shapeDef, &circle);
 }
 
 void Box2DPhysics::addPolygonFixture(int bodyId, const float* vertices, int vertexCount, float density, float friction, float restitution) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
     assert(vertexCount >= 3 && vertexCount <= 8);
 
     b2Vec2 points[8];
@@ -504,12 +504,12 @@ void Box2DPhysics::addPolygonFixture(int bodyId, const float* vertices, int vert
     shapeDef.enableContactEvents = true;
     shapeDef.enableSensorEvents = true;
 
-    b2CreatePolygonShape(it->second, &shapeDef, &polygon);
+    b2CreatePolygonShape(*it, &shapeDef, &polygon);
 }
 
 void Box2DPhysics::addSegmentFixture(int bodyId, float x1, float y1, float x2, float y2, float friction, float restitution) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
     b2Segment segment;
     segment.point1 = (b2Vec2){x1, y1};
@@ -521,12 +521,12 @@ void Box2DPhysics::addSegmentFixture(int bodyId, float x1, float y1, float x2, f
     shapeDef.material.restitution = restitution;
     shapeDef.enableContactEvents = true;
 
-    b2CreateSegmentShape(it->second, &shapeDef, &segment);
+    b2CreateSegmentShape(*it, &shapeDef, &segment);
 }
 
 void Box2DPhysics::addCircleSensor(int bodyId, float radius) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
     b2Circle circle;
     circle.center = (b2Vec2){0.0f, 0.0f};
@@ -536,12 +536,12 @@ void Box2DPhysics::addCircleSensor(int bodyId, float radius) {
     shapeDef.isSensor = true;
     shapeDef.enableSensorEvents = true;
 
-    b2CreateCircleShape(it->second, &shapeDef, &circle);
+    b2CreateCircleShape(*it, &shapeDef, &circle);
 }
 
 void Box2DPhysics::addPolygonSensor(int bodyId, const float* vertices, int vertexCount) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
     assert(vertexCount >= 3 && vertexCount <= 8);
 
     b2Vec2 points[8];
@@ -556,17 +556,17 @@ void Box2DPhysics::addPolygonSensor(int bodyId, const float* vertices, int verte
     shapeDef.isSensor = true;
     shapeDef.enableSensorEvents = true;
 
-    b2CreatePolygonShape(it->second, &shapeDef, &polygon);
+    b2CreatePolygonShape(*it, &shapeDef, &polygon);
 }
 
 void Box2DPhysics::clearAllFixtures(int bodyId) {
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
-    int shapeCount = b2Body_GetShapeCount(it->second);
+    int shapeCount = b2Body_GetShapeCount(*it);
     if (shapeCount > 0) {
         b2ShapeId shapes[16];
-        int actualCount = b2Body_GetShapes(it->second, shapes, 16);
+        int actualCount = b2Body_GetShapes(*it, shapes, 16);
         for (int i = 0; i < actualCount; ++i) {
             b2DestroyShape(shapes[i], true);
         }
@@ -580,11 +580,11 @@ int Box2DPhysics::createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, 
 
     auto itA = bodies_.find(bodyIdA);
     auto itB = bodies_.find(bodyIdB);
-    assert(itA != bodies_.end() && itB != bodies_.end());
+    assert(itA != nullptr && itB != nullptr);
 
     b2RevoluteJointDef jointDef = b2DefaultRevoluteJointDef();
-    jointDef.bodyIdA = itA->second;
-    jointDef.bodyIdB = itB->second;
+    jointDef.bodyIdA = *itA;
+    jointDef.bodyIdB = *itB;
     jointDef.localAnchorA = (b2Vec2){anchorAx, anchorAy};
     jointDef.localAnchorB = (b2Vec2){anchorBx, anchorBy};
     jointDef.enableLimit = enableLimit;
@@ -596,7 +596,7 @@ int Box2DPhysics::createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, 
     assert(b2Joint_IsValid(jointId));
 
     int internalId = nextJointId_++;
-    joints_[internalId] = jointId;
+    joints_.insert(internalId, jointId);
 
     SDL_UnlockMutex(physicsMutex_);
     return internalId;
@@ -606,11 +606,11 @@ void Box2DPhysics::destroyJoint(int jointId) {
     SDL_LockMutex(physicsMutex_);
 
     auto it = joints_.find(jointId);
-    if (it != joints_.end()) {
-        if (b2Joint_IsValid(it->second)) {
-            b2DestroyJoint(it->second);
+    if (it != nullptr) {
+        if (b2Joint_IsValid(*it)) {
+            b2DestroyJoint(*it);
         }
-        joints_.erase(it);
+        joints_.remove(jointId);
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -710,7 +710,7 @@ int Box2DPhysics::createMouseJoint(int bodyId, float targetX, float targetY, flo
     SDL_LockMutex(physicsMutex_);
 
     auto it = bodies_.find(bodyId);
-    assert(it != bodies_.end());
+    assert(it != nullptr);
 
     // Create a static ground body for the mouse joint if not exists
     // (Mouse joint needs a static body as bodyA)
@@ -723,20 +723,20 @@ int Box2DPhysics::createMouseJoint(int bodyId, float targetX, float targetY, flo
 
     b2MouseJointDef jointDef = b2DefaultMouseJointDef();
     jointDef.bodyIdA = mouseJointGroundBody_;
-    jointDef.bodyIdB = it->second;
+    jointDef.bodyIdB = *it;
     jointDef.target = (b2Vec2){targetX, targetY};
     jointDef.hertz = 4.0f;
     jointDef.dampingRatio = 0.7f;
-    jointDef.maxForce = maxForce * b2Body_GetMass(it->second);
+    jointDef.maxForce = maxForce * b2Body_GetMass(*it);
 
     b2JointId jointId = b2CreateMouseJoint(worldId_, &jointDef);
     assert(b2Joint_IsValid(jointId));
 
     int internalId = nextJointId_++;
-    joints_[internalId] = jointId;
+    joints_.insert(internalId, jointId);
 
     // Wake up the body
-    b2Body_SetAwake(it->second, true);
+    b2Body_SetAwake(*it, true);
 
     SDL_UnlockMutex(physicsMutex_);
     return internalId;
@@ -746,8 +746,8 @@ void Box2DPhysics::updateMouseJointTarget(int jointId, float targetX, float targ
     SDL_LockMutex(physicsMutex_);
 
     auto it = joints_.find(jointId);
-    if (it != joints_.end()) {
-        b2MouseJoint_SetTarget(it->second, (b2Vec2){targetX, targetY});
+    if (it != nullptr) {
+        b2MouseJoint_SetTarget(*it, (b2Vec2){targetX, targetY});
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -980,53 +980,53 @@ void Box2DPhysics::setBodyDestructible(int bodyId, float strength, float brittle
     props.normalAtlasV1 = 1.0f;
     props.atlasNormalMapId = normalMapId;
 
-    destructibles_[bodyId] = props;
+    destructibles_.insert(bodyId, props);
 }
 
 void Box2DPhysics::setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureId,
                                                float u0, float v0, float u1, float v1) {
     auto it = destructibles_.find(bodyId);
-    if (it != destructibles_.end()) {
-        it->second.usesAtlas = true;
-        it->second.atlasU0 = u0;
-        it->second.atlasV0 = v0;
-        it->second.atlasU1 = u1;
-        it->second.atlasV1 = v1;
-        it->second.atlasTextureId = atlasTextureId;
+    if (it != nullptr) {
+        it->usesAtlas = true;
+        it->atlasU0 = u0;
+        it->atlasV0 = v0;
+        it->atlasU1 = u1;
+        it->atlasV1 = v1;
+        it->atlasTextureId = atlasTextureId;
     }
 }
 
 void Box2DPhysics::setBodyDestructibleNormalMapAtlasUV(int bodyId, uint64_t atlasNormalMapId,
                                                         float u0, float v0, float u1, float v1) {
     auto it = destructibles_.find(bodyId);
-    if (it != destructibles_.end()) {
-        it->second.usesNormalMapAtlas = true;
-        it->second.normalAtlasU0 = u0;
-        it->second.normalAtlasV0 = v0;
-        it->second.normalAtlasU1 = u1;
-        it->second.normalAtlasV1 = v1;
-        it->second.atlasNormalMapId = atlasNormalMapId;
+    if (it != nullptr) {
+        it->usesNormalMapAtlas = true;
+        it->normalAtlasU0 = u0;
+        it->normalAtlasV0 = v0;
+        it->normalAtlasU1 = u1;
+        it->normalAtlasV1 = v1;
+        it->atlasNormalMapId = atlasNormalMapId;
     }
 }
 
 void Box2DPhysics::setBodyDestructibleRootBounds(int bodyId, float minX, float minY, float width, float height) {
     auto it = destructibles_.find(bodyId);
-    if (it != destructibles_.end()) {
-        it->second.hasRootBounds = true;
-        it->second.rootMinX = minX;
-        it->second.rootMinY = minY;
-        it->second.rootWidth = width;
-        it->second.rootHeight = height;
+    if (it != nullptr) {
+        it->hasRootBounds = true;
+        it->rootMinX = minX;
+        it->rootMinY = minY;
+        it->rootWidth = width;
+        it->rootHeight = height;
     }
 }
 
 void Box2DPhysics::clearBodyDestructible(int bodyId) {
-    destructibles_.erase(bodyId);
-    destructibleBodyLayers_.erase(bodyId);
+    destructibles_.remove(bodyId);
+    destructibleBodyLayers_.remove(bodyId);
 }
 
 void Box2DPhysics::setBodyDestructibleLayer(int bodyId, int layerId) {
-    destructibleBodyLayers_[bodyId] = layerId;
+    destructibleBodyLayers_.insert(bodyId, layerId);
 }
 
 void Box2DPhysics::cleanupAllFragments() {
@@ -1048,13 +1048,13 @@ void Box2DPhysics::cleanupAllFragments() {
 
 bool Box2DPhysics::isBodyDestructible(int bodyId) const {
     auto it = destructibles_.find(bodyId);
-    return it != destructibles_.end() && it->second.isDestructible;
+    return it != nullptr && it->isDestructible;
 }
 
 const DestructibleProperties* Box2DPhysics::getDestructibleProperties(int bodyId) const {
     auto it = destructibles_.find(bodyId);
-    if (it != destructibles_.end()) {
-        return &it->second;
+    if (it != nullptr) {
+        return it;
     }
     return nullptr;
 }
@@ -1402,7 +1402,7 @@ int Box2DPhysics::createFragmentBody(float x, float y, float angle,
     b2CreatePolygonShape(bodyId, &shapeDef, &poly);
 
     int internalId = nextBodyId_++;
-    bodies_[internalId] = bodyId;
+    bodies_.insert(internalId, bodyId);
 
     SDL_UnlockMutex(physicsMutex_);
     return internalId;
@@ -1452,7 +1452,7 @@ int Box2DPhysics::createForceField(const float* vertices, int vertexCount, float
 
     // Store the body in bodies_ map
     int internalBodyId = nextBodyId_++;
-    bodies_[internalBodyId] = bodyId;
+    bodies_.insert(internalBodyId, bodyId);
 
     // Create force field entry
     int forceFieldId = nextForceFieldId_++;
@@ -1463,7 +1463,7 @@ int Box2DPhysics::createForceField(const float* vertices, int vertexCount, float
     field.forceY = forceY;
     field.damping = damping;
     field.isWater = isWater;
-    forceFields_[forceFieldId] = field;
+    forceFields_.insert(forceFieldId, field);
 
     SDL_UnlockMutex(physicsMutex_);
     return forceFieldId;
@@ -1473,14 +1473,14 @@ void Box2DPhysics::destroyForceField(int forceFieldId) {
     SDL_LockMutex(physicsMutex_);
 
     auto it = forceFields_.find(forceFieldId);
-    if (it != forceFields_.end()) {
+    if (it != nullptr) {
         // Destroy the body (which also destroys all attached shapes)
-        auto bodyIt = bodies_.find(it->second.bodyId);
-        if (bodyIt != bodies_.end()) {
-            b2DestroyBody(bodyIt->second);
-            bodies_.erase(bodyIt);
+        auto bodyIt = bodies_.find(it->bodyId);
+        if (bodyIt != nullptr) {
+            b2DestroyBody(*bodyIt);
+            bodies_.remove(it->bodyId);
         }
-        forceFields_.erase(it);
+        forceFields_.remove(forceFieldId);
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -1490,8 +1490,8 @@ void Box2DPhysics::setForceFieldDamping(int forceFieldId, float damping) {
     SDL_LockMutex(physicsMutex_);
 
     auto it = forceFields_.find(forceFieldId);
-    if (it != forceFields_.end()) {
-        it->second.damping = damping;
+    if (it != nullptr) {
+        it->damping = damping;
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -1524,7 +1524,7 @@ int Box2DPhysics::createRadialForceField(float centerX, float centerY, float rad
 
     // Store the body in bodies_ map
     int internalBodyId = nextBodyId_++;
-    bodies_[internalBodyId] = bodyId;
+    bodies_.insert(internalBodyId, bodyId);
 
     // Create radial force field entry
     int forceFieldId = nextForceFieldId_++;
@@ -1536,7 +1536,7 @@ int Box2DPhysics::createRadialForceField(float centerX, float centerY, float rad
     field.radius = radius;
     field.forceAtCenter = forceAtCenter;
     field.forceAtEdge = forceAtEdge;
-    radialForceFields_[forceFieldId] = field;
+    radialForceFields_.insert(forceFieldId, field);
 
     SDL_UnlockMutex(physicsMutex_);
     return forceFieldId;
@@ -1546,14 +1546,14 @@ void Box2DPhysics::destroyRadialForceField(int forceFieldId) {
     SDL_LockMutex(physicsMutex_);
 
     auto it = radialForceFields_.find(forceFieldId);
-    if (it != radialForceFields_.end()) {
+    if (it != nullptr) {
         // Destroy the body (which also destroys all attached shapes)
-        auto bodyIt = bodies_.find(it->second.bodyId);
-        if (bodyIt != bodies_.end()) {
-            b2DestroyBody(bodyIt->second);
-            bodies_.erase(bodyIt);
+        auto bodyIt = bodies_.find(it->bodyId);
+        if (bodyIt != nullptr) {
+            b2DestroyBody(*bodyIt);
+            bodies_.remove(it->bodyId);
         }
-        radialForceFields_.erase(it);
+        radialForceFields_.remove(forceFieldId);
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -1576,8 +1576,8 @@ void Box2DPhysics::applyForceFields() {
         processedCount = 0;
 
         // Get the force field's own body to exclude it
-        b2BodyId** bodyIt = bodies_.find(field.bodyId);
-        b2BodyId forceFieldBodyId = (bodyIt != nullptr) ? **bodyIt : b2_nullBodyId;
+        b2BodyId* bodyIt = bodies_.find(field.bodyId);
+        b2BodyId forceFieldBodyId = (bodyIt != nullptr) ? *bodyIt : b2_nullBodyId;
 
         // Get the force field's AABB for center-of-mass containment check
         b2AABB fieldAABB = b2Shape_GetAABB(field.shapeId);
@@ -1694,8 +1694,8 @@ void Box2DPhysics::applyRadialForceFields() {
         processedCount = 0;
 
         // Get the force field's own body to exclude it
-        b2BodyId** bodyIt = bodies_.find(field.bodyId);
-        b2BodyId forceFieldBodyId = (bodyIt != nullptr) ? **bodyIt : b2_nullBodyId;
+        b2BodyId* bodyIt = bodies_.find(field.bodyId);
+        b2BodyId forceFieldBodyId = (bodyIt != nullptr) ? *bodyIt : b2_nullBodyId;
 
         // Get overlapping shapes (capped at MAX_FORCE_FIELD_OVERLAPS)
         int overlapCount = b2Shape_GetSensorOverlaps(field.shapeId, overlaps, MAX_FORCE_FIELD_OVERLAPS);
