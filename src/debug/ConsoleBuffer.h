@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef DEBUG
-
 #include <SDL3/SDL.h>
 #include <cassert>
 #include "../core/String.h"
@@ -179,5 +177,3 @@ private:
 
 // Define static endl
 inline ConsoleBuffer::EndLine ConsoleBuffer::endl;
-
-#endif // DEBUG

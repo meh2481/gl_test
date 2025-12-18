@@ -23,8 +23,8 @@
 
 #ifdef DEBUG
 #include "debug/ImGuiManager.h"
-#include "debug/ConsoleBuffer.h"
 #endif
+#include "debug/ConsoleBuffer.h"
 
 #define LUA_SCRIPT_ID 16891582414721442785ULL
 #define PAK_FILE "res.pak"
@@ -260,13 +260,8 @@ int main()
         SceneManager *sceneManager = static_cast<SceneManager *>(
             smallAllocator.allocate(sizeof(SceneManager), "main::SceneManager"));
         assert(sceneManager != nullptr);
-#ifdef DEBUG
         new (sceneManager) SceneManager(pakResource, *renderer, physics, layerManager,
                                         audioManager, particleManager, waterEffectManager, luaInterface, consoleBuffer);
-#else
-        new (sceneManager) SceneManager(pakResource, *renderer, physics, layerManager,
-                                        audioManager, particleManager, waterEffectManager, luaInterface);
-#endif
 
         // Set SceneManager pointer in LuaInterface after SceneManager is created
         luaInterface->setSceneManager(sceneManager);
@@ -664,9 +659,6 @@ int main()
         }
 
 #ifdef DEBUG
-        // Clear console buffer before allocator destruction
-        consoleBuffer->clear();
-
         // Cleanup ImGui
         g_imguiManager = nullptr;
         imguiManager->cleanup();
@@ -683,7 +675,6 @@ int main()
         smallAllocator.free(imguiManager);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed ImGuiManager" << ConsoleBuffer::endl;
 #endif
-
         renderer->cleanup();
 
         // Cleanup managers in reverse order using allocators
