@@ -682,10 +682,10 @@ int main() {
         // Destroy ConsoleBuffer
         consoleBuffer->~ConsoleBuffer();
         smallAllocator.free(consoleBuffer);
-        std::cout << "Destroyed ConsoleBuffer" << std::endl;
+        std::cerr << "Destroyed ConsoleBuffer" << std::endl;
 #endif
 
-        std::cout << "All managers cleaned up" << std::endl;
+        std::cerr << "All managers cleaned up" << std::endl;
     } // End scope - destroy all objects using allocators before allocators are destroyed
 
     SDL_DestroyWindow(window);
