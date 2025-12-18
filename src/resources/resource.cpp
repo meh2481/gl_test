@@ -3,7 +3,6 @@
 #include "../core/Vector.h"
 #include <cstring>
 #include <cassert>
-#include <iostream>
 #include <lz4.h>
 
 #ifdef _WIN32
@@ -129,7 +128,7 @@ ResourceData PakResource::getResource(uint64_t id) {
     SDL_LockMutex(m_mutex);
 
     if (!m_pakData.data) {
-        std::cerr << "Resource pak not loaded, cannot get resource id " << id << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Resource pak not loaded, cannot get resource id %llu", (unsigned long long)id);
         SDL_UnlockMutex(m_mutex);
         assert(false);
         return ResourceData{nullptr, 0, 0};
@@ -137,7 +136,7 @@ ResourceData PakResource::getResource(uint64_t id) {
 
     PakFileHeader* header = (PakFileHeader*)m_pakData.data;
     if (memcmp(header->sig, "PAKC", 4) != 0) {
-        std::cerr << "Invalid pak file signature" << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Invalid pak file signature");
         SDL_UnlockMutex(m_mutex);
         assert(false);
         return ResourceData{nullptr, 0, 0};
@@ -156,13 +155,13 @@ ResourceData PakResource::getResource(uint64_t id) {
                 // Check if already decompressed (cache hit)
                 Vector<char>** cachedDataPtr = m_decompressedData.find(id);
                 if (cachedDataPtr != nullptr) {
-                    std::cout << "Resource " << id << ": cache hit (" << comp->decompressedSize << " bytes)" << std::endl;
+                    SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "Resource %llu: cache hit (%u bytes)", (unsigned long long)id, comp->decompressedSize);
                     ResourceData result = ResourceData{(char*)(*cachedDataPtr)->data(), comp->decompressedSize, comp->type};
                     SDL_UnlockMutex(m_mutex);
                     return result;
                 }
                 // Cache miss - decompress
-                std::cout << "Resource " << id << ": cache miss, decompressing " << comp->compressedSize << " -> " << comp->decompressedSize << " bytes" << std::endl;
+                SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "Resource %llu: cache miss, decompressing %u -> %u bytes", (unsigned long long)id, comp->compressedSize, comp->decompressedSize);
                 // Allocate Vector using memory allocator
                 void* vecMem = m_allocator->allocate(sizeof(Vector<char>), "PakResource::getResource::Vector");
                 Vector<char>* decompressed = new (vecMem) Vector<char>(*m_allocator, "PakResource::getResource::decompressed");
@@ -170,7 +169,7 @@ ResourceData PakResource::getResource(uint64_t id) {
 
                 int result = LZ4_decompress_safe(compressedData, decompressed->data(), comp->compressedSize, comp->decompressedSize);
                 if (result != (int)comp->decompressedSize) {
-                    std::cerr << "LZ4 decompression failed for resource " << id << std::endl;
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "LZ4 decompression failed for resource %llu", (unsigned long long)id);
                     decompressed->~Vector<char>();
                     m_allocator->free(vecMem);
                     SDL_UnlockMutex(m_mutex);
@@ -185,7 +184,7 @@ ResourceData PakResource::getResource(uint64_t id) {
         }
     }
 
-    std::cerr << "Resource " << id << " not found in pak" << std::endl;
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Resource %llu not found in pak", (unsigned long long)id);
     SDL_UnlockMutex(m_mutex);
     assert(false);
     return ResourceData{nullptr, 0, 0};

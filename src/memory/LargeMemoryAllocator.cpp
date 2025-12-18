@@ -1,7 +1,6 @@
 #include "LargeMemoryAllocator.h"
 #include <cstring>
 #include <cassert>
-#include <iostream>
 #include <cstdlib>
 
 static const size_t MIN_BLOCK_SIZE = 64;
@@ -28,9 +27,8 @@ LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
 }
 
 LargeMemoryAllocator::~LargeMemoryAllocator() {
-    // cerr instead of cout here to avoid race condition
-    std::cerr << "LargeMemoryAllocator: Destroying allocator with " << m_allocationCount
-              << " leaked allocations" << std::endl;
+    // Use SDL_Log directly to avoid ConsoleBuffer (which may be in unstable state during shutdown)
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "LargeMemoryAllocator: Destroying allocator with %zu leaked allocations", m_allocationCount);
 
     if (m_allocationCount > 0) {
         MemoryChunk* chunk = m_chunks;
@@ -40,9 +38,8 @@ LargeMemoryAllocator::~LargeMemoryAllocator() {
 
             while ((char*)current < chunkEnd) {
                 if (!current->isFree) {
-                    std::cerr << "Leaked block: size=" << current->size
-                              << ", allocationId=" << (current->allocationId ? current->allocationId : "unknown")
-                              << std::endl;
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Leaked block: size=%zu, allocationId=%s",
+                                 current->size, current->allocationId ? current->allocationId : "unknown");
                 }
 
                 BlockHeader* next = (BlockHeader*)((char*)current + sizeof(BlockHeader) + current->size);
