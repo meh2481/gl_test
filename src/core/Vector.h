@@ -412,8 +412,13 @@ private:
             return;
         }
 
-        // Use median-of-three for pivot selection
-        size_t pivotIndex = medianOfThree(left, right, comp);
+        // Use median-of-three for pivot selection (requires at least 3 elements)
+        size_t pivotIndex;
+        if (right - left >= 2) {
+            pivotIndex = medianOfThree(left, right, comp);
+        } else {
+            pivotIndex = left;
+        }
         pivotIndex = partition(left, right, pivotIndex, comp);
 
         // Recursively sort left and right partitions
