@@ -251,10 +251,11 @@ int main() {
         VulkanRenderer* renderer = static_cast<VulkanRenderer*>(
             smallAllocator.allocate(sizeof(VulkanRenderer), "main::VulkanRenderer"));
         assert(renderer != nullptr);
-        new (renderer) VulkanRenderer(&smallAllocator);
 #ifdef DEBUG
+        new (renderer) VulkanRenderer(&smallAllocator, consoleBuffer);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created VulkanRenderer" << ConsoleBuffer::endl;
 #else
+        new (renderer) VulkanRenderer(&smallAllocator);
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created VulkanRenderer");
 #endif
 

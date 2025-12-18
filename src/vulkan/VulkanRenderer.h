@@ -15,10 +15,17 @@
 struct SpriteBatch;
 struct ParticleBatch;
 class MemoryAllocator;
+#ifdef DEBUG
+class ConsoleBuffer;
+#endif
 
 class VulkanRenderer {
 public:
+#ifdef DEBUG
+    VulkanRenderer(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer);
+#else
     VulkanRenderer(MemoryAllocator* allocator);
+#endif
     ~VulkanRenderer();
 
     void initialize(SDL_Window* window, int preferredGpuIndex = -1);
@@ -179,6 +186,11 @@ private:
 
     // Memory allocator
     MemoryAllocator* m_allocator;
+
+#ifdef DEBUG
+    // Console buffer for logging (optional, may be nullptr)
+    ConsoleBuffer* m_consoleBuffer;
+#endif
 
     // Reflection render target for water effects
     VkRenderPass m_reflectionRenderPass;
