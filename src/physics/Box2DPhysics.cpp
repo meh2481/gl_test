@@ -91,9 +91,9 @@ Box2DPhysics::~Box2DPhysics() {
     waitForStepComplete();
 
     // Clean up allocated vectors in bodyTypes_ - manually destruct and free through allocator
-    for (auto& pair : bodyTypes_) {
-        assert(pair.second != nullptr);
-        Vector<String>* vec = pair.second;
+    for (auto it = bodyTypes_.begin(); it != bodyTypes_.end(); ++it) {
+        Vector<String>* vec = it.value();
+        assert(vec != nullptr);
         vec->~Vector();  // Call destructor to free internal data
         stringAllocator_->free(vec);  // Free the Vector object itself
     }
@@ -305,7 +305,7 @@ int Box2DPhysics::createBody(int bodyType, float x, float y, float angle) {
     assert(b2Body_IsValid(bodyId));
 
     int internalId = nextBodyId_++;
-    bodies_[internalId] = bodyId;
+    bodies_.insert(internalId, bodyId);
 
     SDL_UnlockMutex(physicsMutex_);
     return internalId;
@@ -314,20 +314,20 @@ int Box2DPhysics::createBody(int bodyType, float x, float y, float angle) {
 void Box2DPhysics::destroyBody(int bodyId) {
     SDL_LockMutex(physicsMutex_);
 
-    auto it = bodies_.find(bodyId);
-    if (it != bodies_.end()) {
-        b2DestroyBody(it->second);
-        bodies_.erase(it);
+    b2BodyId* it = bodies_.find(bodyId);
+    if (it != nullptr) {
+        b2DestroyBody(*it);
+        bodies_.remove(bodyId);
     }
 
     // Clear body types for this body to free String memory
-    auto typeIt = bodyTypes_.find(bodyId);
-    if (typeIt != bodyTypes_.end()) {
-        assert(typeIt->second != nullptr);
-        Vector<String>* vec = typeIt->second;
+    Vector<String>** typeIt = bodyTypes_.find(bodyId);
+    if (typeIt != nullptr) {
+        assert(*typeIt != nullptr);
+        Vector<String>* vec = *typeIt;
         vec->~Vector();  // Call destructor
         stringAllocator_->free(vec);  // Free through allocator
-        bodyTypes_.erase(typeIt);
+        bodyTypes_.remove(bodyId);
     }
     std::cerr << "Box2DPhysics: Destroyed body " << bodyId << ", cleared body types" << std::endl;
 
@@ -694,9 +694,9 @@ int Box2DPhysics::queryBodyAtPoint(float x, float y) {
     int result = -1;
     if (ctx.found) {
         // Find the internal ID for this body
-        for (const auto& pair : bodies_) {
-            if (B2_ID_EQUALS(pair.second, ctx.foundBodyId)) {
-                result = pair.first;
+        for (auto it = bodies_.begin(); it != bodies_.end(); ++it) {
+            if (B2_ID_EQUALS(it.value(), ctx.foundBodyId)) {
+                result = it.key();
                 break;
             }
         }
@@ -910,9 +910,9 @@ void Box2DPhysics::DrawPoint(b2Vec2 p, float size, b2HexColor color, void* conte
 }
 
 int Box2DPhysics::findInternalBodyId(b2BodyId bodyId) {
-    for (const auto& pair : bodies_) {
-        if (B2_ID_EQUALS(pair.second, bodyId)) {
-            return pair.first;
+    for (auto it = bodies_.begin(); it != bodies_.end(); ++it) {
+        if (B2_ID_EQUALS(it.value(), bodyId)) {
+            return it.key();
         }
     }
     return -1;
@@ -1571,13 +1571,13 @@ void Box2DPhysics::applyForceFields() {
     int processedCount = 0;
 
     // Apply force to all bodies overlapping with force field sensors
-    for (auto& pair : forceFields_) {
-        ForceField& field = pair.second;
+    for (auto it = forceFields_.begin(); it != forceFields_.end(); ++it) {
+        ForceField& field = it.value();
         processedCount = 0;
 
         // Get the force field's own body to exclude it
-        auto bodyIt = bodies_.find(field.bodyId);
-        b2BodyId forceFieldBodyId = (bodyIt != bodies_.end()) ? bodyIt->second : b2_nullBodyId;
+        b2BodyId** bodyIt = bodies_.find(field.bodyId);
+        b2BodyId forceFieldBodyId = (bodyIt != nullptr) ? **bodyIt : b2_nullBodyId;
 
         // Get the force field's AABB for center-of-mass containment check
         b2AABB fieldAABB = b2Shape_GetAABB(field.shapeId);
@@ -1689,13 +1689,13 @@ void Box2DPhysics::applyRadialForceFields() {
     int processedCount = 0;
 
     // Apply force to all bodies overlapping with radial force field sensors
-    for (auto& pair : radialForceFields_) {
-        RadialForceField& field = pair.second;
+    for (auto it = radialForceFields_.begin(); it != radialForceFields_.end(); ++it) {
+        RadialForceField& field = it.value();
         processedCount = 0;
 
         // Get the force field's own body to exclude it
-        auto bodyIt = bodies_.find(field.bodyId);
-        b2BodyId forceFieldBodyId = (bodyIt != bodies_.end()) ? bodyIt->second : b2_nullBodyId;
+        b2BodyId** bodyIt = bodies_.find(field.bodyId);
+        b2BodyId forceFieldBodyId = (bodyIt != nullptr) ? **bodyIt : b2_nullBodyId;
 
         // Get overlapping shapes (capped at MAX_FORCE_FIELD_OVERLAPS)
         int overlapCount = b2Shape_GetSensorOverlaps(field.shapeId, overlaps, MAX_FORCE_FIELD_OVERLAPS);
@@ -1780,13 +1780,13 @@ void Box2DPhysics::processFractures() {
         }
 
         // Get body state
-        auto bodyIt = bodies_.find(bodyId);
-        if (bodyIt == bodies_.end()) return;
+        b2BodyId* bodyIt = bodies_.find(bodyId);
+        if (bodyIt == nullptr) return;
 
-        b2Vec2 pos = b2Body_GetPosition(bodyIt->second);
-        float angle = b2Rot_GetAngle(b2Body_GetRotation(bodyIt->second));
-        b2Vec2 vel = b2Body_GetLinearVelocity(bodyIt->second);
-        float angularVel = b2Body_GetAngularVelocity(bodyIt->second);
+        b2Vec2 pos = b2Body_GetPosition(*bodyIt);
+        float angle = b2Rot_GetAngle(b2Body_GetRotation(*bodyIt));
+        b2Vec2 vel = b2Body_GetLinearVelocity(*bodyIt);
+        float angularVel = b2Body_GetAngularVelocity(*bodyIt);
 
         // Calculate fracture
         FractureResult fracture = calculateFracture(*props,
@@ -1809,13 +1809,13 @@ void Box2DPhysics::processFractures() {
         event.impactSpeed = hit.approachSpeed;
 
         // Get and destroy the original layer if we know it
-        auto layerIt = destructibleBodyLayers_.find(bodyId);
-        if (layerIt != destructibleBodyLayers_.end()) {
-            event.originalLayerId = layerIt->second;
+        int* layerIt = destructibleBodyLayers_.find(bodyId);
+        if (layerIt != nullptr) {
+            event.originalLayerId = *layerIt;
             if (layerManager_) {
-                layerManager_->destroyLayer(layerIt->second);
+                layerManager_->destroyLayer(*layerIt);
             }
-            destructibleBodyLayers_.erase(layerIt);
+            destructibleBodyLayers_.remove(bodyId);
         } else {
             event.originalLayerId = -1;
         }
@@ -1949,15 +1949,15 @@ void Box2DPhysics::processFractures() {
     // Destroy joints attached to pending destruction bodies
     Vector<int> jointsToDestroy(*stringAllocator_, "Box2DPhysics::processCollisions::jointsToDestroy");
     for (int bodyId : pendingDestructions_) {
-        auto bodyIt = bodies_.find(bodyId);
-        if (bodyIt != bodies_.end()) {
-            for (auto& j : joints_) {
-                b2JointId jointId = j.second;
+        b2BodyId* bodyIt = bodies_.find(bodyId);
+        if (bodyIt != nullptr) {
+            for (auto it = joints_.begin(); it != joints_.end(); ++it) {
+                b2JointId jointId = it.value();
                 if (b2Joint_GetType(jointId) == b2_mouseJoint) {
                     b2BodyId bodyB = b2Joint_GetBodyB(jointId);
                     int attachedBodyId = findInternalBodyId(bodyB);
                     if (attachedBodyId == bodyId) {
-                        jointsToDestroy.push_back(j.first);
+                        jointsToDestroy.push_back(it.key());
                     }
                 }
             }
@@ -1979,8 +1979,8 @@ void Box2DPhysics::clearAllForceFields() {
     SDL_LockMutex(physicsMutex_);
 
     Vector<int> fieldIds(*stringAllocator_, "Box2DPhysics::clearAllForceFields::fieldIds");
-    for (auto& pair : forceFields_) {
-        fieldIds.push_back(pair.first);
+    for (auto it = forceFields_.begin(); it != forceFields_.end(); ++it) {
+        fieldIds.push_back(it.key());
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -1994,8 +1994,8 @@ void Box2DPhysics::clearAllRadialForceFields() {
     SDL_LockMutex(physicsMutex_);
 
     Vector<int> fieldIds(*stringAllocator_, "Box2DPhysics::clearAllRadialForceFields::fieldIds");
-    for (auto& pair : radialForceFields_) {
-        fieldIds.push_back(pair.first);
+    for (auto it = radialForceFields_.begin(); it != radialForceFields_.end(); ++it) {
+        fieldIds.push_back(it.key());
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -2010,12 +2010,12 @@ void Box2DPhysics::reset() {
 
     // Destroy all force fields first (uses bodies)
     Vector<int> forceFieldIds(*stringAllocator_, "Box2DPhysics::reset::forceFieldIds");
-    for (auto& pair : forceFields_) {
-        forceFieldIds.push_back(pair.first);
+    for (auto it = forceFields_.begin(); it != forceFields_.end(); ++it) {
+        forceFieldIds.push_back(it.key());
     }
     Vector<int> radialForceFieldIds(*stringAllocator_, "Box2DPhysics::reset::radialForceFieldIds");
-    for (auto& pair : radialForceFields_) {
-        radialForceFieldIds.push_back(pair.first);
+    for (auto it = radialForceFields_.begin(); it != radialForceFields_.end(); ++it) {
+        radialForceFieldIds.push_back(it.key());
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -2031,8 +2031,8 @@ void Box2DPhysics::reset() {
 
     // Destroy all joints
     Vector<int> jointIds(*stringAllocator_, "Box2DPhysics::reset::jointIds");
-    for (auto& pair : joints_) {
-        jointIds.push_back(pair.first);
+    for (auto it = joints_.begin(); it != joints_.end(); ++it) {
+        jointIds.push_back(it.key());
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -2045,8 +2045,8 @@ void Box2DPhysics::reset() {
 
     // Destroy all bodies
     Vector<int> bodyIds(*stringAllocator_, "Box2DPhysics::reset::bodyIds");
-    for (auto& pair : bodies_) {
-        bodyIds.push_back(pair.first);
+    for (auto it = bodies_.begin(); it != bodies_.end(); ++it) {
+        bodyIds.push_back(it.key());
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -2067,9 +2067,9 @@ void Box2DPhysics::reset() {
 
     // Clear body types to free String memory
     std::cerr << "Box2DPhysics: Clearing " << bodyTypes_.size() << " body type entries" << std::endl;
-    for (auto& pair : bodyTypes_) {
-        assert(pair.second != nullptr);
-        Vector<String>* vec = pair.second;
+    for (auto it = bodyTypes_.begin(); it != bodyTypes_.end(); ++it) {
+        Vector<String>* vec = it.value();
+        assert(vec != nullptr);
         vec->~Vector();  // Call destructor to free internal data
         stringAllocator_->free(vec);  // Free the Vector object itself
     }
