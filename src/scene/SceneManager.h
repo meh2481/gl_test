@@ -14,23 +14,14 @@ class SceneLayerManager;
 class AudioManager;
 class ParticleSystemManager;
 class WaterEffectManager;
-#ifdef DEBUG
 class ConsoleBuffer;
-#endif
 
 class SceneManager {
 public:
-#ifdef DEBUG
     SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
                  Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                  ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
                  LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer);
-#else
-    SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
-                 Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
-                 ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                 LuaInterface* luaInterface);
-#endif
     ~SceneManager();
 
     // Scene management
@@ -84,8 +75,6 @@ private:
     int particleEditorPipelineId_;
     int editorPreviewSystemId_;
 
-#ifdef DEBUG
     // Console buffer for logging (optional, may be nullptr)
     ConsoleBuffer* consoleBuffer_;
-#endif
 };
