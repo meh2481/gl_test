@@ -5,7 +5,6 @@
 #include "../core/hash.h"
 #include <iostream>
 #include <cassert>
-#include <algorithm>
 #ifndef M_PI
     #define M_PI 3.14159265358979323846
 #endif
@@ -588,10 +587,9 @@ void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
         for (const auto& pair : *pipelines) {
             sortedPipelines.push_back(pair);
         }
-        std::sort(sortedPipelines.begin(), sortedPipelines.end(),
-                  [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
-                      return a.second < b.second; // Sort by z-index ascending
-                  });
+        sortedPipelines.sort([](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+            return a.second < b.second; // Sort by z-index ascending
+        });
 
         // Extract just the pipeline IDs in sorted order
         Vector<uint64_t> pipelineIds(*stringAllocator_, "LuaInterface::switchToScenePipeline::pipelineIds");

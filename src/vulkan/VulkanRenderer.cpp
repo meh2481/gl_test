@@ -3,7 +3,6 @@
 #include "../scene/SceneLayer.h"
 #include <iostream>
 #include <cstring>
-#include <algorithm>
 #include <cassert>
 #include <SDL3/SDL_vulkan.h>
 
@@ -1158,7 +1157,7 @@ void VulkanRenderer::rebuildAllBatches() {
         m_allBatches.push_back(b);
     }
     // Sort by parallax depth (higher = background = drawn first)
-    std::sort(m_allBatches.begin(), m_allBatches.end(), [](const BatchDrawData& a, const BatchDrawData& b) {
+    m_allBatches.sort([](const BatchDrawData& a, const BatchDrawData& b) {
         return a.parallaxDepth > b.parallaxDepth;
     });
 }

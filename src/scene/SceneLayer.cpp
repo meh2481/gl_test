@@ -1,7 +1,6 @@
 #include "SceneLayer.h"
 #include <cmath>
 #include <cassert>
-#include <algorithm>
 #include <functional>
 
 // Epsilon for parallax depth comparisons
@@ -564,7 +563,7 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
 
     // Sort batches by parallax depth (lower/positive = background = drawn first, higher/negative = foreground = drawn last)
     // Within same parallax depth, sort by pipeline ID then descriptor ID for deterministic order
-    std::sort(batches.begin(), batches.end(), [](const SpriteBatch& a, const SpriteBatch& b) {
+    batches.sort([](const SpriteBatch& a, const SpriteBatch& b) {
         // Sort by parallax depth first (higher depth = background = drawn first)
         // Positive depth = background, negative depth = foreground
         if (std::abs(a.parallaxDepth - b.parallaxDepth) >= PARALLAX_EPSILON) {
