@@ -1,4 +1,5 @@
 #include "../src/core/ResourceTypes.h"
+#include "../src/core/hash.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -769,7 +770,7 @@ int main(int argc, char* argv[]) {
             continue;
         }
         string relativePath = getRelativePath(filename);
-        uint64_t id = hash<string>{}(relativePath);
+        uint64_t id = hashCString(relativePath.c_str());
         files.push_back({filename, id});
         cout << "Adding file: " << filename << " with ID " << id << endl;
     }

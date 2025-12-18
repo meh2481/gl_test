@@ -11,13 +11,13 @@
 #endif
 
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, SceneManager* sceneManager, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager), 
-      pipelineIndex_(0), currentSceneId_(0), 
-      scenePipelines_(*allocator, "LuaInterface::scenePipelines"), 
-      waterFieldShaderMap_(*allocator, "LuaInterface::waterFieldShaderMap"), 
-      nodes_(*allocator, "LuaInterface::nodes"), 
+    : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager),
+      pipelineIndex_(0), currentSceneId_(0),
+      scenePipelines_(*allocator, "LuaInterface::scenePipelines"),
+      waterFieldShaderMap_(*allocator, "LuaInterface::waterFieldShaderMap"),
+      nodes_(*allocator, "LuaInterface::nodes"),
       bodyToNodeMap_(*allocator, "LuaInterface::bodyToNodeMap"),
-      cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f), 
+      cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f),
       nextNodeId_(1), stringAllocator_(allocator), sceneObjects_(*allocator, "LuaInterface::sceneObjects_") {
     assert(stringAllocator_ != nullptr);
     std::cout << "LuaInterface: Using shared memory allocator" << std::endl;

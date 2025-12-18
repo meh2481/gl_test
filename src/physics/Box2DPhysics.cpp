@@ -2,7 +2,6 @@
 #include "../scene/SceneLayer.h"
 #include "../memory/SmallAllocator.h"
 #include "../core/Vector.h"
-#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstring>
