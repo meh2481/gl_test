@@ -412,7 +412,7 @@ int String::utf8CharLength(unsigned char c) {
     if ((c & 0xE0) == 0xC0) return 2;    // 110xxxxx - 2 bytes
     if ((c & 0xF0) == 0xE0) return 3;    // 1110xxxx - 3 bytes
     if ((c & 0xF8) == 0xF0) return 4;    // 11110xxx - 4 bytes
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Invalid UTF-8 byte in string: 0x%02x", c);
+    // Invalid UTF-8 byte - assert without logging
     assert(false);
     return 1;
 }

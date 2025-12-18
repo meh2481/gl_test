@@ -1,4 +1,5 @@
 #include "LargeMemoryAllocator.h"
+#include "../debug/ConsoleBuffer.h"
 #include <cstring>
 #include <cassert>
 #include <cstdlib>
@@ -12,7 +13,7 @@ static size_t alignSize(size_t size) {
 }
 
 LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
-    : m_chunks(nullptr), m_chunkSize(0), m_totalPoolSize(0), m_usedMemory(0), m_allocationCount(0), m_freeList(nullptr) {
+    : m_chunks(nullptr), m_chunkSize(0), m_totalPoolSize(0), m_usedMemory(0), m_allocationCount(0), m_freeList(nullptr), m_consoleBuffer(nullptr) {
     assert(initialChunkSize > 0);
     m_mutex = SDL_CreateMutex();
     assert(m_mutex != nullptr);
@@ -27,8 +28,9 @@ LargeMemoryAllocator::LargeMemoryAllocator(size_t initialChunkSize)
 }
 
 LargeMemoryAllocator::~LargeMemoryAllocator() {
-    // Use SDL_Log directly to avoid ConsoleBuffer (which may be in unstable state during shutdown)
-    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "LargeMemoryAllocator: Destroying allocator with %zu leaked allocations", m_allocationCount);
+    if (m_consoleBuffer) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "LargeMemoryAllocator: Destroying allocator with %zu leaked allocations", m_allocationCount);
+    }
 
     if (m_allocationCount > 0) {
         MemoryChunk* chunk = m_chunks;
@@ -38,8 +40,10 @@ LargeMemoryAllocator::~LargeMemoryAllocator() {
 
             while ((char*)current < chunkEnd) {
                 if (!current->isFree) {
-                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Leaked block: size=%zu, allocationId=%s",
-                                 current->size, current->allocationId ? current->allocationId : "unknown");
+                    if (m_consoleBuffer) {
+                        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Leaked block: size=%zu, allocationId=%s",
+                                     current->size, current->allocationId ? current->allocationId : "unknown");
+                    }
                 }
 
                 BlockHeader* next = (BlockHeader*)((char*)current + sizeof(BlockHeader) + current->size);

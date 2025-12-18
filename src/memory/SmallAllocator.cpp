@@ -1,4 +1,5 @@
 #include "SmallAllocator.h"
+#include "../debug/ConsoleBuffer.h"
 #include <cstring>
 #include <cassert>
 #include <cstdlib>
@@ -8,6 +9,7 @@ SmallAllocator::SmallAllocator()
     , lastPool_(nullptr)
     , allocationCount_(0)
     , totalCapacity_(0)
+    , consoleBuffer_(nullptr)
 {
     mutex_ = SDL_CreateMutex();
     assert(mutex_ != nullptr);
@@ -17,13 +19,12 @@ SmallAllocator::SmallAllocator()
     lastSampleTime_ = 0.0f;
     memset(usageHistory_, 0, sizeof(usageHistory_));
 #endif
-    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SmallAllocator: Initializing with multi-pool architecture");
+    // Note: Cannot log here as ConsoleBuffer doesn't exist yet
     // Create initial pool
     createPool(MIN_POOL_SIZE);
 }
 
 SmallAllocator::~SmallAllocator() {
-    // Use SDL_Log directly to avoid ConsoleBuffer (which may be in unstable state during shutdown)
     // Count pools
     size_t poolCount = 0;
     MemoryPool* pool = firstPool_;
@@ -31,7 +32,9 @@ SmallAllocator::~SmallAllocator() {
         poolCount++;
         pool = pool->next;
     }
-    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SmallAllocator: Destroying allocator with %zu leaked allocations across %zu pools", allocationCount_, poolCount);
+    if (consoleBuffer_) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SmallAllocator: Destroying allocator with %zu leaked allocations across %zu pools", allocationCount_, poolCount);
+    }
 
     if (allocationCount_ > 0) {
         pool = firstPool_;
@@ -39,8 +42,10 @@ SmallAllocator::~SmallAllocator() {
             BlockHeader* current = pool->firstBlock;
             while (current) {
                 if (!current->isFree) {
-                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Leaked block: size=%zu, allocationId=%s",
-                                 current->size, current->allocationId ? current->allocationId : "unknown");
+                    if (consoleBuffer_) {
+                        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Leaked block: size=%zu, allocationId=%s",
+                                     current->size, current->allocationId ? current->allocationId : "unknown");
+                    }
                 }
                 current = current->next;
             }
@@ -93,7 +98,9 @@ void* SmallAllocator::allocate(size_t size, const char* allocationId) {
             }
         }
 
-        SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "SmallAllocator: Creating new pool of %zu bytes", newPoolSize);
+        if (consoleBuffer_) {
+            consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "SmallAllocator: Creating new pool of %zu bytes", newPoolSize);
+        }
         MemoryPool* newPool = createPool(newPoolSize);
 
         // Try again in the new pool
@@ -266,7 +273,7 @@ void SmallAllocator::removeEmptyPools() {
 
         // Remove pool if it has no active allocations and it's not the only pool
         if (pool->allocCount == 0 && (firstPool_ != lastPool_)) {
-            SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "SmallAllocator: Removing empty pool of %zu bytes", pool->capacity);
+            if (consoleBuffer_) { consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "SmallAllocator: Removing empty pool of %zu bytes", pool->capacity); };
 
             // Unlink from list
             if (prev) {

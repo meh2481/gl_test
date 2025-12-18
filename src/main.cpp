@@ -169,13 +169,18 @@ int main() {
         assert(consoleBuffer != nullptr);
         new (consoleBuffer) ConsoleBuffer(&smallAllocator);
 
+        // Set ConsoleBuffer on allocators so they can log
+        smallAllocator.setConsoleBuffer(consoleBuffer);
+
         // Log memory allocator initialization
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Memory allocators initialized" << ConsoleBuffer::endl;
 
         LargeMemoryAllocator largeAllocator;
+        largeAllocator.setConsoleBuffer(consoleBuffer);
+        
         PakResource pakResource(&largeAllocator, consoleBuffer);
         if (!pakResource.load(PAK_FILE)) {
-            SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "Failed to load resource pak: %s", PAK_FILE);
+            consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "Failed to load resource pak: %s", PAK_FILE);
             assert(false);
         }
 
@@ -282,23 +287,13 @@ new (luaInterface) LuaInterface(pakResource, *renderer, &smallAllocator, physics
                 gameController = SDL_OpenGamepad(joysticks[i]);
                 if (gameController) {
                     vibrationManager->setGameController(gameController);
-#ifdef DEBUG
-                    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Game Controller " << i << " connected: " << SDL_GetGamepadName(gameController) << ConsoleBuffer::endl;
+                    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Game Controller %d connected: %s", i, SDL_GetGamepadName(gameController));
                     if (vibrationManager->hasRumbleSupport()) {
-                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "  Rumble support: Yes" << ConsoleBuffer::endl;
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Rumble support: Yes");
                     }
                     if (vibrationManager->hasTriggerRumbleSupport()) {
-                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "  Trigger rumble support: Yes (DualSense)" << ConsoleBuffer::endl;
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Trigger rumble support: Yes (DualSense)");
                     }
-#else
-                    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Game Controller %d connected: %s", i, SDL_GetGamepadName(gameController));
-                    if (vibrationManager->hasRumbleSupport()) {
-                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  Rumble support: Yes");
-                    }
-                    if (vibrationManager->hasTriggerRumbleSupport()) {
-                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  Trigger rumble support: Yes (DualSense)");
-                    }
-#endif
                     break; // Use the first available controller
                 }
             }
@@ -367,20 +362,12 @@ new (luaInterface) LuaInterface(pakResource, *renderer, &smallAllocator, physics
                         SDL_SetWindowFullscreen(window, false);
                         config.fullscreenMode = 0;
                         config.display = SDL_GetDisplayForWindow(window);
-#ifdef DEBUG
-                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Toggled to windowed on display: " << config.display << ConsoleBuffer::endl;
-#else
-                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Toggled to windowed on display: %u", config.display);
-#endif
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Toggled to windowed on display: %u", config.display);
                     } else {
                         SDL_SetWindowFullscreen(window, true);
                         config.fullscreenMode = SDL_WINDOW_FULLSCREEN;
                         config.display = SDL_GetDisplayForWindow(window);
-#ifdef DEBUG
-                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Toggled to fullscreen on display: " << config.display << ConsoleBuffer::endl;
-#else
-                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Toggled to fullscreen on display: %u", config.display);
-#endif
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Toggled to fullscreen on display: %u", config.display);
                     }
                     saveConfig(config);
                 }
@@ -408,23 +395,13 @@ new (luaInterface) LuaInterface(pakResource, *renderer, &smallAllocator, physics
                 gameController = SDL_OpenGamepad(event.gdevice.which);
                 if (gameController) {
                     vibrationManager->setGameController(gameController);
-#ifdef DEBUG
-                    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Game Controller connected: " << SDL_GetGamepadName(gameController) << ConsoleBuffer::endl;
+                    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Game Controller connected: %s", SDL_GetGamepadName(gameController));
                     if (vibrationManager->hasRumbleSupport()) {
-                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "  Rumble support: Yes" << ConsoleBuffer::endl;
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Rumble support: Yes");
                     }
                     if (vibrationManager->hasTriggerRumbleSupport()) {
-                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "  Trigger rumble support: Yes (DualSense)" << ConsoleBuffer::endl;
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Trigger rumble support: Yes (DualSense)");
                     }
-#else
-                    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Game Controller connected: %s", SDL_GetGamepadName(gameController));
-                    if (vibrationManager->hasRumbleSupport()) {
-                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  Rumble support: Yes");
-                    }
-                    if (vibrationManager->hasTriggerRumbleSupport()) {
-                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  Trigger rumble support: Yes (DualSense)");
-                    }
-#endif
                 }
             }
             // Handle gamepad disconnection
@@ -613,11 +590,7 @@ new (luaInterface) LuaInterface(pakResource, *renderer, &smallAllocator, physics
         config.fullscreenMode = 0;
     }
     config.display = SDL_GetDisplayForWindow(window);
-#ifdef DEBUG
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Saving display: " << config.display << ConsoleBuffer::endl;
-#else
-    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Saving display: %u", config.display);
-#endif
+    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Saving display: %u", config.display);
 
     // Save keybindings to config
     keybindings->serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
@@ -703,16 +676,12 @@ new (luaInterface) LuaInterface(pakResource, *renderer, &smallAllocator, physics
         // Destroy KeybindingManager
         keybindings->~KeybindingManager();
         smallAllocator.free(keybindings);
-*consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed KeybindingManager" << ConsoleBuffer::endl;
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed KeybindingManager" << ConsoleBuffer::endl;
 
-#ifdef DEBUG
-        // Destroy ConsoleBuffer - use SDL_Log directly as ConsoleBuffer is being destroyed
+        // Destroy ConsoleBuffer last (before allocators)
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "All managers cleaned up" << ConsoleBuffer::endl;
         consoleBuffer->~ConsoleBuffer();
         smallAllocator.free(consoleBuffer);
-        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed ConsoleBuffer");
-#endif
-
-        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "All managers cleaned up");
     } // End scope - destroy all objects using allocators before allocators are destroyed
 
     SDL_DestroyWindow(window);

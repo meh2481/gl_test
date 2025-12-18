@@ -5,10 +5,16 @@
 #include <cstdint>
 #include <SDL3/SDL.h>
 
+// Forward declaration
+class ConsoleBuffer;
+
 class LargeMemoryAllocator : public MemoryAllocator {
 public:
     LargeMemoryAllocator(size_t initialChunkSize = 1024 * 1024);
     ~LargeMemoryAllocator() override;
+
+    // Set console buffer for logging (must be set before allocator operations)
+    void setConsoleBuffer(ConsoleBuffer* consoleBuffer) { m_consoleBuffer = consoleBuffer; }
 
     void* allocate(size_t size, const char* allocationId) override;
     void free(void* ptr) override;
@@ -74,6 +80,7 @@ private:
     size_t m_allocationCount;
     BlockHeader* m_freeList;
     SDL_Mutex* m_mutex;
+    ConsoleBuffer* m_consoleBuffer;
 
 #ifdef DEBUG
     // Memory usage history (circular buffer)

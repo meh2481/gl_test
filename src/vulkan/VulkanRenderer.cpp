@@ -513,15 +513,7 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
 
     vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices);
 
-#ifdef DEBUG
-    if (m_consoleBuffer) {
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Available Vulkan devices:");
-    } else {
-        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Available Vulkan devices:");
-    }
-#else
-    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Available Vulkan devices:");
-#endif
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Available Vulkan devices:");
     for (uint32_t i = 0; i < deviceCount; ++i) {
         VkPhysicalDeviceProperties props{};
         vkGetPhysicalDeviceProperties(devices[i], &props);
@@ -1543,15 +1535,7 @@ void VulkanRenderer::disableReflection() {
     destroyReflectionResources();
     m_reflectionEnabled = false;
 
-#ifdef DEBUG
-    if (m_consoleBuffer) {
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Reflection disabled");
-    } else {
-        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Reflection disabled");
-    }
-#else
-    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Reflection disabled");
-#endif
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Reflection disabled");
 }
 
 void VulkanRenderer::createReflectionResources() {
