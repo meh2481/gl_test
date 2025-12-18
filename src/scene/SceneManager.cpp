@@ -9,39 +9,26 @@
 #include <cmath>
 #include <iostream>
 
-SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
+SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                            ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                           VibrationManager* vibrationManager)
+                           LuaInterface* luaInterface)
     : pakResource_(pakResource), renderer_(renderer), physics_(physics), layerManager_(layerManager),
       audioManager_(audioManager), particleManager_(particleManager), waterEffectManager_(waterEffectManager),
-      pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1) {
-    assert(allocator != nullptr);
+      luaInterface_(luaInterface), pendingPop_(false), particleEditorActive_(false),
+      particleEditorPipelineId_(-1), editorPreviewSystemId_(-1) {
     assert(physics_ != nullptr);
     assert(layerManager_ != nullptr);
     assert(audioManager_ != nullptr);
     assert(particleManager_ != nullptr);
     assert(waterEffectManager_ != nullptr);
-
-    std::cout << "SceneManager: Received pre-created managers from main.cpp" << std::endl;
-
-    // Create LuaInterface with all the managers
-    luaInterface_ = new LuaInterface(pakResource, renderer, allocator, physics_, layerManager_,
-                                     audioManager_, particleManager_, waterEffectManager_,
-                                     this, vibrationManager);
     assert(luaInterface_ != nullptr);
 
-    std::cout << "SceneManager: LuaInterface created successfully" << std::endl;
+    std::cout << "SceneManager: Received all managers and LuaInterface from main.cpp" << std::endl;
 }
 
 SceneManager::~SceneManager() {
-    std::cout << "SceneManager: Cleaning up LuaInterface" << std::endl;
-
-    // Only delete LuaInterface - main.cpp owns the managers
-    delete luaInterface_;
-    luaInterface_ = nullptr;
-
-    std::cout << "SceneManager: LuaInterface cleaned up" << std::endl;
+    std::cout << "SceneManager: Destructor (managers owned by main.cpp)" << std::endl;
 }
 
 void SceneManager::pushScene(uint64_t sceneId) {

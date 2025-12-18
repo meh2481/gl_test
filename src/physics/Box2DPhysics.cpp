@@ -44,25 +44,27 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
     }
 }
 
-Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator) : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
-                                timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
-                                nextForceFieldId_(0), stringAllocator_(allocator),
-                                bodies_(*allocator, "Box2DPhysics::bodies_"),
-                                joints_(*allocator, "Box2DPhysics::joints_"),
-                                destructibles_(*allocator, "Box2DPhysics::destructibles_"),
-                                destructibleBodyLayers_(*allocator, "Box2DPhysics::destructibleBodyLayers_"),
-                                forceFields_(*allocator, "Box2DPhysics::forceFields_"),
-                                radialForceFields_(*allocator, "Box2DPhysics::radialForceFields_"),
-                                bodyTypes_(*allocator, "Box2DPhysics::bodyTypes_"),
-                                debugLineVertices_(*allocator, "Box2DPhysics::debugLineVertices_"),
-                                debugTriangleVertices_(*allocator, "Box2DPhysics::debugTriangleVertices_"),
-                                collisionHitEvents_(*allocator, "Box2DPhysics::collisionHitEvents_"),
-                                fractureEvents_(*allocator, "Box2DPhysics::fractureEvents_"),
-                                pendingDestructions_(*allocator, "Box2DPhysics::pendingDestructions_"),
-                                fragmentBodyIds_(*allocator, "Box2DPhysics::fragmentBodyIds_"),
-                                fragmentLayerIds_(*allocator, "Box2DPhysics::fragmentLayerIds_") {
+Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager)
+    : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
+      timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
+      nextForceFieldId_(0), stringAllocator_(allocator), layerManager_(layerManager),
+      bodies_(*allocator, "Box2DPhysics::bodies_"),
+      joints_(*allocator, "Box2DPhysics::joints_"),
+      destructibles_(*allocator, "Box2DPhysics::destructibles_"),
+      destructibleBodyLayers_(*allocator, "Box2DPhysics::destructibleBodyLayers_"),
+      forceFields_(*allocator, "Box2DPhysics::forceFields_"),
+      radialForceFields_(*allocator, "Box2DPhysics::radialForceFields_"),
+      bodyTypes_(*allocator, "Box2DPhysics::bodyTypes_"),
+      debugLineVertices_(*allocator, "Box2DPhysics::debugLineVertices_"),
+      debugTriangleVertices_(*allocator, "Box2DPhysics::debugTriangleVertices_"),
+      collisionHitEvents_(*allocator, "Box2DPhysics::collisionHitEvents_"),
+      fractureEvents_(*allocator, "Box2DPhysics::fractureEvents_"),
+      pendingDestructions_(*allocator, "Box2DPhysics::pendingDestructions_"),
+      fragmentBodyIds_(*allocator, "Box2DPhysics::fragmentBodyIds_"),
+      fragmentLayerIds_(*allocator, "Box2DPhysics::fragmentLayerIds_") {
     assert(stringAllocator_ != nullptr);
-    std::cout << "Box2DPhysics: Using shared memory allocator" << std::endl;
+    assert(layerManager_ != nullptr);
+    std::cout << "Box2DPhysics: Using shared memory allocator and layer manager" << std::endl;
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;

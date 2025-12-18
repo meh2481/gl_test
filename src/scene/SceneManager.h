@@ -17,10 +17,10 @@ class WaterEffectManager;
 
 class SceneManager {
 public:
-    SceneManager(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
+    SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
                  Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                  ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                 VibrationManager* vibrationManager = nullptr);
+                 LuaInterface* luaInterface);
     ~SceneManager();
 
     // Scene management
@@ -51,9 +51,6 @@ public:
     int getParticleEditorPipelineId() const;
     void setEditorPreviewSystemId(int systemId);
     int getEditorPreviewSystemId() const;
-
-    // Access to LuaInterface for particle system manager
-    LuaInterface* getLuaInterface() { return luaInterface_; }
 
     // Access to PakResource for texture list
     PakResource& getPakResource() { return pakResource_; }

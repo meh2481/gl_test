@@ -183,28 +183,64 @@ int main() {
 
         std::cout << "Memory allocators initialized" << std::endl;
 
-        // Create managers in the correct order before SceneManager
-        std::cout << "Creating managers in main.cpp" << std::endl;
+        // Create managers in the correct order before SceneManager, using allocators
+        std::cout << "Creating managers in main.cpp using allocators" << std::endl;
 
-        Box2DPhysics physics(&smallAllocator);
-        std::cout << "Created Box2DPhysics" << std::endl;
-
-        SceneLayerManager layerManager(&smallAllocator);
+        // Allocate SceneLayerManager first since Box2DPhysics needs it
+        SceneLayerManager* layerManager = static_cast<SceneLayerManager*>(
+            smallAllocator.allocate(sizeof(SceneLayerManager), "main::SceneLayerManager"));
+        assert(layerManager != nullptr);
+        new (layerManager) SceneLayerManager(&smallAllocator);
         std::cout << "Created SceneLayerManager" << std::endl;
 
-        AudioManager audioManager(&smallAllocator);
+        // Allocate Box2DPhysics with layer manager
+        Box2DPhysics* physics = static_cast<Box2DPhysics*>(
+            smallAllocator.allocate(sizeof(Box2DPhysics), "main::Box2DPhysics"));
+        assert(physics != nullptr);
+        new (physics) Box2DPhysics(&smallAllocator, layerManager);
+        std::cout << "Created Box2DPhysics" << std::endl;
+
+        // Allocate AudioManager
+        AudioManager* audioManager = static_cast<AudioManager*>(
+            smallAllocator.allocate(sizeof(AudioManager), "main::AudioManager"));
+        assert(audioManager != nullptr);
+        new (audioManager) AudioManager(&smallAllocator);
         std::cout << "Created AudioManager" << std::endl;
 
-        ParticleSystemManager particleManager;
+        // Allocate ParticleSystemManager
+        ParticleSystemManager* particleManager = static_cast<ParticleSystemManager*>(
+            smallAllocator.allocate(sizeof(ParticleSystemManager), "main::ParticleSystemManager"));
+        assert(particleManager != nullptr);
+        new (particleManager) ParticleSystemManager();
         std::cout << "Created ParticleSystemManager" << std::endl;
 
-        WaterEffectManager waterEffectManager;
+        // Allocate WaterEffectManager
+        WaterEffectManager* waterEffectManager = static_cast<WaterEffectManager*>(
+            smallAllocator.allocate(sizeof(WaterEffectManager), "main::WaterEffectManager"));
+        assert(waterEffectManager != nullptr);
+        new (waterEffectManager) WaterEffectManager();
         std::cout << "Created WaterEffectManager" << std::endl;
 
         VulkanRenderer renderer(&smallAllocator);
         VibrationManager vibrationManager;
-        SceneManager sceneManager(pakResource, renderer, &smallAllocator, &physics, &layerManager,
-                                  &audioManager, &particleManager, &waterEffectManager, &vibrationManager);
+
+        // Create LuaInterface without SceneManager (will be set after SceneManager is created)
+        LuaInterface* luaInterface = static_cast<LuaInterface*>(
+            smallAllocator.allocate(sizeof(LuaInterface), "main::LuaInterface"));
+        assert(luaInterface != nullptr);
+        new (luaInterface) LuaInterface(pakResource, renderer, &smallAllocator, physics, layerManager,
+                                        audioManager, particleManager, waterEffectManager,
+                                        nullptr, &vibrationManager);
+        std::cout << "Created LuaInterface" << std::endl;
+
+        // Create SceneManager with pre-created managers and LuaInterface
+        SceneManager sceneManager(pakResource, renderer, physics, layerManager,
+                                  audioManager, particleManager, waterEffectManager, luaInterface);
+
+        // Set SceneManager pointer in LuaInterface after SceneManager is created
+        luaInterface->setSceneManager(&sceneManager);
+        std::cout << "Created SceneManager and linked with LuaInterface" << std::endl;
+
     renderer.initialize(window, config.gpuIndex);
 
     // Update config with the selected GPU index
@@ -430,15 +466,15 @@ int main() {
 
             // If preview controls were changed by user, update the camera
             if (editorState.previewCameraChanged) {
-                sceneManager.getLuaInterface()->setCameraOffset(editorState.previewOffsetX, editorState.previewOffsetY);
-                sceneManager.getLuaInterface()->setCameraZoom(editorState.previewZoom);
+                luaInterface->setCameraOffset(editorState.previewOffsetX, editorState.previewOffsetY);
+                luaInterface->setCameraZoom(editorState.previewZoom);
                 editorState.previewCameraChanged = false;
             }
 
             // If reset was requested, also reset the camera
             if (editorState.previewResetRequested) {
-                sceneManager.getLuaInterface()->setCameraOffset(0.0f, 0.0f);
-                sceneManager.getLuaInterface()->setCameraZoom(1.0f);
+                luaInterface->setCameraOffset(0.0f, 0.0f);
+                luaInterface->setCameraZoom(1.0f);
                 editorState.previewResetRequested = false;
             }
 
@@ -491,7 +527,6 @@ int main() {
         // Show particle editor if scene wants it active
         bool sceneWantsEditor = sceneManager.isParticleEditorActive();
         bool editorWasActive = imguiManager.isParticleEditorActive();
-        LuaInterface* luaInterface = sceneManager.getLuaInterface();
 
         if (sceneWantsEditor && !editorWasActive) {
             // Transitioning from inactive to active - activate the editor
@@ -558,6 +593,41 @@ int main() {
 #endif
 
         renderer.cleanup();
+
+        // Cleanup managers in reverse order using allocators
+        std::cout << "Cleaning up managers allocated with allocators" << std::endl;
+
+        // Destroy LuaInterface
+        luaInterface->~LuaInterface();
+        smallAllocator.free(luaInterface);
+        std::cout << "Destroyed LuaInterface" << std::endl;
+
+        // Destroy WaterEffectManager
+        waterEffectManager->~WaterEffectManager();
+        smallAllocator.free(waterEffectManager);
+        std::cout << "Destroyed WaterEffectManager" << std::endl;
+
+        // Destroy ParticleSystemManager
+        particleManager->~ParticleSystemManager();
+        smallAllocator.free(particleManager);
+        std::cout << "Destroyed ParticleSystemManager" << std::endl;
+
+        // Destroy AudioManager
+        audioManager->~AudioManager();
+        smallAllocator.free(audioManager);
+        std::cout << "Destroyed AudioManager" << std::endl;
+
+        // Destroy Box2DPhysics
+        physics->~Box2DPhysics();
+        smallAllocator.free(physics);
+        std::cout << "Destroyed Box2DPhysics" << std::endl;
+
+        // Destroy SceneLayerManager
+        layerManager->~SceneLayerManager();
+        smallAllocator.free(layerManager);
+        std::cout << "Destroyed SceneLayerManager" << std::endl;
+
+        std::cout << "All managers cleaned up" << std::endl;
     } // End scope - destroy all objects using allocators before allocators are destroyed
 
     SDL_DestroyWindow(window);

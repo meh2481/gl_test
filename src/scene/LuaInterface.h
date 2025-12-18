@@ -64,6 +64,9 @@ public:
     // Access to stringAllocator for temporary allocations
     MemoryAllocator* getStringAllocator() { return stringAllocator_; }
 
+    // Set scene manager (called after SceneManager is created)
+    void setSceneManager(SceneManager* sceneManager) { sceneManager_ = sceneManager; }
+
     // Cursor position for drag operations (in world coordinates)
     void setCursorPosition(float x, float y) { cursorX_ = x; cursorY_ = y; }
     float getCursorX() const { return cursorX_; }

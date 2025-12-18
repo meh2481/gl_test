@@ -38,9 +38,6 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
 
     audioManager_->initialize();
 
-    // Set layer manager on physics so it can create fragment layers during fracture
-    physics_->setLayerManager(layerManager_);
-
     registerFunctions();
 
     // Set sensor callback for water splash detection and node triggers
