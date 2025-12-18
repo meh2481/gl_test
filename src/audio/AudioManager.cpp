@@ -2,14 +2,17 @@
 #include <iostream>
 #include <SDL3/SDL.h>
 #include "../core/Vector.h"
-#include <iostream>
-#include <SDL3/SDL.h>
 #include <cstring>
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
 #include <AL/efx.h>
 #include <opusfile.h>
+
+// Include ConsoleBuffer in DEBUG builds
+#ifdef DEBUG
+    #include "../debug/ConsoleBuffer.h"
+#endif
 
 // EFX constants (in case not defined)
 #ifndef AL_EFFECT_LOWPASS
@@ -48,12 +51,28 @@ static LPALDELETEAUXILIARYEFFECTSLOTS alDeleteAuxiliaryEffectSlots = nullptr;
 static LPALISAUXILIARYEFFECTSLOT alIsAuxiliaryEffectSlot = nullptr;
 static LPALAUXILIARYEFFECTSLOTI alAuxiliaryEffectSloti = nullptr;
 
+#ifdef DEBUG
+AudioManager::AudioManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
+#else
 AudioManager::AudioManager(MemoryAllocator* allocator)
+#endif
     : device(nullptr), context(nullptr), bufferCount(0),
       efxSupported(false), effectSlot(0), effect(0), filter(0),
-      currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f), allocator_(allocator) {
+      currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f), allocator_(allocator)
+#ifdef DEBUG
+      , consoleBuffer_(consoleBuffer)
+#endif
+{
     assert(allocator_ != nullptr);
+#ifdef DEBUG
+    if (consoleBuffer_) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: Using shared memory allocator");
+    } else {
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "AudioManager: Using shared memory allocator");
+    }
+#else
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "AudioManager: Using shared memory allocator");
+#endif
 
     // Initialize arrays
     for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {

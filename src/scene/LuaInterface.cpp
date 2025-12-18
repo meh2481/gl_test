@@ -2,20 +2,28 @@
 #include <iostream>
 #include <SDL3/SDL.h>
 #include "SceneManager.h"
-#include <iostream>
-#include <SDL3/SDL.h>
 #include "../physics/Box2DPhysics.h"
 #include "../memory/SmallAllocator.h"
 #include "../core/hash.h"
 #include <cassert>
+#ifdef DEBUG
+#include "../debug/ConsoleBuffer.h"
+#endif
 #ifndef M_PI
     #define M_PI 3.14159265358979323846
 #endif
 
+#ifdef DEBUG
+LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
+                           Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
+                           ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
+                           SceneManager* sceneManager, VibrationManager* vibrationManager, ConsoleBuffer* consoleBuffer)
+#else
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                            ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
                            SceneManager* sceneManager, VibrationManager* vibrationManager)
+#endif
     : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager),
       pipelineIndex_(0), currentSceneId_(0),
       scenePipelines_(*allocator, "LuaInterface::scenePipelines"),
@@ -25,14 +33,26 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f),
       nextNodeId_(1), stringAllocator_(allocator), sceneObjects_(*allocator, "LuaInterface::sceneObjects_"),
       physics_(physics), layerManager_(layerManager), audioManager_(audioManager),
-      particleManager_(particleManager), waterEffectManager_(waterEffectManager) {
+      particleManager_(particleManager), waterEffectManager_(waterEffectManager)
+#ifdef DEBUG
+      , consoleBuffer_(consoleBuffer)
+#endif
+{
     assert(stringAllocator_ != nullptr);
     assert(physics_ != nullptr);
     assert(layerManager_ != nullptr);
     assert(audioManager_ != nullptr);
     assert(particleManager_ != nullptr);
     assert(waterEffectManager_ != nullptr);
+#ifdef DEBUG
+    if (consoleBuffer_) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "LuaInterface: Using shared memory allocator and pre-created managers");
+    } else {
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "LuaInterface: Using shared memory allocator and pre-created managers");
+    }
+#else
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "LuaInterface: Using shared memory allocator and pre-created managers");
+#endif
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;

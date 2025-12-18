@@ -217,10 +217,11 @@ int main() {
         AudioManager* audioManager = static_cast<AudioManager*>(
             smallAllocator.allocate(sizeof(AudioManager), "main::AudioManager"));
         assert(audioManager != nullptr);
-        new (audioManager) AudioManager(&smallAllocator);
 #ifdef DEBUG
+        new (audioManager) AudioManager(&smallAllocator, consoleBuffer);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created AudioManager" << ConsoleBuffer::endl;
 #else
+        new (audioManager) AudioManager(&smallAllocator);
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created AudioManager");
 #endif
 
@@ -272,12 +273,15 @@ int main() {
         LuaInterface* luaInterface = static_cast<LuaInterface*>(
             smallAllocator.allocate(sizeof(LuaInterface), "main::LuaInterface"));
         assert(luaInterface != nullptr);
+#ifdef DEBUG
+        new (luaInterface) LuaInterface(pakResource, *renderer, &smallAllocator, physics, layerManager,
+                                        audioManager, particleManager, waterEffectManager,
+                                        nullptr, vibrationManager, consoleBuffer);
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created LuaInterface" << ConsoleBuffer::endl;
+#else
         new (luaInterface) LuaInterface(pakResource, *renderer, &smallAllocator, physics, layerManager,
                                         audioManager, particleManager, waterEffectManager,
                                         nullptr, vibrationManager);
-#ifdef DEBUG
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created LuaInterface" << ConsoleBuffer::endl;
-#else
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created LuaInterface");
 #endif
 

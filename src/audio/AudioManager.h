@@ -38,10 +38,17 @@ struct AudioBuffer {
 };
 
 class MemoryAllocator;
+#ifdef DEBUG
+class ConsoleBuffer;
+#endif
 
 class AudioManager {
 public:
+#ifdef DEBUG
+    AudioManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer);
+#else
     AudioManager(MemoryAllocator* allocator);
+#endif
     ~AudioManager();
 
     // Initialize the audio system
@@ -147,6 +154,11 @@ private:
 
     // Memory allocator for temporary allocations
     MemoryAllocator* allocator_;
+
+#ifdef DEBUG
+    // Console buffer for logging (optional, may be nullptr)
+    ConsoleBuffer* consoleBuffer_;
+#endif
 };
 
 #endif // AUDIOMANAGER_H
