@@ -350,36 +350,76 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
         size_t* batchIndexPtr = batchMap.find(batchKey);
         if (batchIndexPtr == nullptr || hasAnimation) {
             // Always create new batch for animated layers or if batch doesn't exist
-            batchIndex = batches.size();
-            batches.push_back(SpriteBatch(batches.getAllocator()));
+            // Insert in sorted order by parallax depth (descending), then pipeline ID, then descriptor ID
+            // Use binary search to find insertion position
+
+            // Create the new batch
+            SpriteBatch newBatch(batches.getAllocator());
             // Use atlas texture ID if available, otherwise original texture ID
-            batches[batchIndex].textureId = layer.textureUV.isAtlas ? layer.atlasTextureId : layer.textureId;
-            batches[batchIndex].normalMapId = layer.normalMapUV.isAtlas ? layer.atlasNormalMapId : layer.normalMapId;
-            batches[batchIndex].descriptorId = layer.descriptorId;
-            batches[batchIndex].pipelineId = layer.pipelineId;
-            batches[batchIndex].parallaxDepth = layer.parallaxDepth;
+            newBatch.textureId = layer.textureUV.isAtlas ? layer.atlasTextureId : layer.textureId;
+            newBatch.normalMapId = layer.normalMapUV.isAtlas ? layer.atlasNormalMapId : layer.normalMapId;
+            newBatch.descriptorId = layer.descriptorId;
+            newBatch.pipelineId = layer.pipelineId;
+            newBatch.parallaxDepth = layer.parallaxDepth;
 
             // Copy animation parameters
-            batches[batchIndex].spinSpeed = layer.spinSpeed;
-            batches[batchIndex].blinkSecondsOn = layer.blinkSecondsOn;
-            batches[batchIndex].blinkSecondsOff = layer.blinkSecondsOff;
-            batches[batchIndex].blinkRiseTime = layer.blinkRiseTime;
-            batches[batchIndex].blinkFallTime = layer.blinkFallTime;
-            batches[batchIndex].blinkPhase = layer.blinkPhase;
-            batches[batchIndex].waveWavelength = layer.waveWavelength;
-            batches[batchIndex].waveSpeed = layer.waveSpeed;
-            batches[batchIndex].waveAngle = layer.waveAngle;
-            batches[batchIndex].waveAmplitude = layer.waveAmplitude;
-            batches[batchIndex].colorR = layer.colorR;
-            batches[batchIndex].colorG = layer.colorG;
-            batches[batchIndex].colorB = layer.colorB;
-            batches[batchIndex].colorA = layer.colorA;
-            batches[batchIndex].colorEndR = layer.colorEndR;
-            batches[batchIndex].colorEndG = layer.colorEndG;
-            batches[batchIndex].colorEndB = layer.colorEndB;
-            batches[batchIndex].colorEndA = layer.colorEndA;
-            batches[batchIndex].colorCycleTime = layer.colorCycleTime;
-            batches[batchIndex].colorPhase = layer.colorPhase;
+            newBatch.spinSpeed = layer.spinSpeed;
+            newBatch.blinkSecondsOn = layer.blinkSecondsOn;
+            newBatch.blinkSecondsOff = layer.blinkSecondsOff;
+            newBatch.blinkRiseTime = layer.blinkRiseTime;
+            newBatch.blinkFallTime = layer.blinkFallTime;
+            newBatch.blinkPhase = layer.blinkPhase;
+            newBatch.waveWavelength = layer.waveWavelength;
+            newBatch.waveSpeed = layer.waveSpeed;
+            newBatch.waveAngle = layer.waveAngle;
+            newBatch.waveAmplitude = layer.waveAmplitude;
+            newBatch.colorR = layer.colorR;
+            newBatch.colorG = layer.colorG;
+            newBatch.colorB = layer.colorB;
+            newBatch.colorA = layer.colorA;
+            newBatch.colorEndR = layer.colorEndR;
+            newBatch.colorEndG = layer.colorEndG;
+            newBatch.colorEndB = layer.colorEndB;
+            newBatch.colorEndA = layer.colorEndA;
+            newBatch.colorCycleTime = layer.colorCycleTime;
+            newBatch.colorPhase = layer.colorPhase;
+
+            // Find insertion position using binary search
+            size_t insertPos = 0;
+            size_t left = 0;
+            size_t right = batches.size();
+            while (left < right) {
+                size_t mid = left + (right - left) / 2;
+                const SpriteBatch& midBatch = batches[mid];
+
+                // Compare: higher parallax depth first, then lower pipeline ID, then lower descriptor ID
+                bool shouldInsertBefore = false;
+                if (std::abs(newBatch.parallaxDepth - midBatch.parallaxDepth) >= PARALLAX_EPSILON) {
+                    shouldInsertBefore = newBatch.parallaxDepth > midBatch.parallaxDepth; // Higher depth first
+                } else if (newBatch.pipelineId != midBatch.pipelineId) {
+                    shouldInsertBefore = newBatch.pipelineId < midBatch.pipelineId;
+                } else {
+                    shouldInsertBefore = newBatch.descriptorId < midBatch.descriptorId;
+                }
+
+                if (shouldInsertBefore) {
+                    right = mid;
+                } else {
+                    left = mid + 1;
+                }
+            }
+            insertPos = left;
+
+            // Insert the batch at the correct position
+            batches.insert(insertPos, newBatch);
+            batchIndex = insertPos;
+
+            // Update all indices in batchMap that are >= insertPos
+            for (auto it = batchMap.begin(); it != batchMap.end(); ++it) {
+                if (it.value() >= insertPos) {
+                    it.value()++;
+                }
+            }
 
             // Only add to batch map if not animated (animated layers always get unique batches)
             if (!hasAnimation) {
@@ -562,21 +602,5 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
         }
     }
 
-    // Sort batches by parallax depth (lower/positive = background = drawn first, higher/negative = foreground = drawn last)
-    // Within same parallax depth, sort by pipeline ID then descriptor ID for deterministic order
-
-    // This happens every frame and is not fine
-    std::sort(batches.begin(), batches.end(), [](const SpriteBatch& a, const SpriteBatch& b) {
-        // Sort by parallax depth first (higher depth = background = drawn first)
-        // Positive depth = background, negative depth = foreground
-        if (std::abs(a.parallaxDepth - b.parallaxDepth) >= PARALLAX_EPSILON) {
-            return a.parallaxDepth > b.parallaxDepth; // Higher depth (background) drawn first
-        }
-        // Then by pipeline ID
-        if (a.pipelineId != b.pipelineId) {
-            return a.pipelineId < b.pipelineId;
-        }
-        // Then by descriptor ID
-        return a.descriptorId < b.descriptorId;
-    });
+    // Batches are now inserted in sorted order, no need to sort at the end
 }

@@ -1149,20 +1149,54 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
 }
 
 void VulkanRenderer::rebuildAllBatches() {
+    // Merge sprite batches and particle batches in sorted order by parallax depth
+    // Sprite batches are already sorted by parallax depth (descending)
+    // Particle batches need to be sorted first, then merged
     m_allBatches.clear();
     m_allBatches.reserve(m_spriteBatches.size() + m_particleBatches.size());
-    for (const auto& b : m_spriteBatches) {
-        m_allBatches.push_back(b);
-    }
-    for (const auto& b : m_particleBatches) {
-        m_allBatches.push_back(b);
-    }
-    // Sort by parallax depth (higher = background = drawn first)
 
-    // This happens every frame and is not fine
-    std::sort(m_allBatches.begin(), m_allBatches.end(), [](const BatchDrawData& a, const BatchDrawData& b) {
-        return a.parallaxDepth > b.parallaxDepth;
-    });
+    // First, sort particle batches by parallax depth (higher = background = drawn first)
+    // This is done once per frame when particle batches change, but particle count is typically small
+    Vector<BatchDrawData> sortedParticleBatches(*m_allocator, "VulkanRenderer::rebuildAllBatches::sortedParticleBatches");
+    for (const auto& b : m_particleBatches) {
+        // Insert in sorted order using binary search
+        size_t insertPos = 0;
+        size_t left = 0;
+        size_t right = sortedParticleBatches.size();
+        while (left < right) {
+            size_t mid = left + (right - left) / 2;
+            if (b.parallaxDepth > sortedParticleBatches[mid].parallaxDepth) {
+                right = mid;
+            } else {
+                left = mid + 1;
+            }
+        }
+        insertPos = left;
+        sortedParticleBatches.insert(insertPos, b);
+    }
+
+    // Now merge the two sorted lists (sprite batches and sorted particle batches)
+    size_t spriteIdx = 0;
+    size_t particleIdx = 0;
+    while (spriteIdx < m_spriteBatches.size() && particleIdx < sortedParticleBatches.size()) {
+        if (m_spriteBatches[spriteIdx].parallaxDepth > sortedParticleBatches[particleIdx].parallaxDepth) {
+            m_allBatches.push_back(m_spriteBatches[spriteIdx]);
+            spriteIdx++;
+        } else {
+            m_allBatches.push_back(sortedParticleBatches[particleIdx]);
+            particleIdx++;
+        }
+    }
+    // Add remaining sprite batches
+    while (spriteIdx < m_spriteBatches.size()) {
+        m_allBatches.push_back(m_spriteBatches[spriteIdx]);
+        spriteIdx++;
+    }
+    // Add remaining particle batches
+    while (particleIdx < sortedParticleBatches.size()) {
+        m_allBatches.push_back(sortedParticleBatches[particleIdx]);
+        particleIdx++;
+    }
 }
 
 // Light management delegation
