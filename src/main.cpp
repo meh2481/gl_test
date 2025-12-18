@@ -172,12 +172,15 @@ int main() {
         }
 
 #ifdef DEBUG
-        // Create console buffer with allocator BEFORE any logging that might use it
-        ConsoleBuffer consoleBuffer(&smallAllocator);
+        // Allocate ConsoleBuffer BEFORE any logging that might use it
+        ConsoleBuffer* consoleBuffer = static_cast<ConsoleBuffer*>(
+            smallAllocator.allocate(sizeof(ConsoleBuffer), "main::ConsoleBuffer"));
+        assert(consoleBuffer != nullptr);
+        new (consoleBuffer) ConsoleBuffer(&smallAllocator);
 
         // Setup console capture for std::cout
         std::streambuf* coutBuf = std::cout.rdbuf();
-        ConsoleCapture consoleCapture(std::cout, coutBuf, &smallAllocator, &consoleBuffer);
+        ConsoleCapture consoleCapture(std::cout, coutBuf, &smallAllocator, consoleBuffer);
         std::cout.rdbuf(&consoleCapture);
 #endif
 
@@ -221,37 +224,55 @@ int main() {
         new (waterEffectManager) WaterEffectManager();
         std::cout << "Created WaterEffectManager" << std::endl;
 
-        VulkanRenderer renderer(&smallAllocator);
-        VibrationManager vibrationManager;
+        // Allocate VulkanRenderer
+        VulkanRenderer* renderer = static_cast<VulkanRenderer*>(
+            smallAllocator.allocate(sizeof(VulkanRenderer), "main::VulkanRenderer"));
+        assert(renderer != nullptr);
+        new (renderer) VulkanRenderer(&smallAllocator);
+        std::cout << "Created VulkanRenderer" << std::endl;
+
+        // Allocate VibrationManager
+        VibrationManager* vibrationManager = static_cast<VibrationManager*>(
+            smallAllocator.allocate(sizeof(VibrationManager), "main::VibrationManager"));
+        assert(vibrationManager != nullptr);
+        new (vibrationManager) VibrationManager();
+        std::cout << "Created VibrationManager" << std::endl;
 
         // Create LuaInterface without SceneManager (will be set after SceneManager is created)
         LuaInterface* luaInterface = static_cast<LuaInterface*>(
             smallAllocator.allocate(sizeof(LuaInterface), "main::LuaInterface"));
         assert(luaInterface != nullptr);
-        new (luaInterface) LuaInterface(pakResource, renderer, &smallAllocator, physics, layerManager,
+        new (luaInterface) LuaInterface(pakResource, *renderer, &smallAllocator, physics, layerManager,
                                         audioManager, particleManager, waterEffectManager,
-                                        nullptr, &vibrationManager);
+                                        nullptr, vibrationManager);
         std::cout << "Created LuaInterface" << std::endl;
 
-        // Create SceneManager with pre-created managers and LuaInterface
-        SceneManager sceneManager(pakResource, renderer, physics, layerManager,
-                                  audioManager, particleManager, waterEffectManager, luaInterface);
+        // Allocate SceneManager
+        SceneManager* sceneManager = static_cast<SceneManager*>(
+            smallAllocator.allocate(sizeof(SceneManager), "main::SceneManager"));
+        assert(sceneManager != nullptr);
+        new (sceneManager) SceneManager(pakResource, *renderer, physics, layerManager,
+                                        audioManager, particleManager, waterEffectManager, luaInterface);
 
         // Set SceneManager pointer in LuaInterface after SceneManager is created
-        luaInterface->setSceneManager(&sceneManager);
+        luaInterface->setSceneManager(sceneManager);
         std::cout << "Created SceneManager and linked with LuaInterface" << std::endl;
 
-    renderer.initialize(window, config.gpuIndex);
+    renderer->initialize(window, config.gpuIndex);
 
     // Update config with the selected GPU index
-    config.gpuIndex = renderer.getSelectedGpuIndex();
+    config.gpuIndex = renderer->getSelectedGpuIndex();
 
-    // Initialize keybinding manager
-    KeybindingManager keybindings(&smallAllocator);
+    // Allocate KeybindingManager
+    KeybindingManager* keybindings = static_cast<KeybindingManager*>(
+        smallAllocator.allocate(sizeof(KeybindingManager), "main::KeybindingManager"));
+    assert(keybindings != nullptr);
+    new (keybindings) KeybindingManager(&smallAllocator);
+    std::cout << "Created KeybindingManager" << std::endl;
 
     // Load keybindings from config if available
     if (config.keybindings[0] != '\0') {
-        keybindings.deserializeBindings(config.keybindings);
+        keybindings->deserializeBindings(config.keybindings);
     }
 
     // Open all available game controllers
@@ -263,13 +284,13 @@ int main() {
             if (SDL_IsGamepad(joysticks[i])) {
                 gameController = SDL_OpenGamepad(joysticks[i]);
                 if (gameController) {
-                    vibrationManager.setGameController(gameController);
+                    vibrationManager->setGameController(gameController);
                     std::cout << "Game Controller " << i << " connected: "
                              << SDL_GetGamepadName(gameController) << std::endl;
-                    if (vibrationManager.hasRumbleSupport()) {
+                    if (vibrationManager->hasRumbleSupport()) {
                         std::cout << "  Rumble support: Yes" << std::endl;
                     }
-                    if (vibrationManager.hasTriggerRumbleSupport()) {
+                    if (vibrationManager->hasTriggerRumbleSupport()) {
                         std::cout << "  Trigger rumble support: Yes (DualSense)" << std::endl;
                     }
                     break; // Use the first available controller
@@ -280,19 +301,24 @@ int main() {
     }
 
     // Load initial scene
-    sceneManager.pushScene(LUA_SCRIPT_ID);
+    sceneManager->pushScene(LUA_SCRIPT_ID);
 
 #ifdef DEBUG
-    // Initialize ImGui
-    ImGuiManager imguiManager(&smallAllocator, &consoleBuffer);
-    g_imguiManager = &imguiManager;
-    imguiManager.initialize(window, renderer.getInstance(), renderer.getPhysicalDevice(),
-                           renderer.getDevice(), renderer.getGraphicsQueueFamilyIndex(),
-                           renderer.getGraphicsQueue(), renderer.getRenderPass(),
-                           renderer.getSwapchainImageCount(), renderer.getMsaaSamples());
+    // Allocate ImGuiManager
+    ImGuiManager* imguiManager = static_cast<ImGuiManager*>(
+        smallAllocator.allocate(sizeof(ImGuiManager), "main::ImGuiManager"));
+    assert(imguiManager != nullptr);
+    new (imguiManager) ImGuiManager(&smallAllocator, consoleBuffer);
+    std::cout << "Created ImGuiManager" << std::endl;
+
+    g_imguiManager = imguiManager;
+    imguiManager->initialize(window, renderer->getInstance(), renderer->getPhysicalDevice(),
+                            renderer->getDevice(), renderer->getGraphicsQueueFamilyIndex(),
+                            renderer->getGraphicsQueue(), renderer->getRenderPass(),
+                            renderer->getSwapchainImageCount(), renderer->getMsaaSamples());
 
     // Set ImGui render callback in renderer
-    renderer.setImGuiRenderCallback(renderImGuiCallback);
+    renderer->setImGuiRenderCallback(renderImGuiCallback);
 
     // Initialize hot-reload thread
     HotReloadData reloadData;
@@ -316,16 +342,16 @@ int main() {
         while (SDL_PollEvent(&event)) {
 #ifdef DEBUG
             // Process event for ImGui first
-            imguiManager.processEvent(&event);
+            imguiManager->processEvent(&event);
 #endif
             if (event.type == SDL_EVENT_QUIT) {
                 running = false;
             }
             if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
                 // Handle actions bound to this key
-                const ActionList& actionList = keybindings.getActionsForKey(event.key.key);
+                const ActionList& actionList = keybindings->getActionsForKey(event.key.key);
                 for (int i = 0; i < actionList.count; ++i) {
-                    sceneManager.handleAction(actionList.actions[i]);
+                    sceneManager->handleAction(actionList.actions[i]);
                 }
 
                 // Handle special case: ALT+ENTER for fullscreen toggle
@@ -358,22 +384,22 @@ int main() {
             }
             // Handle gamepad button press
             if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
-                const ActionList& actionList = keybindings.getActionsForGamepadButton(event.gbutton.button);
+                const ActionList& actionList = keybindings->getActionsForGamepadButton(event.gbutton.button);
                 for (int i = 0; i < actionList.count; ++i) {
-                    sceneManager.handleAction(actionList.actions[i]);
+                    sceneManager->handleAction(actionList.actions[i]);
                 }
             }
             // Handle gamepad connection
             if (event.type == SDL_EVENT_GAMEPAD_ADDED && !gameController) {
                 gameController = SDL_OpenGamepad(event.gdevice.which);
                 if (gameController) {
-                    vibrationManager.setGameController(gameController);
+                    vibrationManager->setGameController(gameController);
                     std::cout << "Game Controller connected: "
                              << SDL_GetGamepadName(gameController) << std::endl;
-                    if (vibrationManager.hasRumbleSupport()) {
+                    if (vibrationManager->hasRumbleSupport()) {
                         std::cout << "  Rumble support: Yes" << std::endl;
                     }
-                    if (vibrationManager.hasTriggerRumbleSupport()) {
+                    if (vibrationManager->hasTriggerRumbleSupport()) {
                         std::cout << "  Trigger rumble support: Yes (DualSense)" << std::endl;
                     }
                 }
@@ -382,7 +408,7 @@ int main() {
             if (event.type == SDL_EVENT_GAMEPAD_REMOVED) {
                 if (gameController && event.gdevice.which == SDL_GetGamepadID(gameController)) {
                     std::cout << "Game Controller disconnected" << std::endl;
-                    vibrationManager.setGameController(nullptr);
+                    vibrationManager->setGameController(nullptr);
                     SDL_CloseGamepad(gameController);
                     gameController = nullptr;
                 }
@@ -393,14 +419,14 @@ int main() {
                 float worldX, worldY;
                 SDL_GetWindowSize(window, &windowWidth, &windowHeight);
                 screenToWorld(event.button.x, event.button.y, windowWidth, windowHeight,
-                              sceneManager.getCameraOffsetX(), sceneManager.getCameraOffsetY(),
-                              sceneManager.getCameraZoom(), &worldX, &worldY);
-                sceneManager.setCursorPosition(worldX, worldY);
-                sceneManager.handleAction(ACTION_DRAG_START);
+                              sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                              sceneManager->getCameraZoom(), &worldX, &worldY);
+                sceneManager->setCursorPosition(worldX, worldY);
+                sceneManager->handleAction(ACTION_DRAG_START);
             }
             // Handle mouse button release for drag actions
             if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_LEFT) {
-                sceneManager.handleAction(ACTION_DRAG_END);
+                sceneManager->handleAction(ACTION_DRAG_END);
             }
             // Handle middle mouse button press for pan
             if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_RIGHT) {
@@ -408,30 +434,30 @@ int main() {
                 float worldX, worldY;
                 SDL_GetWindowSize(window, &windowWidth, &windowHeight);
                 screenToWorld(event.button.x, event.button.y, windowWidth, windowHeight,
-                              sceneManager.getCameraOffsetX(), sceneManager.getCameraOffsetY(),
-                              sceneManager.getCameraZoom(), &worldX, &worldY);
-                sceneManager.setCursorPosition(worldX, worldY);
+                              sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                              sceneManager->getCameraZoom(), &worldX, &worldY);
+                sceneManager->setCursorPosition(worldX, worldY);
                 isPanning = true;
                 panStartCursorX = worldX;
                 panStartCursorY = worldY;
-                panStartCameraX = sceneManager.getCameraOffsetX();
-                panStartCameraY = sceneManager.getCameraOffsetY();
-                sceneManager.handleAction(ACTION_PAN_START);
+                panStartCameraX = sceneManager->getCameraOffsetX();
+                panStartCameraY = sceneManager->getCameraOffsetY();
+                sceneManager->handleAction(ACTION_PAN_START);
             }
             // Handle middle mouse button release for pan
             if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_RIGHT) {
                 isPanning = false;
-                sceneManager.handleAction(ACTION_PAN_END);
+                sceneManager->handleAction(ACTION_PAN_END);
             }
             // Handle mouse wheel for zoom
             if (event.type == SDL_EVENT_MOUSE_WHEEL) {
 #ifdef DEBUG
                 // Don't zoom if ImGui wants the mouse (e.g., hovering over ImGui window)
-                if (!imguiManager.wantCaptureMouse()) {
-                    sceneManager.applyScrollZoom(event.wheel.y);
+                if (!imguiManager->wantCaptureMouse()) {
+                    sceneManager->applyScrollZoom(event.wheel.y);
                 }
 #else
-                sceneManager.applyScrollZoom(event.wheel.y);
+                sceneManager->applyScrollZoom(event.wheel.y);
 #endif
             }
             // Handle mouse motion for cursor tracking
@@ -445,24 +471,24 @@ int main() {
                     // Calculate cursor position with original camera offset for delta calculation
                     screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
                                   panStartCameraX, panStartCameraY,
-                                  sceneManager.getCameraZoom(), &worldX, &worldY);
+                                  sceneManager->getCameraZoom(), &worldX, &worldY);
                     float deltaX = worldX - panStartCursorX;
                     float deltaY = worldY - panStartCursorY;
-                    sceneManager.setCameraOffset(panStartCameraX - deltaX, panStartCameraY - deltaY);
+                    sceneManager->setCameraOffset(panStartCameraX - deltaX, panStartCameraY - deltaY);
                 }
 
                 // Calculate final cursor position with current camera offset
                 screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
-                              sceneManager.getCameraOffsetX(), sceneManager.getCameraOffsetY(),
-                              sceneManager.getCameraZoom(), &worldX, &worldY);
-                sceneManager.setCursorPosition(worldX, worldY);
+                              sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                              sceneManager->getCameraZoom(), &worldX, &worldY);
+                sceneManager->setCursorPosition(worldX, worldY);
             }
         }
 
 #ifdef DEBUG
         // Sync particle editor preview controls with camera
-        if (sceneManager.isParticleEditorActive()) {
-            ParticleEditorState& editorState = imguiManager.getEditorState();
+        if (sceneManager->isParticleEditorActive()) {
+            ParticleEditorState& editorState = imguiManager->getEditorState();
 
             // If preview controls were changed by user, update the camera
             if (editorState.previewCameraChanged) {
@@ -479,20 +505,20 @@ int main() {
             }
 
             // Otherwise, sync preview controls FROM the camera (mouse zoom/pan updates)
-            imguiManager.syncPreviewWithCamera(
-                sceneManager.getCameraOffsetX(),
-                sceneManager.getCameraOffsetY(),
-                sceneManager.getCameraZoom()
+            imguiManager->syncPreviewWithCamera(
+                sceneManager->getCameraOffsetX(),
+                sceneManager->getCameraOffsetY(),
+                sceneManager->getCameraZoom()
             );
         }
 #endif
 
         // Update renderer with current camera transform
-        renderer.setCameraTransform(sceneManager.getCameraOffsetX(),
-                                    sceneManager.getCameraOffsetY(),
-                                    sceneManager.getCameraZoom());
+        renderer->setCameraTransform(sceneManager->getCameraOffsetX(),
+                                    sceneManager->getCameraOffsetY(),
+                                    sceneManager->getCameraZoom());
 
-        if(!sceneManager.updateActiveScene(deltaTime)) {
+        if(!sceneManager->updateActiveScene(deltaTime)) {
             running = false;
         }
 
@@ -504,7 +530,7 @@ int main() {
                 // Reload pak
                 pakResource.reload(PAK_FILE);
                 // Reload current scene with new resources
-                sceneManager.reloadCurrentScene();
+                sceneManager->reloadCurrentScene();
             } else {
                 std::cout << "Hot-reload failed!" << std::endl;
             }
@@ -516,44 +542,44 @@ int main() {
         // Start ImGui frame
         int width, height;
         SDL_GetWindowSize(window, &width, &height);
-        imguiManager.newFrame(width, height);
+        imguiManager->newFrame(width, height);
 
         // Show console window
-        imguiManager.showConsoleWindow();
+        imguiManager->showConsoleWindow();
 
         // Show memory allocator window
-        imguiManager.showMemoryAllocatorWindow(&smallAllocator, &largeAllocator, currentTime);
+        imguiManager->showMemoryAllocatorWindow(&smallAllocator, &largeAllocator, currentTime);
 
         // Show particle editor if scene wants it active
-        bool sceneWantsEditor = sceneManager.isParticleEditorActive();
-        bool editorWasActive = imguiManager.isParticleEditorActive();
+        bool sceneWantsEditor = sceneManager->isParticleEditorActive();
+        bool editorWasActive = imguiManager->isParticleEditorActive();
 
         if (sceneWantsEditor && !editorWasActive) {
             // Transitioning from inactive to active - activate the editor
-            imguiManager.setParticleEditorActive(true);
+            imguiManager->setParticleEditorActive(true);
         } else if (!sceneWantsEditor && editorWasActive) {
             // Transitioning from active to inactive - deactivate and destroy preview
             if (luaInterface) {
-                imguiManager.destroyPreviewSystem(&luaInterface->getParticleSystemManager());
+                imguiManager->destroyPreviewSystem(&luaInterface->getParticleSystemManager());
             }
-            imguiManager.setParticleEditorActive(false);
+            imguiManager->setParticleEditorActive(false);
             // Reset background color to black when exiting editor
-            renderer.setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            renderer->setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         }
 
         if (sceneWantsEditor && luaInterface) {
-            imguiManager.showParticleEditorWindow(
+            imguiManager->showParticleEditorWindow(
                 &luaInterface->getParticleSystemManager(),
-                &sceneManager.getPakResource(),
-                &renderer,
+                &sceneManager->getPakResource(),
+                renderer,
                 luaInterface,
                 deltaTime,
-                &sceneManager
+                sceneManager
             );
         }
 #endif
 
-        renderer.render(currentTime);
+        renderer->render(currentTime);
     }
 
     // Save current fullscreen state and display to config
@@ -567,7 +593,7 @@ int main() {
     std::cout << "Saving display: " << config.display << std::endl;
 
     // Save keybindings to config
-    keybindings.serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
+    keybindings->serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
 
     saveConfig(config);
 
@@ -578,11 +604,11 @@ int main() {
 
 #ifdef DEBUG
         // Clear console buffer before allocator destruction
-        consoleBuffer.clear();
+        consoleBuffer->clear();
 
         // Cleanup ImGui
         g_imguiManager = nullptr;
-        imguiManager.cleanup();
+        imguiManager->cleanup();
 
         // Cleanup hot-reload thread
         // Note: We can't cleanly stop the thread since it's in an infinite loop
@@ -590,17 +616,37 @@ int main() {
         // For debug builds this is acceptable as the process is exiting anyway
         SDL_DetachThread(reloadThread);
         SDL_DestroyMutex(reloadData.mutex);
+
+        // Destroy ImGuiManager
+        imguiManager->~ImGuiManager();
+        smallAllocator.free(imguiManager);
+        std::cout << "Destroyed ImGuiManager" << std::endl;
 #endif
 
-        renderer.cleanup();
+        renderer->cleanup();
 
         // Cleanup managers in reverse order using allocators
         std::cout << "Cleaning up managers allocated with allocators" << std::endl;
+
+        // Destroy SceneManager
+        sceneManager->~SceneManager();
+        smallAllocator.free(sceneManager);
+        std::cout << "Destroyed SceneManager" << std::endl;
 
         // Destroy LuaInterface
         luaInterface->~LuaInterface();
         smallAllocator.free(luaInterface);
         std::cout << "Destroyed LuaInterface" << std::endl;
+
+        // Destroy VibrationManager
+        vibrationManager->~VibrationManager();
+        smallAllocator.free(vibrationManager);
+        std::cout << "Destroyed VibrationManager" << std::endl;
+
+        // Destroy VulkanRenderer
+        renderer->~VulkanRenderer();
+        smallAllocator.free(renderer);
+        std::cout << "Destroyed VulkanRenderer" << std::endl;
 
         // Destroy WaterEffectManager
         waterEffectManager->~WaterEffectManager();
@@ -626,6 +672,18 @@ int main() {
         layerManager->~SceneLayerManager();
         smallAllocator.free(layerManager);
         std::cout << "Destroyed SceneLayerManager" << std::endl;
+
+        // Destroy KeybindingManager
+        keybindings->~KeybindingManager();
+        smallAllocator.free(keybindings);
+        std::cout << "Destroyed KeybindingManager" << std::endl;
+
+#ifdef DEBUG
+        // Destroy ConsoleBuffer
+        consoleBuffer->~ConsoleBuffer();
+        smallAllocator.free(consoleBuffer);
+        std::cout << "Destroyed ConsoleBuffer" << std::endl;
+#endif
 
         std::cout << "All managers cleaned up" << std::endl;
     } // End scope - destroy all objects using allocators before allocators are destroyed
