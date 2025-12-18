@@ -2,13 +2,14 @@
 #include <iostream>
 #include <SDL3/SDL.h>
 #include "../scene/SceneLayer.h"
-#include <iostream>
-#include <SDL3/SDL.h>
 #include "../memory/SmallAllocator.h"
 #include "../core/Vector.h"
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#ifdef DEBUG
+#include "../debug/ConsoleBuffer.h"
+#endif
 
 // Default fixed timestep for physics simulation (Box2D recommended value)
 static constexpr float DEFAULT_FIXED_TIMESTEP = 1.0f / 250.0f;
@@ -47,10 +48,17 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
     }
 }
 
+#ifdef DEBUG
+Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer)
+#else
 Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager)
+#endif
     : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
       timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
       nextForceFieldId_(0), stringAllocator_(allocator), layerManager_(layerManager),
+#ifdef DEBUG
+      consoleBuffer_(consoleBuffer),
+#endif
       bodies_(*allocator, "Box2DPhysics::bodies_"),
       joints_(*allocator, "Box2DPhysics::joints_"),
       destructibles_(*allocator, "Box2DPhysics::destructibles_"),
@@ -67,7 +75,15 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerM
       fragmentLayerIds_(*allocator, "Box2DPhysics::fragmentLayerIds_") {
     assert(stringAllocator_ != nullptr);
     assert(layerManager_ != nullptr);
+#ifdef DEBUG
+    if (consoleBuffer_) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Box2DPhysics: Using shared memory allocator and layer manager");
+    } else {
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Box2DPhysics: Using shared memory allocator and layer manager");
+    }
+#else
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Box2DPhysics: Using shared memory allocator and layer manager");
+#endif
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;
@@ -2172,7 +2188,15 @@ void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
             }
         }
         if (types->empty()) {
-            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Box2DPhysics::removeBodyType: vector empty, deleting");
+#ifdef DEBUG
+            if (consoleBuffer_) {
+                consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::removeBodyType: vector empty, deleting");
+            } else {
+                SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "Box2DPhysics::removeBodyType: vector empty, deleting");
+            }
+#else
+            SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "Box2DPhysics::removeBodyType: vector empty, deleting");
+#endif
             types->~Vector();  // Call destructor
             stringAllocator_->free(types);  // Free through allocator
             bodyTypes_.remove(bodyId);

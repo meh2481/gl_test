@@ -12,6 +12,9 @@
 
 // Forward declarations
 class SceneLayerManager;
+#ifdef DEBUG
+class ConsoleBuffer;
+#endif
 
 struct DebugVertex {
     float x, y;
@@ -124,7 +127,11 @@ struct RadialForceField {
 
 class Box2DPhysics {
 public:
+#ifdef DEBUG
+    Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer);
+#else
     Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager);
+#endif
     ~Box2DPhysics();
 
     // World management
@@ -393,6 +400,11 @@ private:
 
     // Memory allocator for string operations
     MemoryAllocator* stringAllocator_;
+
+#ifdef DEBUG
+    // Console buffer for logging (optional, may be nullptr)
+    ConsoleBuffer* consoleBuffer_;
+#endif
 
     // Collision callback
     CollisionCallback collisionCallback_;

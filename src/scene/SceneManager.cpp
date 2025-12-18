@@ -8,15 +8,29 @@
 #include <SDL3/SDL.h>
 #include <cassert>
 #include <cmath>
+#ifdef DEBUG
+#include "../debug/ConsoleBuffer.h"
+#endif
 
+#ifdef DEBUG
+SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
+                           Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
+                           ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
+                           LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer)
+#else
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                            ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
                            LuaInterface* luaInterface)
+#endif
     : pakResource_(pakResource), renderer_(renderer), physics_(physics), layerManager_(layerManager),
       audioManager_(audioManager), particleManager_(particleManager), waterEffectManager_(waterEffectManager),
       luaInterface_(luaInterface), pendingPop_(false), particleEditorActive_(false),
-      particleEditorPipelineId_(-1), editorPreviewSystemId_(-1) {
+      particleEditorPipelineId_(-1), editorPreviewSystemId_(-1)
+#ifdef DEBUG
+      , consoleBuffer_(consoleBuffer)
+#endif
+{
     assert(physics_ != nullptr);
     assert(layerManager_ != nullptr);
     assert(audioManager_ != nullptr);
@@ -24,22 +38,58 @@ SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
     assert(waterEffectManager_ != nullptr);
     assert(luaInterface_ != nullptr);
 
+#ifdef DEBUG
+    if (consoleBuffer_) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Received all managers and LuaInterface from main.cpp");
+    } else {
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SceneManager: Received all managers and LuaInterface from main.cpp");
+    }
+#else
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SceneManager: Received all managers and LuaInterface from main.cpp");
+#endif
 }
 
 SceneManager::~SceneManager() {
+#ifdef DEBUG
+    if (consoleBuffer_) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Destructor (managers owned by main.cpp)");
+    } else {
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SceneManager: Destructor (managers owned by main.cpp)");
+    }
+#else
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SceneManager: Destructor (managers owned by main.cpp)");
+#endif
 }
 
 void SceneManager::pushScene(uint64_t sceneId) {
     // Load the scene if not already loaded
     if (loadedScenes_.find(sceneId) == loadedScenes_.end()) {
+#ifdef DEBUG
+        if (consoleBuffer_) {
+            char buffer[128];
+            SDL_snprintf(buffer, sizeof(buffer), "Loading scene %llu", (unsigned long long)sceneId);
+            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, buffer);
+        } else {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Loading scene %llu", (unsigned long long)sceneId);
+        }
+#else
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Loading scene %llu", (unsigned long long)sceneId);
+#endif
         ResourceData sceneScript = pakResource_.getResource(sceneId);
         luaInterface_->loadScene(sceneId, sceneScript);
         loadedScenes_.insert(sceneId);
     } else {
+#ifdef DEBUG
+        if (consoleBuffer_) {
+            char buffer[128];
+            SDL_snprintf(buffer, sizeof(buffer), "Scene %llu already loaded (cache hit)", (unsigned long long)sceneId);
+            consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, buffer);
+        } else {
+            SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "Scene %llu already loaded (cache hit)", (unsigned long long)sceneId);
+        }
+#else
         SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "Scene %llu already loaded (cache hit)", (unsigned long long)sceneId);
+#endif
     }
 
     // Push scene onto stack
@@ -47,7 +97,17 @@ void SceneManager::pushScene(uint64_t sceneId) {
 
     // Initialize the scene if not already initialized
     if (initializedScenes_.find(sceneId) == initializedScenes_.end()) {
+#ifdef DEBUG
+        if (consoleBuffer_) {
+            char buffer[128];
+            SDL_snprintf(buffer, sizeof(buffer), "Initializing scene %llu", (unsigned long long)sceneId);
+            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, buffer);
+        } else {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Initializing scene %llu", (unsigned long long)sceneId);
+        }
+#else
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Initializing scene %llu", (unsigned long long)sceneId);
+#endif
         luaInterface_->initScene(sceneId);
         initializedScenes_.insert(sceneId);
     }

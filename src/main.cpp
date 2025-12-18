@@ -205,10 +205,11 @@ int main() {
         Box2DPhysics* physics = static_cast<Box2DPhysics*>(
             smallAllocator.allocate(sizeof(Box2DPhysics), "main::Box2DPhysics"));
         assert(physics != nullptr);
-        new (physics) Box2DPhysics(&smallAllocator, layerManager);
 #ifdef DEBUG
+        new (physics) Box2DPhysics(&smallAllocator, layerManager, consoleBuffer);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created Box2DPhysics" << ConsoleBuffer::endl;
 #else
+        new (physics) Box2DPhysics(&smallAllocator, layerManager);
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created Box2DPhysics");
 #endif
 
@@ -284,8 +285,13 @@ int main() {
         SceneManager* sceneManager = static_cast<SceneManager*>(
             smallAllocator.allocate(sizeof(SceneManager), "main::SceneManager"));
         assert(sceneManager != nullptr);
+#ifdef DEBUG
+        new (sceneManager) SceneManager(pakResource, *renderer, physics, layerManager,
+                                        audioManager, particleManager, waterEffectManager, luaInterface, consoleBuffer);
+#else
         new (sceneManager) SceneManager(pakResource, *renderer, physics, layerManager,
                                         audioManager, particleManager, waterEffectManager, luaInterface);
+#endif
 
         // Set SceneManager pointer in LuaInterface after SceneManager is created
         luaInterface->setSceneManager(sceneManager);
