@@ -6,17 +6,6 @@
 // Epsilon for parallax depth comparisons
 static const float PARALLAX_EPSILON = 0.001f;
 
-// Hash function for std::pair to use in unordered_map
-struct PairHash {
-    template <typename T1, typename T2>
-    std::size_t operator()(const std::pair<T1, T2>& p) const {
-        auto h1 = std::hash<T1>{}(p.first);
-        auto h2 = std::hash<T2>{}(p.second);
-        // Combine hashes using a standard technique
-        return h1 ^ (h2 << 1);
-    }
-};
-
 SceneLayerManager::SceneLayerManager(MemoryAllocator* allocator)
     : layers_(*allocator, "SceneLayerManager::layers"), nextLayerId_(1), allocator_(allocator) {
 }
