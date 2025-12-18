@@ -2,7 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
-#include <iostream>
+#include <SDL3/SDL.h>
 
 // Default growth factor for capacity
 static const size_t GROWTH_FACTOR = 2;
@@ -412,7 +412,7 @@ int String::utf8CharLength(unsigned char c) {
     if ((c & 0xE0) == 0xC0) return 2;    // 110xxxxx - 2 bytes
     if ((c & 0xF0) == 0xE0) return 3;    // 1110xxxx - 3 bytes
     if ((c & 0xF8) == 0xF0) return 4;    // 11110xxx - 4 bytes
-    std::cerr << "Invalid UTF-8 byte in string" << std::endl;
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Invalid UTF-8 byte in string: 0x%02x", c);
     assert(false);
     return 1;
 }

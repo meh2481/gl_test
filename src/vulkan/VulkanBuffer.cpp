@@ -1,7 +1,7 @@
 #include "VulkanBuffer.h"
+#include <SDL3/SDL.h>
 #include <cstring>
 #include <cassert>
-#include <iostream>
 
 // Helper function to convert VkResult to readable string for error logging
 static const char* vkResultToString(VkResult result) {
@@ -42,7 +42,7 @@ uint32_t VulkanBuffer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
             return i;
         }
     }
-    std::cerr << "VulkanBuffer: failed to find suitable memory type for buffer allocation" << std::endl;
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "VulkanBuffer: failed to find suitable memory type for buffer allocation");
     assert(false);
     return 0;
 }
@@ -56,7 +56,7 @@ void VulkanBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     VkResult result = vkCreateBuffer(m_device, &bufferInfo, nullptr, &buffer);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreateBuffer failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateBuffer failed: %s", vkResultToString(result));
         assert(false);
     }
 
@@ -69,7 +69,7 @@ void VulkanBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
     result = vkAllocateMemory(m_device, &allocInfo, nullptr, &bufferMemory);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkAllocateMemory failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkAllocateMemory failed: %s", vkResultToString(result));
         assert(false);
     }
     vkBindBufferMemory(m_device, buffer, bufferMemory, 0);

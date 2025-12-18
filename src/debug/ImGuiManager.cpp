@@ -28,7 +28,7 @@ ImGuiManager::ImGuiManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
     , consoleBuffer_(consoleBuffer) {
     assert(stringAllocator_ != nullptr);
     assert(consoleBuffer_ != nullptr);
-    std::cout << "ImGuiManager: Using shared memory allocator" << std::endl;
+    *consoleBuffer_ << SDL_LOG_PRIORITY_INFO << "ImGuiManager: Using shared memory allocator" << ConsoleBuffer::endl;
     initializeParticleEditorDefaults();
 }
 

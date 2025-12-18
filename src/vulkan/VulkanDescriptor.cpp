@@ -112,7 +112,7 @@ void VulkanDescriptor::createSingleTextureDescriptorSetLayout() {
 
     VkResult result = vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_singleTextureDescriptorSetLayout);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreateDescriptorSetLayout (single texture) failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateDescriptorSetLayout (single texture) failed: %s", vkResultToString(result));
         assert(false);
     }
 }
@@ -132,7 +132,7 @@ void VulkanDescriptor::createSingleTexturePipelineLayout() {
 
     VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_singleTexturePipelineLayout);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreatePipelineLayout (single texture) failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreatePipelineLayout (single texture) failed: %s", vkResultToString(result));
         assert(false);
     }
 }
@@ -150,7 +150,7 @@ void VulkanDescriptor::createSingleTextureDescriptorPool() {
 
     VkResult result = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_singleTextureDescriptorPool);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreateDescriptorPool (single texture) failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateDescriptorPool (single texture) failed: %s", vkResultToString(result));
         assert(false);
     }
 }
@@ -438,7 +438,7 @@ void VulkanDescriptor::createAnimSingleTexturePipelineLayout() {
 
     VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_animSingleTexturePipelineLayout);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreatePipelineLayout (anim single texture) failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreatePipelineLayout (anim single texture) failed: %s", vkResultToString(result));
         assert(false);
     }
 }
@@ -460,7 +460,7 @@ void VulkanDescriptor::createAnimDualTexturePipelineLayout() {
 
     VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_animDualTexturePipelineLayout);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreatePipelineLayout (anim dual texture) failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreatePipelineLayout (anim dual texture) failed: %s", vkResultToString(result));
         assert(false);
     }
 }

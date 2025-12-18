@@ -5,9 +5,9 @@
 #include "../physics/Box2DPhysics.h"
 #include "../audio/AudioManager.h"
 #include "../effects/WaterEffect.h"
+#include <SDL3/SDL.h>
 #include <cassert>
 #include <cmath>
-#include <iostream>
 
 SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
@@ -24,22 +24,22 @@ SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
     assert(waterEffectManager_ != nullptr);
     assert(luaInterface_ != nullptr);
 
-    std::cout << "SceneManager: Received all managers and LuaInterface from main.cpp" << std::endl;
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SceneManager: Received all managers and LuaInterface from main.cpp");
 }
 
 SceneManager::~SceneManager() {
-    std::cout << "SceneManager: Destructor (managers owned by main.cpp)" << std::endl;
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SceneManager: Destructor (managers owned by main.cpp)");
 }
 
 void SceneManager::pushScene(uint64_t sceneId) {
     // Load the scene if not already loaded
     if (loadedScenes_.find(sceneId) == loadedScenes_.end()) {
-        std::cout << "Loading scene " << sceneId << std::endl;
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Loading scene %llu", (unsigned long long)sceneId);
         ResourceData sceneScript = pakResource_.getResource(sceneId);
         luaInterface_->loadScene(sceneId, sceneScript);
         loadedScenes_.insert(sceneId);
     } else {
-        std::cout << "Scene " << sceneId << " already loaded (cache hit)" << std::endl;
+        SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "Scene %llu already loaded (cache hit)", (unsigned long long)sceneId);
     }
 
     // Push scene onto stack
@@ -47,7 +47,7 @@ void SceneManager::pushScene(uint64_t sceneId) {
 
     // Initialize the scene if not already initialized
     if (initializedScenes_.find(sceneId) == initializedScenes_.end()) {
-        std::cout << "Initializing scene " << sceneId << std::endl;
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Initializing scene %llu", (unsigned long long)sceneId);
         luaInterface_->initScene(sceneId);
         initializedScenes_.insert(sceneId);
     }
@@ -253,7 +253,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             }
 
             if (!batch.vertices.empty()) {
-                std::cout << "SceneManager::updateActiveScene: adding ParticleBatch with " << batch.vertices.size() << " vertices" << std::endl;
+                SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "SceneManager::updateActiveScene: adding ParticleBatch with %zu vertices", batch.vertices.size());
                 particleBatches.push_back(batch);
             }
         }

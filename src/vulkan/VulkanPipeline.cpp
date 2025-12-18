@@ -100,7 +100,7 @@ VkShaderModule VulkanPipeline::createShaderModule(const Vector<char>& code) {
     VkShaderModule shaderModule;
     VkResult result = vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreateShaderModule failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateShaderModule failed: %s", vkResultToString(result));
         assert(false);
     }
     return shaderModule;
@@ -119,7 +119,7 @@ void VulkanPipeline::createBasePipelineLayout() {
 
     VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreatePipelineLayout failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreatePipelineLayout failed: %s", vkResultToString(result));
         assert(false);
     }
 }
@@ -271,14 +271,14 @@ void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader,
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
         result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugLinePipeline);
         if (result != VK_SUCCESS) {
-            std::cerr << "vkCreateGraphicsPipelines (debug line) failed: " << vkResultToString(result) << std::endl;
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateGraphicsPipelines (debug line) failed: %s", vkResultToString(result));
             assert(false);
         }
 
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_debugTrianglePipeline);
         if (result != VK_SUCCESS) {
-            std::cerr << "vkCreateGraphicsPipelines (debug triangle) failed: " << vkResultToString(result) << std::endl;
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateGraphicsPipelines (debug triangle) failed: %s", vkResultToString(result));
             assert(false);
         }
 
@@ -287,7 +287,7 @@ void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader,
         VkPipeline pipeline;
         result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
         if (result != VK_SUCCESS) {
-            std::cerr << "vkCreateGraphicsPipelines failed: " << vkResultToString(result) << std::endl;
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateGraphicsPipelines failed: %s", vkResultToString(result));
             assert(false);
         }
 
@@ -470,7 +470,7 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
     VkPipeline pipeline;
     VkResult result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreateGraphicsPipelines (textured) failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateGraphicsPipelines (textured) failed: %s", vkResultToString(result));
         assert(false);
     }
 
@@ -667,7 +667,7 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     VkPipeline pipeline;
     VkResult result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreateGraphicsPipelines (textured additive) failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateGraphicsPipelines (textured additive) failed: %s", vkResultToString(result));
         assert(false);
     }
 
@@ -865,7 +865,7 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
     VkPipeline pipeline;
     VkResult result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreateGraphicsPipelines (anim textured) failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateGraphicsPipelines (anim textured) failed: %s", vkResultToString(result));
         assert(false);
     }
 
@@ -1045,7 +1045,7 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
     VkPipeline pipeline;
     VkResult result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline);
     if (result != VK_SUCCESS) {
-        std::cerr << "vkCreateGraphicsPipelines (particle) failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkCreateGraphicsPipelines (particle) failed: %s", vkResultToString(result));
         assert(false);
     }
 

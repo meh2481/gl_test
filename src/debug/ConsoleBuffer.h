@@ -93,21 +93,23 @@ public:
         return *this;
     }
 
-    // Stream an unsigned long
-    ConsoleBuffer& operator<<(unsigned long value) {
-        char buffer[32];
-        SDL_snprintf(buffer, sizeof(buffer), "%lu", value);
-        currentLine_ += buffer;
-        return *this;
-    }
-
-    // Stream a size_t
+    // Stream an unsigned long / size_t
+    // Note: On some platforms size_t and unsigned long are the same type
+    #if !defined(__x86_64__) || defined(_WIN32) || defined(_WIN64)
     ConsoleBuffer& operator<<(size_t value) {
         char buffer[32];
         SDL_snprintf(buffer, sizeof(buffer), "%zu", value);
         currentLine_ += buffer;
         return *this;
     }
+    #else
+    ConsoleBuffer& operator<<(unsigned long value) {
+        char buffer[32];
+        SDL_snprintf(buffer, sizeof(buffer), "%lu", value);
+        currentLine_ += buffer;
+        return *this;
+    }
+    #endif
 
     // Stream a float
     ConsoleBuffer& operator<<(float value) {

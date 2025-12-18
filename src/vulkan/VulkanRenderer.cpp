@@ -209,7 +209,7 @@ void VulkanRenderer::render(float time) {
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        std::cerr << "vkAcquireNextImageKHR failed: " << vkResultToString(result) << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
         assert(false);
     }
 
@@ -373,7 +373,7 @@ void VulkanRenderer::createInstance(SDL_Window* window) {
     Uint32 count;
     const char* const* extensions = SDL_Vulkan_GetInstanceExtensions(&count);
     if (extensions == nullptr) {
-        std::cerr << "SDL_Vulkan_GetInstanceExtensions failed: " << SDL_GetError() << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
         assert(false);
     }
     createInfo.enabledExtensionCount = count;
@@ -384,7 +384,7 @@ void VulkanRenderer::createInstance(SDL_Window* window) {
 
 void VulkanRenderer::createSurface(SDL_Window* window) {
     if (!SDL_Vulkan_CreateSurface(window, m_instance, nullptr, &m_surface)) {
-        std::cerr << "SDL_Vulkan_CreateSurface failed: " << SDL_GetError() << std::endl;
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Vulkan_CreateSurface failed: %s", SDL_GetError());
         assert(false);
     }
 }

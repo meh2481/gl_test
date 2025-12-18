@@ -1,6 +1,7 @@
 #include "SmallAllocator.h"
 #include <cstring>
 #include <cassert>
+#include <cstdlib>
 
 SmallAllocator::SmallAllocator()
     : firstPool_(nullptr)
