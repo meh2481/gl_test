@@ -9,26 +9,21 @@
 #include <cmath>
 #include <iostream>
 
-SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, VibrationManager* vibrationManager)
-    : pakResource_(pakResource), renderer_(renderer), pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1) {
+SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
+                           Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
+                           ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
+                           VibrationManager* vibrationManager)
+    : pakResource_(pakResource), renderer_(renderer), physics_(physics), layerManager_(layerManager),
+      audioManager_(audioManager), particleManager_(particleManager), waterEffectManager_(waterEffectManager),
+      pendingPop_(false), particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1) {
     assert(allocator != nullptr);
-    std::cout << "SceneManager: Creating managers in correct order" << std::endl;
-
-    // Create managers in the correct order
-    physics_ = new Box2DPhysics(allocator);
     assert(physics_ != nullptr);
-
-    layerManager_ = new SceneLayerManager(allocator);
     assert(layerManager_ != nullptr);
-
-    audioManager_ = new AudioManager(allocator);
     assert(audioManager_ != nullptr);
-
-    particleManager_ = new ParticleSystemManager();
     assert(particleManager_ != nullptr);
-
-    waterEffectManager_ = new WaterEffectManager();
     assert(waterEffectManager_ != nullptr);
+
+    std::cout << "SceneManager: Received pre-created managers from main.cpp" << std::endl;
 
     // Create LuaInterface with all the managers
     luaInterface_ = new LuaInterface(pakResource, renderer, allocator, physics_, layerManager_,
@@ -36,32 +31,17 @@ SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer, M
                                      this, vibrationManager);
     assert(luaInterface_ != nullptr);
 
-    std::cout << "SceneManager: All managers created successfully" << std::endl;
+    std::cout << "SceneManager: LuaInterface created successfully" << std::endl;
 }
 
 SceneManager::~SceneManager() {
-    std::cout << "SceneManager: Cleaning up managers" << std::endl;
+    std::cout << "SceneManager: Cleaning up LuaInterface" << std::endl;
 
-    // Delete in reverse order of creation
+    // Only delete LuaInterface - main.cpp owns the managers
     delete luaInterface_;
     luaInterface_ = nullptr;
 
-    delete waterEffectManager_;
-    waterEffectManager_ = nullptr;
-
-    delete particleManager_;
-    particleManager_ = nullptr;
-
-    delete audioManager_;
-    audioManager_ = nullptr;
-
-    delete layerManager_;
-    layerManager_ = nullptr;
-
-    delete physics_;
-    physics_ = nullptr;
-
-    std::cout << "SceneManager: All managers cleaned up" << std::endl;
+    std::cout << "SceneManager: LuaInterface cleaned up" << std::endl;
 }
 
 void SceneManager::pushScene(uint64_t sceneId) {

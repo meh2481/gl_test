@@ -16,6 +16,11 @@
 #include "scene/LuaInterface.h"
 #include "memory/SmallAllocator.h"
 #include "memory/LargeMemoryAllocator.h"
+#include "physics/Box2DPhysics.h"
+#include "scene/SceneLayer.h"
+#include "audio/AudioManager.h"
+#include "effects/ParticleSystem.h"
+#include "effects/WaterEffect.h"
 
 #ifdef DEBUG
 #include "debug/ImGuiManager.h"
@@ -178,9 +183,28 @@ int main() {
 
         std::cout << "Memory allocators initialized" << std::endl;
 
+        // Create managers in the correct order before SceneManager
+        std::cout << "Creating managers in main.cpp" << std::endl;
+
+        Box2DPhysics physics(&smallAllocator);
+        std::cout << "Created Box2DPhysics" << std::endl;
+
+        SceneLayerManager layerManager(&smallAllocator);
+        std::cout << "Created SceneLayerManager" << std::endl;
+
+        AudioManager audioManager(&smallAllocator);
+        std::cout << "Created AudioManager" << std::endl;
+
+        ParticleSystemManager particleManager;
+        std::cout << "Created ParticleSystemManager" << std::endl;
+
+        WaterEffectManager waterEffectManager;
+        std::cout << "Created WaterEffectManager" << std::endl;
+
         VulkanRenderer renderer(&smallAllocator);
         VibrationManager vibrationManager;
-        SceneManager sceneManager(pakResource, renderer, &smallAllocator, &vibrationManager);
+        SceneManager sceneManager(pakResource, renderer, &smallAllocator, &physics, &layerManager,
+                                  &audioManager, &particleManager, &waterEffectManager, &vibrationManager);
     renderer.initialize(window, config.gpuIndex);
 
     // Update config with the selected GPU index

@@ -17,7 +17,10 @@ class WaterEffectManager;
 
 class SceneManager {
 public:
-    SceneManager(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator, VibrationManager* vibrationManager = nullptr);
+    SceneManager(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
+                 Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
+                 ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
+                 VibrationManager* vibrationManager = nullptr);
     ~SceneManager();
 
     // Scene management
