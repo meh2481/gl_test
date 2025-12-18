@@ -17,23 +17,14 @@
 #include "../memory/MemoryAllocator.h"
 
 class SceneManager;
-#ifdef DEBUG
 class ConsoleBuffer;
-#endif
 
 class LuaInterface {
 public:
-#ifdef DEBUG
     LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
                  Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                  ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
                  SceneManager* sceneManager, VibrationManager* vibrationManager, ConsoleBuffer* consoleBuffer);
-#else
-    LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
-                 Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
-                 ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                 SceneManager* sceneManager = nullptr, VibrationManager* vibrationManager = nullptr);
-#endif
     ~LuaInterface();
 
     // Execute a Lua script from ResourceData
@@ -214,10 +205,9 @@ private:
     lua_State* luaState_;
     SceneManager* sceneManager_;
 
-#ifdef DEBUG
     // Console buffer for logging (optional, may be nullptr)
     ConsoleBuffer* consoleBuffer_;
-#endif
+
     int pipelineIndex_;
     uint64_t currentSceneId_;
     HashTable<uint64_t, Vector<std::pair<int, int>>* > scenePipelines_; // pipelineId, zIndex

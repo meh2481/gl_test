@@ -2,14 +2,10 @@
 #include <iostream>
 #include "../core/ResourceTypes.h"
 #include "../scene/SceneLayer.h"
+#include "../debug/ConsoleBuffer.h"
 #include <cstring>
 #include <cassert>
 #include <SDL3/SDL_vulkan.h>
-
-// Include ConsoleBuffer in DEBUG builds
-#ifdef DEBUG
-    #include "../debug/ConsoleBuffer.h"
-#endif
 
 // Helper function to convert VkResult to readable string for error logging
 static const char* vkResultToString(VkResult result) {
@@ -60,11 +56,7 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     return value;
 }
 
-#ifdef DEBUG
 VulkanRenderer::VulkanRenderer(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer) :
-#else
-VulkanRenderer::VulkanRenderer(MemoryAllocator* allocator) :
-#endif
     m_textureManager(allocator),
     m_descriptorManager(allocator),
     m_pipelineManager(allocator),
@@ -110,10 +102,10 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* allocator) :
     m_spriteBatches(*allocator, "VulkanRenderer::m_spriteBatches"),
     m_particleBatches(*allocator, "VulkanRenderer::m_particleBatches"),
     m_allBatches(*allocator, "VulkanRenderer::m_allBatches"),
-    m_allocator(allocator)
+    m_allocator(allocator),
+    m_consoleBuffer(consoleBuffer)
 #ifdef DEBUG
     , m_imguiRenderCallback(nullptr)
-    , m_consoleBuffer(consoleBuffer)
 #endif
 {
     for (int i = 0; i < 2; ++i) {

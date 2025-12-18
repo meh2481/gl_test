@@ -5,25 +5,16 @@
 #include "../physics/Box2DPhysics.h"
 #include "../memory/SmallAllocator.h"
 #include "../core/hash.h"
-#include <cassert>
-#ifdef DEBUG
 #include "../debug/ConsoleBuffer.h"
-#endif
+#include <cassert>
 #ifndef M_PI
     #define M_PI 3.14159265358979323846
 #endif
 
-#ifdef DEBUG
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                            ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
                            SceneManager* sceneManager, VibrationManager* vibrationManager, ConsoleBuffer* consoleBuffer)
-#else
-LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
-                           Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
-                           ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                           SceneManager* sceneManager, VibrationManager* vibrationManager)
-#endif
     : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager),
       pipelineIndex_(0), currentSceneId_(0),
       scenePipelines_(*allocator, "LuaInterface::scenePipelines"),
@@ -33,10 +24,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f),
       nextNodeId_(1), stringAllocator_(allocator), sceneObjects_(*allocator, "LuaInterface::sceneObjects_"),
       physics_(physics), layerManager_(layerManager), audioManager_(audioManager),
-      particleManager_(particleManager), waterEffectManager_(waterEffectManager)
-#ifdef DEBUG
-      , consoleBuffer_(consoleBuffer)
-#endif
+      particleManager_(particleManager), waterEffectManager_(waterEffectManager), consoleBuffer_(consoleBuffer)
 {
     assert(stringAllocator_ != nullptr);
     assert(physics_ != nullptr);
@@ -44,15 +32,9 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
     assert(audioManager_ != nullptr);
     assert(particleManager_ != nullptr);
     assert(waterEffectManager_ != nullptr);
-#ifdef DEBUG
     if (consoleBuffer_) {
         consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "LuaInterface: Using shared memory allocator and pre-created managers");
-    } else {
-        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "LuaInterface: Using shared memory allocator and pre-created managers");
     }
-#else
-    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "LuaInterface: Using shared memory allocator and pre-created managers");
-#endif
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;
@@ -2097,15 +2079,9 @@ int LuaInterface::loadTexture(lua_State* L) {
         // The UV coordinates are stored in the atlas entry and will be used by SceneLayer
     } else {
         // Standalone image - load directly
-#ifdef DEBUG
         if (interface->consoleBuffer_) {
             interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "  -> Standalone texture");
-        } else {
-            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  -> Standalone texture");
         }
-#else
-        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  -> Standalone texture");
-#endif
         interface->renderer_.loadTexture(textureId, imageData);
     }
 
@@ -3451,15 +3427,9 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     ResourceData fragShader = pakResource_.getResource(fragId);
 
     if (vertShader.data == nullptr || fragShader.data == nullptr) {
-#ifdef DEBUG
-        if (consoleBuffer_) {
+if (consoleBuffer_) {
             consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
-        } else {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load water shaders");
         }
-#else
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load water shaders");
-#endif
         assert(false);
         return;
     }
@@ -3533,15 +3503,9 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
                                                    reflectionTexId, waterShaderId);
 
     if (waterLayerId < 0) {
-#ifdef DEBUG
-        if (consoleBuffer_) {
+if (consoleBuffer_) {
             consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
-        } else {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create water layer");
         }
-#else
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create water layer");
-#endif
         assert(false);
         return;
     }
