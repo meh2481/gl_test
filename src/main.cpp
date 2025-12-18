@@ -1,7 +1,6 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
-#include <iostream>
 #include <fstream>
 #include <cstdint>
 #include <cstring>
@@ -92,8 +91,8 @@ static int hotReloadThread(void* data) {
         // Lock mutex to prevent concurrent reloads
         SDL_LockMutex(reloadData->mutex);
 
-        // Use stderr to avoid console capture from background thread
-        std::cerr << "Hot-reloading resources in background thread..." << std::endl;
+        // Use SDL_Log directly to avoid console buffer from background thread
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Hot-reloading resources in background thread...");
 
         // Rebuild shaders and pak file using make
         int result = system("make shaders && make res_pak");
@@ -112,15 +111,15 @@ static int hotReloadThread(void* data) {
 
 int main() {
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
-        std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
+        SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s", SDL_GetError());
         assert(false);
     }
 
     // Log machine info at startup
-    std::cout << "SDL version: " << SDL_GetVersion() << std::endl;
-    std::cout << "Platform: " << SDL_GetPlatform() << std::endl;
-    std::cout << "CPU count: " << SDL_GetNumLogicalCPUCores() << std::endl;
-    std::cout << "System RAM: " << SDL_GetSystemRAM() << " MB" << std::endl;
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SDL version: %d", SDL_GetVersion());
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Platform: %s", SDL_GetPlatform());
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "CPU count: %d", SDL_GetNumLogicalCPUCores());
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "System RAM: %d MB", SDL_GetSystemRAM());
 
     Config config = loadConfig();
 
@@ -134,12 +133,12 @@ int main() {
         config.display = primaryDisplay;
         displayMode = SDL_GetDesktopDisplayMode(config.display);
         if (displayMode == nullptr) {
-            std::cerr << "SDL_GetDesktopDisplayMode failed: " << SDL_GetError() << std::endl;
+            SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
             assert(false);
         }
     }
 
-    std::cout << "Launching on display: " << config.display << std::endl;
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Launching on display: %u", config.display);
 
     int x = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
     int y = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
@@ -155,7 +154,7 @@ int main() {
     SDL_DestroyProperties(props);
 
     if (window == nullptr) {
-        std::cerr << "SDL_CreateWindowWithProperties failed: " << SDL_GetError() << std::endl;
+        SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateWindowWithProperties failed: %s", SDL_GetError());
         assert(false);
     }
 
@@ -167,7 +166,7 @@ int main() {
         LargeMemoryAllocator largeAllocator;
         PakResource pakResource(&largeAllocator);
         if (!pakResource.load(PAK_FILE)) {
-            std::cerr << "Failed to load resource pak: " << PAK_FILE << std::endl;
+            SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "Failed to load resource pak: %s", PAK_FILE);
             assert(false);
         }
 
@@ -177,66 +176,96 @@ int main() {
             smallAllocator.allocate(sizeof(ConsoleBuffer), "main::ConsoleBuffer"));
         assert(consoleBuffer != nullptr);
         new (consoleBuffer) ConsoleBuffer(&smallAllocator);
-
-        // Setup console capture for std::cout
-        std::streambuf* coutBuf = std::cout.rdbuf();
-        ConsoleCapture consoleCapture(std::cout, coutBuf, &smallAllocator, consoleBuffer);
-        std::cout.rdbuf(&consoleCapture);
+#else
+        // For release builds, use nullptr as ConsoleBuffer is not available
+        ConsoleBuffer* consoleBuffer = nullptr;
 #endif
 
-        std::cout << "Memory allocators initialized" << std::endl;
-
-        // Create managers in the correct order before SceneManager, using allocators
-        std::cout << "Creating managers in main.cpp using allocators" << std::endl;
+        // Log memory allocator initialization
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Memory allocators initialized" << ConsoleBuffer::endl;
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Creating managers in main.cpp using allocators" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Memory allocators initialized");
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Creating managers in main.cpp using allocators");
+#endif
 
         // Allocate SceneLayerManager first since Box2DPhysics needs it
         SceneLayerManager* layerManager = static_cast<SceneLayerManager*>(
             smallAllocator.allocate(sizeof(SceneLayerManager), "main::SceneLayerManager"));
         assert(layerManager != nullptr);
         new (layerManager) SceneLayerManager(&smallAllocator);
-        std::cout << "Created SceneLayerManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created SceneLayerManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created SceneLayerManager");
+#endif
 
         // Allocate Box2DPhysics with layer manager
         Box2DPhysics* physics = static_cast<Box2DPhysics*>(
             smallAllocator.allocate(sizeof(Box2DPhysics), "main::Box2DPhysics"));
         assert(physics != nullptr);
         new (physics) Box2DPhysics(&smallAllocator, layerManager);
-        std::cout << "Created Box2DPhysics" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created Box2DPhysics" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created Box2DPhysics");
+#endif
 
         // Allocate AudioManager
         AudioManager* audioManager = static_cast<AudioManager*>(
             smallAllocator.allocate(sizeof(AudioManager), "main::AudioManager"));
         assert(audioManager != nullptr);
         new (audioManager) AudioManager(&smallAllocator);
-        std::cout << "Created AudioManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created AudioManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created AudioManager");
+#endif
 
         // Allocate ParticleSystemManager
         ParticleSystemManager* particleManager = static_cast<ParticleSystemManager*>(
             smallAllocator.allocate(sizeof(ParticleSystemManager), "main::ParticleSystemManager"));
         assert(particleManager != nullptr);
         new (particleManager) ParticleSystemManager();
-        std::cout << "Created ParticleSystemManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created ParticleSystemManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created ParticleSystemManager");
+#endif
 
         // Allocate WaterEffectManager
         WaterEffectManager* waterEffectManager = static_cast<WaterEffectManager*>(
             smallAllocator.allocate(sizeof(WaterEffectManager), "main::WaterEffectManager"));
         assert(waterEffectManager != nullptr);
         new (waterEffectManager) WaterEffectManager();
-        std::cout << "Created WaterEffectManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created WaterEffectManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created WaterEffectManager");
+#endif
 
         // Allocate VulkanRenderer
         VulkanRenderer* renderer = static_cast<VulkanRenderer*>(
             smallAllocator.allocate(sizeof(VulkanRenderer), "main::VulkanRenderer"));
         assert(renderer != nullptr);
         new (renderer) VulkanRenderer(&smallAllocator);
-        std::cout << "Created VulkanRenderer" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created VulkanRenderer" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created VulkanRenderer");
+#endif
 
         // Allocate VibrationManager
         VibrationManager* vibrationManager = static_cast<VibrationManager*>(
             smallAllocator.allocate(sizeof(VibrationManager), "main::VibrationManager"));
         assert(vibrationManager != nullptr);
         new (vibrationManager) VibrationManager();
-        std::cout << "Created VibrationManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created VibrationManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created VibrationManager");
+#endif
 
         // Create LuaInterface without SceneManager (will be set after SceneManager is created)
         LuaInterface* luaInterface = static_cast<LuaInterface*>(
@@ -245,7 +274,11 @@ int main() {
         new (luaInterface) LuaInterface(pakResource, *renderer, &smallAllocator, physics, layerManager,
                                         audioManager, particleManager, waterEffectManager,
                                         nullptr, vibrationManager);
-        std::cout << "Created LuaInterface" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created LuaInterface" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created LuaInterface");
+#endif
 
         // Allocate SceneManager
         SceneManager* sceneManager = static_cast<SceneManager*>(
@@ -256,7 +289,11 @@ int main() {
 
         // Set SceneManager pointer in LuaInterface after SceneManager is created
         luaInterface->setSceneManager(sceneManager);
-        std::cout << "Created SceneManager and linked with LuaInterface" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created SceneManager and linked with LuaInterface" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created SceneManager and linked with LuaInterface");
+#endif
 
     renderer->initialize(window, config.gpuIndex);
 
@@ -268,7 +305,11 @@ int main() {
         smallAllocator.allocate(sizeof(KeybindingManager), "main::KeybindingManager"));
     assert(keybindings != nullptr);
     new (keybindings) KeybindingManager(&smallAllocator);
-    std::cout << "Created KeybindingManager" << std::endl;
+#ifdef DEBUG
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created KeybindingManager" << ConsoleBuffer::endl;
+#else
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Created KeybindingManager");
+#endif
 
     // Load keybindings from config if available
     if (config.keybindings[0] != '\0') {
@@ -285,14 +326,23 @@ int main() {
                 gameController = SDL_OpenGamepad(joysticks[i]);
                 if (gameController) {
                     vibrationManager->setGameController(gameController);
-                    std::cout << "Game Controller " << i << " connected: "
-                             << SDL_GetGamepadName(gameController) << std::endl;
+#ifdef DEBUG
+                    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Game Controller " << i << " connected: " << SDL_GetGamepadName(gameController) << ConsoleBuffer::endl;
                     if (vibrationManager->hasRumbleSupport()) {
-                        std::cout << "  Rumble support: Yes" << std::endl;
+                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "  Rumble support: Yes" << ConsoleBuffer::endl;
                     }
                     if (vibrationManager->hasTriggerRumbleSupport()) {
-                        std::cout << "  Trigger rumble support: Yes (DualSense)" << std::endl;
+                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "  Trigger rumble support: Yes (DualSense)" << ConsoleBuffer::endl;
                     }
+#else
+                    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Game Controller %d connected: %s", i, SDL_GetGamepadName(gameController));
+                    if (vibrationManager->hasRumbleSupport()) {
+                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  Rumble support: Yes");
+                    }
+                    if (vibrationManager->hasTriggerRumbleSupport()) {
+                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  Trigger rumble support: Yes (DualSense)");
+                    }
+#endif
                     break; // Use the first available controller
                 }
             }
@@ -309,7 +359,7 @@ int main() {
         smallAllocator.allocate(sizeof(ImGuiManager), "main::ImGuiManager"));
     assert(imguiManager != nullptr);
     new (imguiManager) ImGuiManager(&smallAllocator, consoleBuffer);
-    std::cout << "Created ImGuiManager" << std::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created ImGuiManager" << ConsoleBuffer::endl;
 
     g_imguiManager = imguiManager;
     imguiManager->initialize(window, renderer->getInstance(), renderer->getPhysicalDevice(),
@@ -361,12 +411,20 @@ int main() {
                         SDL_SetWindowFullscreen(window, false);
                         config.fullscreenMode = 0;
                         config.display = SDL_GetDisplayForWindow(window);
-                        std::cout << "Toggled to windowed on display: " << config.display << std::endl;
+#ifdef DEBUG
+                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Toggled to windowed on display: " << config.display << ConsoleBuffer::endl;
+#else
+                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Toggled to windowed on display: %u", config.display);
+#endif
                     } else {
                         SDL_SetWindowFullscreen(window, true);
                         config.fullscreenMode = SDL_WINDOW_FULLSCREEN;
                         config.display = SDL_GetDisplayForWindow(window);
-                        std::cout << "Toggled to fullscreen on display: " << config.display << std::endl;
+#ifdef DEBUG
+                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Toggled to fullscreen on display: " << config.display << ConsoleBuffer::endl;
+#else
+                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Toggled to fullscreen on display: %u", config.display);
+#endif
                     }
                     saveConfig(config);
                 }
@@ -375,7 +433,7 @@ int main() {
                 if (event.key.key == SDLK_F5) {
                     // Check if reload thread is ready
                     if (SDL_GetAtomicInt(&reloadData.reloadRequested) == 0) {
-                        std::cout << "Requesting hot-reload..." << std::endl;
+                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Requesting hot-reload..." << ConsoleBuffer::endl;
                         SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
                         SDL_SetAtomicInt(&reloadData.reloadRequested, 1);
                     }
@@ -394,20 +452,33 @@ int main() {
                 gameController = SDL_OpenGamepad(event.gdevice.which);
                 if (gameController) {
                     vibrationManager->setGameController(gameController);
-                    std::cout << "Game Controller connected: "
-                             << SDL_GetGamepadName(gameController) << std::endl;
+#ifdef DEBUG
+                    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Game Controller connected: " << SDL_GetGamepadName(gameController) << ConsoleBuffer::endl;
                     if (vibrationManager->hasRumbleSupport()) {
-                        std::cout << "  Rumble support: Yes" << std::endl;
+                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "  Rumble support: Yes" << ConsoleBuffer::endl;
                     }
                     if (vibrationManager->hasTriggerRumbleSupport()) {
-                        std::cout << "  Trigger rumble support: Yes (DualSense)" << std::endl;
+                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "  Trigger rumble support: Yes (DualSense)" << ConsoleBuffer::endl;
                     }
+#else
+                    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Game Controller connected: %s", SDL_GetGamepadName(gameController));
+                    if (vibrationManager->hasRumbleSupport()) {
+                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  Rumble support: Yes");
+                    }
+                    if (vibrationManager->hasTriggerRumbleSupport()) {
+                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  Trigger rumble support: Yes (DualSense)");
+                    }
+#endif
                 }
             }
             // Handle gamepad disconnection
             if (event.type == SDL_EVENT_GAMEPAD_REMOVED) {
                 if (gameController && event.gdevice.which == SDL_GetGamepadID(gameController)) {
-                    std::cout << "Game Controller disconnected" << std::endl;
+#ifdef DEBUG
+                    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Game Controller disconnected" << ConsoleBuffer::endl;
+#else
+                    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Game Controller disconnected");
+#endif
                     vibrationManager->setGameController(nullptr);
                     SDL_CloseGamepad(gameController);
                     gameController = nullptr;
@@ -526,13 +597,13 @@ int main() {
         // Check if hot-reload completed
         if (SDL_GetAtomicInt(&reloadData.reloadComplete) == 1) {
             if (SDL_GetAtomicInt(&reloadData.reloadSuccess) == 1) {
-                std::cout << "Hot-reload complete, applying changes..." << std::endl;
+                *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Hot-reload complete, applying changes..." << ConsoleBuffer::endl;
                 // Reload pak
                 pakResource.reload(PAK_FILE);
                 // Reload current scene with new resources
                 sceneManager->reloadCurrentScene();
             } else {
-                std::cout << "Hot-reload failed!" << std::endl;
+                *consoleBuffer << SDL_LOG_PRIORITY_ERROR << "Hot-reload failed!" << ConsoleBuffer::endl;
             }
             SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
         }
@@ -590,7 +661,11 @@ int main() {
         config.fullscreenMode = 0;
     }
     config.display = SDL_GetDisplayForWindow(window);
-    std::cout << "Saving display: " << config.display << std::endl;
+#ifdef DEBUG
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Saving display: " << config.display << ConsoleBuffer::endl;
+#else
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Saving display: %u", config.display);
+#endif
 
     // Save keybindings to config
     keybindings->serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
@@ -620,72 +695,116 @@ int main() {
         // Destroy ImGuiManager
         imguiManager->~ImGuiManager();
         smallAllocator.free(imguiManager);
-        std::cout << "Destroyed ImGuiManager" << std::endl;
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed ImGuiManager" << ConsoleBuffer::endl;
 #endif
 
         renderer->cleanup();
 
         // Cleanup managers in reverse order using allocators
-        std::cout << "Cleaning up managers allocated with allocators" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Cleaning up managers allocated with allocators" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Cleaning up managers allocated with allocators");
+#endif
 
         // Destroy SceneManager
         sceneManager->~SceneManager();
         smallAllocator.free(sceneManager);
-        std::cout << "Destroyed SceneManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed SceneManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed SceneManager");
+#endif
 
         // Destroy LuaInterface
         luaInterface->~LuaInterface();
         smallAllocator.free(luaInterface);
-        std::cout << "Destroyed LuaInterface" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed LuaInterface" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed LuaInterface");
+#endif
 
         // Destroy VibrationManager
         vibrationManager->~VibrationManager();
         smallAllocator.free(vibrationManager);
-        std::cout << "Destroyed VibrationManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed VibrationManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed VibrationManager");
+#endif
 
         // Destroy VulkanRenderer
         renderer->~VulkanRenderer();
         smallAllocator.free(renderer);
-        std::cout << "Destroyed VulkanRenderer" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed VulkanRenderer" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed VulkanRenderer");
+#endif
 
         // Destroy WaterEffectManager
         waterEffectManager->~WaterEffectManager();
         smallAllocator.free(waterEffectManager);
-        std::cout << "Destroyed WaterEffectManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed WaterEffectManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed WaterEffectManager");
+#endif
 
         // Destroy ParticleSystemManager
         particleManager->~ParticleSystemManager();
         smallAllocator.free(particleManager);
-        std::cout << "Destroyed ParticleSystemManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed ParticleSystemManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed ParticleSystemManager");
+#endif
 
         // Destroy AudioManager
         audioManager->~AudioManager();
         smallAllocator.free(audioManager);
-        std::cout << "Destroyed AudioManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed AudioManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed AudioManager");
+#endif
 
         // Destroy Box2DPhysics
         physics->~Box2DPhysics();
         smallAllocator.free(physics);
-        std::cout << "Destroyed Box2DPhysics" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed Box2DPhysics" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed Box2DPhysics");
+#endif
 
         // Destroy SceneLayerManager
         layerManager->~SceneLayerManager();
         smallAllocator.free(layerManager);
-        std::cout << "Destroyed SceneLayerManager" << std::endl;
+#ifdef DEBUG
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed SceneLayerManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed SceneLayerManager");
+#endif
 
         // Destroy KeybindingManager
         keybindings->~KeybindingManager();
         smallAllocator.free(keybindings);
-        std::cout << "Destroyed KeybindingManager" << std::endl;
-
 #ifdef DEBUG
-        // Destroy ConsoleBuffer
-        consoleBuffer->~ConsoleBuffer();
-        smallAllocator.free(consoleBuffer);
-        std::cerr << "Destroyed ConsoleBuffer" << std::endl;
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed KeybindingManager" << ConsoleBuffer::endl;
+#else
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed KeybindingManager");
 #endif
 
-        std::cerr << "All managers cleaned up" << std::endl;
+#ifdef DEBUG
+        // Destroy ConsoleBuffer - use SDL_Log directly as ConsoleBuffer is being destroyed
+        consoleBuffer->~ConsoleBuffer();
+        smallAllocator.free(consoleBuffer);
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Destroyed ConsoleBuffer");
+#endif
+
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "All managers cleaned up");
     } // End scope - destroy all objects using allocators before allocators are destroyed
 
     SDL_DestroyWindow(window);

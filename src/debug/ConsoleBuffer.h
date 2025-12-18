@@ -3,20 +3,24 @@
 #ifdef DEBUG
 
 #include <SDL3/SDL.h>
-#include <sstream>
-#include <iostream>
-#include <functional>
+#include <cassert>
 #include "../core/String.h"
 #include "../core/Vector.h"
 #include "../memory/MemoryAllocator.h"
-#include "../memory/SmallAllocator.h"
 
-// Console buffer to capture output for ImGui display
+// SDL log categories
+#define SDL_LOG_CATEGORY_APPLICATION SDL_LOG_CATEGORY_CUSTOM
+
+// Console buffer to capture output for ImGui display and log via SDL
 class ConsoleBuffer {
 public:
-    ConsoleBuffer(MemoryAllocator* allocator) : stringAllocator_(allocator), lines_(*allocator, "ConsoleBuffer::lines_") {
+    ConsoleBuffer(MemoryAllocator* allocator)
+        : stringAllocator_(allocator)
+        , lines_(*allocator, "ConsoleBuffer::lines_")
+        , currentLine_(allocator) {
         assert(stringAllocator_ != nullptr);
         mutex_ = SDL_CreateMutex();
+        assert(mutex_ != nullptr);
     }
 
     ~ConsoleBuffer() {
@@ -30,13 +34,112 @@ public:
         stringAllocator_ = nullptr;
     }
 
-    void addLine(const String& line) {
+    // Log a message with specified priority
+    void log(SDL_LogPriority priority, const char* message) {
+        assert(message != nullptr);
+        // Call SDL_Log to output to system log
+        SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, priority, "%s", message);
+        // Store in buffer for ImGui display
         SDL_LockMutex(mutex_);
-        lines_.push_back(String(line.c_str(), stringAllocator_));
+        lines_.push_back(String(message, stringAllocator_));
         if (lines_.size() > 1000) {
             lines_.erase(0);
         }
         SDL_UnlockMutex(mutex_);
+    }
+
+    // Start building a log message with streaming
+    ConsoleBuffer& operator<<(SDL_LogPriority priority) {
+        currentPriority_ = priority;
+        currentLine_.clear();
+        return *this;
+    }
+
+    // Stream a C string
+    ConsoleBuffer& operator<<(const char* str) {
+        if (str) {
+            currentLine_ += str;
+        }
+        return *this;
+    }
+
+    // Stream a String
+    ConsoleBuffer& operator<<(const String& str) {
+        currentLine_ += str;
+        return *this;
+    }
+
+    // Stream an int
+    ConsoleBuffer& operator<<(int value) {
+        char buffer[32];
+        SDL_snprintf(buffer, sizeof(buffer), "%d", value);
+        currentLine_ += buffer;
+        return *this;
+    }
+
+    // Stream a long
+    ConsoleBuffer& operator<<(long value) {
+        char buffer[32];
+        SDL_snprintf(buffer, sizeof(buffer), "%ld", value);
+        currentLine_ += buffer;
+        return *this;
+    }
+
+    // Stream an unsigned int
+    ConsoleBuffer& operator<<(unsigned int value) {
+        char buffer[32];
+        SDL_snprintf(buffer, sizeof(buffer), "%u", value);
+        currentLine_ += buffer;
+        return *this;
+    }
+
+    // Stream an unsigned long
+    ConsoleBuffer& operator<<(unsigned long value) {
+        char buffer[32];
+        SDL_snprintf(buffer, sizeof(buffer), "%lu", value);
+        currentLine_ += buffer;
+        return *this;
+    }
+
+    // Stream a size_t
+    ConsoleBuffer& operator<<(size_t value) {
+        char buffer[32];
+        SDL_snprintf(buffer, sizeof(buffer), "%zu", value);
+        currentLine_ += buffer;
+        return *this;
+    }
+
+    // Stream a float
+    ConsoleBuffer& operator<<(float value) {
+        char buffer[32];
+        SDL_snprintf(buffer, sizeof(buffer), "%f", value);
+        currentLine_ += buffer;
+        return *this;
+    }
+
+    // Stream a double
+    ConsoleBuffer& operator<<(double value) {
+        char buffer[32];
+        SDL_snprintf(buffer, sizeof(buffer), "%f", value);
+        currentLine_ += buffer;
+        return *this;
+    }
+
+    // Stream a bool
+    ConsoleBuffer& operator<<(bool value) {
+        currentLine_ += value ? "true" : "false";
+        return *this;
+    }
+
+    // End of line marker type
+    struct EndLine {};
+    static EndLine endl;
+
+    // Stream end of line - triggers actual logging
+    ConsoleBuffer& operator<<(EndLine) {
+        log(currentPriority_, currentLine_.c_str());
+        currentLine_.clear();
+        return *this;
     }
 
     const Vector<String>& getLines() {
@@ -53,52 +156,11 @@ private:
     Vector<String> lines_;
     SDL_Mutex* mutex_;
     MemoryAllocator* stringAllocator_;
+    String currentLine_;
+    SDL_LogPriority currentPriority_ = SDL_LOG_PRIORITY_INFO;
 };
 
-// Custom streambuf to capture cout
-class ConsoleCapture : public std::streambuf {
-public:
-    ConsoleCapture(std::ostream& stream, std::streambuf* oldBuf, MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
-        : stream_(stream), oldBuf_(oldBuf), stringAllocator_(allocator), consoleBuffer_(consoleBuffer), buffer_(nullptr) {
-        assert(stringAllocator_ != nullptr);
-        assert(consoleBuffer_ != nullptr);
-        buffer_ = new String(stringAllocator_);
-    }
-
-    ~ConsoleCapture() {
-        // Restore original buffer
-        stream_.rdbuf(oldBuf_);
-        // Explicitly delete buffer before destroying
-        if (buffer_) {
-            delete buffer_;
-            buffer_ = nullptr;
-        }
-        // Don't delete stringAllocator_ - we don't own it anymore
-        stringAllocator_ = nullptr;
-    }
-
-protected:
-    virtual int_type overflow(int_type c) override {
-        if (c != EOF) {
-            if (c == '\n') {
-                consoleBuffer_->addLine(*buffer_);
-                // Also write to original stream
-                oldBuf_->sputn(buffer_->c_str(), buffer_->length());
-                oldBuf_->sputc('\n');
-                buffer_->clear();
-            } else {
-                *buffer_ += static_cast<char>(c);
-            }
-        }
-        return c;
-    }
-
-private:
-    std::ostream& stream_;
-    std::streambuf* oldBuf_;
-    MemoryAllocator* stringAllocator_;
-    ConsoleBuffer* consoleBuffer_;
-    String* buffer_;
-};
+// Define static endl
+inline ConsoleBuffer::EndLine ConsoleBuffer::endl;
 
 #endif // DEBUG
