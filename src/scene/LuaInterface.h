@@ -1,7 +1,6 @@
 #pragma once
 
 #include <lua.hpp>
-#include <unordered_map>
 #include <memory>
 #include "../resources/resource.h"
 #include "../vulkan/VulkanRenderer.h"
@@ -14,6 +13,7 @@
 #include "../effects/WaterEffect.h"
 #include "../core/String.h"
 #include "../core/Vector.h"
+#include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
 
 class SceneManager;
@@ -199,7 +199,7 @@ private:
     SceneManager* sceneManager_;
     int pipelineIndex_;
     uint64_t currentSceneId_;
-    std::unordered_map<uint64_t, Vector<std::pair<int, int>>* > scenePipelines_; // pipelineId, zIndex
+    HashTable<uint64_t, Vector<std::pair<int, int>>* > scenePipelines_; // pipelineId, zIndex
     std::unique_ptr<Box2DPhysics> physics_;
     std::unique_ptr<SceneLayerManager> layerManager_;
     std::unique_ptr<AudioManager> audioManager_;
@@ -213,7 +213,7 @@ private:
     float cameraZoom_;
 
     // Water field to shader pipeline mapping for splash ripples
-    std::unordered_map<int, int> waterFieldShaderMap_; // waterFieldId -> pipelineId
+    HashTable<int, int> waterFieldShaderMap_; // waterFieldId -> pipelineId
 
     // Water visual setup helper (called from createForceField when water=true)
     void setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
@@ -241,8 +241,8 @@ private:
         int updateFuncRef;    // Lua registry reference to update function (or LUA_NOREF)
         int onEnterFuncRef;   // Lua registry reference to onEnter function (or LUA_NOREF)
     };
-    std::unordered_map<int, Node*> nodes_; // nodeId -> Node
-    std::unordered_map<int, int> bodyToNodeMap_; // bodyId -> nodeId
+    HashTable<int, Node*> nodes_; // nodeId -> Node
+    HashTable<int, int> bodyToNodeMap_; // bodyId -> nodeId
     int nextNodeId_;
 
     // Memory allocator for string operations

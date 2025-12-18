@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cstdint>
-#include <unordered_map>
 #include "../core/Vector.h"
+#include "../core/HashTable.h"
 
 // Forward declaration
 class MemoryAllocator;
@@ -150,7 +150,7 @@ struct SceneLayer {
 // Manager for scene layers
 class SceneLayerManager {
 public:
-    SceneLayerManager();
+    SceneLayerManager(MemoryAllocator* allocator);
     ~SceneLayerManager();
 
     // Layer management
@@ -173,7 +173,7 @@ public:
     void setLayerPolygon(int layerId, const float* vertices, const float* uvs, const float* normalUvs, int vertexCount);
 
     // Get all active layers
-    const std::unordered_map<int, SceneLayer>& getLayers() const { return layers_; }
+    const HashTable<int, SceneLayer>& getLayers() const { return layers_; }
 
     // Generate vertex data for all layers based on physics body positions
     // Groups sprites by texture for efficient batch rendering
@@ -208,6 +208,7 @@ public:
     void clear();
 
 private:
-    std::unordered_map<int, SceneLayer> layers_;
+    HashTable<int, SceneLayer> layers_;
     int nextLayerId_;
+    MemoryAllocator* allocator_;
 };

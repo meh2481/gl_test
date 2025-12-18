@@ -17,8 +17,8 @@ struct PairHash {
     }
 };
 
-SceneLayerManager::SceneLayerManager()
-    : nextLayerId_(1) {
+SceneLayerManager::SceneLayerManager(MemoryAllocator* allocator)
+    : layers_(allocator, "SceneLayerManager::layers"), nextLayerId_(1), allocator_(allocator) {
 }
 
 SceneLayerManager::~SceneLayerManager() {
@@ -103,90 +103,90 @@ int SceneLayerManager::createLayer(uint64_t textureId, float width, float height
     layer.colorCycleTime = 0.0f;
     layer.colorPhase = 0.0f;
 
-    layers_[layerId] = layer;
+    layers_.insert(layerId, layer);
     return layerId;
 }
 
 void SceneLayerManager::setLayerUseLocalUV(int layerId, bool useLocalUV) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.useLocalUV = useLocalUV;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->useLocalUV = useLocalUV;
     }
 }
 
 void SceneLayerManager::destroyLayer(int layerId) {
-    layers_.erase(layerId);
+    layers_.remove(layerId);
 }
 
 void SceneLayerManager::attachLayerToBody(int layerId, int physicsBodyId) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.physicsBodyId = physicsBodyId;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->physicsBodyId = physicsBodyId;
     }
 }
 
 void SceneLayerManager::detachLayer(int layerId) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.physicsBodyId = -1;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->physicsBodyId = -1;
     }
 }
 
 void SceneLayerManager::setLayerOffset(int layerId, float offsetX, float offsetY) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.offsetX = offsetX;
-        it->second.offsetY = offsetY;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->offsetX = offsetX;
+        layer->offsetY = offsetY;
     }
 }
 
 void SceneLayerManager::setLayerEnabled(int layerId, bool enabled) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.enabled = enabled;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->enabled = enabled;
     }
 }
 
 void SceneLayerManager::setLayerAtlasUV(int layerId, uint64_t atlasTextureId, float u0, float v0, float u1, float v1) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.atlasTextureId = atlasTextureId;
-        it->second.textureUV.u0 = u0;
-        it->second.textureUV.v0 = v0;
-        it->second.textureUV.u1 = u1;
-        it->second.textureUV.v1 = v1;
-        it->second.textureUV.isAtlas = true;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->atlasTextureId = atlasTextureId;
+        layer->textureUV.u0 = u0;
+        layer->textureUV.v0 = v0;
+        layer->textureUV.u1 = u1;
+        layer->textureUV.v1 = v1;
+        layer->textureUV.isAtlas = true;
 
         // Update descriptor ID to use atlas texture
-        if (it->second.normalMapUV.isAtlas) {
-            it->second.descriptorId = atlasTextureId ^ (it->second.atlasNormalMapId << 1);
-        } else if (it->second.normalMapId != 0) {
-            it->second.descriptorId = atlasTextureId ^ (it->second.normalMapId << 1);
+        if (layer->normalMapUV.isAtlas) {
+            layer->descriptorId = atlasTextureId ^ (layer->atlasNormalMapId << 1);
+        } else if (layer->normalMapId != 0) {
+            layer->descriptorId = atlasTextureId ^ (layer->normalMapId << 1);
         } else {
-            it->second.descriptorId = atlasTextureId;
+            layer->descriptorId = atlasTextureId;
         }
     }
 }
 
 void SceneLayerManager::setLayerNormalMapAtlasUV(int layerId, uint64_t atlasNormalMapId, float u0, float v0, float u1, float v1) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.atlasNormalMapId = atlasNormalMapId;
-        it->second.normalMapUV.u0 = u0;
-        it->second.normalMapUV.v0 = v0;
-        it->second.normalMapUV.u1 = u1;
-        it->second.normalMapUV.v1 = v1;
-        it->second.normalMapUV.isAtlas = true;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->atlasNormalMapId = atlasNormalMapId;
+        layer->normalMapUV.u0 = u0;
+        layer->normalMapUV.v0 = v0;
+        layer->normalMapUV.u1 = u1;
+        layer->normalMapUV.v1 = v1;
+        layer->normalMapUV.isAtlas = true;
 
         // Update descriptor ID to use atlas textures
-        uint64_t texId = it->second.textureUV.isAtlas ? it->second.atlasTextureId : it->second.textureId;
-        it->second.descriptorId = texId ^ (atlasNormalMapId << 1);
+        uint64_t texId = layer->textureUV.isAtlas ? layer->atlasTextureId : layer->textureId;
+        layer->descriptorId = texId ^ (atlasNormalMapId << 1);
     }
 }
 
 void SceneLayerManager::setLayerPolygon(int layerId, const float* vertices, const float* uvs, const float* normalUvs, int vertexCount) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end() && vertexCount >= 3 && vertexCount <= 8) {
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr && vertexCount >= 3 && vertexCount <= 8) {
         // Validate input data - check for NaN/Inf values
         for (int i = 0; i < vertexCount * 2; ++i) {
             assert(std::isfinite(vertices[i]));
@@ -196,106 +196,106 @@ void SceneLayerManager::setLayerPolygon(int layerId, const float* vertices, cons
             }
         }
 
-        it->second.polygonVertexCount = vertexCount;
+        layer->polygonVertexCount = vertexCount;
         for (int i = 0; i < vertexCount * 2; ++i) {
-            it->second.polygonVertices[i] = vertices[i];
-            it->second.polygonUVs[i] = uvs[i];
+            layer->polygonVertices[i] = vertices[i];
+            layer->polygonUVs[i] = uvs[i];
             // Use separate normal map UVs if provided, otherwise same as texture UVs
-            it->second.polygonNormalUVs[i] = normalUvs ? normalUvs[i] : uvs[i];
+            layer->polygonNormalUVs[i] = normalUvs ? normalUvs[i] : uvs[i];
         }
     }
 }
 
 void SceneLayerManager::updateLayerTransform(int layerId, float bodyX, float bodyY, float bodyAngle) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.cachedX = bodyX;
-        it->second.cachedY = bodyY;
-        it->second.cachedAngle = bodyAngle;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->cachedX = bodyX;
+        layer->cachedY = bodyY;
+        layer->cachedAngle = bodyAngle;
     }
 }
 
 void SceneLayerManager::setLayerPosition(int layerId, float x, float y, float angle) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.cachedX = x;
-        it->second.cachedY = y;
-        it->second.cachedAngle = angle;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->cachedX = x;
+        layer->cachedY = y;
+        layer->cachedAngle = angle;
     }
 }
 
 void SceneLayerManager::setLayerParallaxDepth(int layerId, float depth) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.parallaxDepth = depth;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->parallaxDepth = depth;
     }
 }
 
 void SceneLayerManager::setLayerScale(int layerId, float scaleX, float scaleY) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.scaleX = scaleX;
-        it->second.scaleY = scaleY;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->scaleX = scaleX;
+        layer->scaleY = scaleY;
     }
 }
 
 void SceneLayerManager::setLayerSpin(int layerId, float degreesPerSecond) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.spinSpeed = degreesPerSecond;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->spinSpeed = degreesPerSecond;
     }
 }
 
 void SceneLayerManager::setLayerBlink(int layerId, float secondsOn, float secondsOff, float riseTime, float fallTime) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.blinkSecondsOn = secondsOn;
-        it->second.blinkSecondsOff = secondsOff;
-        it->second.blinkRiseTime = riseTime;
-        it->second.blinkFallTime = fallTime;
-        it->second.blinkPhase = 0.0f;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->blinkSecondsOn = secondsOn;
+        layer->blinkSecondsOff = secondsOff;
+        layer->blinkRiseTime = riseTime;
+        layer->blinkFallTime = fallTime;
+        layer->blinkPhase = 0.0f;
     }
 }
 
 void SceneLayerManager::setLayerWave(int layerId, float wavelength, float speed, float angle, float amplitude) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.waveWavelength = wavelength;
-        it->second.waveSpeed = speed;
-        it->second.waveAngle = angle;
-        it->second.waveAmplitude = amplitude;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->waveWavelength = wavelength;
+        layer->waveSpeed = speed;
+        layer->waveAngle = angle;
+        layer->waveAmplitude = amplitude;
     }
 }
 
 void SceneLayerManager::setLayerColor(int layerId, float r, float g, float b, float a) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.colorR = r;
-        it->second.colorG = g;
-        it->second.colorB = b;
-        it->second.colorA = a;
-        it->second.colorEndR = r;
-        it->second.colorEndG = g;
-        it->second.colorEndB = b;
-        it->second.colorEndA = a;
-        it->second.colorCycleTime = 0.0f;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->colorR = r;
+        layer->colorG = g;
+        layer->colorB = b;
+        layer->colorA = a;
+        layer->colorEndR = r;
+        layer->colorEndG = g;
+        layer->colorEndB = b;
+        layer->colorEndA = a;
+        layer->colorCycleTime = 0.0f;
     }
 }
 
 void SceneLayerManager::setLayerColorCycle(int layerId, float r1, float g1, float b1, float a1,
                                            float r2, float g2, float b2, float a2, float cycleTime) {
-    auto it = layers_.find(layerId);
-    if (it != layers_.end()) {
-        it->second.colorR = r1;
-        it->second.colorG = g1;
-        it->second.colorB = b1;
-        it->second.colorA = a1;
-        it->second.colorEndR = r2;
-        it->second.colorEndG = g2;
-        it->second.colorEndB = b2;
-        it->second.colorEndA = a2;
-        it->second.colorCycleTime = cycleTime;
-        it->second.colorPhase = 0.0f;
+    SceneLayer* layer = layers_.find(layerId);
+    if (layer != nullptr) {
+        layer->colorR = r1;
+        layer->colorG = g1;
+        layer->colorB = b1;
+        layer->colorA = a1;
+        layer->colorEndR = r2;
+        layer->colorEndG = g2;
+        layer->colorEndB = b2;
+        layer->colorEndA = a2;
+        layer->colorCycleTime = cycleTime;
+        layer->colorPhase = 0.0f;
     }
 }
 
@@ -328,10 +328,10 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
             return h1 ^ (h2 << 1) ^ (h3 << 2);
         }
     };
-    std::unordered_map<BatchKey, size_t, BatchKeyHash> batchMap;
+    HashTable<BatchKey, size_t> batchMap(allocator_, "updateLayerVertices::batchMap");
 
-    for (const auto& pair : layers_) {
-        const SceneLayer& layer = pair.second;
+    for (auto it = layers_.begin(); it != layers_.end(); ++it) {
+        const SceneLayer& layer = it.value();
 
         // Skip disabled layers
         // Allow layers without physics bodies if they have a parallax depth set (static layers)
@@ -354,8 +354,8 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
 
         // Find or create batch for this key
         size_t batchIndex;
-        auto batchIt = batchMap.find(batchKey);
-        if (batchIt == batchMap.end() || hasAnimation) {
+        size_t* batchIndexPtr = batchMap.find(batchKey);
+        if (batchIndexPtr == nullptr || hasAnimation) {
             // Always create new batch for animated layers or if batch doesn't exist
             batchIndex = batches.size();
             batches.push_back(SpriteBatch(batches.getAllocator()));
@@ -390,10 +390,10 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
 
             // Only add to batch map if not animated (animated layers always get unique batches)
             if (!hasAnimation) {
-                batchMap[batchKey] = batchIndex;
+                batchMap.insert(batchKey, batchIndex);
             }
         } else {
-            batchIndex = batchIt->second;
+            batchIndex = *batchIndexPtr;
         }
 
         SpriteBatch& batch = batches[batchIndex];
