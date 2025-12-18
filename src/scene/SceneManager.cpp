@@ -313,7 +313,17 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             }
 
             if (!batch.vertices.empty()) {
+#ifdef DEBUG
+                if (consoleBuffer_) {
+                    char buffer[128];
+                    SDL_snprintf(buffer, sizeof(buffer), "SceneManager::updateActiveScene: adding ParticleBatch with %zu vertices", batch.vertices.size());
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, buffer);
+                } else {
+                    SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "SceneManager::updateActiveScene: adding ParticleBatch with %zu vertices", batch.vertices.size());
+                }
+#else
                 SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "SceneManager::updateActiveScene: adding ParticleBatch with %zu vertices", batch.vertices.size());
+#endif
                 particleBatches.push_back(batch);
             }
         }

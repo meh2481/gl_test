@@ -2097,7 +2097,15 @@ int LuaInterface::loadTexture(lua_State* L) {
         // The UV coordinates are stored in the atlas entry and will be used by SceneLayer
     } else {
         // Standalone image - load directly
+#ifdef DEBUG
+        if (interface->consoleBuffer_) {
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "  -> Standalone texture");
+        } else {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  -> Standalone texture");
+        }
+#else
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "  -> Standalone texture");
+#endif
         interface->renderer_.loadTexture(textureId, imageData);
     }
 
@@ -3443,7 +3451,15 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     ResourceData fragShader = pakResource_.getResource(fragId);
 
     if (vertShader.data == nullptr || fragShader.data == nullptr) {
+#ifdef DEBUG
+        if (consoleBuffer_) {
+            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
+        } else {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load water shaders");
+        }
+#else
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load water shaders");
+#endif
         assert(false);
         return;
     }
@@ -3517,7 +3533,15 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
                                                    reflectionTexId, waterShaderId);
 
     if (waterLayerId < 0) {
+#ifdef DEBUG
+        if (consoleBuffer_) {
+            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
+        } else {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create water layer");
+        }
+#else
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create water layer");
+#endif
         assert(false);
         return;
     }
