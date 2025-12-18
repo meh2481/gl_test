@@ -349,7 +349,7 @@ private:
     template<typename Compare>
     void insertionSort(size_t left, size_t right, Compare comp) {
         for (size_t i = left + 1; i <= right; ++i) {
-            T key(static_cast<T&&>(data_[i]));
+            T key(data_[i]);
             size_t j = i;
             while (j > left && comp(key, data_[j - 1])) {
                 data_[j] = static_cast<T&&>(data_[j - 1]);
@@ -384,7 +384,7 @@ private:
     // Partition the array around a pivot
     template<typename Compare>
     size_t partition(size_t left, size_t right, size_t pivotIndex, Compare comp) {
-        T pivotValue(static_cast<T&&>(data_[pivotIndex]));
+        T pivotValue(data_[pivotIndex]);
         swap(pivotIndex, right);
 
         size_t storeIndex = left;
@@ -395,8 +395,7 @@ private:
             }
         }
 
-        data_[right] = static_cast<T&&>(data_[storeIndex]);
-        data_[storeIndex] = static_cast<T&&>(pivotValue);
+        swap(storeIndex, right);
         return storeIndex;
     }
 
@@ -425,10 +424,10 @@ private:
 
         // Recursively sort left and right partitions
         // Check pivotIndex > left to avoid underflow when computing pivotIndex - 1
-        if (pivotIndex > left && pivotIndex > 0) {
+        if (pivotIndex > left) {
             quicksort(left, pivotIndex - 1, comp);
         }
-        if (pivotIndex < right && pivotIndex < size_ - 1) {
+        if (pivotIndex < right) {
             quicksort(pivotIndex + 1, right, comp);
         }
     }
