@@ -321,14 +321,6 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
                    std::abs(parallaxDepth - other.parallaxDepth) < PARALLAX_EPSILON;
         }
     };
-    struct BatchKeyHash {
-        std::size_t operator()(const BatchKey& k) const {
-            auto h1 = std::hash<int>{}(k.pipelineId);
-            auto h2 = std::hash<uint64_t>{}(k.descriptorId);
-            auto h3 = std::hash<int>{}(static_cast<int>(k.parallaxDepth * 1000));
-            return h1 ^ (h2 << 1) ^ (h3 << 2);
-        }
-    };
     HashTable<BatchKey, size_t> batchMap(*allocator_, "updateLayerVertices::batchMap");
 
     for (auto it = layers_.begin(); it != layers_.end(); ++it) {
@@ -572,6 +564,8 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
 
     // Sort batches by parallax depth (lower/positive = background = drawn first, higher/negative = foreground = drawn last)
     // Within same parallax depth, sort by pipeline ID then descriptor ID for deterministic order
+
+    // This happens every frame and is not fine
     std::sort(batches.begin(), batches.end(), [](const SpriteBatch& a, const SpriteBatch& b) {
         // Sort by parallax depth first (higher depth = background = drawn first)
         // Positive depth = background, negative depth = foreground
