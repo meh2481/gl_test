@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cassert>
 #include <algorithm>
+#include <functional>
 
 // Epsilon for parallax depth comparisons
 static const float PARALLAX_EPSILON = 0.001f;
@@ -18,7 +19,7 @@ struct PairHash {
 };
 
 SceneLayerManager::SceneLayerManager(MemoryAllocator* allocator)
-    : layers_(allocator, "SceneLayerManager::layers"), nextLayerId_(1), allocator_(allocator) {
+    : layers_(*allocator, "SceneLayerManager::layers"), nextLayerId_(1), allocator_(allocator) {
 }
 
 SceneLayerManager::~SceneLayerManager() {
@@ -328,7 +329,7 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
             return h1 ^ (h2 << 1) ^ (h3 << 2);
         }
     };
-    HashTable<BatchKey, size_t> batchMap(allocator_, "updateLayerVertices::batchMap");
+    HashTable<BatchKey, size_t> batchMap(*allocator_, "updateLayerVertices::batchMap");
 
     for (auto it = layers_.begin(); it != layers_.end(); ++it) {
         const SceneLayer& layer = it.value();

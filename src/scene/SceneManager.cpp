@@ -92,13 +92,14 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         SceneLayerManager& layerManager = luaInterface_->getSceneLayerManager();
 
         // Update each layer's transform based on its attached physics body
-        for (const auto& layerPair : layerManager.getLayers()) {
-            const SceneLayer& layer = layerPair.second;
+        const auto& layers = layerManager.getLayers();
+        for (auto it = layers.begin(); it != layers.end(); ++it) {
+            const SceneLayer& layer = it.value();
             if (layer.physicsBodyId >= 0) {
                 float bodyX = physics.getBodyPositionX(layer.physicsBodyId);
                 float bodyY = physics.getBodyPositionY(layer.physicsBodyId);
                 float bodyAngle = physics.getBodyAngle(layer.physicsBodyId);
-                layerManager.updateLayerTransform(layerPair.first, bodyX, bodyY, bodyAngle);
+                layerManager.updateLayerTransform(it.key(), bodyX, bodyY, bodyAngle);
             }
         }
 

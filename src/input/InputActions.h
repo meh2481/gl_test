@@ -2,8 +2,8 @@
 
 #include <SDL3/SDL.h>
 #include <cassert>
-#include "core/HashTable.h"
-#include "memory/MemoryAllocator.h"
+#include "../core/HashTable.h"
+#include "../memory/MemoryAllocator.h"
 
 // Define all possible actions in the application
 enum Action {
@@ -270,9 +270,9 @@ public:
         bool firstKey = true;
 
         // Serialize keyboard bindings
-        for (uint32_t idx = 0; idx < keyToActions_.size(); ++idx) {
-            const int& keyCode = keyToActions_.keys()[idx];
-            const ActionList& actions = keyToActions_.values()[idx];
+        for (auto it = keyToActions_.begin(); it != keyToActions_.end(); ++it) {
+            const int& keyCode = it.key();
+            const ActionList& actions = it.value();
             if (actions.count == 0) continue;
 
             if (!firstKey && offset < bufferSize - 1) {
@@ -299,9 +299,9 @@ public:
 
         // Serialize gamepad bindings
         bool firstButton = true;
-        for (uint32_t idx = 0; idx < gamepadButtonToActions_.size(); ++idx) {
-            const int& buttonCode = gamepadButtonToActions_.keys()[idx];
-            const ActionList& actions = gamepadButtonToActions_.values()[idx];
+        for (auto it = gamepadButtonToActions_.begin(); it != gamepadButtonToActions_.end(); ++it) {
+            const int& buttonCode = it.key();
+            const ActionList& actions = it.value();
             if (actions.count == 0) continue;
 
             if (!firstButton && offset < bufferSize - 1) {
