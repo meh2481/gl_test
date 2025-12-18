@@ -362,6 +362,7 @@ private:
     // Median-of-three pivot selection
     template<typename Compare>
     size_t medianOfThree(size_t left, size_t right, Compare comp) {
+        assert(right >= left + 2); // Need at least 3 elements
         size_t mid = left + (right - left) / 2;
 
         // Sort left, mid, right so that data_[left] <= data_[mid] <= data_[right]
@@ -402,7 +403,8 @@ private:
     // Quicksort implementation
     template<typename Compare>
     void quicksort(size_t left, size_t right, Compare comp) {
-        if (left >= right) {
+        // Guard against underflow: if left >= right, we're done
+        if (left >= right || left >= size_ || right >= size_) {
             return;
         }
 
@@ -422,10 +424,11 @@ private:
         pivotIndex = partition(left, right, pivotIndex, comp);
 
         // Recursively sort left and right partitions
-        if (pivotIndex > left) {
+        // Check pivotIndex > left to avoid underflow when computing pivotIndex - 1
+        if (pivotIndex > left && pivotIndex > 0) {
             quicksort(left, pivotIndex - 1, comp);
         }
-        if (pivotIndex < right) {
+        if (pivotIndex < right && pivotIndex < size_ - 1) {
             quicksort(pivotIndex + 1, right, comp);
         }
     }
