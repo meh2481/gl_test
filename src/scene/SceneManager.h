@@ -57,7 +57,29 @@ public:
     // Access to PakResource for texture list
     PakResource& getPakResource() { return pakResource_; }
 
+    // Transition configuration
+    void setTransitionFadeTime(float fadeOutTime, float fadeInTime);
+    void setTransitionColor(float r, float g, float b);
+
 private:
+    // Transition state machine
+    enum TransitionState {
+        TRANSITION_NONE,
+        TRANSITION_FADE_OUT,
+        TRANSITION_FADE_IN
+    };
+
+    void updateTransition(float deltaTime);
+
+    TransitionState transitionState_;
+    float transitionTimer_;
+    float fadeOutTime_;
+    float fadeInTime_;
+    float fadeColorR_;
+    float fadeColorG_;
+    float fadeColorB_;
+    uint64_t pendingSceneId_;
+    bool pendingScenePush_;
     MemoryAllocator* allocator_;
     PakResource& pakResource_;
     VulkanRenderer& renderer_;

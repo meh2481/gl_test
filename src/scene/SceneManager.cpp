@@ -18,8 +18,12 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
       audioManager_(audioManager), particleManager_(particleManager), waterEffectManager_(waterEffectManager),
       luaInterface_(luaInterface), sceneStack_(*allocator, "SceneManager::sceneStack_"),
       loadedScenes_(*allocator, "SceneManager::loadedScenes_"),
-      initializedScenes_(*allocator, "SceneManager::initializedScenes_"), pendingPop_(false), particleEditorActive_(false),
-      particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), consoleBuffer_(consoleBuffer), trigLookup_(trigLookup)
+      initializedScenes_(*allocator, "SceneManager::initializedScenes_"), pendingPop_(false),
+      transitionState_(TRANSITION_NONE), transitionTimer_(0.0f), fadeOutTime_(0.25f), fadeInTime_(0.25f),
+      fadeColorR_(0.0f), fadeColorG_(0.0f), fadeColorB_(0.0f),
+      pendingSceneId_(0), pendingScenePush_(false),
+      particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1),
+      consoleBuffer_(consoleBuffer), trigLookup_(trigLookup)
 {
     assert(allocator_ != nullptr);
     assert(physics_ != nullptr);
@@ -31,6 +35,7 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
     assert(trigLookup_ != nullptr);
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Received all managers and LuaInterface from main.cpp");
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Default transition times: fadeOut=%.3fs, fadeIn=%.3fs", fadeOutTime_, fadeInTime_);
 }
 
 SceneManager::~SceneManager() {
@@ -38,6 +43,19 @@ SceneManager::~SceneManager() {
 }
 
 void SceneManager::pushScene(uint64_t sceneId) {
+    // If we're not currently in a transition and there's an active scene, start fade-out
+    if (transitionState_ == TRANSITION_NONE && !sceneStack_.empty()) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Starting fade-out transition for scene push");
+        transitionState_ = TRANSITION_FADE_OUT;
+        transitionTimer_ = 0.0f;
+        pendingSceneId_ = sceneId;
+        pendingScenePush_ = true;
+        return;
+    }
+
+    // If no current scene or transition is completing, push immediately
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Pushing scene %llu", (unsigned long long)sceneId);
+
     // Load the scene if not already loaded
     if (!loadedScenes_.contains(sceneId)) {
         consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading scene %llu", (unsigned long long)sceneId);
@@ -60,11 +78,26 @@ void SceneManager::pushScene(uint64_t sceneId) {
 
     // Set the pipelines for this scene
     luaInterface_->switchToScenePipeline(sceneId);
+
+    // Start fade-in transition
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Starting fade-in transition");
+    transitionState_ = TRANSITION_FADE_IN;
+    transitionTimer_ = 0.0f;
+    pendingScenePush_ = false;
 }
 
 void SceneManager::popScene() {
     if (!sceneStack_.empty()) {
-        pendingPop_ = true;
+        // If we're not in a transition, start fade-out
+        if (transitionState_ == TRANSITION_NONE) {
+            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Starting fade-out transition for scene pop");
+            transitionState_ = TRANSITION_FADE_OUT;
+            transitionTimer_ = 0.0f;
+            pendingPop_ = true;
+        } else {
+            // Already transitioning, just mark for pop
+            pendingPop_ = true;
+        }
     }
 }
 
@@ -106,6 +139,9 @@ void SceneManager::initActiveScene() {
 }
 
 bool SceneManager::updateActiveScene(float deltaTime) {
+    // Update transition state first
+    updateTransition(deltaTime);
+
     if (!sceneStack_.empty()) {
         uint64_t activeSceneId = sceneStack_.top();
         luaInterface_->updateScene(activeSceneId, deltaTime);
@@ -343,29 +379,6 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             renderer_.setDebugLineDrawData(emptyData);
             renderer_.setDebugTriangleDrawData(emptyData);
         }
-
-        // Pop the scene after Lua execution is complete
-        if (pendingPop_) {
-            uint64_t poppedSceneId = sceneStack_.top();
-            // Cleanup the scene before popping
-            luaInterface_->cleanupScene(poppedSceneId);
-            // Clear the scene's pipelines so they can be re-registered on re-init
-            luaInterface_->clearScenePipelines(poppedSceneId);
-            sceneStack_.pop();
-            pendingPop_ = false;
-            // Mark as not initialized so it can be reinitialized if pushed again
-            initializedScenes_.erase(poppedSceneId);
-
-            // Deactivate particle editor when exiting a scene
-            particleEditorActive_ = false;
-            particleEditorPipelineId_ = -1;
-
-            // Switch to the new active scene's pipeline
-            if (!sceneStack_.empty()) {
-                uint64_t newActiveSceneId = sceneStack_.top();
-                luaInterface_->switchToScenePipeline(newActiveSceneId);
-            }
-        }
     }
 
     return !sceneStack_.empty();
@@ -421,4 +434,125 @@ void SceneManager::setEditorPreviewSystemId(int systemId) {
 
 int SceneManager::getEditorPreviewSystemId() const {
     return editorPreviewSystemId_;
+}
+
+void SceneManager::setTransitionFadeTime(float fadeOutTime, float fadeInTime) {
+    assert(fadeOutTime >= 0.0f);
+    assert(fadeInTime >= 0.0f);
+    fadeOutTime_ = fadeOutTime;
+    fadeInTime_ = fadeInTime;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Transition times set: fadeOut=%.3fs, fadeIn=%.3fs", fadeOutTime_, fadeInTime_);
+}
+
+void SceneManager::setTransitionColor(float r, float g, float b) {
+    assert(r >= 0.0f && r <= 1.0f);
+    assert(g >= 0.0f && g <= 1.0f);
+    assert(b >= 0.0f && b <= 1.0f);
+    fadeColorR_ = r;
+    fadeColorG_ = g;
+    fadeColorB_ = b;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Transition color set: RGB(%.3f, %.3f, %.3f)", r, g, b);
+}
+
+void SceneManager::updateTransition(float deltaTime) {
+    if (transitionState_ == TRANSITION_NONE) {
+        return;
+    }
+
+    transitionTimer_ += deltaTime;
+
+    if (transitionState_ == TRANSITION_FADE_OUT) {
+        float fadeProgress = (fadeOutTime_ > 0.0f) ? (transitionTimer_ / fadeOutTime_) : 1.0f;
+        if (fadeProgress >= 1.0f) {
+            fadeProgress = 1.0f;
+        }
+
+        // Set clear color with fade progress (0 = normal, 1 = fully faded to color)
+        renderer_.setClearColor(fadeColorR_ * fadeProgress, fadeColorG_ * fadeProgress, fadeColorB_ * fadeProgress, 1.0f);
+
+        if (fadeProgress >= 1.0f) {
+            // Fade-out complete
+            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Fade-out complete");
+
+            // Handle pending scene change
+            if (pendingScenePush_) {
+                // Complete the push operation
+                uint64_t sceneId = pendingSceneId_;
+                consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Pushing scene %llu after fade-out", (unsigned long long)sceneId);
+
+                // Load the scene if not already loaded
+                if (!loadedScenes_.contains(sceneId)) {
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading scene %llu", (unsigned long long)sceneId);
+                    ResourceData sceneScript = pakResource_.getResource(sceneId);
+                    luaInterface_->loadScene(sceneId, sceneScript);
+                    loadedScenes_.insert(sceneId);
+                } else {
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Scene %llu already loaded (cache hit)", (unsigned long long)sceneId);
+                }
+
+                // Push scene onto stack
+                sceneStack_.push(sceneId);
+
+                // Initialize the scene if not already initialized
+                if (!initializedScenes_.contains(sceneId)) {
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Initializing scene %llu", (unsigned long long)sceneId);
+                    luaInterface_->initScene(sceneId);
+                    initializedScenes_.insert(sceneId);
+                }
+
+                // Set the pipelines for this scene
+                luaInterface_->switchToScenePipeline(sceneId);
+
+                pendingScenePush_ = false;
+            }
+
+            if (pendingPop_) {
+                // Complete the pop operation
+                uint64_t poppedSceneId = sceneStack_.top();
+                consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Popping scene %llu after fade-out", (unsigned long long)poppedSceneId);
+
+                // Cleanup the scene before popping
+                luaInterface_->cleanupScene(poppedSceneId);
+                // Clear the scene's pipelines so they can be re-registered on re-init
+                luaInterface_->clearScenePipelines(poppedSceneId);
+                sceneStack_.pop();
+                pendingPop_ = false;
+                // Mark as not initialized so it can be reinitialized if pushed again
+                initializedScenes_.erase(poppedSceneId);
+
+                // Deactivate particle editor when exiting a scene
+                particleEditorActive_ = false;
+                particleEditorPipelineId_ = -1;
+
+                // Switch to the new active scene's pipeline
+                if (!sceneStack_.empty()) {
+                    uint64_t newActiveSceneId = sceneStack_.top();
+                    luaInterface_->switchToScenePipeline(newActiveSceneId);
+                }
+            }
+
+            // Start fade-in
+            transitionState_ = TRANSITION_FADE_IN;
+            transitionTimer_ = 0.0f;
+            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Starting fade-in transition");
+        }
+    } else if (transitionState_ == TRANSITION_FADE_IN) {
+        float fadeProgress = (fadeInTime_ > 0.0f) ? (transitionTimer_ / fadeInTime_) : 1.0f;
+        if (fadeProgress >= 1.0f) {
+            fadeProgress = 1.0f;
+        }
+
+        // Set clear color with fade progress (1 = fully faded to color, 0 = normal)
+        float invProgress = 1.0f - fadeProgress;
+        renderer_.setClearColor(fadeColorR_ * invProgress, fadeColorG_ * invProgress, fadeColorB_ * invProgress, 1.0f);
+
+        if (fadeProgress >= 1.0f) {
+            // Fade-in complete
+            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Fade-in complete, transition finished");
+            transitionState_ = TRANSITION_NONE;
+            transitionTimer_ = 0.0f;
+            // Ensure clear color is reset to black
+            renderer_.setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        }
+    }
 }
