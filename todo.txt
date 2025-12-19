@@ -1,3 +1,2 @@
 * std::cos & std::sin - lookup table instead
-* std::array - Shader params, shader ripples
 * Particles cannot rotate in X/Y axis
