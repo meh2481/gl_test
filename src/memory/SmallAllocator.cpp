@@ -2,7 +2,6 @@
 #include "../debug/ConsoleBuffer.h"
 #include <cstring>
 #include <cassert>
-#include <cstdlib>
 #include <SDL3/SDL_log.h>
 
 SmallAllocator::SmallAllocator()
@@ -53,7 +52,7 @@ SmallAllocator::~SmallAllocator() {
     pool = firstPool_;
     while (pool) {
         MemoryPool* next = pool->next;
-        ::free(pool->memory);
+        SDL_free(pool->memory);
         delete pool;
         pool = next;
     }
@@ -222,7 +221,7 @@ size_t SmallAllocator::getAllocationCount() const {
 SmallAllocator::MemoryPool* SmallAllocator::createPool(size_t capacity) {
     // Allocate pool structure
     MemoryPool* pool = new MemoryPool();
-    pool->memory = (char*)::malloc(capacity);
+    pool->memory = (char*)SDL_malloc(capacity);
     assert(pool->memory != nullptr);
 
     pool->capacity = capacity;
@@ -277,7 +276,7 @@ void SmallAllocator::removeEmptyPools() {
             }
 
             totalCapacity_ -= pool->capacity;
-            ::free(pool->memory);
+            SDL_free(pool->memory);
             delete pool;
         } else {
             prev = pool;

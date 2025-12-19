@@ -2,7 +2,6 @@
 #include "../debug/ConsoleBuffer.h"
 #include <cstring>
 #include <cassert>
-#include <cstdlib>
 
 static const size_t MIN_BLOCK_SIZE = 64;
 static const size_t ALIGNMENT = 16;
@@ -54,8 +53,8 @@ LargeMemoryAllocator::~LargeMemoryAllocator() {
     MemoryChunk* chunk = m_chunks;
     while (chunk) {
         MemoryChunk* next = chunk->next;
-        std::free(chunk->memory);
-        std::free(chunk);
+        SDL_free(chunk->memory);
+        SDL_free(chunk);
         chunk = next;
     }
     if (m_mutex) {
@@ -67,10 +66,10 @@ void LargeMemoryAllocator::addChunk(size_t size) {
     size_t chunkSize = size < m_chunkSize ? m_chunkSize : size;
     chunkSize = alignSize(chunkSize);
 
-    MemoryChunk* newChunk = (MemoryChunk*)std::malloc(sizeof(MemoryChunk));
+    MemoryChunk* newChunk = (MemoryChunk*)SDL_malloc(sizeof(MemoryChunk));
     assert(newChunk != nullptr);
 
-    newChunk->memory = (char*)std::malloc(chunkSize);
+    newChunk->memory = (char*)SDL_malloc(chunkSize);
     assert(newChunk->memory != nullptr);
 
     newChunk->size = chunkSize;
@@ -263,8 +262,8 @@ void LargeMemoryAllocator::removeEmptyChunks() {
 
             *chunkPtr = chunk->next;
             m_totalPoolSize -= chunk->size;
-            std::free(chunk->memory);
-            std::free(chunk);
+            SDL_free(chunk->memory);
+            SDL_free(chunk);
         } else {
             chunkPtr = &chunk->next;
         }
