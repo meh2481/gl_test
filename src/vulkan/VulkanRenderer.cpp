@@ -1314,8 +1314,6 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             if (info->isWaterPipeline) {
                 // Water pipeline with ripple push constants (33 floats)
                 const Vector<float>* params = m_pipelineManager.getShaderParams(batch.pipelineId);
-                assert(params != nullptr);
-                assert(params->size() == 7);
                 int rippleCount = 0;
                 ShaderRippleData ripples[MAX_SHADER_RIPPLES];
                 m_pipelineManager.getWaterRipples(batch.pipelineId, rippleCount, ripples);
@@ -1327,8 +1325,8 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     m_cameraOffsetX,
                     m_cameraOffsetY,
                     m_cameraZoom,
-                    (*params)[0], (*params)[1], (*params)[2],
-                    (*params)[3], (*params)[4], (*params)[5], (*params)[6],
+                    params ? (*params)[0] : 0.0f, params ? (*params)[1] : 0.0f, params ? (*params)[2] : 0.0f,
+                    params ? (*params)[3] : 0.0f, params ? (*params)[4] : 0.0f, params ? (*params)[5] : 0.0f, params ? (*params)[6] : 0.0f,
                     // Ripple data (4 ripples x 3 values)
                     rippleCount > 0 ? ripples[0].x : 0.0f,
                     rippleCount > 0 ? ripples[0].time : -1.0f,
@@ -1349,8 +1347,6 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             } else if (info->usesAnimationPushConstants) {
                 // Animation pipeline with extended push constants (33 floats)
                 const Vector<float>* params = m_pipelineManager.getShaderParams(batch.pipelineId);
-                assert(params != nullptr);
-                assert(params->size() == 7);
 
                 float animPushConstants[33] = {
                     static_cast<float>(m_swapchainExtent.width),
@@ -1359,8 +1355,8 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     m_cameraOffsetX,
                     m_cameraOffsetY,
                     m_cameraZoom,
-                    (*params)[0], (*params)[1], (*params)[2],
-                    (*params)[3], (*params)[4], (*params)[5], (*params)[6],
+                    params ? (*params)[0] : 0.0f, params ? (*params)[1] : 0.0f, params ? (*params)[2] : 0.0f,
+                    params ? (*params)[3] : 0.0f, params ? (*params)[4] : 0.0f, params ? (*params)[5] : 0.0f, params ? (*params)[6] : 0.0f,
                     // Animation parameters
                     batch.spinSpeed,
                     batch.centerX,
@@ -1386,8 +1382,6 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(animPushConstants), animPushConstants);
             } else if (info->usesExtendedPushConstants) {
                 const Vector<float>* params = m_pipelineManager.getShaderParams(batch.pipelineId);
-                assert(params != nullptr);
-                assert(params->size() == 7);
 
                 float extPushConstants[13] = {
                     static_cast<float>(m_swapchainExtent.width),
@@ -1396,8 +1390,8 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     m_cameraOffsetX,
                     m_cameraOffsetY,
                     m_cameraZoom,
-                    (*params)[0], (*params)[1], (*params)[2],
-                    (*params)[3], (*params)[4], (*params)[5], (*params)[6]
+                    params ? (*params)[0] : 0.0f, params ? (*params)[1] : 0.0f, params ? (*params)[2] : 0.0f,
+                    params ? (*params)[3] : 0.0f, params ? (*params)[4] : 0.0f, params ? (*params)[5] : 0.0f, params ? (*params)[6] : 0.0f
                 };
                 vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
             } else {
@@ -1656,8 +1650,6 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
             // Set push constants with flipped Y
             if (info->usesExtendedPushConstants) {
                 const Vector<float>* params = m_pipelineManager.getShaderParams(batch.pipelineId);
-                assert(params != nullptr);
-                assert(params->size() == 7);
                 float extPushConstants[13] = {
                     static_cast<float>(m_swapchainExtent.width),
                     static_cast<float>(m_swapchainExtent.height),
@@ -1665,8 +1657,8 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
                     m_cameraOffsetX,
                     flippedCameraY,
                     -m_cameraZoom,  // Negative zoom to flip Y
-                    (*params)[0], (*params)[1], (*params)[2],
-                    (*params)[3], (*params)[4], (*params)[5], (*params)[6]
+                    params ? (*params)[0] : 0.0f, params ? (*params)[1] : 0.0f, params ? (*params)[2] : 0.0f,
+                    params ? (*params)[3] : 0.0f, params ? (*params)[4] : 0.0f, params ? (*params)[5] : 0.0f, params ? (*params)[6] : 0.0f
                 };
                 vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
             } else {

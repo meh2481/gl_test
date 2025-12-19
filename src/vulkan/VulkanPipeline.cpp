@@ -1159,6 +1159,7 @@ const Vector<float>* VulkanPipeline::getShaderParams(int pipelineId) const {
     if (paramsPtr != nullptr) {
         return *paramsPtr;
     }
+    // Return nullptr if not found - caller must handle this case
     return nullptr;
 }
 
