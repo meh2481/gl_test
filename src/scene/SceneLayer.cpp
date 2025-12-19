@@ -1,5 +1,5 @@
 #include "SceneLayer.h"
-#include <cmath>
+#include <SDL3/SDL.h>
 #include <cassert>
 #include <functional>
 
@@ -396,8 +396,8 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
         batch.centerY = centerY;
 
         // Apply rotation and position
-        float cosA = std::cos(angle);
-        float sinA = std::sin(angle);
+        float cosA = SDL_cosf(angle);
+        float sinA = SDL_sinf(angle);
 
         uint16_t baseIndex = static_cast<uint16_t>(batch.vertices.size());
 
