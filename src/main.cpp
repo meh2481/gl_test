@@ -804,6 +804,11 @@ int main()
         smallAllocator.free(keybindings);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed KeybindingManager" << ConsoleBuffer::endl;
 
+        // Destroy TrigLookup
+        trigLookup->~TrigLookup();
+        smallAllocator.free(trigLookup);
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed TrigLookup" << ConsoleBuffer::endl;
+
         // Destroy ConsoleBuffer last (before allocators)
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "All managers cleaned up" << ConsoleBuffer::endl;
         consoleBuffer->~ConsoleBuffer();
