@@ -97,7 +97,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                 lua_pushboolean(luaState_, 1); // Has texture
                                 if (lua_pcall(luaState_, 4, 1, 0) != LUA_OK) {
                                     const char* errorMsg = lua_tostring(luaState_, -1);
-                                    std::cerr << "loadParticleShaders error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "loadParticleShaders error: %s", (errorMsg ? errorMsg : "unknown"));
                                     lua_pop(luaState_, 1);
                                     assert(false);
                                     return;
@@ -109,7 +109,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                 lua_pushstring(luaState_, "res/fx/splash1.lua");
                                 if (lua_pcall(luaState_, 1, 1, 0) != LUA_OK) {
                                     const char* errorMsg = lua_tostring(luaState_, -1);
-                                    std::cerr << "loadParticleConfig error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "loadParticleConfig error: %s", (errorMsg ? errorMsg : "unknown"));
                                     lua_pop(luaState_, 1);
                                     assert(false);
                                     return;
@@ -120,7 +120,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                 lua_pushinteger(luaState_, pipelineId);
                                 if (lua_pcall(luaState_, 2, 1, 0) != LUA_OK) {
                                     const char* errorMsg = lua_tostring(luaState_, -1);
-                                    std::cerr << "createParticleSystem error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "createParticleSystem error: %s", (errorMsg ? errorMsg : "unknown"));
                                     lua_pop(luaState_, 1);
                                     luaL_unref(luaState_, LUA_REGISTRYINDEX, configRef);
                                     assert(false);
@@ -144,7 +144,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                 lua_pushboolean(luaState_, 1); // Has texture
                                 if (lua_pcall(luaState_, 4, 1, 0) != LUA_OK) {
                                     const char* errorMsg = lua_tostring(luaState_, -1);
-                                    std::cerr << "loadParticleShaders error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "loadParticleShaders error: %s", (errorMsg ? errorMsg : "unknown"));
                                     lua_pop(luaState_, 1);
                                     assert(false);
                                     return;
@@ -156,7 +156,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                 lua_pushstring(luaState_, "res/fx/splash1.lua");
                                 if (lua_pcall(luaState_, 1, 1, 0) != LUA_OK) {
                                     const char* errorMsg = lua_tostring(luaState_, -1);
-                                    std::cerr << "loadParticleConfig error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "loadParticleConfig error: %s", (errorMsg ? errorMsg : "unknown"));
                                     lua_pop(luaState_, 1);
                                     assert(false);
                                     return;
@@ -167,7 +167,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                 lua_pushinteger(luaState_, pipelineId);
                                 if (lua_pcall(luaState_, 2, 1, 0) != LUA_OK) {
                                     const char* errorMsg = lua_tostring(luaState_, -1);
-                                    std::cerr << "createParticleSystem error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "createParticleSystem error: %s", (errorMsg ? errorMsg : "unknown"));
                                     lua_pop(luaState_, 1);
                                     luaL_unref(luaState_, LUA_REGISTRYINDEX, configRef);
                                     assert(false);
@@ -282,7 +282,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     // Load the script
     if (luaL_loadbuffer(luaState_, (char*)scriptData.data, scriptData.size, NULL) != LUA_OK) {
         const char* errorMsg = lua_tostring(luaState_, -1);
-        std::cerr << "Lua load error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua load error: %s", (errorMsg ? errorMsg : "unknown error"));
         lua_pop(luaState_, 1); // Pop the table
         assert(false);
         return;
@@ -295,7 +295,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     // Execute the script with the scene table as its environment
     if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
         const char* errorMsg = lua_tostring(luaState_, -1);
-        std::cerr << "Lua exec error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua exec error: %s", (errorMsg ? errorMsg : "unknown error"));
         lua_pop(luaState_, 1); // Pop the table
         assert(false);
         return;
@@ -334,7 +334,7 @@ void LuaInterface::initScene(uint64_t sceneId) {
     if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
         // Get the error message
         const char* errorMsg = lua_tostring(luaState_, -1);
-        std::cerr << "Lua init error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua init error: %s", (errorMsg ? errorMsg : "unknown error"));
         lua_pop(luaState_, 2); // Pop error message and table
         assert(false);
         return;
@@ -370,7 +370,7 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
     if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
         // Get the error message
         const char* errorMsg = lua_tostring(luaState_, -1);
-        std::cerr << "Lua update error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua update error: %s", (errorMsg ? errorMsg : "unknown error"));
         lua_pop(luaState_, 2); // Pop error message and table
         assert(false);
         return;
@@ -385,7 +385,7 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
                 lua_pushnumber(luaState_, deltaTime);
                 if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
                     const char* errorMsg = lua_tostring(luaState_, -1);
-                    std::cerr << "Object update error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Object update error: %s", (errorMsg ? errorMsg : "unknown error"));
                     lua_pop(luaState_, 1);
                     assert(false);
                 }
@@ -489,7 +489,7 @@ void LuaInterface::handleAction(uint64_t sceneId, Action action) {
     if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
         // Get the error message
         const char* errorMsg = lua_tostring(luaState_, -1);
-        std::cerr << "Lua onAction error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua onAction error: %s", (errorMsg ? errorMsg : "unknown error"));
         lua_pop(luaState_, 2); // Pop error message and table
         assert(false);
         return;
@@ -508,7 +508,7 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
             if (lua_isfunction(luaState_, -1)) {
                 if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
                     const char* errorMsg = lua_tostring(luaState_, -1);
-                    std::cerr << "Object cleanup error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Object cleanup error: %s", (errorMsg ? errorMsg : "unknown error"));
                     lua_pop(luaState_, 1);
                     assert(false);
                 }
@@ -532,7 +532,7 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
             // Call cleanup()
             if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
                 const char* errorMsg = lua_tostring(luaState_, -1);
-                std::cerr << "Lua cleanup error: " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+                consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua cleanup error: %s", (errorMsg ? errorMsg : "unknown error"));
                 lua_pop(luaState_, 1); // Pop error message
                 assert(false);
             }
@@ -563,7 +563,7 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
     physics_->reset();
 
     // Clear all nodes (frees String memory)
-    std::cerr << "LuaInterface: Clearing " << nodes_.size() << " nodes" << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface: Clearing %zu nodes", nodes_.size());
     for (auto it = nodes_.begin(); it != nodes_.end(); ++it) {
         Node* node = it.value();
         assert(node != nullptr);
@@ -583,7 +583,7 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
 }
 
 void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
-    std::cout << "LuaInterface::switchToScenePipeline: sceneId=" << sceneId << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::switchToScenePipeline: sceneId=%llu", (unsigned long long)sceneId);
     Vector<std::pair<int, int>>** pipelinesPtr = scenePipelines_.find(sceneId);
     if (pipelinesPtr != nullptr) {
         assert(*pipelinesPtr != nullptr);
@@ -604,12 +604,12 @@ void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
         }
 
         renderer_.setPipelinesToDraw(pipelineIds);
-        std::cout << "LuaInterface::switchToScenePipeline: set " << pipelineIds.size() << " pipelines" << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::switchToScenePipeline: set %zu pipelines", pipelineIds.size());
     }
 }
 
 void LuaInterface::clearScenePipelines(uint64_t sceneId) {
-    std::cout << "LuaInterface::clearScenePipelines: sceneId=" << sceneId << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::clearScenePipelines: sceneId=%llu", (unsigned long long)sceneId);
     Vector<std::pair<int, int>>** vecPtr = scenePipelines_.find(sceneId);
     if (vecPtr != nullptr) {
         Vector<std::pair<int, int>>* vec = *vecPtr;
@@ -617,7 +617,7 @@ void LuaInterface::clearScenePipelines(uint64_t sceneId) {
         vec->~Vector();  // Call destructor
         stringAllocator_->free(vec);  // Free through allocator
         scenePipelines_.remove(sceneId);
-        std::cout << "LuaInterface::clearScenePipelines: cleared pipelines for sceneId " << sceneId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::clearScenePipelines: cleared pipelines for sceneId %llu", (unsigned long long)sceneId);
     }
 }
 
@@ -818,7 +818,7 @@ int LuaInterface::loadShaders(lua_State* L) {
     float parallaxDepth = (float)(-zIndex);
 
     // Check if this specific shader combination is already loaded for this scene
-    std::cout << "LuaInterface::loadShaders: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadShaders: currentSceneId_=%llu, zIndex=%d", (unsigned long long)interface->currentSceneId_, zIndex);
     Vector<std::pair<int, int>>** vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
     if (vecPtr == nullptr) {
         // Create new vector for this scene - allocate through allocator using placement new
@@ -827,7 +827,7 @@ int LuaInterface::loadShaders(lua_State* L) {
         Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadShaders::data");
         interface->scenePipelines_.insertNew(interface->currentSceneId_, newVec);
         vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
-        std::cout << "LuaInterface::loadShaders: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadShaders: created new vector for sceneId %llu", (unsigned long long)interface->currentSceneId_);
     }
     assert(*vecPtr != nullptr);
     Vector<std::pair<int, int>>* scenePipelines = *vecPtr;
@@ -849,14 +849,14 @@ int LuaInterface::loadShaders(lua_State* L) {
     uint64_t vertId = hashCString(vertFile);
     uint64_t fragId = hashCString(fragFile);
 
-    std::cout << "Loading shaders: " << vertFile << ", " << fragFile << " (z-index: " << zIndex << ")" << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading shaders: %s, %s (z-index: %d)", vertFile, fragFile, zIndex);
 
     // Get shader data from pak file
     ResourceData vertShader = interface->pakResource_.getResource(vertId);
     ResourceData fragShader = interface->pakResource_.getResource(fragId);
 
     if (vertShader.size == 0 || fragShader.size == 0) {
-        std::cerr << "Failed to load shader: " << vertFile << " or " << fragFile << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load shader: %s or %s", vertFile, fragFile);
         assert(false);
     }
 

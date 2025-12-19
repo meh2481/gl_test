@@ -1,21 +1,23 @@
 #include "VulkanTexture.h"
-#include <iostream>
 #include "../core/ResourceTypes.h"
-#include <iostream>
+#include "../debug/ConsoleBuffer.h"
 #include <cstring>
 #include <cassert>
 #include <set>
+#include <SDL3/SDL_log.h>
 
-VulkanTexture::VulkanTexture(MemoryAllocator* allocator) :
+VulkanTexture::VulkanTexture(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer) :
     m_device(VK_NULL_HANDLE),
     m_physicalDevice(VK_NULL_HANDLE),
     m_commandPool(VK_NULL_HANDLE),
     m_graphicsQueue(VK_NULL_HANDLE),
     m_initialized(false),
     m_textures(*allocator, "VulkanTexture::m_textures"),
-    m_allocator(allocator)
+    m_allocator(allocator),
+    m_consoleBuffer(consoleBuffer)
 {
     assert(m_allocator != nullptr);
+    assert(m_consoleBuffer != nullptr);
 }
 
 VulkanTexture::~VulkanTexture() {
@@ -263,12 +265,12 @@ bool VulkanTexture::getTextureDimensions(uint64_t textureId, uint32_t* width, ui
 void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageData) {
     // If texture already exists, skip reloading (textures don't change during hot-reload)
     if (m_textures.find(textureId) != nullptr) {
-        std::cout << "Texture " << textureId << ": already in GPU memory (cache hit)" << std::endl;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Texture %llu: already in GPU memory (cache hit)", (unsigned long long)textureId);
         return;
     }
 
     if (imageData.type != RESOURCE_TYPE_IMAGE) {
-        std::cerr << "Texture " << textureId << ": resource is not an image (type " << imageData.type << ")" << std::endl;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Texture %llu: resource is not an image (type %d)", (unsigned long long)textureId, imageData.type);
         assert(false && "Resource is not an image");
         return;
     }
@@ -277,12 +279,15 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
         // This is an atlas reference
         const TextureHeader* texHeader = (const TextureHeader*)imageData.data;
         uint64_t atlasId = texHeader->atlasId;
-        std::cout << "Texture " << textureId << ": atlas reference (atlas id: " << atlasId << ", UV: " << texHeader->coordinates[0] << "," << texHeader->coordinates[1] << " - " << texHeader->coordinates[4] << "," << texHeader->coordinates[5] << ")" << std::endl;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Texture %llu: atlas reference (atlas id: %llu, UV: %f,%f - %f,%f)", 
+                             (unsigned long long)textureId, (unsigned long long)atlasId,
+                             texHeader->coordinates[0], texHeader->coordinates[1], 
+                             texHeader->coordinates[4], texHeader->coordinates[5]);
         // Load the atlas if not already loaded
         const TextureData* atlasTexPtr = m_textures.find(atlasId);
         if (atlasTexPtr == nullptr) {
             // Atlas not loaded, but we can't load it here without data
-            std::cerr << "Atlas " << atlasId << " not loaded for texture " << textureId << std::endl;
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Atlas %llu not loaded for texture %llu", (unsigned long long)atlasId, (unsigned long long)textureId);
             assert(false && "Atlas texture not loaded");
             return;
         }
@@ -312,12 +317,13 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
             vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
             formatStr = "BC3/DXT5";
         } else {
-            std::cerr << "Texture " << textureId << ": unsupported format " << format << std::endl;
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Texture %llu: unsupported format %d", (unsigned long long)textureId, format);
             assert(false && "Unsupported image format (expected BC1/DXT1 or BC3/DXT5)");
             return;
         }
 
-        std::cout << "Texture " << textureId << ": uploading to GPU (" << width << "x" << height << ", " << formatStr << ", " << compressedSize << " bytes)" << std::endl;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Texture %llu: uploading to GPU (%dx%d, %s, %zu bytes)", 
+                             (unsigned long long)textureId, width, height, formatStr, compressedSize);
         createTextureImage(textureId, compressedData, width, height, vkFormat, compressedSize);
         createTextureSampler(textureId);
     }
@@ -326,7 +332,7 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
 void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData) {
     // If atlas texture already exists, skip reloading
     if (m_textures.find(atlasId) != nullptr) {
-        std::cout << "Atlas " << atlasId << ": already in GPU memory (cache hit)" << std::endl;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Atlas %llu: already in GPU memory (cache hit)", (unsigned long long)atlasId);
         return;
     }
 
@@ -353,12 +359,13 @@ void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlas
         vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
         formatStr = "BC3/DXT5";
     } else {
-        std::cerr << "Atlas " << atlasId << ": unsupported format " << format << std::endl;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Atlas %llu: unsupported format %d", (unsigned long long)atlasId, format);
         assert(false && "Unsupported atlas format (expected BC1/DXT1 or BC3/DXT5)");
         return;
     }
 
-    std::cout << "Atlas " << atlasId << ": uploading to GPU (" << width << "x" << height << ", " << formatStr << ", " << numEntries << " entries, " << compressedSize << " bytes)" << std::endl;
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Atlas %llu: uploading to GPU (%dx%d, %s, %d entries, %zu bytes)", 
+                         (unsigned long long)atlasId, width, height, formatStr, numEntries, compressedSize);
     createTextureImage(atlasId, compressedData, width, height, vkFormat, compressedSize);
     createTextureSampler(atlasId);
 }
@@ -540,5 +547,5 @@ void VulkanTexture::createRenderTargetTexture(uint64_t textureId, uint32_t width
 
     m_textures.insert(textureId, tex);
 
-    std::cout << "Created render target texture " << textureId << " (" << width << "x" << height << ")" << std::endl;
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Created render target texture %llu (%dx%d)", (unsigned long long)textureId, width, height);
 }

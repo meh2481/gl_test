@@ -6,10 +6,12 @@
 #include "../memory/MemoryAllocator.h"
 #include <cstdint>
 
+class ConsoleBuffer;
+
 // Helper class for managing Vulkan textures
 class VulkanTexture {
 public:
-    VulkanTexture(MemoryAllocator* allocator);
+    VulkanTexture(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer);
     ~VulkanTexture();
 
     // Initialization - must be called before any other operations
@@ -60,4 +62,5 @@ private:
 
     HashTable<uint64_t, TextureData> m_textures;
     MemoryAllocator* m_allocator;
+    ConsoleBuffer* m_consoleBuffer;
 };
