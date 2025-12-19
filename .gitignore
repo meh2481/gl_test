@@ -45,3 +45,4 @@ _codeql_detected_source_root
 
 # Build files
 box2d/
+*.pak
