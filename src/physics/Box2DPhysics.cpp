@@ -1,12 +1,10 @@
 #include "Box2DPhysics.h"
-#include <iostream>
 #include <SDL3/SDL.h>
 #include "../scene/SceneLayer.h"
 #include "../memory/SmallAllocator.h"
 #include "../core/Vector.h"
 #include "../debug/ConsoleBuffer.h"
 #include <cassert>
-#include <cmath>
 #include <cstring>
 
 // Default fixed timestep for physics simulation (Box2D recommended value)

@@ -8,7 +8,6 @@
 #include "../debug/ConsoleBuffer.h"
 #include <SDL3/SDL.h>
 #include <cassert>
-#include <cmath>
 
 SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource, VulkanRenderer& renderer,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,

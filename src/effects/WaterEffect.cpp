@@ -1,8 +1,7 @@
 #include "WaterEffect.h"
 #include <cstring>
 #include <cassert>
-#include <cmath>
-#include <iostream>
+#include <SDL3/SDL.h>
 
 static const float PHYSICS_TIMESTEP = 1.0f / 60.0f;
 
@@ -151,7 +150,7 @@ void WaterEffectManager::onBodyEnterWater(int waterFieldId, int bodyId, float x,
         }
 
         // Add splash based on entry velocity
-        float splashAmplitude = fabsf(velocity) * 0.1f;
+        float splashAmplitude = SDL_fabsf(velocity) * 0.1f;
         if (splashAmplitude > 0.01f) {
             addSplash(waterFieldId, x, field.config.surfaceY, splashAmplitude);
         }
@@ -177,7 +176,7 @@ void WaterEffectManager::onBodyExitWater(int waterFieldId, int bodyId, float x, 
         }
 
         // Add splash based on exit velocity
-        float splashAmplitude = fabsf(velocity) * 0.08f;
+        float splashAmplitude = SDL_fabsf(velocity) * 0.08f;
         if (splashAmplitude > 0.01f) {
             addSplash(waterFieldId, x, field.config.surfaceY, splashAmplitude);
         }
@@ -203,7 +202,7 @@ void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
 
                 if (wasAboveSurface != isAboveSurface) {
                     float velocity = (y - lastY) / PHYSICS_TIMESTEP;
-                    float splashAmplitude = fabsf(velocity) * 0.15f;
+                    float splashAmplitude = SDL_fabsf(velocity) * 0.15f;
                     if (splashAmplitude > 0.01f) {
                         // Clamp splash amplitude to reasonable range
                         if (splashAmplitude > 0.05f) splashAmplitude = 0.05f;

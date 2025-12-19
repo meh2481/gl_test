@@ -1,7 +1,5 @@
 #include "ParticleSystem.h"
 #include <SDL3/SDL.h>
-#include <cmath>
-#include <cstring>
 
 // Simple linear congruential generator for fast random numbers
 static unsigned int s_randomSeed = 12345;
@@ -320,7 +318,7 @@ void ParticleSystemManager::spawnParticle(ParticleSystem& system) {
         float emitterWorldCenterY = system.emitterY + system.emissionCenterY;
         float dx = system.posX[i] - emitterWorldCenterX;
         float dy = system.posY[i] - emitterWorldCenterY;
-        float dist = sqrtf(dx * dx + dy * dy);
+        float dist = SDL_sqrtf(dx * dx + dy * dy);
         float dirX, dirY;
         if (dist > 0.001f) {
             // Use direction from center to particle
@@ -329,8 +327,8 @@ void ParticleSystemManager::spawnParticle(ParticleSystem& system) {
         } else {
             // Particle is at center (point emitter or coincidence) - use random direction
             float angle = randomRange(0.0f, 2.0f * 3.14159265359f);
-            dirX = cosf(angle);
-            dirY = sinf(angle);
+            dirX = SDL_cosf(angle);
+            dirY = SDL_sinf(angle);
         }
         // Add radial velocity component (positive = away from center, negative = towards)
         system.velX[i] += dirX * radialVel;
@@ -421,7 +419,7 @@ bool ParticleSystemManager::updateParticle(ParticleSystem& system, int i, float 
     float emitterWorldCenterY = system.emitterY + system.emissionCenterY;
     float dx = emitterWorldCenterX - system.posX[i];
     float dy = emitterWorldCenterY - system.posY[i];
-    float dist = sqrtf(dx * dx + dy * dy);
+    float dist = SDL_sqrtf(dx * dx + dy * dy);
     if (dist > 0.001f) {
         float radialX = (dx / dist) * system.radialAccel[i];
         float radialY = (dy / dist) * system.radialAccel[i];

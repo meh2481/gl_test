@@ -13,7 +13,6 @@
 #include <cassert>
 #include <cstring>
 #include <cstdio>
-#include <cmath>
 
 // Check Vulkan result callback for ImGui
 static void check_vk_result(VkResult err) {

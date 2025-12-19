@@ -1,2 +1,2 @@
-* std::cos & std::sin - lookup table instead
+* cos & sin - lookup table instead
 * Particles cannot rotate in X/Y axis
