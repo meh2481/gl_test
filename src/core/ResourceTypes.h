@@ -60,6 +60,7 @@ typedef struct
 #define RESOURCE_TYPE_LUA           11  //Lua script
 #define RESOURCE_TYPE_IMAGE_NO_ATLAS 12  //Icon image or other image without atlas
 #define RESOURCE_TYPE_SHADER        13
+#define RESOURCE_TYPE_TRIG_TABLE    14  //Trig lookup table (sin/cos)
 //#define RESOURCE_TYPE_
 //etc
 
@@ -187,4 +188,17 @@ typedef struct
     uint64_t meshId;    //ID of MeshHeader
     uint64_t textureId;    //ID of TextureHeader
 } Object3DHeader;
+
+//--------------------------------------------------------------
+// Trigonometry lookup table
+//--------------------------------------------------------------
+// Trig lookup table with entries for every half-degree (0.5°)
+// This gives us 720 entries to cover 0-360 degrees (0 to 2*PI radians)
+typedef struct
+{
+    uint32_t numEntries;    // Should be 720 (360 / 0.5)
+    f32_t angleStep;        // Radians per entry (PI/360)
+    // Followed by numEntries floats for sin values
+    // Followed by numEntries floats for cos values
+} TrigTableHeader;
 

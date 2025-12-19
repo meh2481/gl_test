@@ -731,6 +731,40 @@ bool processPNGFile(const string& filename, vector<char>& output) {
     return true;
 }
 
+// Generate trig lookup table with entries for every half-degree
+bool generateTrigTable(vector<char>& output) {
+    const uint32_t numEntries = 720;  // 360 degrees / 0.5 degrees per entry
+    const float angleStep = 3.14159265359f / 360.0f;  // PI/360 radians (0.5 degrees)
+
+    cout << "Generating trig lookup table with " << numEntries << " entries" << endl;
+
+    // Create header
+    TrigTableHeader header;
+    header.numEntries = numEntries;
+    header.angleStep = angleStep;
+
+    // Calculate total size: header + sin table + cos table
+    size_t tableSize = numEntries * sizeof(float);
+    size_t totalSize = sizeof(TrigTableHeader) + tableSize + tableSize;
+    output.resize(totalSize);
+
+    // Write header
+    memcpy(output.data(), &header, sizeof(TrigTableHeader));
+
+    // Generate sin and cos tables
+    float* sinTable = (float*)(output.data() + sizeof(TrigTableHeader));
+    float* cosTable = sinTable + numEntries;
+
+    for (uint32_t i = 0; i < numEntries; ++i) {
+        float angle = i * angleStep;
+        sinTable[i] = sinf(angle);
+        cosTable[i] = cosf(angle);
+    }
+
+    cout << "Trig lookup table generated: " << output.size() << " bytes" << endl;
+    return true;
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 3) {
         cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases]" << endl;
@@ -841,6 +875,23 @@ int main(int argc, char* argv[]) {
     // Rebuild
     cout << "Building pak file" << endl;
 
+    // Check if trig table needs to be generated (only when pak doesn't exist)
+    bool needTrigTable = !pakFile.is_open();
+    bool hasTrigTable = false;
+
+    // If pak exists, check if it already has a trig table
+    if (pakFile.is_open()) {
+        for (const auto& ptr : existingPtrs) {
+            uint64_t trigTableId = hashCString("res/trig_table.bin");
+            if (ptr.id == trigTableId) {
+                hasTrigTable = true;
+                needTrigTable = false;
+                cout << "Trig lookup table already exists in pak file" << endl;
+                break;
+            }
+        }
+    }
+
     // If PNG files haven't changed, we need to preserve existing atlas files from the pak
     if (!anyPNGChanged && pakFile) {
         // Load existing atlas files from pak
@@ -871,8 +922,48 @@ int main(int argc, char* argv[]) {
 
                 cout << "Preserving existing atlas with ID " << atlasFile.id << endl;
                 files.push_back(std::move(atlasFile));
+            } else if (comp.type == RESOURCE_TYPE_TRIG_TABLE) {
+                // This is the trig table, preserve it
+                FileInfo trigFile;
+                trigFile.filename = "_trig_table";
+                trigFile.id = existingPtrs[i].id;
+                trigFile.mtime = existingPtrs[i].lastModified;
+                trigFile.changed = false;
+                trigFile.offset = existingPtrs[i].offset;
+
+                // Load compressed data
+                trigFile.compressedData.resize(comp.compressedSize);
+                pakFile.read(trigFile.compressedData.data(), comp.compressedSize);
+                trigFile.compressionType = comp.compressionType;
+                trigFile.decompressedSize = comp.decompressedSize;
+
+                cout << "Preserving existing trig lookup table with ID " << trigFile.id << endl;
+                files.push_back(std::move(trigFile));
+                hasTrigTable = true;
             }
         }
+    }
+
+    // Generate trig table if needed (only when pak doesn't exist)
+    if (needTrigTable && !hasTrigTable) {
+        cout << "Generating new trig lookup table..." << endl;
+        FileInfo trigFile;
+        trigFile.filename = "_trig_table";
+        trigFile.id = hashCString("res/trig_table.bin");
+        trigFile.mtime = time(nullptr);
+        trigFile.changed = true;
+
+        if (!generateTrigTable(trigFile.data)) {
+            cerr << "Failed to generate trig lookup table" << endl;
+            return 1;
+        }
+
+        compressData(trigFile.data, trigFile.compressedData, trigFile.compressionType);
+        trigFile.decompressedSize = trigFile.data.size();
+        cout << "Trig table size " << trigFile.decompressedSize
+             << " compressed " << trigFile.compressedData.size() << endl;
+
+        files.push_back(std::move(trigFile));
     }
 
     // Collect PNG images for atlas packing
@@ -1071,6 +1162,9 @@ int main(int argc, char* argv[]) {
         } else if (file.filename.find("_atlas_") == 0) {
             // Atlas file, already processed
             continue;
+        } else if (file.filename == "_trig_table") {
+            // Trig table, already processed
+            continue;
         } else if (file.changed) {
             // Standard file processing
             if (!loadFile(file.filename, file.data, file.mtime)) {
@@ -1116,6 +1210,8 @@ int main(int argc, char* argv[]) {
         uint32_t fileType;
         if (file.filename.find("_atlas_") == 0) {
             fileType = RESOURCE_TYPE_IMAGE_ATLAS;
+        } else if (file.filename == "_trig_table") {
+            fileType = RESOURCE_TYPE_TRIG_TABLE;
         } else {
             uint32_t origType = getFileType(file.filename);
             // Image files are now texture headers referencing atlases
