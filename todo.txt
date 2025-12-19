@@ -1,4 +1,3 @@
-* std::pair<int, int>
 * std::cos & std::sin - lookup table instead
 * std::abs
 * std::stack
@@ -6,4 +5,6 @@
 * std::array - Shader params, shader ripples
 * std::set
 * Log should go to file too (replace)
+* Log not logging to console
+* imgui.ini should go in SDL config folder
 
