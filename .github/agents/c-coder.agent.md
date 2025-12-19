@@ -18,6 +18,7 @@ Build the project with the correct PKG_CONFIG_PATH and CMAKE_PREFIX_PATH to use 
 - Always assert where there is any kind of error handling.
 - Never use STL libraries. Use the templates in core/ or SDL3 wrappers instead.
 - Do not use char* for strings. Use the string library in core/String.h instead.
+- Do not use the cmath library for trigonometric functions. Use the lookup table instead (see core/TrigLookup.h).
 - Don't generate markdown documentation for changes. Do not update README.md or any other documentation files with changes.
 - Do not run CodeQL or other security analysis tools.
 - Remove all whitespace from the end of lines in any files you modify.
