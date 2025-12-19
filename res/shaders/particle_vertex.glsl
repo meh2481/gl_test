@@ -68,7 +68,11 @@ void main() {
     gl_Position = vec4(pos.x / aspect, -pos.y, 0.0, 1.0);
 
     // Map corner UV (0-1) to actual texture UV bounds
-    fragTexCoord = mix(inUVBounds.xy, inUVBounds.zw, inTexCoord);
+    // Note: V coordinate is flipped because texture V goes from top to bottom
+    fragTexCoord = vec2(
+        mix(inUVBounds.x, inUVBounds.z, inTexCoord.x),
+        mix(inUVBounds.w, inUVBounds.y, inTexCoord.y)
+    );
     fragColor = inColor;
     fragUVBounds = inUVBounds;
 }
