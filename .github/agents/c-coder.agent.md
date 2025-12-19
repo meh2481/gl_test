@@ -15,15 +15,13 @@ Build the project with the correct PKG_CONFIG_PATH and CMAKE_PREFIX_PATH to use 
 ## Coding Guidelines
 - Never use C++ exceptions or try-catch blocks. Use C-style assertions instead.
 - Use assertions liberally.
-- Always assert where there is any kind of error handling, including std::cerr calls.
-- Never use STL std::vector. Use the vector in core/Vector.h instead.
-- Never use STL std::map. Use the map in core/HashTable.h instead.
-- Never use STL std::string. Use the string in core/String.h instead.
+- Always assert where there is any kind of error handling.
+- Never use STL libraries. Use the templates in core/ or SDL3 wrappers instead.
 - Do not use char* for strings. Use the string library in core/String.h instead.
 - Don't generate markdown documentation for changes. Do not update README.md or any other documentation files with changes.
 - Do not run CodeQL or other security analysis tools.
 - Remove all whitespace from the end of lines in any files you modify.
 - Don't add new lua scenes unless I specifically request them.
-- Never check lua interface function parameter types to have multiple versions of a lua interface function. Update existing Lua function calls when refactoring.
+- Never add support for multiple types for parameters in the lua interface functions. Update existing Lua function calls when refactoring.
 - If you add a new Lua function, make sure to add it to the globalFunctions list in LuaInterface::loadScene().
 - Add lots of logging statements to help with debugging a post-crash application.
