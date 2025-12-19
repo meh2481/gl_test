@@ -939,52 +939,36 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
 
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(float) * 16;  // Updated: x,y,u,v,r,g,b,a,uvMinX,uvMinY,uvMaxX,uvMaxY,rotX,rotY,rotZ,size
+    bindingDescription.stride = sizeof(float) * 12;
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescriptions[6]{};
+    VkVertexInputAttributeDescription attributeDescriptions[4]{};
 
-    // Location 0: position (x, y)
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
     attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
     attributeDescriptions[0].offset = 0;
 
-    // Location 1: texture coords (u, v)
     attributeDescriptions[1].binding = 0;
     attributeDescriptions[1].location = 1;
     attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
     attributeDescriptions[1].offset = sizeof(float) * 2;
 
-    // Location 2: color (r, g, b, a)
     attributeDescriptions[2].binding = 0;
     attributeDescriptions[2].location = 2;
     attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
     attributeDescriptions[2].offset = sizeof(float) * 4;
 
-    // Location 3: UV bounds (uvMinX, uvMinY, uvMaxX, uvMaxY)
     attributeDescriptions[3].binding = 0;
     attributeDescriptions[3].location = 3;
     attributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
     attributeDescriptions[3].offset = sizeof(float) * 8;
 
-    // Location 4: rotation (rotX, rotY, rotZ)
-    attributeDescriptions[4].binding = 0;
-    attributeDescriptions[4].location = 4;
-    attributeDescriptions[4].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributeDescriptions[4].offset = sizeof(float) * 12;
-
-    // Location 5: size
-    attributeDescriptions[5].binding = 0;
-    attributeDescriptions[5].location = 5;
-    attributeDescriptions[5].format = VK_FORMAT_R32_SFLOAT;
-    attributeDescriptions[5].offset = sizeof(float) * 15;
-
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = 6;  // Updated from 4 to 6
+    vertexInputInfo.vertexAttributeDescriptionCount = 4;
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};

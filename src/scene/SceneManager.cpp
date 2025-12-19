@@ -204,30 +204,65 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                 float b = system->colorB[p] + (system->endColorB[p] - system->colorB[p]) * lifeRatio;
                 float a = system->colorA[p] + (system->endColorA[p] - system->endColorA[p]) * lifeRatio;
 
-                // Get rotation angles (all three axes for full 3D rotation)
+                // Get all three rotation angles for full 3D rotation
                 float rotX = system->rotX[p];
                 float rotY = system->rotY[p];
                 float rotZ = system->rotZ[p];
 
-                // Corner UVs in 0-1 space (to be used by shader to determine which corner)
-                // The shader will use these to calculate corner offsets and map to texture UVs
-                float cornerUVs[4][2] = {
-                    {0.0f, 0.0f},  // Bottom-left
-                    {1.0f, 0.0f},  // Bottom-right
-                    {1.0f, 1.0f},  // Top-right
-                    {0.0f, 1.0f}   // Top-left
+                // Build 3D rotation matrix (ZYX Euler order)
+                float cosX = SDL_cosf(rotX);
+                float sinX = SDL_sinf(rotX);
+                float cosY = SDL_cosf(rotY);
+                float sinY = SDL_sinf(rotY);
+                float cosZ = SDL_cosf(rotZ);
+                float sinZ = SDL_sinf(rotZ);
+
+                // Rotation matrix: Rz * Ry * Rx
+                // Column-major matrix elements for transforming a 3D point
+                float m00 = cosY * cosZ;
+                float m01 = cosX * sinZ + sinX * sinY * cosZ;
+                float m02 = sinX * sinZ - cosX * sinY * cosZ;
+                float m10 = -cosY * sinZ;
+                float m11 = cosX * cosZ - sinX * sinY * sinZ;
+                float m12 = sinX * cosZ + cosX * sinY * sinZ;
+                float m20 = sinY;
+                float m21 = -sinX * cosY;
+                float m22 = cosX * cosY;
+
+                // Quad corners in local space
+                float corners[4][2] = {
+                    {-halfSize, -halfSize},  // Bottom-left
+                    { halfSize, -halfSize},  // Bottom-right
+                    { halfSize,  halfSize},  // Top-right
+                    {-halfSize,  halfSize}   // Top-left
+                };
+
+                // UV coordinates using atlas UVs if available
+                float uvs[4][2] = {
+                    {texU0, texV1},  // Bottom-left
+                    {texU1, texV1},  // Bottom-right
+                    {texU1, texV0},  // Top-right
+                    {texU0, texV0}   // Top-left
                 };
 
                 uint16_t vertexBase = static_cast<uint16_t>(batch.vertices.size());
 
-                // Generate 4 vertices, all at the particle center position
-                // The shader will apply the rotation and offset to each corner
                 for (int v = 0; v < 4; ++v) {
+                    // Apply 3D rotation to corner (treating it as 3D point with z=0)
+                    float cx = corners[v][0];
+                    float cy = corners[v][1];
+                    float cz = 0.0f;
+
+                    // Transform by rotation matrix
+                    float rx = m00 * cx + m10 * cy + m20 * cz;
+                    float ry = m01 * cx + m11 * cy + m21 * cz;
+                    // rz = m02 * cx + m12 * cy + m22 * cz;  // Not needed for 2D projection
+
                     ParticleVertex vert;
-                    vert.x = x;  // Center position (shader will apply offset)
-                    vert.y = y;
-                    vert.u = cornerUVs[v][0];  // Corner identifier (0-1)
-                    vert.v = cornerUVs[v][1];
+                    vert.x = x + rx;
+                    vert.y = y + ry;
+                    vert.u = uvs[v][0];
+                    vert.v = uvs[v][1];
                     vert.r = r;
                     vert.g = g;
                     vert.b = b;
@@ -236,10 +271,6 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                     vert.uvMinY = texV0;
                     vert.uvMaxX = texU1;
                     vert.uvMaxY = texV1;
-                    vert.rotX = rotX;  // Pass rotation to shader
-                    vert.rotY = rotY;
-                    vert.rotZ = rotZ;
-                    vert.size = halfSize;  // Pass half-size to shader
                     batch.vertices.push_back(vert);
                 }
 

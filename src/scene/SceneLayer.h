@@ -59,12 +59,10 @@ struct SpriteBatch {
 
 // Particle vertex structure with position, texture coordinates, and color
 struct ParticleVertex {
-    float x, y;        // Position (center point)
-    float u, v;        // Texture coordinates (corner UV)
+    float x, y;        // Position
+    float u, v;        // Texture coordinates
     float r, g, b, a;  // Vertex color
     float uvMinX, uvMinY, uvMaxX, uvMaxY;  // UV bounds for atlas clamping
-    float rotX, rotY, rotZ;  // 3D rotation angles (Euler angles in radians)
-    float size;        // Particle size (half-width/height)
 };
 
 // Particle batch for a group of particles at a specific parallax depth
