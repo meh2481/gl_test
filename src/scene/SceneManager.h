@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stack>
+#include "../core/Stack.h"
 #include "../core/HashSet.h"
 #include "../resources/resource.h"
 #include "../vulkan/VulkanRenderer.h"
@@ -66,7 +66,7 @@ private:
     ParticleSystemManager* particleManager_;
     WaterEffectManager* waterEffectManager_;
     LuaInterface* luaInterface_;
-    std::stack<uint64_t> sceneStack_;
+    Stack<uint64_t> sceneStack_;
     HashSet<uint64_t> loadedScenes_;
     HashSet<uint64_t> initializedScenes_;
     bool pendingPop_;

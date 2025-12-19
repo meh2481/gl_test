@@ -16,7 +16,8 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
                            LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer)
     : allocator_(allocator), pakResource_(pakResource), renderer_(renderer), physics_(physics), layerManager_(layerManager),
       audioManager_(audioManager), particleManager_(particleManager), waterEffectManager_(waterEffectManager),
-      luaInterface_(luaInterface), loadedScenes_(*allocator, "SceneManager::loadedScenes_"),
+      luaInterface_(luaInterface), sceneStack_(*allocator, "SceneManager::sceneStack_"),
+      loadedScenes_(*allocator, "SceneManager::loadedScenes_"),
       initializedScenes_(*allocator, "SceneManager::initializedScenes_"), pendingPop_(false), particleEditorActive_(false),
       particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), consoleBuffer_(consoleBuffer)
 {
