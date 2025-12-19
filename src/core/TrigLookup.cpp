@@ -89,10 +89,26 @@ float TrigLookup::sin(float angle) const {
     assert(m_sinTable != nullptr);
     assert(m_numEntries > 0);
 
-    // Normalize angle to [0, 2*PI)
-    angle = fmodf(angle, TWO_PI);
+    // Fast angle normalization to [0, 2*PI) without fmodf
+    // Handle negative angles
     if (angle < 0.0f) {
+        // For small negative angles, just add 2*PI once
         angle += TWO_PI;
+        // For very negative angles, use fast integer division
+        if (angle < 0.0f) {
+            int wraps = (int)(angle / TWO_PI) - 1;
+            angle -= wraps * TWO_PI;
+        }
+    }
+    // Handle angles >= 2*PI
+    if (angle >= TWO_PI) {
+        // For small positive angles, subtract 2*PI once
+        angle -= TWO_PI;
+        // For very large angles, use fast integer division
+        if (angle >= TWO_PI) {
+            int wraps = (int)(angle / TWO_PI);
+            angle -= wraps * TWO_PI;
+        }
     }
 
     // Convert angle to table index (floating point)
@@ -102,8 +118,14 @@ float TrigLookup::sin(float angle) const {
     uint32_t index0 = (uint32_t)indexF;
     float frac = indexF - (float)index0;
 
-    // Wrap around for interpolation
-    uint32_t index1 = (index0 + 1) % m_numEntries;
+    // Clamp to valid range and handle wrap-around
+    if (index0 >= m_numEntries) {
+        index0 = m_numEntries - 1;
+    }
+    uint32_t index1 = index0 + 1;
+    if (index1 >= m_numEntries) {
+        index1 = 0;
+    }
 
     // Linear interpolation
     float val0 = m_sinTable[index0];
@@ -115,10 +137,26 @@ float TrigLookup::cos(float angle) const {
     assert(m_cosTable != nullptr);
     assert(m_numEntries > 0);
 
-    // Normalize angle to [0, 2*PI)
-    angle = fmodf(angle, TWO_PI);
+    // Fast angle normalization to [0, 2*PI) without fmodf
+    // Handle negative angles
     if (angle < 0.0f) {
+        // For small negative angles, just add 2*PI once
         angle += TWO_PI;
+        // For very negative angles, use fast integer division
+        if (angle < 0.0f) {
+            int wraps = (int)(angle / TWO_PI) - 1;
+            angle -= wraps * TWO_PI;
+        }
+    }
+    // Handle angles >= 2*PI
+    if (angle >= TWO_PI) {
+        // For small positive angles, subtract 2*PI once
+        angle -= TWO_PI;
+        // For very large angles, use fast integer division
+        if (angle >= TWO_PI) {
+            int wraps = (int)(angle / TWO_PI);
+            angle -= wraps * TWO_PI;
+        }
     }
 
     // Convert angle to table index (floating point)
@@ -128,8 +166,14 @@ float TrigLookup::cos(float angle) const {
     uint32_t index0 = (uint32_t)indexF;
     float frac = indexF - (float)index0;
 
-    // Wrap around for interpolation
-    uint32_t index1 = (index0 + 1) % m_numEntries;
+    // Clamp to valid range and handle wrap-around
+    if (index0 >= m_numEntries) {
+        index0 = m_numEntries - 1;
+    }
+    uint32_t index1 = index0 + 1;
+    if (index1 >= m_numEntries) {
+        index1 = 0;
+    }
 
     // Linear interpolation
     float val0 = m_cosTable[index0];
@@ -142,10 +186,26 @@ void TrigLookup::sincos(float angle, float& outSin, float& outCos) const {
     assert(m_cosTable != nullptr);
     assert(m_numEntries > 0);
 
-    // Normalize angle to [0, 2*PI)
-    angle = fmodf(angle, TWO_PI);
+    // Fast angle normalization to [0, 2*PI) without fmodf
+    // Handle negative angles
     if (angle < 0.0f) {
+        // For small negative angles, just add 2*PI once
         angle += TWO_PI;
+        // For very negative angles, use fast integer division
+        if (angle < 0.0f) {
+            int wraps = (int)(angle / TWO_PI) - 1;
+            angle -= wraps * TWO_PI;
+        }
+    }
+    // Handle angles >= 2*PI
+    if (angle >= TWO_PI) {
+        // For small positive angles, subtract 2*PI once
+        angle -= TWO_PI;
+        // For very large angles, use fast integer division
+        if (angle >= TWO_PI) {
+            int wraps = (int)(angle / TWO_PI);
+            angle -= wraps * TWO_PI;
+        }
     }
 
     // Convert angle to table index (floating point)
@@ -155,8 +215,14 @@ void TrigLookup::sincos(float angle, float& outSin, float& outCos) const {
     uint32_t index0 = (uint32_t)indexF;
     float frac = indexF - (float)index0;
 
-    // Wrap around for interpolation
-    uint32_t index1 = (index0 + 1) % m_numEntries;
+    // Clamp to valid range and handle wrap-around
+    if (index0 >= m_numEntries) {
+        index0 = m_numEntries - 1;
+    }
+    uint32_t index1 = index0 + 1;
+    if (index1 >= m_numEntries) {
+        index1 = 0;
+    }
 
     // Linear interpolation for sin
     float sin0 = m_sinTable[index0];
