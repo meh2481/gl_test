@@ -183,6 +183,10 @@ private:
     static int setCameraOffset(lua_State* L);
     static int setCameraZoom(lua_State* L);
 
+    // Scene transition Lua bindings
+    static int setTransitionFadeTime(lua_State* L);
+    static int setTransitionColor(lua_State* L);
+
     // Light management Lua bindings
     static int addLight(lua_State* L);
     static int updateLight(lua_State* L);

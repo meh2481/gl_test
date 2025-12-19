@@ -224,6 +224,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "audioSetListenerOrientation", "audioSetGlobalVolume", "audioSetGlobalEffect",
                                      "getCursorPosition",
                                      "setCameraOffset", "setCameraZoom",
+                                     "setTransitionFadeTime", "setTransitionColor",
                                      "addLight", "updateLight", "removeLight", "setAmbientLight",
                                      "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "loadParticleShaders",
                                      "openParticleEditor", "loadParticleConfig", "loadObject", "createNode", "getNode", "destroyNode", "getNodePosition",
@@ -717,6 +718,10 @@ void LuaInterface::registerFunctions() {
     // Register camera functions
     lua_register(luaState_, "setCameraOffset", setCameraOffset);
     lua_register(luaState_, "setCameraZoom", setCameraZoom);
+
+    // Register scene transition functions
+    lua_register(luaState_, "setTransitionFadeTime", setTransitionFadeTime);
+    lua_register(luaState_, "setTransitionColor", setTransitionColor);
 
     // Register light management functions
     lua_register(luaState_, "addLight", addLight);
@@ -2539,6 +2544,54 @@ int LuaInterface::setCameraZoom(lua_State* L) {
     if (zoom > 0.0f) {
         interface->cameraZoom_ = zoom;
     }
+    return 0;
+}
+
+// Scene transition Lua bindings
+
+int LuaInterface::setTransitionFadeTime(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    float fadeOutTime = lua_tonumber(L, 1);
+    float fadeInTime = lua_tonumber(L, 2);
+
+    if (fadeOutTime >= 0.0f && fadeInTime >= 0.0f) {
+        interface->sceneManager_->setTransitionFadeTime(fadeOutTime, fadeInTime);
+    }
+
+    return 0;
+}
+
+int LuaInterface::setTransitionColor(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 3);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+    assert(lua_isnumber(L, 3));
+
+    float r = lua_tonumber(L, 1);
+    float g = lua_tonumber(L, 2);
+    float b = lua_tonumber(L, 3);
+
+    // Clamp values to valid range
+    if (r < 0.0f) r = 0.0f;
+    if (r > 1.0f) r = 1.0f;
+    if (g < 0.0f) g = 0.0f;
+    if (g > 1.0f) g = 1.0f;
+    if (b < 0.0f) b = 0.0f;
+    if (b > 1.0f) b = 1.0f;
+
+    interface->sceneManager_->setTransitionColor(r, g, b);
+
     return 0;
 }
 
