@@ -12,8 +12,8 @@
 #include <cassert>
 
 // Default scene transition times (in seconds) - fade to/from black
-static const float DEFAULT_FADE_OUT_TIME = 0.0625f;  // 62.5ms fade-out
-static const float DEFAULT_FADE_IN_TIME = 0.0625f;   // 62.5ms fade-in
+static const float DEFAULT_FADE_OUT_TIME = 0.25f;  // 250ms fade-out
+static const float DEFAULT_FADE_IN_TIME = 0.25f;   // 250ms fade-in
 
 SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource, VulkanRenderer& renderer,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,

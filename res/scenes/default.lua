@@ -2,6 +2,8 @@
 function init()
     -- Load the nebula shaders (z-index 0)
     loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", 0)
+    -- Disable transition fade
+    setTransitionFadeTime(0, 0)
     time = 0
     menuPushed = false
 end
