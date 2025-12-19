@@ -119,8 +119,33 @@ static int hotReloadThread(void *data)
 }
 #endif
 
+// Custom SDL log output function that writes to stdout
+static void customLogOutput(void* userdata, int category, SDL_LogPriority priority, const char* message)
+{
+    (void)userdata;
+    (void)category;
+
+    const char* priorityStr = "INFO";
+    switch (priority)
+    {
+        case SDL_LOG_PRIORITY_VERBOSE: priorityStr = "VERBOSE"; break;
+        case SDL_LOG_PRIORITY_DEBUG:   priorityStr = "DEBUG";   break;
+        case SDL_LOG_PRIORITY_INFO:    priorityStr = "INFO";    break;
+        case SDL_LOG_PRIORITY_WARN:    priorityStr = "WARN";    break;
+        case SDL_LOG_PRIORITY_ERROR:   priorityStr = "ERROR";   break;
+        case SDL_LOG_PRIORITY_CRITICAL: priorityStr = "CRITICAL"; break;
+        default: break;
+    }
+
+    fprintf(stdout, "[%s] %s\n", priorityStr, message);
+    fflush(stdout);
+}
+
 int main()
 {
+    // Set custom log output function to write to stdout before any SDL_Log calls
+    SDL_SetLogOutputFunction(customLogOutput, nullptr);
+
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     {
         SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s", SDL_GetError());
