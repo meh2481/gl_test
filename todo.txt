@@ -5,3 +5,5 @@
 * std::unordered_set
 * std::array - Shader params, shader ripples
 * std::set
+* Log should go to file too (replace)
+
