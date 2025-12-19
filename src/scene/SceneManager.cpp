@@ -202,7 +202,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                 float r = system->colorR[p] + (system->endColorR[p] - system->colorR[p]) * lifeRatio;
                 float g = system->colorG[p] + (system->endColorG[p] - system->colorG[p]) * lifeRatio;
                 float b = system->colorB[p] + (system->endColorB[p] - system->colorB[p]) * lifeRatio;
-                float a = system->colorA[p] + (system->endColorA[p] - system->endColorA[p]) * lifeRatio;
+                float a = system->colorA[p] + (system->endColorA[p] - system->colorA[p]) * lifeRatio;
 
                 // Get all three rotation angles for full 3D rotation
                 float rotX = system->rotX[p];
