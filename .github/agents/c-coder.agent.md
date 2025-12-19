@@ -22,6 +22,6 @@ Build the project with the correct PKG_CONFIG_PATH and CMAKE_PREFIX_PATH to use 
 - Do not run CodeQL or other security analysis tools.
 - Remove all whitespace from the end of lines in any files you modify.
 - Don't add new lua scenes unless I specifically request them.
-- Never add support for multiple types for parameters in the lua interface functions. Update existing Lua function calls when refactoring.
+- Never prioritize backwards compatibility. This is an in-progress project.
 - If you add a new Lua function, make sure to add it to the globalFunctions list in LuaInterface::loadScene().
 - Add lots of logging statements to help with debugging a post-crash application.
