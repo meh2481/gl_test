@@ -10,6 +10,10 @@
 #include <SDL3/SDL.h>
 #include <cassert>
 
+// Default scene transition times (in seconds) - fade to/from black
+static const float DEFAULT_FADE_OUT_TIME = 0.25f;  // 250ms fade-out
+static const float DEFAULT_FADE_IN_TIME = 0.25f;   // 250ms fade-in
+
 SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource, VulkanRenderer& renderer,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                            ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
@@ -19,7 +23,7 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
       luaInterface_(luaInterface), sceneStack_(*allocator, "SceneManager::sceneStack_"),
       loadedScenes_(*allocator, "SceneManager::loadedScenes_"),
       initializedScenes_(*allocator, "SceneManager::initializedScenes_"), pendingPop_(false),
-      transitionState_(TRANSITION_NONE), transitionTimer_(0.0f), fadeOutTime_(0.25f), fadeInTime_(0.25f),
+      transitionState_(TRANSITION_NONE), transitionTimer_(0.0f), fadeOutTime_(DEFAULT_FADE_OUT_TIME), fadeInTime_(DEFAULT_FADE_IN_TIME),
       fadeColorR_(0.0f), fadeColorG_(0.0f), fadeColorB_(0.0f),
       pendingSceneId_(0), pendingScenePush_(false),
       particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1),

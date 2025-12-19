@@ -20,6 +20,7 @@ function onAction(action)
     end
     if action == ACTION_MENU then
         -- Test transition by pushing menu scene
+        -- Note: This depends on res/scenes/menu.lua existing in the project
         pushScene("res/scenes/menu.lua")
     end
 end

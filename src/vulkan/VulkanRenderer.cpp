@@ -1484,7 +1484,11 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     if (m_fadeOverlayAlpha > 0.0f && m_pipelineManager.getDebugTrianglePipeline() != VK_NULL_HANDLE) {
         // Create a fullscreen quad with the fade color
         // Two triangles covering the entire screen in NDC coordinates
-        float fadeVertices[] = {
+        const int FADE_VERTEX_COUNT = 6; // 2 triangles = 6 vertices
+        const int FADE_FLOATS_PER_VERTEX = 6; // x, y, r, g, b, a
+        const int FADE_TOTAL_FLOATS = FADE_VERTEX_COUNT * FADE_FLOATS_PER_VERTEX;
+
+        float fadeVertices[FADE_TOTAL_FLOATS] = {
             // Triangle 1: bottom-left, bottom-right, top-right
             -1.0f, -1.0f, m_fadeOverlayR, m_fadeOverlayG, m_fadeOverlayB, m_fadeOverlayAlpha,
              1.0f, -1.0f, m_fadeOverlayR, m_fadeOverlayG, m_fadeOverlayB, m_fadeOverlayAlpha,
@@ -1497,13 +1501,13 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 
         // Create a Vector wrapper for the fade vertices
         Vector<float> fadeVertexVector(*m_allocator, "VulkanRenderer::fadeOverlay");
-        fadeVertexVector.reserve(36);
-        for (int i = 0; i < 36; ++i) {
+        fadeVertexVector.reserve(FADE_TOTAL_FLOATS);
+        for (int i = 0; i < FADE_TOTAL_FLOATS; ++i) {
             fadeVertexVector.push_back(fadeVertices[i]);
         }
 
         // Update the fade overlay buffer
-        m_bufferManager.updateDynamicVertexBuffer(m_fadeOverlayBuffer, fadeVertexVector, 6);
+        m_bufferManager.updateDynamicVertexBuffer(m_fadeOverlayBuffer, fadeVertexVector, FADE_FLOATS_PER_VERTEX);
 
         if (m_fadeOverlayBuffer.buffer != VK_NULL_HANDLE && m_fadeOverlayBuffer.count > 0) {
             VkBuffer buffers[] = {m_fadeOverlayBuffer.buffer};
