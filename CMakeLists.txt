@@ -71,10 +71,6 @@ add_custom_target(shaders DEPENDS ${SHADER_FILES})
 add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
 target_link_libraries(packer ${LZ4_LIBRARIES} ${PNG_LIBRARIES} squish)
 
-add_executable(test_trig tools/test_trig.cpp src/core/TrigLookup.cpp src/resources/resource.cpp src/memory/LargeMemoryAllocator.cpp src/memory/SmallAllocator.cpp src/core/String.cpp)
-target_link_libraries(test_trig ${LZ4_LIBRARIES} ${SDL3_LIBRARIES})
-add_dependencies(test_trig res_pak)
-
 file(GLOB_RECURSE RES_FILES
     "${CMAKE_SOURCE_DIR}/res/*.png"
     "${CMAKE_SOURCE_DIR}/res/*.opus"
