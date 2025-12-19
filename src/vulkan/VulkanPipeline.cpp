@@ -1203,7 +1203,7 @@ void VulkanPipeline::destroyPipeline(uint64_t id) {
         m_pipelines.remove(id);
     }
     m_debugPipelines.remove(id);
-    
+
     // Delete the dynamically allocated PipelineInfo
     PipelineInfo** infoPtrPtr = m_pipelineInfo.find(id);
     if (infoPtrPtr != nullptr) {
