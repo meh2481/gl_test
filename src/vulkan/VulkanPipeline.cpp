@@ -1129,11 +1129,11 @@ void VulkanPipeline::setShaderParameters(int pipelineId, int paramCount, const f
     m_pipelineShaderParamCount.insert(pipelineId, paramCount);
 
     // Check if we need to allocate a new Vector or reuse existing one
-    Vector<float>** existingVecPtr = m_pipelineShaderParams.find(pipelineId);
+    Vector<float>** foundVecPtr = m_pipelineShaderParams.find(pipelineId);
     Vector<float>* paramsVec = nullptr;
 
-    if (existingVecPtr != nullptr) {
-        paramsVec = *existingVecPtr;
+    if (foundVecPtr != nullptr) {
+        paramsVec = *foundVecPtr;
         paramsVec->clear();
     } else {
         void* vecMem = m_allocator->allocate(sizeof(Vector<float>), "VulkanPipeline::setShaderParameters::Vector");
@@ -1178,11 +1178,11 @@ void VulkanPipeline::setWaterRipples(int pipelineId, int rippleCount, const Shad
     m_pipelineWaterRippleCount.insert(pipelineId, rippleCount);
 
     // Check if we need to allocate a new Vector or reuse existing one
-    Vector<ShaderRippleData>** existingVecPtr = m_pipelineWaterRipples.find(pipelineId);
+    Vector<ShaderRippleData>** foundVecPtr = m_pipelineWaterRipples.find(pipelineId);
     Vector<ShaderRippleData>* ripplesVec = nullptr;
 
-    if (existingVecPtr != nullptr) {
-        ripplesVec = *existingVecPtr;
+    if (foundVecPtr != nullptr) {
+        ripplesVec = *foundVecPtr;
         ripplesVec->clear();
     } else {
         void* vecMem = m_allocator->allocate(sizeof(Vector<ShaderRippleData>), "VulkanPipeline::setWaterRipples::Vector");
