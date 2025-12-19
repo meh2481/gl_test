@@ -41,7 +41,7 @@ static const char* vkResultToString(VkResult result) {
     do { \
         VkResult res = (result); \
         if (res != VK_SUCCESS) { \
-            std::cerr << "Vulkan error in " << msg << ": " << vkResultToString(res) << std::endl; \
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Vulkan error in %s: %s", msg, vkResultToString(res)); \
             assert(res == VK_SUCCESS); \
         } \
     } while(0)
@@ -57,7 +57,7 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
 }
 
 VulkanRenderer::VulkanRenderer(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer) :
-    m_textureManager(allocator),
+    m_textureManager(allocator, consoleBuffer),
     m_descriptorManager(allocator),
     m_pipelineManager(allocator),
     m_lightManager(allocator),
@@ -500,10 +500,9 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
         }
 
         int score = rateDevice(devices[i]);
-        std::cout << "  [" << i << "] " << props.deviceName
-                  << " (" << deviceTypeStr << ")"
-                  << " - " << (maxDeviceLocalMemory / (1024 * 1024)) << " MB"
-                  << " - Score: " << score << std::endl;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  [%d] %s (%s) - %llu MB - Score: %d", 
+                             i, props.deviceName, deviceTypeStr, 
+                             (unsigned long long)(maxDeviceLocalMemory / (1024 * 1024)), score);
     }
 
     VkPhysicalDevice bestDevice = VK_NULL_HANDLE;
@@ -515,10 +514,9 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
             bestDevice = devices[preferredGpuIndex];
             bestScore = rateDevice(devices[preferredGpuIndex]);
             selectedIndex = preferredGpuIndex;
-            std::cout << "Using user-specified GPU at index " << preferredGpuIndex << std::endl;
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Using user-specified GPU at index %d", preferredGpuIndex);
         } else {
-            std::cout << "Warning: User-specified GPU at index " << preferredGpuIndex
-                      << " is not suitable, falling back to auto-selection" << std::endl;
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Warning: User-specified GPU at index %d is not suitable, falling back to auto-selection", preferredGpuIndex);
         }
     }
 
@@ -541,8 +539,7 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
 
     VkPhysicalDeviceProperties props{};
     vkGetPhysicalDeviceProperties(bestDevice, &props);
-    std::cout << "Selected Vulkan device: " << props.deviceName
-              << " (index " << m_selectedGpuIndex << ")" << std::endl;
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Selected Vulkan device: %s (index %d)", props.deviceName, m_selectedGpuIndex);
 
     m_physicalDevice = bestDevice;
 }
@@ -1494,7 +1491,7 @@ void VulkanRenderer::enableReflection(float surfaceY) {
     createReflectionResources();
     m_reflectionEnabled = true;
 
-    std::cout << "Reflection enabled at surface Y=" << surfaceY << std::endl;
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Reflection enabled at surface Y=%f", surfaceY);
 }
 
 void VulkanRenderer::disableReflection() {
@@ -1577,7 +1574,7 @@ void VulkanRenderer::createReflectionResources() {
         assert(result == VK_SUCCESS);
     }
 
-    std::cout << "Created reflection resources: " << m_swapchainExtent.width << "x" << m_swapchainExtent.height << std::endl;
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Created reflection resources: %dx%d", m_swapchainExtent.width, m_swapchainExtent.height);
 }
 
 void VulkanRenderer::destroyReflectionResources() {

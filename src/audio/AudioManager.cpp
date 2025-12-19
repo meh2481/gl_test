@@ -233,7 +233,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
     } else if (channels == 2 && bitsPerSample == 16) {
         format = AL_FORMAT_STEREO16;
     } else {
-        std::cerr << "Unsupported audio format: " << channels << " channels, " << bitsPerSample << " bits" << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Unsupported audio format: %d channels, %d bits", channels, bitsPerSample);
         assert(false);
         return -1;
     }
@@ -242,7 +242,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
     alGenBuffers(1, &buffers[slot].buffer);
     ALenum error = alGetError();
     if (error != AL_NO_ERROR) {
-        std::cerr << "Failed to generate audio buffer: " << error << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to generate audio buffer: %d", error);
         assert(false);
         return -1;
     }
@@ -251,7 +251,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
     alBufferData(buffers[slot].buffer, format, data, size, sampleRate);
     error = alGetError();
     if (error != AL_NO_ERROR) {
-        std::cerr << "Failed to upload audio data: " << error << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to upload audio data: %d", error);
         alDeleteBuffers(1, &buffers[slot].buffer);
         assert(false);
         return -1;
@@ -269,7 +269,7 @@ int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
     OggOpusFile* opusFile = op_open_memory((const unsigned char*)data, size, &error);
 
     if (!opusFile || error != 0) {
-        std::cerr << "Failed to open OPUS data from memory, error code: " << error << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to open OPUS data from memory, error code: %d", error);
         assert(false);
         return -1;
     }
@@ -299,7 +299,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to get OPUS header");
     }
 
     if (samplesRead < 0) {
-        std::cerr << "Error reading OPUS data: " << samplesRead << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Error reading OPUS data: %d", samplesRead);
         op_free(opusFile);
         assert(false);
         return -1;
@@ -322,7 +322,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No audio data decoded from OPUS");
 
 int AudioManager::createAudioSource(int bufferId, bool looping, float volume) {
     if (bufferId < 0 || bufferId >= MAX_AUDIO_BUFFERS || !buffers[bufferId].loaded) {
-        std::cerr << "Invalid buffer ID: " << bufferId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Invalid buffer ID: %d", bufferId);
         assert(false);
         return -1;
     }
@@ -338,7 +338,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free source slots available");
     alGenSources(1, &sources[slot].source);
     ALenum error = alGetError();
     if (error != AL_NO_ERROR) {
-        std::cerr << "Failed to generate audio source: " << error << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to generate audio source: %d", error);
         assert(false);
         return -1;
     }
@@ -374,7 +374,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free source slots available");
 
 void AudioManager::playSource(int sourceId) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
-        std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Invalid source ID: %d", sourceId);
         assert(false);
         return;
     }
@@ -384,7 +384,7 @@ void AudioManager::playSource(int sourceId) {
 
 void AudioManager::stopSource(int sourceId) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
-        std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Invalid source ID: %d", sourceId);
         assert(false);
         return;
     }
@@ -394,7 +394,7 @@ void AudioManager::stopSource(int sourceId) {
 
 void AudioManager::pauseSource(int sourceId) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
-        std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Invalid source ID: %d", sourceId);
         assert(false);
         return;
     }
@@ -404,7 +404,7 @@ void AudioManager::pauseSource(int sourceId) {
 
 void AudioManager::setSourcePosition(int sourceId, float x, float y, float z) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
-        std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Invalid source ID: %d", sourceId);
         assert(false);
         return;
     }
@@ -417,7 +417,7 @@ void AudioManager::setSourcePosition(int sourceId, float x, float y, float z) {
 
 void AudioManager::setSourceVelocity(int sourceId, float vx, float vy, float vz) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
-        std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Invalid source ID: %d", sourceId);
         assert(false);
         return;
     }
@@ -427,7 +427,7 @@ void AudioManager::setSourceVelocity(int sourceId, float vx, float vy, float vz)
 
 void AudioManager::setSourceVolume(int sourceId, float volume) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
-        std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Invalid source ID: %d", sourceId);
         assert(false);
         return;
     }
@@ -438,7 +438,7 @@ void AudioManager::setSourceVolume(int sourceId, float volume) {
 
 void AudioManager::setSourcePitch(int sourceId, float pitch) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
-        std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Invalid source ID: %d", sourceId);
         assert(false);
         return;
     }
@@ -448,7 +448,7 @@ void AudioManager::setSourcePitch(int sourceId, float pitch) {
 
 void AudioManager::setSourceLooping(int sourceId, bool looping) {
     if (sourceId < 0 || sourceId >= MAX_AUDIO_SOURCES || !sources[sourceId].active) {
-        std::cerr << "Invalid source ID: " << sourceId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Invalid source ID: %d", sourceId);
         assert(false);
         return;
     }

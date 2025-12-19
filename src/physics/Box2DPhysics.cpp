@@ -333,7 +333,7 @@ void Box2DPhysics::destroyBody(int bodyId) {
         stringAllocator_->free(vec);  // Free through allocator
         bodyTypes_.remove(bodyId);
     }
-    std::cerr << "Box2DPhysics: Destroyed body " << bodyId << ", cleared body types" << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics: Destroyed body %d, cleared body types", bodyId);
 
     SDL_UnlockMutex(physicsMutex_);
 }
@@ -2070,7 +2070,7 @@ void Box2DPhysics::reset() {
     destructibleBodyLayers_.clear();
 
     // Clear body types to free String memory
-    std::cerr << "Box2DPhysics: Clearing " << bodyTypes_.size() << " body type entries" << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics: Clearing %zu body type entries", bodyTypes_.size());
     for (auto it = bodyTypes_.begin(); it != bodyTypes_.end(); ++it) {
         Vector<String>* vec = it.value();
         assert(vec != nullptr);
@@ -2123,7 +2123,7 @@ void Box2DPhysics::getAllDynamicBodyInfo(int* bodyIds, float* posX, float* posY,
 
 void Box2DPhysics::addBodyType(int bodyId, const char* type) {
     SDL_LockMutex(physicsMutex_);
-    std::cout << "Box2DPhysics::addBodyType: bodyId=" << bodyId << ", type=" << type << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::addBodyType: bodyId=%d, type=%s", bodyId, type);
     Vector<String>** it = bodyTypes_.find(bodyId);
     if (it == nullptr) {
         // Create new vector for this body - allocate through allocator using placement new
@@ -2133,7 +2133,7 @@ void Box2DPhysics::addBodyType(int bodyId, const char* type) {
         String typeStr(type, stringAllocator_);
         types->push_back(typeStr);
         bodyTypes_.insertNew(bodyId, types);
-        std::cout << "Box2DPhysics::addBodyType: created new vector with type " << type << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::addBodyType: created new vector with type %s", type);
     } else {
         assert(*it != nullptr);
         Vector<String>* types = *it;
@@ -2147,9 +2147,9 @@ void Box2DPhysics::addBodyType(int bodyId, const char* type) {
         }
         if (!found) {
             types->push_back(typeStr);
-            std::cout << "Box2DPhysics::addBodyType: added type " << type << " to existing vector" << std::endl;
+            consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::addBodyType: added type %s to existing vector", type);
         } else {
-            std::cout << "Box2DPhysics::addBodyType: type " << type << " already exists" << std::endl;
+            consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::addBodyType: type %s already exists", type);
         }
     }
     SDL_UnlockMutex(physicsMutex_);
@@ -2157,7 +2157,7 @@ void Box2DPhysics::addBodyType(int bodyId, const char* type) {
 
 void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
     SDL_LockMutex(physicsMutex_);
-    std::cout << "Box2DPhysics::removeBodyType: bodyId=" << bodyId << ", type=" << type << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::removeBodyType: bodyId=%d, type=%s", bodyId, type);
     Vector<String>** it = bodyTypes_.find(bodyId);
     if (it != nullptr) {
         assert(*it != nullptr);
@@ -2166,7 +2166,7 @@ void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
         for (size_t i = 0; i < types->size(); ) {
             if ((*types)[i] == typeStr) {
                 types->erase(i);
-                std::cout << "Box2DPhysics::removeBodyType: removed type " << type << std::endl;
+                consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::removeBodyType: removed type %s", type);
             } else {
                 ++i;
             }
@@ -2183,7 +2183,7 @@ void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
 
 void Box2DPhysics::clearBodyTypes(int bodyId) {
     SDL_LockMutex(physicsMutex_);
-    std::cout << "Box2DPhysics::clearBodyTypes: bodyId=" << bodyId << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::clearBodyTypes: bodyId=%d", bodyId);
     Vector<String>** it = bodyTypes_.find(bodyId);
     if (it != nullptr) {
         assert(*it != nullptr);
@@ -2191,7 +2191,7 @@ void Box2DPhysics::clearBodyTypes(int bodyId) {
         vec->~Vector();  // Call destructor
         stringAllocator_->free(vec);  // Free through allocator
         bodyTypes_.remove(bodyId);
-        std::cout << "Box2DPhysics::clearBodyTypes: deleted vector for bodyId " << bodyId << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::clearBodyTypes: deleted vector for bodyId %d", bodyId);
     }
     SDL_UnlockMutex(physicsMutex_);
 }
@@ -2217,7 +2217,7 @@ bool Box2DPhysics::bodyHasType(int bodyId, const char* type) const {
 
 Vector<String> Box2DPhysics::getBodyTypes(int bodyId) const {
     SDL_LockMutex(physicsMutex_);
-    std::cout << "Box2DPhysics::getBodyTypes: bodyId=" << bodyId << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::getBodyTypes: bodyId=%d", bodyId);
     Vector<String>* const* it = bodyTypes_.find(bodyId);
     Vector<String> result(*stringAllocator_, "Box2DPhysics::getBodyTypes::result");
     if (it != nullptr) {
@@ -2226,7 +2226,7 @@ Vector<String> Box2DPhysics::getBodyTypes(int bodyId) const {
         for (const auto& t : *types) {
             result.push_back(t);
         }
-        std::cout << "Box2DPhysics::getBodyTypes: returning " << result.size() << " types" << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::getBodyTypes: returning %zu types", result.size());
     }
     SDL_UnlockMutex(physicsMutex_);
     return result;
