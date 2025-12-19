@@ -119,7 +119,10 @@ static int hotReloadThread(void *data)
 }
 #endif
 
-// Custom SDL log output function that writes to stdout and stderr
+// Global log file handle
+static SDL_IOStream* g_logFile = nullptr;
+
+// Custom SDL log output function that writes to stdout, stderr, and log file
 static void customLogOutput(void* userdata, int category, SDL_LogPriority priority, const char* message)
 {
     (void)userdata;
@@ -137,9 +140,20 @@ static void customLogOutput(void* userdata, int category, SDL_LogPriority priori
         default: break;
     }
 
-    // Write to both stdout and stderr to ensure visibility
-    fprintf(stdout, "[%s] %s\n", priorityStr, message);
+    // Format the log message
+    char logLine[2048];
+    SDL_snprintf(logLine, sizeof(logLine), "[%s] %s\n", priorityStr, message);
+
+    // Write to stdout
+    fprintf(stdout, "%s", logLine);
     fflush(stdout);
+
+    // Write to log file if open
+    if (g_logFile)
+    {
+        SDL_WriteIO(g_logFile, logLine, SDL_strlen(logLine));
+        SDL_FlushIO(g_logFile);
+    }
 }
 
 int main()
@@ -152,6 +166,20 @@ int main()
     {
         SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s", SDL_GetError());
         assert(false);
+    }
+
+    // Open log file in the same directory as config files
+    char* prefPath = SDL_GetPrefPath("RetSphinxEngine", "ShaderTriangle");
+    if (prefPath)
+    {
+        char logFilePath[1024];
+        SDL_snprintf(logFilePath, sizeof(logFilePath), "%slast_run.log", prefPath);
+        g_logFile = SDL_IOFromFile(logFilePath, "w");
+        if (g_logFile)
+        {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Logging to: %s", logFilePath);
+        }
+        SDL_free(prefPath);
     }
 
     // Create single allocator instances for the entire application
@@ -764,6 +792,13 @@ int main()
 
         SDL_DestroyWindow(window);
     } // End scope - destroy all objects using allocators before allocators are destroyed
+
+    // Close log file
+    if (g_logFile)
+    {
+        SDL_CloseIO(g_logFile);
+        g_logFile = nullptr;
+    }
 
     SDL_Quit();
     return 0;
