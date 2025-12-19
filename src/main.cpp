@@ -120,7 +120,7 @@ static int hotReloadThread(void *data)
 #endif
 
 // Custom SDL log output function that writes to stdout and stderr
-static void SDLCALL customLogOutput(void* userdata, int category, SDL_LogPriority priority, const char* message)
+static void customLogOutput(void* userdata, int category, SDL_LogPriority priority, const char* message)
 {
     (void)userdata;
     (void)category;
@@ -139,15 +139,14 @@ static void SDLCALL customLogOutput(void* userdata, int category, SDL_LogPriorit
 
     // Write to both stdout and stderr to ensure visibility
     fprintf(stdout, "[%s] %s\n", priorityStr, message);
-    fprintf(stderr, "[%s] %s\n", priorityStr, message);
     fflush(stdout);
-    fflush(stderr);
 }
 
 int main()
 {
     // Set custom log output function to write to stdout before any SDL_Log calls
     SDL_SetLogOutputFunction(customLogOutput, nullptr);
+    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     {
