@@ -119,8 +119,8 @@ static int hotReloadThread(void *data)
 }
 #endif
 
-// Custom SDL log output function that writes to stdout
-static void customLogOutput(void* userdata, int category, SDL_LogPriority priority, const char* message)
+// Custom SDL log output function that writes to stdout and stderr
+static void SDLCALL customLogOutput(void* userdata, int category, SDL_LogPriority priority, const char* message)
 {
     (void)userdata;
     (void)category;
@@ -137,8 +137,11 @@ static void customLogOutput(void* userdata, int category, SDL_LogPriority priori
         default: break;
     }
 
+    // Write to both stdout and stderr to ensure visibility
     fprintf(stdout, "[%s] %s\n", priorityStr, message);
+    fprintf(stderr, "[%s] %s\n", priorityStr, message);
     fflush(stdout);
+    fflush(stderr);
 }
 
 int main()
