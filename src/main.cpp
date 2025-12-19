@@ -314,6 +314,11 @@ int main()
         new (renderer) VulkanRenderer(&smallAllocator, consoleBuffer);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created VulkanRenderer" << ConsoleBuffer::endl;
 
+        renderer->initialize(window, config.gpuIndex);
+
+        // Update config with the selected GPU index
+        config.gpuIndex = renderer->getSelectedGpuIndex();
+
         // Allocate VibrationManager
         VibrationManager *vibrationManager = static_cast<VibrationManager *>(
             smallAllocator.allocate(sizeof(VibrationManager), "main::VibrationManager"));
@@ -340,11 +345,6 @@ int main()
         // Set SceneManager pointer in LuaInterface after SceneManager is created
         luaInterface->setSceneManager(sceneManager);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created SceneManager and linked with LuaInterface" << ConsoleBuffer::endl;
-
-        renderer->initialize(window, config.gpuIndex);
-
-        // Update config with the selected GPU index
-        config.gpuIndex = renderer->getSelectedGpuIndex();
 
         // Allocate KeybindingManager
         KeybindingManager *keybindings = static_cast<KeybindingManager *>(
