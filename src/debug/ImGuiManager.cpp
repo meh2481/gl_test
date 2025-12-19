@@ -2,6 +2,7 @@
 
 #include "ImGuiManager.h"
 #include "../vulkan/VulkanRenderer.h"
+#include "../core/TrigLookup.h"
 #include "ConsoleBuffer.h"
 #include "../resources/resource.h"
 #include "../scene/SceneManager.h"
@@ -19,15 +20,17 @@ static void check_vk_result(VkResult err) {
     assert(err == VK_SUCCESS);
 }
 
-ImGuiManager::ImGuiManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
+ImGuiManager::ImGuiManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup)
     : initialized_(false)
     , device_(VK_NULL_HANDLE)
     , imguiPool_(VK_NULL_HANDLE)
     , imguiTextureCache_(*allocator, "ImGuiManager::imguiTextureCache_")
     , stringAllocator_(allocator)
-    , consoleBuffer_(consoleBuffer) {
+    , consoleBuffer_(consoleBuffer)
+    , trigLookup_(trigLookup) {
     assert(stringAllocator_ != nullptr);
     assert(consoleBuffer_ != nullptr);
+    assert(trigLookup_ != nullptr);
     *consoleBuffer_ << SDL_LOG_PRIORITY_INFO << "ImGuiManager: Using shared memory allocator" << ConsoleBuffer::endl;
     initializeParticleEditorDefaults();
 }
@@ -692,8 +695,10 @@ void ImGuiManager::showEmissionPolygonEditor() {
         cfg.emissionVertexCount = 8;
         for (int i = 0; i < 8; ++i) {
             float angle = (float)i * 6.28318f / 8.0f;
-            cfg.emissionVertices[i * 2] = cosf(angle) * 0.5f;
-            cfg.emissionVertices[i * 2 + 1] = sinf(angle) * 0.5f;
+            float sinVal, cosVal;
+            trigLookup_->sincos(angle, sinVal, cosVal);
+            cfg.emissionVertices[i * 2] = cosVal * 0.5f;
+            cfg.emissionVertices[i * 2 + 1] = sinVal * 0.5f;
         }
     }
     ImGui::SameLine();

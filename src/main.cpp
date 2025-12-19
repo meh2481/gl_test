@@ -10,6 +10,7 @@
 #include "vulkan/VulkanRenderer.h"
 #include "scene/SceneManager.h"
 #include "core/config.h"
+#include "core/TrigLookup.h"
 #include "input/InputActions.h"
 #include "input/VibrationManager.h"
 #include "scene/LuaInterface.h"
@@ -257,20 +258,32 @@ int main()
             assert(false);
         }
 
+        // Load trig lookup table
+        TrigLookup *trigLookup = static_cast<TrigLookup *>(
+            smallAllocator.allocate(sizeof(TrigLookup), "main::TrigLookup"));
+        assert(trigLookup != nullptr);
+        new (trigLookup) TrigLookup(&smallAllocator, consoleBuffer);
+        if (!trigLookup->load(&pakResource))
+        {
+            consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "Failed to load trig lookup table");
+            assert(false);
+        }
+        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Loaded TrigLookup table" << ConsoleBuffer::endl;
+
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Creating managers in main.cpp using allocators" << ConsoleBuffer::endl;
 
         // Allocate SceneLayerManager first since Box2DPhysics needs it
         SceneLayerManager *layerManager = static_cast<SceneLayerManager *>(
             smallAllocator.allocate(sizeof(SceneLayerManager), "main::SceneLayerManager"));
         assert(layerManager != nullptr);
-        new (layerManager) SceneLayerManager(&smallAllocator);
+        new (layerManager) SceneLayerManager(&smallAllocator, trigLookup);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created SceneLayerManager" << ConsoleBuffer::endl;
 
         // Allocate Box2DPhysics with layer manager
         Box2DPhysics *physics = static_cast<Box2DPhysics *>(
             smallAllocator.allocate(sizeof(Box2DPhysics), "main::Box2DPhysics"));
         assert(physics != nullptr);
-        new (physics) Box2DPhysics(&smallAllocator, layerManager, consoleBuffer);
+        new (physics) Box2DPhysics(&smallAllocator, layerManager, consoleBuffer, trigLookup);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created Box2DPhysics" << ConsoleBuffer::endl;
 
         // Allocate AudioManager
@@ -284,7 +297,7 @@ int main()
         ParticleSystemManager *particleManager = static_cast<ParticleSystemManager *>(
             smallAllocator.allocate(sizeof(ParticleSystemManager), "main::ParticleSystemManager"));
         assert(particleManager != nullptr);
-        new (particleManager) ParticleSystemManager();
+        new (particleManager) ParticleSystemManager(trigLookup);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created ParticleSystemManager" << ConsoleBuffer::endl;
 
         // Allocate WaterEffectManager
@@ -322,7 +335,7 @@ int main()
             smallAllocator.allocate(sizeof(SceneManager), "main::SceneManager"));
         assert(sceneManager != nullptr);
         new (sceneManager) SceneManager(&smallAllocator, pakResource, *renderer, physics, layerManager,
-                                        audioManager, particleManager, waterEffectManager, luaInterface, consoleBuffer);
+                                        audioManager, particleManager, waterEffectManager, luaInterface, consoleBuffer, trigLookup);
 
         // Set SceneManager pointer in LuaInterface after SceneManager is created
         luaInterface->setSceneManager(sceneManager);
@@ -384,7 +397,7 @@ int main()
         ImGuiManager *imguiManager = static_cast<ImGuiManager *>(
             smallAllocator.allocate(sizeof(ImGuiManager), "main::ImGuiManager"));
         assert(imguiManager != nullptr);
-        new (imguiManager) ImGuiManager(&smallAllocator, consoleBuffer);
+        new (imguiManager) ImGuiManager(&smallAllocator, consoleBuffer, trigLookup);
         *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created ImGuiManager" << ConsoleBuffer::endl;
 
         g_imguiManager = imguiManager;

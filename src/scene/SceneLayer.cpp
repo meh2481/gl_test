@@ -1,4 +1,5 @@
 #include "SceneLayer.h"
+#include "../core/TrigLookup.h"
 #include <SDL3/SDL.h>
 #include <cassert>
 #include <functional>
@@ -11,8 +12,9 @@ inline float abs_float(float x) {
     return x < 0.0f ? -x : x;
 }
 
-SceneLayerManager::SceneLayerManager(MemoryAllocator* allocator)
-    : layers_(*allocator, "SceneLayerManager::layers"), nextLayerId_(1), allocator_(allocator) {
+SceneLayerManager::SceneLayerManager(MemoryAllocator* allocator, TrigLookup* trigLookup)
+    : layers_(*allocator, "SceneLayerManager::layers"), nextLayerId_(1), allocator_(allocator), trigLookup_(trigLookup) {
+    assert(trigLookup_ != nullptr);
 }
 
 SceneLayerManager::~SceneLayerManager() {
@@ -396,8 +398,8 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
         batch.centerY = centerY;
 
         // Apply rotation and position
-        float cosA = SDL_cosf(angle);
-        float sinA = SDL_sinf(angle);
+        float cosA, sinA;
+        trigLookup_->sincos(angle, sinA, cosA);
 
         uint16_t baseIndex = static_cast<uint16_t>(batch.vertices.size());
 

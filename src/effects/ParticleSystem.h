@@ -4,6 +4,9 @@
 #include <cstdlib>
 #include <cassert>
 
+// Forward declarations
+class TrigLookup;
+
 // Blend modes for particle systems
 enum ParticleBlendMode {
     PARTICLE_BLEND_ADDITIVE = 0,   // Additive blending (brightens)
@@ -156,7 +159,7 @@ struct ParticleSystem {
 // Particle system manager - manages all active particle systems
 class ParticleSystemManager {
 public:
-    ParticleSystemManager();
+    ParticleSystemManager(TrigLookup* trigLookup);
     ~ParticleSystemManager();
 
     // Create a new particle system with the given configuration
@@ -225,4 +228,5 @@ private:
     int systemCount_;
     int systemCapacity_;
     int nextSystemId_;
+    TrigLookup* trigLookup_;
 };

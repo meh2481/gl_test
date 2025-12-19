@@ -15,13 +15,14 @@ class AudioManager;
 class ParticleSystemManager;
 class WaterEffectManager;
 class ConsoleBuffer;
+class TrigLookup;
 
 class SceneManager {
 public:
     SceneManager(MemoryAllocator* allocator, PakResource& pakResource, VulkanRenderer& renderer,
                  Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                  ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                 LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer);
+                 LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup);
     ~SceneManager();
 
     // Scene management
@@ -78,4 +79,7 @@ private:
 
     // Console buffer for logging (optional, may be nullptr)
     ConsoleBuffer* consoleBuffer_;
+
+    // Trig lookup table for fast sin/cos calculations
+    TrigLookup* trigLookup_;
 };

@@ -13,6 +13,7 @@
 // Forward declarations
 class SceneLayerManager;
 class ConsoleBuffer;
+class TrigLookup;
 
 struct DebugVertex {
     float x, y;
@@ -125,7 +126,7 @@ struct RadialForceField {
 
 class Box2DPhysics {
 public:
-    Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer);
+    Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup);
     ~Box2DPhysics();
 
     // World management
@@ -237,7 +238,8 @@ public:
                                             float impactX, float impactY,
                                             float normalX, float normalY,
                                             float impactSpeed,
-                                            float bodyX, float bodyY, float bodyAngle);
+                                            float bodyX, float bodyY, float bodyAngle,
+                                            TrigLookup* trigLookup);
 
     // Calculate polygon area using shoelace formula
     static float calculatePolygonArea(const float* vertices, int vertexCount);
@@ -397,6 +399,9 @@ private:
 
     // Console buffer for logging (optional, may be nullptr)
     ConsoleBuffer* consoleBuffer_;
+
+    // Trig lookup table for fast sin/cos calculations
+    TrigLookup* trigLookup_;
 
     // Collision callback
     CollisionCallback collisionCallback_;

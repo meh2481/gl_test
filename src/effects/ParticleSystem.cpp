@@ -1,4 +1,5 @@
 #include "ParticleSystem.h"
+#include "../core/TrigLookup.h"
 #include <SDL3/SDL.h>
 
 // Simple linear congruential generator for fast random numbers
@@ -13,8 +14,9 @@ static float fastRandomFloat() {
     return (float)fastRandom() / 32767.0f;
 }
 
-ParticleSystemManager::ParticleSystemManager()
-    : systems_(nullptr), systemIds_(nullptr), systemCount_(0), systemCapacity_(0), nextSystemId_(1) {
+ParticleSystemManager::ParticleSystemManager(TrigLookup* trigLookup)
+    : systems_(nullptr), systemIds_(nullptr), systemCount_(0), systemCapacity_(0), nextSystemId_(1), trigLookup_(trigLookup) {
+    assert(trigLookup_ != nullptr);
 }
 
 ParticleSystemManager::~ParticleSystemManager() {
@@ -327,8 +329,7 @@ void ParticleSystemManager::spawnParticle(ParticleSystem& system) {
         } else {
             // Particle is at center (point emitter or coincidence) - use random direction
             float angle = randomRange(0.0f, 2.0f * 3.14159265359f);
-            dirX = SDL_cosf(angle);
-            dirY = SDL_sinf(angle);
+            trigLookup_->sincos(angle, dirY, dirX);
         }
         // Add radial velocity component (positive = away from center, negative = towards)
         system.velX[i] += dirX * radialVel;

@@ -3,6 +3,7 @@
 #include "../scene/SceneLayer.h"
 #include "../memory/SmallAllocator.h"
 #include "../core/Vector.h"
+#include "../core/TrigLookup.h"
 #include "../debug/ConsoleBuffer.h"
 #include <cassert>
 #include <cstring>
@@ -44,11 +45,11 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
     }
 }
 
-Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer)
+Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup)
     : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
       timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
       nextForceFieldId_(0), stringAllocator_(allocator), layerManager_(layerManager),
-      consoleBuffer_(consoleBuffer),
+      consoleBuffer_(consoleBuffer), trigLookup_(trigLookup),
       bodies_(*allocator, "Box2DPhysics::bodies_"),
       joints_(*allocator, "Box2DPhysics::joints_"),
       destructibles_(*allocator, "Box2DPhysics::destructibles_"),
@@ -65,6 +66,7 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerM
       fragmentLayerIds_(*allocator, "Box2DPhysics::fragmentLayerIds_") {
     assert(stringAllocator_ != nullptr);
     assert(layerManager_ != nullptr);
+    assert(trigLookup_ != nullptr);
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Box2DPhysics: Using shared memory allocator and layer manager");
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
@@ -831,8 +833,12 @@ void Box2DPhysics::DrawCircle(b2Vec2 center, float radius, b2HexColor color, voi
         float angle1 = (float)i / segments * 2.0f * M_PI;
         float angle2 = (float)(i + 1) / segments * 2.0f * M_PI;
 
-        b2Vec2 p1 = {center.x + radius * cosf(angle1), center.y + radius * sinf(angle1)};
-        b2Vec2 p2 = {center.x + radius * cosf(angle2), center.y + radius * sinf(angle2)};
+        float cos1, sin1, cos2, sin2;
+        physics->trigLookup_->sincos(angle1, sin1, cos1);
+        physics->trigLookup_->sincos(angle2, sin2, cos2);
+
+        b2Vec2 p1 = {center.x + radius * cos1, center.y + radius * sin1};
+        b2Vec2 p2 = {center.x + radius * cos2, center.y + radius * sin2};
 
         physics->addLineVertex(p1.x, p1.y, color);
         physics->addLineVertex(p2.x, p2.y, color);
@@ -851,8 +857,12 @@ void Box2DPhysics::DrawSolidCircle(b2Transform transform, float radius, b2HexCol
         float angle1 = (float)i / segments * 2.0f * M_PI;
         float angle2 = (float)(i + 1) / segments * 2.0f * M_PI;
 
-        b2Vec2 p1 = {center.x + radius * cosf(angle1), center.y + radius * sinf(angle1)};
-        b2Vec2 p2 = {center.x + radius * cosf(angle2), center.y + radius * sinf(angle2)};
+        float cos1, sin1, cos2, sin2;
+        physics->trigLookup_->sincos(angle1, sin1, cos1);
+        physics->trigLookup_->sincos(angle2, sin2, cos2);
+
+        b2Vec2 p1 = {center.x + radius * cos1, center.y + radius * sin1};
+        b2Vec2 p2 = {center.x + radius * cos2, center.y + radius * sin2};
 
         physics->addTriangleVertex(center.x, center.y, fillColor);
         physics->addTriangleVertex(p1.x, p1.y, fillColor);
@@ -864,8 +874,12 @@ void Box2DPhysics::DrawSolidCircle(b2Transform transform, float radius, b2HexCol
         float angle1 = (float)i / segments * 2.0f * M_PI;
         float angle2 = (float)(i + 1) / segments * 2.0f * M_PI;
 
-        b2Vec2 p1 = {center.x + radius * cosf(angle1), center.y + radius * sinf(angle1)};
-        b2Vec2 p2 = {center.x + radius * cosf(angle2), center.y + radius * sinf(angle2)};
+        float cos1, sin1, cos2, sin2;
+        physics->trigLookup_->sincos(angle1, sin1, cos1);
+        physics->trigLookup_->sincos(angle2, sin2, cos2);
+
+        b2Vec2 p1 = {center.x + radius * cos1, center.y + radius * sin1};
+        b2Vec2 p2 = {center.x + radius * cos2, center.y + radius * sin2};
 
         physics->addLineVertex(p1.x, p1.y, color);
         physics->addLineVertex(p2.x, p2.y, color);
@@ -1244,14 +1258,15 @@ FractureResult Box2DPhysics::calculateFracture(const DestructibleProperties& pro
                                                 float impactX, float impactY,
                                                 float normalX, float normalY,
                                                 float impactSpeed,
-                                                float bodyX, float bodyY, float bodyAngle) {
+                                                float bodyX, float bodyY, float bodyAngle,
+                                                TrigLookup* trigLookup) {
     FractureResult result;
     memset(&result, 0, sizeof(result));
     result.fragmentCount = 0;
 
     // Transform impact point to local coordinates
-    float cosA = cosf(-bodyAngle);
-    float sinA = sinf(-bodyAngle);
+    float cosA, sinA;
+    trigLookup->sincos(-bodyAngle, sinA, cosA);
     float localImpactX = (impactX - bodyX) * cosA - (impactY - bodyY) * sinA;
     float localImpactY = (impactX - bodyX) * sinA + (impactY - bodyY) * cosA;
 
@@ -1310,8 +1325,8 @@ FractureResult Box2DPhysics::calculateFracture(const DestructibleProperties& pro
             centerY /= largest.vertexCount;
 
             // Rotated fracture direction
-            float cosB = cosf(secondaryAngle);
-            float sinB = sinf(secondaryAngle);
+            float cosB, sinB;
+            trigLookup->sincos(secondaryAngle, sinB, cosB);
             float secondaryDirX = fractureDirX * cosB - fractureDirY * sinB;
             float secondaryDirY = fractureDirX * sinB + fractureDirY * cosB;
 
@@ -1356,8 +1371,8 @@ int Box2DPhysics::createFragmentBody(float x, float y, float angle,
     centroidY /= polygon.vertexCount;
 
     // Transform centroid to world coordinates
-    float cosA = cosf(angle);
-    float sinA = sinf(angle);
+    float cosA, sinA;
+    trigLookup_->sincos(angle, sinA, cosA);
     float worldCentroidX = x + centroidX * cosA - centroidY * sinA;
     float worldCentroidY = y + centroidX * sinA + centroidY * cosA;
 
@@ -1795,7 +1810,8 @@ void Box2DPhysics::processFractures() {
                                                      hit.pointX, hit.pointY,
                                                      hit.normalX, hit.normalY,
                                                      hit.approachSpeed,
-                                                     pos.x, pos.y, angle);
+                                                     pos.x, pos.y, angle,
+                                                     trigLookup_);
 
         if (fracture.fragmentCount < 2) return;
 

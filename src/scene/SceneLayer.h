@@ -6,6 +6,7 @@
 
 // Forward declaration
 class MemoryAllocator;
+class TrigLookup;
 
 // Maximum number of vertices for polygon layers (8 vertices * 2 floats per vertex = 16)
 static const int MAX_POLYGON_VERTEX_FLOATS = 16;
@@ -150,7 +151,7 @@ struct SceneLayer {
 // Manager for scene layers
 class SceneLayerManager {
 public:
-    SceneLayerManager(MemoryAllocator* allocator);
+    SceneLayerManager(MemoryAllocator* allocator, TrigLookup* trigLookup);
     ~SceneLayerManager();
 
     // Layer management
@@ -211,4 +212,5 @@ private:
     HashTable<int, SceneLayer> layers_;
     int nextLayerId_;
     MemoryAllocator* allocator_;
+    TrigLookup* trigLookup_;
 };

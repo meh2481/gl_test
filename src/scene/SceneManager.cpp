@@ -1,6 +1,7 @@
 #include "SceneManager.h"
 #include "LuaInterface.h"
 #include "SceneLayer.h"
+#include "../core/TrigLookup.h"
 #include "../effects/ParticleSystem.h"
 #include "../physics/Box2DPhysics.h"
 #include "../audio/AudioManager.h"
@@ -12,13 +13,13 @@
 SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource, VulkanRenderer& renderer,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                            ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                           LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer)
+                           LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup)
     : allocator_(allocator), pakResource_(pakResource), renderer_(renderer), physics_(physics), layerManager_(layerManager),
       audioManager_(audioManager), particleManager_(particleManager), waterEffectManager_(waterEffectManager),
       luaInterface_(luaInterface), sceneStack_(*allocator, "SceneManager::sceneStack_"),
       loadedScenes_(*allocator, "SceneManager::loadedScenes_"),
       initializedScenes_(*allocator, "SceneManager::initializedScenes_"), pendingPop_(false), particleEditorActive_(false),
-      particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), consoleBuffer_(consoleBuffer)
+      particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), consoleBuffer_(consoleBuffer), trigLookup_(trigLookup)
 {
     assert(allocator_ != nullptr);
     assert(physics_ != nullptr);
@@ -27,6 +28,7 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
     assert(particleManager_ != nullptr);
     assert(waterEffectManager_ != nullptr);
     assert(luaInterface_ != nullptr);
+    assert(trigLookup_ != nullptr);
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Received all managers and LuaInterface from main.cpp");
 }
@@ -210,12 +212,10 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                 float rotZ = system->rotZ[p];
 
                 // Build 3D rotation matrix (ZYX Euler order)
-                float cosX = SDL_cosf(rotX);
-                float sinX = SDL_sinf(rotX);
-                float cosY = SDL_cosf(rotY);
-                float sinY = SDL_sinf(rotY);
-                float cosZ = SDL_cosf(rotZ);
-                float sinZ = SDL_sinf(rotZ);
+                float cosX, sinX, cosY, sinY, cosZ, sinZ;
+                trigLookup_->sincos(rotX, sinX, cosX);
+                trigLookup_->sincos(rotY, sinY, cosY);
+                trigLookup_->sincos(rotZ, sinZ, cosZ);
 
                 // Rotation matrix: Rz * Ry * Rx
                 // Column-major matrix elements for transforming a 3D point
