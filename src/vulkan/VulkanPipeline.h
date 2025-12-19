@@ -70,11 +70,13 @@ public:
     void createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode = 0);
     void createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void createWaterPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 2);
+    void createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader);
 
     // Pipeline access
     VkPipeline getPipeline(uint64_t id) const;
     VkPipeline getDebugLinePipeline() const { return m_debugLinePipeline; }
     VkPipeline getDebugTrianglePipeline() const { return m_debugTrianglePipeline; }
+    VkPipeline getFadePipeline() const { return m_fadePipeline; }
     bool hasPipeline(uint64_t id) const;
     bool isDebugPipeline(uint64_t id) const;
 
@@ -130,6 +132,7 @@ private:
     HashTable<uint64_t, bool> m_debugPipelines;
     VkPipeline m_debugLinePipeline;
     VkPipeline m_debugTrianglePipeline;
+    VkPipeline m_fadePipeline;
     VkPipeline m_currentPipeline;
     Vector<uint64_t> m_pipelinesToDraw;
 

@@ -2,6 +2,7 @@
 #include "LuaInterface.h"
 #include "SceneLayer.h"
 #include "../core/TrigLookup.h"
+#include "../core/hash.h"
 #include "../effects/ParticleSystem.h"
 #include "../physics/Box2DPhysics.h"
 #include "../audio/AudioManager.h"
@@ -40,6 +41,12 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Received all managers and LuaInterface from main.cpp");
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Default transition times: fadeOut=%.3fs, fadeIn=%.3fs", fadeOutTime_, fadeInTime_);
+
+    // Load and create fade overlay pipeline
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Loading fade overlay shaders");
+    ResourceData fadeVertShader = pakResource_.getResource(hashCString("res/shaders/fade_vertex.spv"));
+    ResourceData fadeFragShader = pakResource_.getResource(hashCString("res/shaders/fade_fragment.spv"));
+    renderer_.createFadePipeline(fadeVertShader, fadeFragShader);
 }
 
 SceneManager::~SceneManager() {

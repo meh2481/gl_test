@@ -24,6 +24,7 @@ public:
 
     void initialize(SDL_Window* window, int preferredGpuIndex = -1);
     int getSelectedGpuIndex() const { return m_selectedGpuIndex; }
+    void createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader);
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
     void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);

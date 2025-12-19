@@ -191,6 +191,10 @@ void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader,
     m_pipelineManager.createPipeline(id, vertShader, fragShader, isDebugPipeline);
 }
 
+void VulkanRenderer::createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader) {
+    m_pipelineManager.createFadePipeline(vertShader, fragShader);
+}
+
 void VulkanRenderer::setCurrentPipeline(uint64_t id) {
     m_pipelineManager.setCurrentPipeline(id);
 }
@@ -1481,7 +1485,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     }
 
     // Render fade overlay if alpha > 0 (for scene transitions)
-    if (m_fadeOverlayAlpha > 0.0f && m_pipelineManager.getDebugTrianglePipeline() != VK_NULL_HANDLE) {
+    if (m_fadeOverlayAlpha > 0.0f && m_pipelineManager.getFadePipeline() != VK_NULL_HANDLE) {
         // Create a fullscreen quad with the fade color
         // Two triangles covering the entire screen in NDC coordinates
         const int FADE_VERTEX_COUNT = 6; // 2 triangles = 6 vertices
@@ -1513,7 +1517,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             VkBuffer buffers[] = {m_fadeOverlayBuffer.buffer};
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getDebugTrianglePipeline());
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getFadePipeline());
             vkCmdDraw(commandBuffer, m_fadeOverlayBuffer.count, 1, 0, 0);
         }
     }
