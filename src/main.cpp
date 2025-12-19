@@ -321,7 +321,7 @@ int main()
         SceneManager *sceneManager = static_cast<SceneManager *>(
             smallAllocator.allocate(sizeof(SceneManager), "main::SceneManager"));
         assert(sceneManager != nullptr);
-        new (sceneManager) SceneManager(pakResource, *renderer, physics, layerManager,
+        new (sceneManager) SceneManager(&smallAllocator, pakResource, *renderer, physics, layerManager,
                                         audioManager, particleManager, waterEffectManager, luaInterface, consoleBuffer);
 
         // Set SceneManager pointer in LuaInterface after SceneManager is created

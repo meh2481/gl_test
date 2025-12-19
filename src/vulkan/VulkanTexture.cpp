@@ -1,9 +1,9 @@
 #include "VulkanTexture.h"
 #include "../core/ResourceTypes.h"
+#include "../core/HashSet.h"
 #include "../debug/ConsoleBuffer.h"
 #include <cstring>
 #include <cassert>
-#include <set>
 #include <SDL3/SDL_log.h>
 
 VulkanTexture::VulkanTexture(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer) :
@@ -393,25 +393,25 @@ void VulkanTexture::destroyTexture(uint64_t textureId) {
 }
 
 void VulkanTexture::destroyAllTextures() {
-    std::set<VkSampler> destroyedSamplers;
-    std::set<VkImageView> destroyedImageViews;
-    std::set<VkImage> destroyedImages;
-    std::set<VkDeviceMemory> destroyedMemories;
+    HashSet<VkSampler> destroyedSamplers(*m_allocator, "VulkanTexture::destroyAllTextures::destroyedSamplers");
+    HashSet<VkImageView> destroyedImageViews(*m_allocator, "VulkanTexture::destroyAllTextures::destroyedImageViews");
+    HashSet<VkImage> destroyedImages(*m_allocator, "VulkanTexture::destroyAllTextures::destroyedImages");
+    HashSet<VkDeviceMemory> destroyedMemories(*m_allocator, "VulkanTexture::destroyAllTextures::destroyedMemories");
 
     for (auto it = m_textures.begin(); it != m_textures.end(); ++it) {
-        if (it.value().sampler != VK_NULL_HANDLE && destroyedSamplers.find(it.value().sampler) == destroyedSamplers.end()) {
+        if (it.value().sampler != VK_NULL_HANDLE && !destroyedSamplers.contains(it.value().sampler)) {
             vkDestroySampler(m_device, it.value().sampler, nullptr);
             destroyedSamplers.insert(it.value().sampler);
         }
-        if (it.value().imageView != VK_NULL_HANDLE && destroyedImageViews.find(it.value().imageView) == destroyedImageViews.end()) {
+        if (it.value().imageView != VK_NULL_HANDLE && !destroyedImageViews.contains(it.value().imageView)) {
             vkDestroyImageView(m_device, it.value().imageView, nullptr);
             destroyedImageViews.insert(it.value().imageView);
         }
-        if (it.value().image != VK_NULL_HANDLE && destroyedImages.find(it.value().image) == destroyedImages.end()) {
+        if (it.value().image != VK_NULL_HANDLE && !destroyedImages.contains(it.value().image)) {
             vkDestroyImage(m_device, it.value().image, nullptr);
             destroyedImages.insert(it.value().image);
         }
-        if (it.value().memory != VK_NULL_HANDLE && destroyedMemories.find(it.value().memory) == destroyedMemories.end()) {
+        if (it.value().memory != VK_NULL_HANDLE && !destroyedMemories.contains(it.value().memory)) {
             vkFreeMemory(m_device, it.value().memory, nullptr);
             destroyedMemories.insert(it.value().memory);
         }

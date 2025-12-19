@@ -484,7 +484,7 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
     m_pipelines.insertNew(id, pipeline);
 
     void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createTexturedPipeline::PipelineInfo");
-    PipelineInfo* info = new (infoMem) PipelineInfo();
+    PipelineInfo* info = new (infoMem) PipelineInfo(*m_allocator);
     info->layout = pipelineLayout;
     info->descriptorSetLayout = descriptorSetLayout;
     info->usesDualTexture = usesDualTexture;
@@ -681,7 +681,7 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     m_pipelines.insertNew(id, pipeline);
 
     void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createTexturedPipelineAdditive::PipelineInfo");
-    PipelineInfo* info = new (infoMem) PipelineInfo();
+    PipelineInfo* info = new (infoMem) PipelineInfo(*m_allocator);
     info->layout = pipelineLayout;
     info->descriptorSetLayout = descriptorSetLayout;
     info->usesDualTexture = usesDualTexture;
@@ -879,7 +879,7 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
     m_pipelines.insertNew(id, pipeline);
 
     void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createAnimTexturedPipeline::PipelineInfo");
-    PipelineInfo* info = new (infoMem) PipelineInfo();
+    PipelineInfo* info = new (infoMem) PipelineInfo(*m_allocator);
     info->layout = pipelineLayout;
     info->descriptorSetLayout = descriptorSetLayout;
     info->usesDualTexture = usesDualTexture;
@@ -1059,7 +1059,7 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
     m_pipelines.insertNew(id, pipeline);
 
     void* infoMem = m_allocator->allocate(sizeof(PipelineInfo), "VulkanPipeline::createParticlePipeline::PipelineInfo");
-    PipelineInfo* info = new (infoMem) PipelineInfo();
+    PipelineInfo* info = new (infoMem) PipelineInfo(*m_allocator);
     info->layout = m_descriptorManager->getSingleTexturePipelineLayout();
     info->descriptorSetLayout = m_descriptorManager->getSingleTextureLayout();
     info->usesDualTexture = false;

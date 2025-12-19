@@ -4,7 +4,7 @@
 #include "../resources/resource.h"
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
-#include <set>
+#include "../core/HashSet.h"
 #include <array>
 #include <cstdint>
 
@@ -32,7 +32,19 @@ struct PipelineInfo {
     bool usesAnimationPushConstants;  // true = uses animation push constants (33 floats)
     bool isParticlePipeline;  // true = particle pipeline (uses vertex colors)
     bool isWaterPipeline;     // true = water pipeline (uses ripple push constants)
-    std::set<uint64_t> descriptorIds;  // Which descriptor sets this pipeline uses
+    HashSet<uint64_t> descriptorIds;  // Which descriptor sets this pipeline uses
+
+    explicit PipelineInfo(MemoryAllocator& allocator)
+        : layout(VK_NULL_HANDLE)
+        , descriptorSetLayout(VK_NULL_HANDLE)
+        , usesDualTexture(false)
+        , usesExtendedPushConstants(false)
+        , usesAnimationPushConstants(false)
+        , isParticlePipeline(false)
+        , isWaterPipeline(false)
+        , descriptorIds(allocator, "PipelineInfo::descriptorIds")
+    {
+    }
 };
 
 // Helper class for managing Vulkan pipelines

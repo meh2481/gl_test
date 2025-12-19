@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stack>
-#include <unordered_set>
+#include "../core/HashSet.h"
 #include "../resources/resource.h"
 #include "../vulkan/VulkanRenderer.h"
 #include "../input/InputActions.h"
@@ -18,7 +18,7 @@ class ConsoleBuffer;
 
 class SceneManager {
 public:
-    SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
+    SceneManager(MemoryAllocator* allocator, PakResource& pakResource, VulkanRenderer& renderer,
                  Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                  ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
                  LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer);
@@ -57,6 +57,7 @@ public:
     PakResource& getPakResource() { return pakResource_; }
 
 private:
+    MemoryAllocator* allocator_;
     PakResource& pakResource_;
     VulkanRenderer& renderer_;
     Box2DPhysics* physics_;
@@ -66,8 +67,8 @@ private:
     WaterEffectManager* waterEffectManager_;
     LuaInterface* luaInterface_;
     std::stack<uint64_t> sceneStack_;
-    std::unordered_set<uint64_t> loadedScenes_;
-    std::unordered_set<uint64_t> initializedScenes_;
+    HashSet<uint64_t> loadedScenes_;
+    HashSet<uint64_t> initializedScenes_;
     bool pendingPop_;
 
     // Particle editor state

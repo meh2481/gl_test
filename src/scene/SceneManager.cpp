@@ -10,15 +10,17 @@
 #include <cassert>
 #include <cmath>
 
-SceneManager::SceneManager(PakResource& pakResource, VulkanRenderer& renderer,
+SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource, VulkanRenderer& renderer,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                            ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
                            LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer)
-    : pakResource_(pakResource), renderer_(renderer), physics_(physics), layerManager_(layerManager),
+    : allocator_(allocator), pakResource_(pakResource), renderer_(renderer), physics_(physics), layerManager_(layerManager),
       audioManager_(audioManager), particleManager_(particleManager), waterEffectManager_(waterEffectManager),
-      luaInterface_(luaInterface), pendingPop_(false), particleEditorActive_(false),
+      luaInterface_(luaInterface), loadedScenes_(*allocator, "SceneManager::loadedScenes_"),
+      initializedScenes_(*allocator, "SceneManager::initializedScenes_"), pendingPop_(false), particleEditorActive_(false),
       particleEditorPipelineId_(-1), editorPreviewSystemId_(-1), consoleBuffer_(consoleBuffer)
 {
+    assert(allocator_ != nullptr);
     assert(physics_ != nullptr);
     assert(layerManager_ != nullptr);
     assert(audioManager_ != nullptr);
@@ -35,7 +37,7 @@ SceneManager::~SceneManager() {
 
 void SceneManager::pushScene(uint64_t sceneId) {
     // Load the scene if not already loaded
-    if (loadedScenes_.find(sceneId) == loadedScenes_.end()) {
+    if (!loadedScenes_.contains(sceneId)) {
         consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading scene %llu", (unsigned long long)sceneId);
         ResourceData sceneScript = pakResource_.getResource(sceneId);
         luaInterface_->loadScene(sceneId, sceneScript);
@@ -48,7 +50,7 @@ void SceneManager::pushScene(uint64_t sceneId) {
     sceneStack_.push(sceneId);
 
     // Initialize the scene if not already initialized
-    if (initializedScenes_.find(sceneId) == initializedScenes_.end()) {
+    if (!initializedScenes_.contains(sceneId)) {
         consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Initializing scene %llu", (unsigned long long)sceneId);
         luaInterface_->initScene(sceneId);
         initializedScenes_.insert(sceneId);
