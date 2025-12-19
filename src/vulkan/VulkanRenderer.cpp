@@ -85,6 +85,10 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* allocator, ConsoleBuffer* consol
     m_clearColorG(0.0f),
     m_clearColorB(0.0f),
     m_clearColorA(1.0f),
+    m_fadeOverlayR(0.0f),
+    m_fadeOverlayG(0.0f),
+    m_fadeOverlayB(0.0f),
+    m_fadeOverlayAlpha(0.0f),
     m_currentFrame(0),
     m_graphicsQueueFamilyIndex(0),
     m_swapchainFramebuffers(nullptr),
@@ -170,6 +174,7 @@ void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     // Create dynamic buffers using buffer manager
     m_bufferManager.createDynamicVertexBuffer(m_debugLineBuffer, 65536);
     m_bufferManager.createDynamicVertexBuffer(m_debugTriangleBuffer, 65536);
+    m_bufferManager.createDynamicVertexBuffer(m_fadeOverlayBuffer, 256); // Small buffer for fade overlay
     m_bufferManager.createIndexedBuffer(m_spriteBuffer, 4096, 2048);
     m_bufferManager.createIndexedBuffer(m_particleBuffer, 8192, 4096);
 
@@ -975,6 +980,13 @@ void VulkanRenderer::setClearColor(float r, float g, float b, float a) {
     m_clearColorA = a;
 }
 
+void VulkanRenderer::setFadeOverlay(float r, float g, float b, float alpha) {
+    m_fadeOverlayR = r;
+    m_fadeOverlayG = g;
+    m_fadeOverlayB = b;
+    m_fadeOverlayAlpha = alpha;
+}
+
 // Buffer update methods
 
 void VulkanRenderer::setDebugDrawData(const Vector<float>& vertexData) {
@@ -1465,6 +1477,40 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, debugBuffers, offsets);
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getDebugLinePipeline());
             vkCmdDraw(commandBuffer, m_debugLineBuffer.count, 1, 0, 0);
+        }
+    }
+
+    // Render fade overlay if alpha > 0 (for scene transitions)
+    if (m_fadeOverlayAlpha > 0.0f && m_pipelineManager.getDebugTrianglePipeline() != VK_NULL_HANDLE) {
+        // Create a fullscreen quad with the fade color
+        // Two triangles covering the entire screen in NDC coordinates
+        float fadeVertices[] = {
+            // Triangle 1: bottom-left, bottom-right, top-right
+            -1.0f, -1.0f, m_fadeOverlayR, m_fadeOverlayG, m_fadeOverlayB, m_fadeOverlayAlpha,
+             1.0f, -1.0f, m_fadeOverlayR, m_fadeOverlayG, m_fadeOverlayB, m_fadeOverlayAlpha,
+             1.0f,  1.0f, m_fadeOverlayR, m_fadeOverlayG, m_fadeOverlayB, m_fadeOverlayAlpha,
+            // Triangle 2: top-right, top-left, bottom-left
+             1.0f,  1.0f, m_fadeOverlayR, m_fadeOverlayG, m_fadeOverlayB, m_fadeOverlayAlpha,
+            -1.0f,  1.0f, m_fadeOverlayR, m_fadeOverlayG, m_fadeOverlayB, m_fadeOverlayAlpha,
+            -1.0f, -1.0f, m_fadeOverlayR, m_fadeOverlayG, m_fadeOverlayB, m_fadeOverlayAlpha,
+        };
+
+        // Create a Vector wrapper for the fade vertices
+        Vector<float> fadeVertexVector(*m_allocator, "VulkanRenderer::fadeOverlay");
+        fadeVertexVector.reserve(36);
+        for (int i = 0; i < 36; ++i) {
+            fadeVertexVector.push_back(fadeVertices[i]);
+        }
+
+        // Update the fade overlay buffer
+        m_bufferManager.updateDynamicVertexBuffer(m_fadeOverlayBuffer, fadeVertexVector, 6);
+
+        if (m_fadeOverlayBuffer.buffer != VK_NULL_HANDLE && m_fadeOverlayBuffer.count > 0) {
+            VkBuffer buffers[] = {m_fadeOverlayBuffer.buffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getDebugTrianglePipeline());
+            vkCmdDraw(commandBuffer, m_fadeOverlayBuffer.count, 1, 0, 0);
         }
     }
 

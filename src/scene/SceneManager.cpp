@@ -467,8 +467,8 @@ void SceneManager::updateTransition(float deltaTime) {
             fadeProgress = 1.0f;
         }
 
-        // Set clear color with fade progress (0 = normal, 1 = fully faded to color)
-        renderer_.setClearColor(fadeColorR_ * fadeProgress, fadeColorG_ * fadeProgress, fadeColorB_ * fadeProgress, 1.0f);
+        // Set fade overlay with fade progress (0 = no overlay, 1 = full overlay)
+        renderer_.setFadeOverlay(fadeColorR_, fadeColorG_, fadeColorB_, fadeProgress);
 
         if (fadeProgress >= 1.0f) {
             // Fade-out complete
@@ -542,17 +542,17 @@ void SceneManager::updateTransition(float deltaTime) {
             fadeProgress = 1.0f;
         }
 
-        // Set clear color with fade progress (1 = fully faded to color, 0 = normal)
+        // Set fade overlay with fade progress (1 = full overlay, 0 = no overlay)
         float invProgress = 1.0f - fadeProgress;
-        renderer_.setClearColor(fadeColorR_ * invProgress, fadeColorG_ * invProgress, fadeColorB_ * invProgress, 1.0f);
+        renderer_.setFadeOverlay(fadeColorR_, fadeColorG_, fadeColorB_, invProgress);
 
         if (fadeProgress >= 1.0f) {
             // Fade-in complete
             consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Fade-in complete, transition finished");
             transitionState_ = TRANSITION_NONE;
             transitionTimer_ = 0.0f;
-            // Ensure clear color is reset to black
-            renderer_.setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            // Ensure fade overlay is fully transparent
+            renderer_.setFadeOverlay(0.0f, 0.0f, 0.0f, 0.0f);
         }
     }
 }

@@ -50,6 +50,7 @@ public:
     bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
     void setCameraTransform(float offsetX, float offsetY, float zoom);
     void setClearColor(float r, float g, float b, float a = 1.0f);
+    void setFadeOverlay(float r, float g, float b, float alpha);
     void render(float time);
     void cleanup();
 
@@ -116,6 +117,7 @@ private:
     // Dynamic buffers managed by VulkanBuffer
     VulkanBuffer::DynamicBuffer m_debugLineBuffer;
     VulkanBuffer::DynamicBuffer m_debugTriangleBuffer;
+    VulkanBuffer::DynamicBuffer m_fadeOverlayBuffer;
     VulkanBuffer::IndexedBuffer m_spriteBuffer;
     VulkanBuffer::IndexedBuffer m_particleBuffer;
 
@@ -159,6 +161,12 @@ private:
     float m_clearColorG;
     float m_clearColorB;
     float m_clearColorA;
+
+    // Fade overlay for scene transitions
+    float m_fadeOverlayR;
+    float m_fadeOverlayG;
+    float m_fadeOverlayB;
+    float m_fadeOverlayAlpha;
 
     // Synchronization
     VkSemaphore m_imageAvailableSemaphores[2];
