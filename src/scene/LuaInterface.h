@@ -19,11 +19,11 @@
 class SceneManager;
 class ConsoleBuffer;
 
-// Simple struct to replace std::pair<int, int> for pipeline data (pipelineId, zIndex)
+// Simple struct to replace pair<int, int> for pipeline data (pipelineId, zIndex)
 struct IntPair {
     int first;
     int second;
-    
+
     IntPair() : first(0), second(0) {}
     IntPair(int f, int s) : first(f), second(s) {}
 };
