@@ -19,6 +19,15 @@
 class SceneManager;
 class ConsoleBuffer;
 
+// Simple struct to replace std::pair<int, int> for pipeline data (pipelineId, zIndex)
+struct IntPair {
+    int first;
+    int second;
+    
+    IntPair() : first(0), second(0) {}
+    IntPair(int f, int s) : first(f), second(s) {}
+};
+
 class LuaInterface {
 public:
     LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
@@ -210,7 +219,7 @@ private:
 
     int pipelineIndex_;
     uint64_t currentSceneId_;
-    HashTable<uint64_t, Vector<std::pair<int, int>>* > scenePipelines_; // pipelineId, zIndex
+    HashTable<uint64_t, Vector<IntPair>* > scenePipelines_; // pipelineId, zIndex
     Box2DPhysics* physics_;
     SceneLayerManager* layerManager_;
     AudioManager* audioManager_;
