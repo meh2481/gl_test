@@ -5,7 +5,6 @@
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
 #include "../core/HashSet.h"
-#include <array>
 #include <cstdint>
 
 // Forward declarations
@@ -88,7 +87,7 @@ public:
 
     // Shader parameters per pipeline
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
-    const std::array<float, 7>& getShaderParams(int pipelineId) const;
+    const Vector<float>* getShaderParams(int pipelineId) const;
     int getShaderParamCount(int pipelineId) const;
 
     // Water ripple data per pipeline
@@ -138,12 +137,12 @@ private:
     HashTable<uint64_t, PipelineInfo*> m_pipelineInfo;
 
     // Per-pipeline shader parameters
-    HashTable<int, std::array<float, 7>> m_pipelineShaderParams;
+    HashTable<int, Vector<float>*> m_pipelineShaderParams;
     HashTable<int, int> m_pipelineShaderParamCount;
     HashTable<int, float> m_pipelineParallaxDepth;
 
     // Per-pipeline water ripple data
-    HashTable<int, std::array<ShaderRippleData, MAX_SHADER_RIPPLES>> m_pipelineWaterRipples;
+    HashTable<int, Vector<ShaderRippleData>*> m_pipelineWaterRipples;
     HashTable<int, int> m_pipelineWaterRippleCount;
 
     // Shader data storage
