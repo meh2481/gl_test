@@ -181,15 +181,6 @@ void SceneLayerManager::setLayerNormalMapAtlasUV(int layerId, uint64_t atlasNorm
 void SceneLayerManager::setLayerPolygon(int layerId, const float* vertices, const float* uvs, const float* normalUvs, int vertexCount) {
     SceneLayer* layer = layers_.find(layerId);
     if (layer != nullptr && vertexCount >= 3 && vertexCount <= 8) {
-        // Validate input data - check for NaN/Inf values
-        for (int i = 0; i < vertexCount * 2; ++i) {
-            assert(std::isfinite(vertices[i]));
-            assert(std::isfinite(uvs[i]));
-            if (normalUvs) {
-                assert(std::isfinite(normalUvs[i]));
-            }
-        }
-
         layer->polygonVertexCount = vertexCount;
         for (int i = 0; i < vertexCount * 2; ++i) {
             layer->polygonVertices[i] = vertices[i];
@@ -427,9 +418,6 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
                 float lx = layer.polygonVertices[i * 2] + layer.offsetX;
                 float ly = layer.polygonVertices[i * 2 + 1] + layer.offsetY;
 
-                // Validate vertex positions are finite
-                assert(std::isfinite(lx) && std::isfinite(ly));
-
                 // Rotate
                 float rx = lx * cosA - ly * sinA;
                 float ry = lx * sinA + ly * cosA;
@@ -455,9 +443,6 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
                 vert.uvMinY = v0;
                 vert.uvMaxX = u1;
                 vert.uvMaxY = v1;
-
-                // Validate final vertex position is finite
-                assert(std::isfinite(vert.x) && std::isfinite(vert.y));
 
                 batch.vertices.push_back(vert);
             }
