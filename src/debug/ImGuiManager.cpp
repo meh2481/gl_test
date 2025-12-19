@@ -154,6 +154,15 @@ void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysica
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
+    // Set ImGui ini file to the same directory as config
+    char* prefPath = SDL_GetPrefPath("RetSphinxEngine", "ShaderTriangle");
+    if (prefPath) {
+        static char iniPath[1024];
+        SDL_snprintf(iniPath, sizeof(iniPath), "%simgui.ini", prefPath);
+        io.IniFilename = iniPath;
+        SDL_free(prefPath);
+    }
+
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
 

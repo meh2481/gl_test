@@ -5,5 +5,4 @@
 * std::set
 * Log should go to file too (replace)
 * Log not logging to console
-* imgui.ini should go in SDL config folder
 
