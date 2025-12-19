@@ -125,8 +125,10 @@ static SDL_IOStream* g_logFile = nullptr;
 // Custom SDL log output function that writes to stdout, stderr, and log file
 static void customLogOutput(void* userdata, int category, SDL_LogPriority priority, const char* message)
 {
-    (void)userdata;
     (void)category;
+    SDL_LogOutputFunction* defaultLogFunc = (SDL_LogOutputFunction*)userdata;
+    // Call default log function to output to stdout/stderr
+    (*defaultLogFunc)(nullptr, category, priority, message);
 
     const char* priorityStr = "INFO";
     switch (priority)
@@ -140,13 +142,19 @@ static void customLogOutput(void* userdata, int category, SDL_LogPriority priori
         default: break;
     }
 
+    // Get current timestamp
+    SDL_DateTime dateTime;
+    SDL_Time ticks;
+    SDL_GetCurrentTime(&ticks);
+    SDL_TimeToDateTime(ticks, &dateTime, true);
+    char timestamp[64];
+    SDL_snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d.%03d",
+                 dateTime.year, dateTime.month, dateTime.day,
+                 dateTime.hour, dateTime.minute, dateTime.second, dateTime.nanosecond / 1000000);
+
     // Format the log message
     char logLine[2048];
-    SDL_snprintf(logLine, sizeof(logLine), "[%s] %s\n", priorityStr, message);
-
-    // Write to stdout
-    fprintf(stdout, "%s", logLine);
-    fflush(stdout);
+    SDL_snprintf(logLine, sizeof(logLine), "[%s] [%s] %s\n", timestamp, priorityStr, message);
 
     // Write to log file if open
     if (g_logFile)
@@ -159,7 +167,8 @@ static void customLogOutput(void* userdata, int category, SDL_LogPriority priori
 int main()
 {
     // Set custom log output function to write to stdout before any SDL_Log calls
-    SDL_SetLogOutputFunction(customLogOutput, nullptr);
+    SDL_LogOutputFunction defaultLogFunc = SDL_GetDefaultLogOutputFunction();
+    SDL_SetLogOutputFunction(customLogOutput, &defaultLogFunc);
     SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))

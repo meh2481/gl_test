@@ -3,6 +3,4 @@
 * std::unordered_set
 * std::array - Shader params, shader ripples
 * std::set
-* Log should go to file too (replace)
-* Log not logging to console
-
+* Particles cannot rotate in X/Y axis
