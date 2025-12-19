@@ -10,6 +10,19 @@ class ConsoleBuffer;
 
 // Fast trigonometric lookup table
 // Uses precomputed values with linear interpolation for high speed
+//
+// Usage example:
+//   TrigLookup trigLookup(&allocator, &consoleBuffer);
+//   trigLookup.load(&pakResource);
+//
+//   float angle = 1.57f;  // ~90 degrees
+//   float s = trigLookup.sin(angle);
+//   float c = trigLookup.cos(angle);
+//
+//   // Or get both at once:
+//   float sinVal, cosVal;
+//   trigLookup.sincos(angle, sinVal, cosVal);
+//
 class TrigLookup {
 public:
     TrigLookup(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer);
