@@ -876,7 +876,7 @@ int LuaInterface::loadShaders(lua_State* L) {
     // Add to current scene's pipeline list with z-index
     scenePipelines->push_back({pipelineId, zIndex});
     interface->pipelineIndex_++;
-    std::cout << "LuaInterface::loadShaders: added pipeline " << pipelineId << " with zIndex " << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadShaders: added pipeline %d with zIndex %d", pipelineId, zIndex);
 
     return 0; // No return values
 }
@@ -902,8 +902,8 @@ int LuaInterface::luaPrint(lua_State* L) {
         output += s;
     }
 
-    // Output to std::cout (which will be captured by ConsoleCapture in debug builds)
-    std::cout << output.c_str() << std::endl;
+    // Output to ConsoleBuffer
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "%s", output.c_str());
 
     return 0;
 }
@@ -2050,12 +2050,12 @@ int LuaInterface::loadTexture(lua_State* L) {
     // Hash the filename to get texture ID (same as packer)
     uint64_t textureId = hashCString(filename);
 
-    std::cout << "Loading texture: " << filename << " (id: " << textureId << ")" << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Loading texture: %s (id: %d)", filename, textureId);
 
     // Load the texture from the pak file
     ResourceData imageData = interface->pakResource_.getResource(textureId);
     if (imageData.data == nullptr) {
-        std::cerr << "Texture not found in pak file: " << filename << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Texture not found in pak file: %s", filename);
         assert(false);
     }
 
@@ -2063,10 +2063,10 @@ int LuaInterface::loadTexture(lua_State* L) {
     AtlasUV atlasUV;
     if (interface->pakResource_.getAtlasUV(textureId, atlasUV)) {
         // This is an atlas reference - load the atlas texture instead
-        std::cout << "  -> Atlas reference (atlas id: " << atlasUV.atlasId << ", UV: " << atlasUV.u0 << "," << atlasUV.v0 << " - " << atlasUV.u1 << "," << atlasUV.v1 << ")" << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "  -> Atlas reference (atlas id: %d, UV: %f,%f - %f,%f)", atlasUV.atlasId, atlasUV.u0, atlasUV.v0, atlasUV.u1, atlasUV.v1);
         ResourceData atlasData = interface->pakResource_.getResource(atlasUV.atlasId);
         if (atlasData.data == nullptr) {
-            std::cerr << "Atlas not found in pak file for texture: " << filename << std::endl;
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Atlas not found in pak file for texture: %s", filename);
             assert(false);
         }
 
@@ -2113,7 +2113,7 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
     assert(fragShader.data != nullptr);
 
     int pipelineId = interface->pipelineIndex_++;
-    std::cout << "LuaInterface::loadTexturedShaders: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadTexturedShaders: currentSceneId_=%d, zIndex=%d", interface->currentSceneId_, zIndex);
     Vector<std::pair<int, int>>** vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
     if (vecPtr == nullptr) {
         void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadTexturedShaders::Vector");
@@ -2121,11 +2121,11 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
         Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadTexturedShaders::data");
         interface->scenePipelines_.insertNew(interface->currentSceneId_, newVec);
         vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
-        std::cout << "LuaInterface::loadTexturedShaders: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadTexturedShaders: created new vector for sceneId %d", interface->currentSceneId_);
     }
     assert(*vecPtr != nullptr);
     (*vecPtr)->push_back({pipelineId, zIndex});
-    std::cout << "LuaInterface::loadTexturedShaders: added pipeline " << pipelineId << " with zIndex " << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadTexturedShaders: added pipeline %d with zIndex %d", pipelineId, zIndex);
 
     // Create textured pipeline
     interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader);
@@ -2162,7 +2162,7 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     assert(fragShader.data != nullptr);
 
     int pipelineId = interface->pipelineIndex_++;
-    std::cout << "LuaInterface::loadTexturedShadersEx: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadTexturedShadersEx: currentSceneId_=%d, zIndex=%d", interface->currentSceneId_, zIndex);
     Vector<std::pair<int, int>>** vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
     if (vecPtr == nullptr) {
         void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadTexturedShadersEx::Vector");
@@ -2170,11 +2170,11 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
         Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadTexturedShadersEx::data");
         interface->scenePipelines_.insertNew(interface->currentSceneId_, newVec);
         vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
-        std::cout << "LuaInterface::loadTexturedShadersEx: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadTexturedShadersEx: created new vector for sceneId %d", interface->currentSceneId_);
     }
     assert(*vecPtr != nullptr);
     (*vecPtr)->push_back({pipelineId, zIndex});
-    std::cout << "LuaInterface::loadTexturedShadersEx: added pipeline " << pipelineId << " with zIndex " << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadTexturedShadersEx: added pipeline %d with zIndex %d", pipelineId, zIndex);
 
     // Create textured pipeline with specified number of textures
     interface->renderer_.createTexturedPipeline(pipelineId, vertShader, fragShader, numTextures);
@@ -2211,7 +2211,7 @@ int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
     assert(fragShader.data != nullptr);
 
     int pipelineId = interface->pipelineIndex_++;
-    std::cout << "LuaInterface::loadTexturedShadersAdditive: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadTexturedShadersAdditive: currentSceneId_=%d, zIndex=%d", interface->currentSceneId_, zIndex);
     Vector<std::pair<int, int>>** vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
     if (vecPtr == nullptr) {
         void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadTexturedShadersAdditive::Vector");
@@ -2219,11 +2219,11 @@ int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
         Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadTexturedShadersAdditive::data");
         interface->scenePipelines_.insertNew(interface->currentSceneId_, newVec);
         vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
-        std::cout << "LuaInterface::loadTexturedShadersAdditive: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadTexturedShadersAdditive: created new vector for sceneId %d", interface->currentSceneId_);
     }
     assert(*vecPtr != nullptr);
     (*vecPtr)->push_back({pipelineId, zIndex});
-    std::cout << "LuaInterface::loadTexturedShadersAdditive: added pipeline " << pipelineId << " with zIndex " << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadTexturedShadersAdditive: added pipeline %d with zIndex %d", pipelineId, zIndex);
 
     // Create textured pipeline with additive blending
     interface->renderer_.createTexturedPipelineAdditive(pipelineId, vertShader, fragShader, numTextures);
@@ -2260,7 +2260,7 @@ int LuaInterface::loadAnimTexturedShaders(lua_State* L) {
     assert(fragShader.data != nullptr);
 
     int pipelineId = interface->pipelineIndex_++;
-    std::cout << "LuaInterface::loadAnimTexturedShaders: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadAnimTexturedShaders: currentSceneId_=%d, zIndex=%d", interface->currentSceneId_, zIndex);
     Vector<std::pair<int, int>>** vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
     if (vecPtr == nullptr) {
         void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadAnimTexturedShaders::Vector");
@@ -2268,11 +2268,11 @@ int LuaInterface::loadAnimTexturedShaders(lua_State* L) {
         Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadAnimTexturedShaders::data");
         interface->scenePipelines_.insertNew(interface->currentSceneId_, newVec);
         vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
-        std::cout << "LuaInterface::loadAnimTexturedShaders: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadAnimTexturedShaders: created new vector for sceneId %d", interface->currentSceneId_);
     }
     assert(*vecPtr != nullptr);
     (*vecPtr)->push_back({pipelineId, zIndex});
-    std::cout << "LuaInterface::loadAnimTexturedShaders: added pipeline " << pipelineId << " with zIndex " << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadAnimTexturedShaders: added pipeline %d with zIndex %d", pipelineId, zIndex);
 
     // Create animated textured pipeline with extended push constants
     interface->renderer_.createAnimTexturedPipeline(pipelineId, vertShader, fragShader, numTextures);
@@ -2329,7 +2329,7 @@ int LuaInterface::audioLoadOpus(lua_State* L) {
     // Load resource from pak
     ResourceData resourceData = interface->pakResource_.getResource(resourceId);
     if (!resourceData.data || resourceData.size == 0) {
-        std::cerr << "Failed to load OPUS resource: " << resourceName << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load OPUS resource: %s", resourceName);
         lua_pushinteger(L, -1);
         assert(false);
         return 1;
@@ -2662,7 +2662,7 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     assert(fragShader.data != nullptr);
 
     int pipelineId = interface->pipelineIndex_++;
-    std::cout << "LuaInterface::loadParticleShaders: currentSceneId_=" << interface->currentSceneId_ << ", zIndex=" << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: currentSceneId_=%d, zIndex=%d", interface->currentSceneId_, zIndex);
     Vector<std::pair<int, int>>** vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
     if (vecPtr == nullptr) {
         void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::loadParticleShaders::Vector");
@@ -2670,11 +2670,11 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
         Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*interface->stringAllocator_, "LuaInterface::loadParticleShaders::data");
         interface->scenePipelines_.insertNew(interface->currentSceneId_, newVec);
         vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
-        std::cout << "LuaInterface::loadParticleShaders: created new vector for sceneId " << interface->currentSceneId_ << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: created new vector for sceneId %d", interface->currentSceneId_);
     }
     assert(*vecPtr != nullptr);
     (*vecPtr)->push_back({pipelineId, zIndex});
-    std::cout << "LuaInterface::loadParticleShaders: added pipeline " << pipelineId << " with zIndex " << zIndex << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: added pipeline %d with zIndex %d", pipelineId, zIndex);
 
     // Create particle pipeline
     interface->renderer_.createParticlePipeline(pipelineId, vertShader, fragShader, blendMode);
@@ -3010,7 +3010,7 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
 
     const char* filename = lua_tostring(L, 1);
 
-    std::cout << "Loading particle config: " << filename << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading particle config: %s", filename);
 
     // Hash the filename to get resource ID
     uint64_t resourceId = hashCString(filename);
@@ -3018,7 +3018,7 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
     // Load the Lua file from the pak
     ResourceData scriptData = interface->pakResource_.getResource(resourceId);
     if (!scriptData.data || scriptData.size == 0) {
-        std::cerr << "Failed to load particle config: " << filename << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load particle config: %s", filename);
         lua_pushnil(L);
         assert(false);
         return 1;
@@ -3027,7 +3027,7 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
     // Load and execute the Lua script, which should return a table
     if (luaL_loadbuffer(L, (char*)scriptData.data, scriptData.size, filename) != LUA_OK) {
         const char* errorMsg = lua_tostring(L, -1);
-        std::cerr << "Lua load error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua load error for %s: %s", filename, errorMsg ? errorMsg : "unknown error");
         lua_pop(L, 1);
         lua_pushnil(L);
         assert(false);
@@ -3037,7 +3037,7 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
     // Execute the script - it should return a table
     if (lua_pcall(L, 0, 1, 0) != LUA_OK) {
         const char* errorMsg = lua_tostring(L, -1);
-        std::cerr << "Lua exec error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua exec error for %s: %s", filename, errorMsg ? errorMsg : "unknown error");
         lua_pop(L, 1);
         lua_pushnil(L);
         assert(false);
@@ -3061,7 +3061,7 @@ int LuaInterface::loadObject(lua_State* L) {
 
     const char* filename = lua_tostring(L, 1);
 
-    std::cout << "Loading object: " << filename << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading object: %s", filename);
 
     // Hash the filename to get resource ID
     uint64_t resourceId = hashCString(filename);
@@ -3069,7 +3069,7 @@ int LuaInterface::loadObject(lua_State* L) {
     // Load the Lua file from the pak
     ResourceData scriptData = interface->pakResource_.getResource(resourceId);
     if (!scriptData.data || scriptData.size == 0) {
-        std::cerr << "Failed to load object: " << filename << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load object: %s", filename);
         lua_pushnil(L);
         assert(false);
         return 1;
@@ -3078,7 +3078,7 @@ int LuaInterface::loadObject(lua_State* L) {
     // Load and execute the Lua script, which should return a table (the object module)
     if (luaL_loadbuffer(L, (char*)scriptData.data, scriptData.size, filename) != LUA_OK) {
         const char* errorMsg = lua_tostring(L, -1);
-        std::cerr << "Lua load error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua load error for %s: %s", filename, errorMsg ? errorMsg : "unknown error");
         lua_pop(L, 1);
         lua_pushnil(L);
         assert(false);
@@ -3088,7 +3088,7 @@ int LuaInterface::loadObject(lua_State* L) {
     // Execute the script - it should return a table with create/update/cleanup functions
     if (lua_pcall(L, 0, 1, 0) != LUA_OK) {
         const char* errorMsg = lua_tostring(L, -1);
-        std::cerr << "Lua exec error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua exec error for %s: %s", filename, errorMsg ? errorMsg : "unknown error");
         lua_pop(L, 1);
         lua_pushnil(L);
         assert(false);
@@ -3110,7 +3110,7 @@ int LuaInterface::loadObject(lua_State* L) {
         // Call create(params)
         if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
             const char* errorMsg = lua_tostring(L, -1);
-            std::cerr << "Lua object create error for " << filename << ": " << (errorMsg ? errorMsg : "unknown error") << std::endl;
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua object create error for %s: %s", filename, errorMsg ? errorMsg : "unknown error");
             lua_pop(L, 1);
             assert(false);
         }
@@ -3218,7 +3218,7 @@ int LuaInterface::createNode(lua_State* L) {
 
     // Create node entry - allocate through allocator using placement new
     int nodeId = interface->nextNodeId_++;
-    std::cout << "LuaInterface::createNode: creating node " << nodeId << " with bodyId " << bodyId << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::createNode: creating node %d with bodyId %d", nodeId, bodyId);
     void* nodeMem = interface->stringAllocator_->allocate(sizeof(Node), "LuaInterface::createNode::Node");
     assert(nodeMem != nullptr);
     Node* node = new (nodeMem) Node(interface->stringAllocator_);
@@ -3246,15 +3246,15 @@ int LuaInterface::createNode(lua_State* L) {
                     if (lua_pcall(L, 0, 1, 0) == LUA_OK) {
                         // Script table is now on top
                     } else {
-                        std::cerr << "Failed to execute node script: " << scriptPath.c_str() << std::endl;
+                        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to execute node script: %s", scriptPath.c_str());
                         lua_pop(L, 1); // Pop error message
                     }
                 } else {
-                    std::cerr << "Failed to load node script buffer: " << scriptPath.c_str() << std::endl;
+                    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load node script buffer: %s", scriptPath.c_str());
                     lua_pop(L, 1); // Pop error message
                 }
             } else {
-                std::cerr << "Failed to load node script: " << scriptPath.c_str() << std::endl;
+                interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load node script: %s", scriptPath.c_str());
             }
         } else if (lua_istable(L, 3)) {
             lua_pushvalue(L, 3);
@@ -3286,7 +3286,7 @@ int LuaInterface::createNode(lua_State* L) {
 
     interface->nodes_.insertNew(nodeId, node);
     interface->bodyToNodeMap_.insert(bodyId, nodeId);
-    std::cout << "LuaInterface::createNode: inserted node " << nodeId << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::createNode: inserted node %d", nodeId);
 
     lua_pushinteger(L, nodeId);
     return 1;
@@ -3301,7 +3301,7 @@ int LuaInterface::destroyNode(lua_State* L) {
     assert(lua_isnumber(L, 1));
 
     int nodeId = lua_tointeger(L, 1);
-    std::cout << "LuaInterface::destroyNode: nodeId=" << nodeId << std::endl;
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::destroyNode: nodeId=%d", nodeId);
 
     Node** nodePtr = interface->nodes_.find(nodeId);
     if (nodePtr != nullptr) {
@@ -3329,7 +3329,7 @@ int LuaInterface::destroyNode(lua_State* L) {
         node->~Node();  // Call destructor
         interface->stringAllocator_->free(node);  // Free through allocator
         interface->nodes_.remove(nodeId);
-        std::cout << "LuaInterface::destroyNode: deleted node " << nodeId << std::endl;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::destroyNode: deleted node %d", nodeId);
     }
 
     return 0;
@@ -3366,7 +3366,7 @@ void LuaInterface::updateNodes(float deltaTime) {
             lua_pushnumber(luaState_, deltaTime);
             if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
                 const char* errorMsg = lua_tostring(luaState_, -1);
-                std::cerr << "Node update error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Node update error: %s", errorMsg ? errorMsg : "unknown");
                 lua_pop(luaState_, 1);
                 assert(false);
             }
@@ -3393,7 +3393,7 @@ void LuaInterface::handleNodeSensorEvent(const SensorEvent& event) {
                 lua_pushnumber(luaState_, event.visitorY);
                 if (lua_pcall(luaState_, 3, 0, 0) != LUA_OK) {
                     const char* errorMsg = lua_tostring(luaState_, -1);
-                    std::cerr << "Node onEnter error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Node onEnter error: %s", errorMsg ? errorMsg : "unknown");
                     lua_pop(luaState_, 1);
                     assert(false);
                 }
@@ -3431,7 +3431,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
     }
 
     int waterShaderId = pipelineIndex_++;
-    std::cout << "LuaInterface::setupWaterVisuals: currentSceneId_=" << currentSceneId_ << ", zIndex=" << WATER_SHADER_Z_INDEX << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::setupWaterVisuals: currentSceneId_=%d, zIndex=%d", currentSceneId_, WATER_SHADER_Z_INDEX);
     Vector<std::pair<int, int>>** vecPtr = scenePipelines_.find(currentSceneId_);
     if (vecPtr == nullptr) {
         void* vectorMem = stringAllocator_->allocate(sizeof(Vector<std::pair<int, int>>), "LuaInterface::setupWaterVisuals::Vector");
@@ -3439,11 +3439,11 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
         Vector<std::pair<int, int>>* newVec = new (vectorMem) Vector<std::pair<int, int>>(*stringAllocator_, "LuaInterface::setupWaterVisuals::data");
         scenePipelines_.insertNew(currentSceneId_, newVec);
         vecPtr = scenePipelines_.find(currentSceneId_);
-        std::cout << "LuaInterface::setupWaterVisuals: created new vector for sceneId " << currentSceneId_ << std::endl;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::setupWaterVisuals: created new vector for sceneId %d", currentSceneId_);
     }
     assert(*vecPtr != nullptr);
     (*vecPtr)->push_back({waterShaderId, WATER_SHADER_Z_INDEX});
-    std::cout << "LuaInterface::setupWaterVisuals: added pipeline " << waterShaderId << " with zIndex " << WATER_SHADER_Z_INDEX << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::setupWaterVisuals: added pipeline %d with zIndex %d", waterShaderId, WATER_SHADER_Z_INDEX);
 
     // Create animation textured pipeline for water (uses 33 float push constants)
     // Water needs 2 textures: primary texture and reflection render target
@@ -3533,8 +3533,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
     // 10. Associate the water shader with the water force field for splash ripples
     waterFieldShaderMap_.insert(waterFieldId, waterShaderId);
 
-    std::cout << "Water visual setup complete: layer=" << waterLayerId
-              << " shader=" << waterShaderId << " field=" << waterFieldId << std::endl;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
 }
 
 int LuaInterface::b2AddBodyType(lua_State* L) {
@@ -3620,7 +3619,7 @@ int LuaInterface::b2SetCollisionCallback(lua_State* L) {
         lua_pushnumber(interface->luaState_, approachSpeed);
         if (lua_pcall(interface->luaState_, 7, 0, 0) != LUA_OK) {
             const char* errorMsg = lua_tostring(interface->luaState_, -1);
-            std::cerr << "Collision callback error: " << (errorMsg ? errorMsg : "unknown") << std::endl;
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Collision callback error: %s", errorMsg ? errorMsg : "unknown");
             assert(false);
             lua_pop(interface->luaState_, 1);
         }
