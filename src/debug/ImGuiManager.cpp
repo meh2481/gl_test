@@ -9,6 +9,7 @@
 #include "../memory/SmallAllocator.h"
 #include "../core/hash.h"
 #include "../core/Vector.h"
+#include "../core/config.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
@@ -155,12 +156,9 @@ void ImGuiManager::initialize(SDL_Window* window, VkInstance instance, VkPhysica
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
     // Set ImGui ini file to the same directory as config
-    char* prefPath = SDL_GetPrefPath("RetSphinxEngine", "ShaderTriangle");
-    if (prefPath) {
-        static char iniPath[1024];
-        SDL_snprintf(iniPath, sizeof(iniPath), "%simgui.ini", prefPath);
+    static char iniPath[MAX_PREF_PATH];
+    if (getPrefFilePath(iniPath, sizeof(iniPath), "imgui.ini")) {
         io.IniFilename = iniPath;
-        SDL_free(prefPath);
     }
 
     // Setup Dear ImGui style

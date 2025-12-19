@@ -169,17 +169,14 @@ int main()
     }
 
     // Open log file in the same directory as config files
-    char* prefPath = SDL_GetPrefPath("RetSphinxEngine", "ShaderTriangle");
-    if (prefPath)
+    char logFilePath[MAX_PREF_PATH];
+    if (getPrefFilePath(logFilePath, sizeof(logFilePath), "last_run.log"))
     {
-        char logFilePath[1024];
-        SDL_snprintf(logFilePath, sizeof(logFilePath), "%slast_run.log", prefPath);
         g_logFile = SDL_IOFromFile(logFilePath, "w");
         if (g_logFile)
         {
             SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Logging to: %s", logFilePath);
         }
-        SDL_free(prefPath);
     }
 
     // Create single allocator instances for the entire application

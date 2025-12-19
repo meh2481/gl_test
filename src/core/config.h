@@ -10,6 +10,10 @@
 #define MAX_CONFIG_KEY 64
 #define MAX_CONFIG_VALUE 256
 
+#define PREF_PATH_PREFIX "RetSphinxEngine"
+#define PREF_PATH_APPLICATION "ShaderTriangle"
+#define MAX_PREF_PATH 1024
+
 struct Config {
     int display = 0;
     SDL_WindowFlags fullscreenMode = SDL_WINDOW_FULLSCREEN;
@@ -58,5 +62,10 @@ public:
 // Legacy functions for backward compatibility
 Config loadConfig();
 void saveConfig(const Config& config);
+
+// Helper function to build a path in the config directory
+// Returns true if successful, false otherwise
+// pathBuffer should be at least MAX_PREF_PATH bytes
+bool getPrefFilePath(char* pathBuffer, size_t bufferSize, const char* filename);
 
 #endif // CONFIG_H

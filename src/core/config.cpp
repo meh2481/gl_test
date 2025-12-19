@@ -2,9 +2,6 @@
 #include <SDL3/SDL.h>
 #include <cassert>
 
-#define PREF_PATH_PREFIX "RetSphinxEngine"
-#define PREF_PATH_APPLICATION "ShaderTriangle"
-
 // ConfigManager implementation
 
 ConfigManager::ConfigManager() : entryCount(0) {
@@ -226,11 +223,8 @@ void ConfigManager::setInt(const char* section, const char* key, int value) {
 
 Config loadConfig() {
     Config config;
-    char* prefPath = SDL_GetPrefPath(PREF_PATH_PREFIX, PREF_PATH_APPLICATION);
-    if (prefPath) {
-        char configFile[1024];
-        SDL_snprintf(configFile, sizeof(configFile), "%sconfig.ini", prefPath);
-
+    char configFile[MAX_PREF_PATH];
+    if (getPrefFilePath(configFile, sizeof(configFile), "config.ini")) {
         ConfigManager manager;
         if (manager.load(configFile)) {
             config.display = manager.getInt("Display", "display", 0);
@@ -239,18 +233,13 @@ Config loadConfig() {
             SDL_strlcpy(config.keybindings, keybindings, MAX_KEYBINDING_STRING);
             config.gpuIndex = manager.getInt("Graphics", "gpu_index", -1);
         }
-
-        SDL_free(prefPath);
     }
     return config;
 }
 
 void saveConfig(const Config& config) {
-    char* prefPath = SDL_GetPrefPath(PREF_PATH_PREFIX, PREF_PATH_APPLICATION);
-    if (prefPath) {
-        char configFile[1024];
-        SDL_snprintf(configFile, sizeof(configFile), "%sconfig.ini", prefPath);
-
+    char configFile[MAX_PREF_PATH];
+    if (getPrefFilePath(configFile, sizeof(configFile), "config.ini")) {
         ConfigManager manager;
         manager.load(configFile);  // Load existing config (or initialize path if file doesn't exist)
         manager.setInt("Display", "display", config.display);
@@ -260,7 +249,21 @@ void saveConfig(const Config& config) {
         }
         manager.setInt("Graphics", "gpu_index", config.gpuIndex);
         manager.save();
-
-        SDL_free(prefPath);
     }
+}
+
+// Helper function to build a path in the config directory
+bool getPrefFilePath(char* pathBuffer, size_t bufferSize, const char* filename) {
+    assert(pathBuffer != nullptr);
+    assert(filename != nullptr);
+
+    char* prefPath = SDL_GetPrefPath(PREF_PATH_PREFIX, PREF_PATH_APPLICATION);
+    if (!prefPath) {
+        return false;
+    }
+
+    int result = SDL_snprintf(pathBuffer, bufferSize, "%s%s", prefPath, filename);
+    SDL_free(prefPath);
+
+    return result > 0 && (size_t)result < bufferSize;
 }
