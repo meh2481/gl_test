@@ -1,5 +1,4 @@
 * std::cos & std::sin - lookup table instead
-* std::abs
 * std::stack
 * std::unordered_set
 * std::array - Shader params, shader ripples

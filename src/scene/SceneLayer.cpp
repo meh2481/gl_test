@@ -6,6 +6,11 @@
 // Epsilon for parallax depth comparisons
 static const float PARALLAX_EPSILON = 0.001f;
 
+// Simple absolute value function for floats
+inline float abs_float(float x) {
+    return x < 0.0f ? -x : x;
+}
+
 SceneLayerManager::SceneLayerManager(MemoryAllocator* allocator)
     : layers_(*allocator, "SceneLayerManager::layers"), nextLayerId_(1), allocator_(allocator) {
 }
@@ -306,7 +311,7 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
         bool operator==(const BatchKey& other) const {
             return pipelineId == other.pipelineId &&
                    descriptorId == other.descriptorId &&
-                   std::abs(parallaxDepth - other.parallaxDepth) < PARALLAX_EPSILON;
+                   abs_float(parallaxDepth - other.parallaxDepth) < PARALLAX_EPSILON;
         }
     };
     HashTable<BatchKey, size_t> batchMap(*allocator_, "updateLayerVertices::batchMap");
@@ -384,11 +389,11 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
         float angle = layer.cachedAngle;
 
         // Apply parallax offset for layers without physics bodies
-        if (layer.physicsBodyId < 0 && std::abs(layer.parallaxDepth) >= PARALLAX_EPSILON) {
+        if (layer.physicsBodyId < 0 && abs_float(layer.parallaxDepth) >= PARALLAX_EPSILON) {
             // Parallax factor: depth / (1.0 + abs(depth))
             // depth < 0: foreground, moves faster (appears closer)
             // depth > 0: background, moves slower (appears farther)
-            float absDepth = std::abs(layer.parallaxDepth);
+            float absDepth = abs_float(layer.parallaxDepth);
             float parallaxFactor = layer.parallaxDepth / (1.0f + absDepth);
             // Apply parallax offset to position based on camera offset
             centerX += cameraX * parallaxFactor;
@@ -555,7 +560,7 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
     batches.sort([](const SpriteBatch& a, const SpriteBatch& b) {
         // Sort by parallax depth first (higher depth = background = drawn first)
         // Positive depth = background, negative depth = foreground
-        if (std::abs(a.parallaxDepth - b.parallaxDepth) >= PARALLAX_EPSILON) {
+        if (abs_float(a.parallaxDepth - b.parallaxDepth) >= PARALLAX_EPSILON) {
             return a.parallaxDepth > b.parallaxDepth; // Higher depth (background) drawn first
         }
         // Then by pipeline ID
