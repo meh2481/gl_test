@@ -1728,7 +1728,7 @@ void Box2DPhysics::applyRadialForceFields() {
                 // Calculate distance from center
                 float dx = bodyPos.x - field.centerX;
                 float dy = bodyPos.y - field.centerY;
-                float distance = sqrtf(dx * dx + dy * dy);
+                float distance = SDL_sqrtf(dx * dx + dy * dy);
 
                 // Only apply force if the center of mass is inside the field
                 if (distance <= field.radius) {
@@ -1846,7 +1846,7 @@ void Box2DPhysics::processFractures() {
             int layerId = -1;
             if (layerManager_) {
                 // Calculate layer size from fragment polygon area
-                float fragSize = sqrtf(fracture.fragments[i].area) * 2.0f;
+                float fragSize = SDL_sqrtf(fracture.fragments[i].area) * 2.0f;
                 if (fragSize < MIN_FRAGMENT_LAYER_SIZE) fragSize = MIN_FRAGMENT_LAYER_SIZE;
 
                 // Create layer with atlas texture IDs if using atlas, otherwise original IDs
