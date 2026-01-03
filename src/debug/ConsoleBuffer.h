@@ -12,10 +12,10 @@
 // Console buffer to capture output for ImGui display and log via SDL
 class ConsoleBuffer {
 public:
-    ConsoleBuffer(MemoryAllocator* allocator)
-        : stringAllocator_(allocator)
-        , lines_(*allocator, "ConsoleBuffer::lines_")
-        , currentLine_(allocator) {
+    ConsoleBuffer(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator)
+        : stringAllocator_(smallAllocator)
+        , lines_(*largeAllocator, "ConsoleBuffer::lines_")
+        , currentLine_(smallAllocator) {
         assert(stringAllocator_ != nullptr);
         mutex_ = SDL_CreateMutex();
         assert(mutex_ != nullptr);

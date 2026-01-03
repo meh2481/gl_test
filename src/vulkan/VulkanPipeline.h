@@ -49,7 +49,7 @@ struct PipelineInfo {
 // Helper class for managing Vulkan pipelines
 class VulkanPipeline {
 public:
-    VulkanPipeline(MemoryAllocator* allocator);
+    VulkanPipeline(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator);
     ~VulkanPipeline();
 
     // Initialization - must be called before any other operations

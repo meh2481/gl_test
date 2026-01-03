@@ -56,11 +56,11 @@ inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
     return value;
 }
 
-VulkanRenderer::VulkanRenderer(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer) :
-    m_textureManager(allocator, consoleBuffer),
-    m_descriptorManager(allocator),
-    m_pipelineManager(allocator),
-    m_lightManager(allocator),
+VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, ConsoleBuffer* consoleBuffer) :
+    m_textureManager(smallAllocator, consoleBuffer),
+    m_descriptorManager(smallAllocator),
+    m_pipelineManager(smallAllocator, largeAllocator),
+    m_lightManager(smallAllocator),
     m_instance(VK_NULL_HANDLE),
     m_surface(VK_NULL_HANDLE),
     m_physicalDevice(VK_NULL_HANDLE),
@@ -103,10 +103,10 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* allocator, ConsoleBuffer* consol
     m_reflectionTextureId(REFLECTION_TEXTURE_ID_INVALID),
     m_reflectionEnabled(false),
     m_reflectionSurfaceY(0.0f),
-    m_spriteBatches(*allocator, "VulkanRenderer::m_spriteBatches"),
-    m_particleBatches(*allocator, "VulkanRenderer::m_particleBatches"),
-    m_allBatches(*allocator, "VulkanRenderer::m_allBatches"),
-    m_allocator(allocator),
+    m_spriteBatches(*smallAllocator, "VulkanRenderer::m_spriteBatches"),
+    m_particleBatches(*smallAllocator, "VulkanRenderer::m_particleBatches"),
+    m_allBatches(*smallAllocator, "VulkanRenderer::m_allBatches"),
+    m_allocator(smallAllocator),
     m_consoleBuffer(consoleBuffer)
 #ifdef DEBUG
     , m_imguiRenderCallback(nullptr)

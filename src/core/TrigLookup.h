@@ -25,7 +25,7 @@ class ConsoleBuffer;
 //
 class TrigLookup {
 public:
-    TrigLookup(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer);
+    TrigLookup(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, ConsoleBuffer* consoleBuffer);
     ~TrigLookup();
 
     // Load the trig lookup table from the resource pak
@@ -40,7 +40,7 @@ public:
     void sincos(float angle, float& outSin, float& outCos) const;
 
 private:
-    MemoryAllocator* m_allocator;
+    MemoryAllocator* m_tableAllocator;  // Large allocator for sin/cos tables
     ConsoleBuffer* m_consoleBuffer;
     float* m_sinTable;
     float* m_cosTable;

@@ -19,7 +19,7 @@ class ConsoleBuffer;
 
 class VulkanRenderer {
 public:
-    VulkanRenderer(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer);
+    VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, ConsoleBuffer* consoleBuffer);
     ~VulkanRenderer();
 
     void initialize(SDL_Window* window, int preferredGpuIndex = -1);

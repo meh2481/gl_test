@@ -9,8 +9,8 @@
 // Use a constant for 2*PI to avoid repeated calculations
 static const float TWO_PI = 6.28318530718f;
 
-TrigLookup::TrigLookup(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
-    : m_allocator(allocator)
+TrigLookup::TrigLookup(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, ConsoleBuffer* consoleBuffer)
+    : m_tableAllocator(largeAllocator)
     , m_consoleBuffer(consoleBuffer)
     , m_sinTable(nullptr)
     , m_cosTable(nullptr)
@@ -18,17 +18,17 @@ TrigLookup::TrigLookup(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
     , m_angleStep(0.0f)
     , m_invAngleStep(0.0f)
 {
-    assert(m_allocator != nullptr);
+    assert(m_tableAllocator != nullptr);
     assert(m_consoleBuffer != nullptr);
 }
 
 TrigLookup::~TrigLookup() {
     if (m_sinTable) {
-        m_allocator->free(m_sinTable);
+        m_tableAllocator->free(m_sinTable);
         m_sinTable = nullptr;
     }
     if (m_cosTable) {
-        m_allocator->free(m_cosTable);
+        m_tableAllocator->free(m_cosTable);
         m_cosTable = nullptr;
     }
 }
@@ -65,10 +65,10 @@ bool TrigLookup::load(PakResource* pakResource) {
         return false;
     }
 
-    // Allocate memory for sin and cos tables
+    // Allocate memory for sin and cos tables using large allocator
     size_t tableSize = m_numEntries * sizeof(float);
-    m_sinTable = (float*)m_allocator->allocate(tableSize, "TrigLookup::m_sinTable");
-    m_cosTable = (float*)m_allocator->allocate(tableSize, "TrigLookup::m_cosTable");
+    m_sinTable = (float*)m_tableAllocator->allocate(tableSize, "TrigLookup::m_sinTable");
+    m_cosTable = (float*)m_tableAllocator->allocate(tableSize, "TrigLookup::m_cosTable");
 
     assert(m_sinTable != nullptr);
     assert(m_cosTable != nullptr);

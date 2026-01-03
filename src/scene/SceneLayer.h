@@ -151,7 +151,7 @@ struct SceneLayer {
 // Manager for scene layers
 class SceneLayerManager {
 public:
-    SceneLayerManager(MemoryAllocator* allocator, TrigLookup* trigLookup);
+    SceneLayerManager(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, TrigLookup* trigLookup);
     ~SceneLayerManager();
 
     // Layer management

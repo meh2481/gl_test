@@ -45,25 +45,25 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
     }
 }
 
-Box2DPhysics::Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup)
+Box2DPhysics::Box2DPhysics(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup)
     : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
       timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
-      nextForceFieldId_(0), stringAllocator_(allocator), layerManager_(layerManager),
+      nextForceFieldId_(0), stringAllocator_(smallAllocator), layerManager_(layerManager),
       consoleBuffer_(consoleBuffer), trigLookup_(trigLookup),
-      bodies_(*allocator, "Box2DPhysics::bodies_"),
-      joints_(*allocator, "Box2DPhysics::joints_"),
-      destructibles_(*allocator, "Box2DPhysics::destructibles_"),
-      destructibleBodyLayers_(*allocator, "Box2DPhysics::destructibleBodyLayers_"),
-      forceFields_(*allocator, "Box2DPhysics::forceFields_"),
-      radialForceFields_(*allocator, "Box2DPhysics::radialForceFields_"),
-      bodyTypes_(*allocator, "Box2DPhysics::bodyTypes_"),
-      debugLineVertices_(*allocator, "Box2DPhysics::debugLineVertices_"),
-      debugTriangleVertices_(*allocator, "Box2DPhysics::debugTriangleVertices_"),
-      collisionHitEvents_(*allocator, "Box2DPhysics::collisionHitEvents_"),
-      fractureEvents_(*allocator, "Box2DPhysics::fractureEvents_"),
-      pendingDestructions_(*allocator, "Box2DPhysics::pendingDestructions_"),
-      fragmentBodyIds_(*allocator, "Box2DPhysics::fragmentBodyIds_"),
-      fragmentLayerIds_(*allocator, "Box2DPhysics::fragmentLayerIds_") {
+      bodies_(*smallAllocator, "Box2DPhysics::bodies_"),
+      joints_(*smallAllocator, "Box2DPhysics::joints_"),
+      destructibles_(*largeAllocator, "Box2DPhysics::destructibles_"),
+      destructibleBodyLayers_(*smallAllocator, "Box2DPhysics::destructibleBodyLayers_"),
+      forceFields_(*smallAllocator, "Box2DPhysics::forceFields_"),
+      radialForceFields_(*smallAllocator, "Box2DPhysics::radialForceFields_"),
+      bodyTypes_(*smallAllocator, "Box2DPhysics::bodyTypes_"),
+      debugLineVertices_(*largeAllocator, "Box2DPhysics::debugLineVertices_"),
+      debugTriangleVertices_(*smallAllocator, "Box2DPhysics::debugTriangleVertices_"),
+      collisionHitEvents_(*smallAllocator, "Box2DPhysics::collisionHitEvents_"),
+      fractureEvents_(*largeAllocator, "Box2DPhysics::fractureEvents_"),
+      pendingDestructions_(*smallAllocator, "Box2DPhysics::pendingDestructions_"),
+      fragmentBodyIds_(*smallAllocator, "Box2DPhysics::fragmentBodyIds_"),
+      fragmentLayerIds_(*smallAllocator, "Box2DPhysics::fragmentLayerIds_") {
     assert(stringAllocator_ != nullptr);
     assert(layerManager_ != nullptr);
     assert(trigLookup_ != nullptr);

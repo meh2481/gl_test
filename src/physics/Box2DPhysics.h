@@ -126,7 +126,7 @@ struct RadialForceField {
 
 class Box2DPhysics {
 public:
-    Box2DPhysics(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup);
+    Box2DPhysics(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup);
     ~Box2DPhysics();
 
     // World management

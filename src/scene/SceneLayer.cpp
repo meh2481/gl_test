@@ -12,8 +12,8 @@ inline float abs_float(float x) {
     return x < 0.0f ? -x : x;
 }
 
-SceneLayerManager::SceneLayerManager(MemoryAllocator* allocator, TrigLookup* trigLookup)
-    : layers_(*allocator, "SceneLayerManager::layers"), nextLayerId_(1), allocator_(allocator), trigLookup_(trigLookup) {
+SceneLayerManager::SceneLayerManager(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, TrigLookup* trigLookup)
+    : layers_(*largeAllocator, "SceneLayerManager::layers"), nextLayerId_(1), allocator_(smallAllocator), trigLookup_(trigLookup) {
     assert(trigLookup_ != nullptr);
 }
 

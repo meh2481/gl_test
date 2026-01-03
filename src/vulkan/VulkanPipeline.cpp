@@ -15,7 +15,7 @@ static const char* vkResultToString(VkResult result) {
     }
 }
 
-VulkanPipeline::VulkanPipeline(MemoryAllocator* allocator) :
+VulkanPipeline::VulkanPipeline(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator) :
     m_device(VK_NULL_HANDLE),
     m_renderPass(VK_NULL_HANDLE),
     m_msaaSamples(VK_SAMPLE_COUNT_1_BIT),
@@ -23,22 +23,22 @@ VulkanPipeline::VulkanPipeline(MemoryAllocator* allocator) :
     m_descriptorManager(nullptr),
     m_initialized(false),
     m_pipelineLayout(VK_NULL_HANDLE),
-    m_pipelines(*allocator, "VulkanPipeline::m_pipelines"),
-    m_debugPipelines(*allocator, "VulkanPipeline::m_debugPipelines"),
+    m_pipelines(*smallAllocator, "VulkanPipeline::m_pipelines"),
+    m_debugPipelines(*smallAllocator, "VulkanPipeline::m_debugPipelines"),
     m_debugLinePipeline(VK_NULL_HANDLE),
     m_debugTrianglePipeline(VK_NULL_HANDLE),
     m_fadePipeline(VK_NULL_HANDLE),
     m_currentPipeline(VK_NULL_HANDLE),
-    m_pipelinesToDraw(*allocator, "VulkanPipeline::m_pipelinesToDraw"),
-    m_pipelineInfo(*allocator, "VulkanPipeline::m_pipelineInfo"),
-    m_pipelineShaderParams(*allocator, "VulkanPipeline::m_pipelineShaderParams"),
-    m_pipelineShaderParamCount(*allocator, "VulkanPipeline::m_pipelineShaderParamCount"),
-    m_pipelineParallaxDepth(*allocator, "VulkanPipeline::m_pipelineParallaxDepth"),
-    m_pipelineWaterRipples(*allocator, "VulkanPipeline::m_pipelineWaterRipples"),
-    m_pipelineWaterRippleCount(*allocator, "VulkanPipeline::m_pipelineWaterRippleCount"),
-    m_vertShaderData(*allocator, "VulkanPipeline::m_vertShaderData"),
-    m_fragShaderData(*allocator, "VulkanPipeline::m_fragShaderData"),
-    m_allocator(allocator)
+    m_pipelinesToDraw(*smallAllocator, "VulkanPipeline::m_pipelinesToDraw"),
+    m_pipelineInfo(*smallAllocator, "VulkanPipeline::m_pipelineInfo"),
+    m_pipelineShaderParams(*smallAllocator, "VulkanPipeline::m_pipelineShaderParams"),
+    m_pipelineShaderParamCount(*smallAllocator, "VulkanPipeline::m_pipelineShaderParamCount"),
+    m_pipelineParallaxDepth(*smallAllocator, "VulkanPipeline::m_pipelineParallaxDepth"),
+    m_pipelineWaterRipples(*smallAllocator, "VulkanPipeline::m_pipelineWaterRipples"),
+    m_pipelineWaterRippleCount(*smallAllocator, "VulkanPipeline::m_pipelineWaterRippleCount"),
+    m_vertShaderData(*largeAllocator, "VulkanPipeline::m_vertShaderData"),
+    m_fragShaderData(*largeAllocator, "VulkanPipeline::m_fragShaderData"),
+    m_allocator(smallAllocator)
 {
     assert(m_allocator != nullptr);
 }
