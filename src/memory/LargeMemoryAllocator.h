@@ -5,12 +5,9 @@
 #include <cstdint>
 #include <SDL3/SDL.h>
 
-// Forward declaration
-class ConsoleBuffer;
-
 class LargeMemoryAllocator : public MemoryAllocator {
 public:
-    LargeMemoryAllocator(ConsoleBuffer* consoleBuffer);
+    LargeMemoryAllocator();
     ~LargeMemoryAllocator() override;
 
     void* allocate(size_t size, const char* allocationId) override;
@@ -77,7 +74,6 @@ private:
     size_t m_allocationCount;
     BlockHeader* m_freeList;
     SDL_Mutex* m_mutex;
-    ConsoleBuffer* m_consoleBuffer;
 
 #ifdef DEBUG
     // Memory usage history (circular buffer)

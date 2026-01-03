@@ -12,8 +12,8 @@ static size_t alignSize(size_t size) {
     return (size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
 }
 
-LargeMemoryAllocator::LargeMemoryAllocator(ConsoleBuffer* consoleBuffer)
-    : m_chunks(nullptr), m_chunkSize(0), m_totalPoolSize(0), m_usedMemory(0), m_allocationCount(0), m_freeList(nullptr), m_consoleBuffer(consoleBuffer) {
+LargeMemoryAllocator::LargeMemoryAllocator()
+    : m_chunks(nullptr), m_chunkSize(0), m_totalPoolSize(0), m_usedMemory(0), m_allocationCount(0), m_freeList(nullptr) {
     m_mutex = SDL_CreateMutex();
     assert(m_mutex != nullptr);
 #ifdef DEBUG
@@ -35,7 +35,7 @@ LargeMemoryAllocator::~LargeMemoryAllocator() {
 
             while ((char*)current < chunkEnd) {
                 if (!current->isFree) {
-                    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Leaked block: size=%zu, allocationId=%s",
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Leaked block: size=%zu, allocationId=%s",
                                     current->size, current->allocationId ? current->allocationId : "unknown");
                 }
 
