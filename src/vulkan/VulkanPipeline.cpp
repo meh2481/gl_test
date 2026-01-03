@@ -1409,6 +1409,29 @@ void VulkanPipeline::destroyPipeline(uint64_t id) {
         m_allocator->free(info);
         m_pipelineInfo.remove(id);
     }
+
+    // Delete the dynamically allocated shader parameter Vector
+    Vector<float>** paramsVecPtr = m_pipelineShaderParams.find(id);
+    if (paramsVecPtr != nullptr) {
+        Vector<float>* vec = *paramsVecPtr;
+        vec->~Vector<float>();
+        m_allocator->free(vec);
+        m_pipelineShaderParams.remove(id);
+    }
+    m_pipelineShaderParamCount.remove(id);
+
+    // Delete the dynamically allocated water ripple Vector
+    Vector<ShaderRippleData>** ripplesVecPtr = m_pipelineWaterRipples.find(id);
+    if (ripplesVecPtr != nullptr) {
+        Vector<ShaderRippleData>* vec = *ripplesVecPtr;
+        vec->~Vector<ShaderRippleData>();
+        m_allocator->free(vec);
+        m_pipelineWaterRipples.remove(id);
+    }
+    m_pipelineWaterRippleCount.remove(id);
+
+    // Remove parallax depth for this pipeline
+    m_pipelineParallaxDepth.remove(id);
 }
 
 void VulkanPipeline::setShaders(const ResourceData& vertShader, const ResourceData& fragShader) {
