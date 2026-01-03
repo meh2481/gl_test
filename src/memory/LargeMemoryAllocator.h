@@ -34,9 +34,20 @@ public:
         size_t blockCount;
     };
 
+    // Allocation statistics by ID
+    struct AllocationStats {
+        const char* allocationId;
+        size_t count;
+        size_t totalBytes;
+    };
+
     // Get chunk information for visualization (caller must delete[] returned array)
     ChunkInfo* getChunkInfo(size_t* outChunkCount) const;
     void freeChunkInfo(ChunkInfo* chunkInfo, size_t chunkCount) const;
+
+    // Get allocation statistics grouped by ID (caller must delete[] returned array)
+    AllocationStats* getAllocationStats(size_t* outStatsCount) const;
+    void freeAllocationStats(AllocationStats* stats, size_t statsCount) const;
 
     // Get memory usage history
     void getUsageHistory(size_t* outHistory, size_t* outCount) const;

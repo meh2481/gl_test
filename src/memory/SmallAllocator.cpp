@@ -439,6 +439,72 @@ void SmallAllocator::freePoolInfo(MemoryPoolInfo* poolInfo, size_t poolCount) co
     }
 }
 
+SmallAllocator::AllocationStats* SmallAllocator::getAllocationStats(size_t* outStatsCount) const {
+    SDL_LockMutex(mutex_);
+
+    // First pass: count unique allocation IDs
+    size_t maxStats = 256; // Initial capacity
+    AllocationStats* tempStats = new AllocationStats[maxStats];
+    size_t statsCount = 0;
+
+    // Iterate through all pools and blocks to collect stats
+    MemoryPool* pool = firstPool_;
+    while (pool) {
+        BlockHeader* block = pool->firstBlock;
+        while (block) {
+            if (!block->isFree && block->allocationId != nullptr) {
+                // Find or create entry for this allocation ID
+                size_t idx = 0;
+                for (idx = 0; idx < statsCount; idx++) {
+                    if (tempStats[idx].allocationId == block->allocationId) {
+                        break;
+                    }
+                }
+
+                if (idx == statsCount) {
+                    // New allocation ID
+                    if (statsCount >= maxStats) {
+                        // Need to grow the array
+                        size_t newMaxStats = maxStats * 2;
+                        AllocationStats* newTempStats = new AllocationStats[newMaxStats];
+                        memcpy(newTempStats, tempStats, statsCount * sizeof(AllocationStats));
+                        delete[] tempStats;
+                        tempStats = newTempStats;
+                        maxStats = newMaxStats;
+                    }
+                    tempStats[statsCount].allocationId = block->allocationId;
+                    tempStats[statsCount].count = 1;
+                    tempStats[statsCount].totalBytes = block->size;
+                    statsCount++;
+                } else {
+                    // Existing allocation ID
+                    tempStats[idx].count++;
+                    tempStats[idx].totalBytes += block->size;
+                }
+            }
+            block = block->next;
+        }
+        pool = pool->next;
+    }
+
+    // Create right-sized output array
+    AllocationStats* stats = nullptr;
+    if (statsCount > 0) {
+        stats = new AllocationStats[statsCount];
+        memcpy(stats, tempStats, statsCount * sizeof(AllocationStats));
+    }
+    delete[] tempStats;
+
+    *outStatsCount = statsCount;
+    SDL_UnlockMutex(mutex_);
+    return stats;
+}
+
+void SmallAllocator::freeAllocationStats(AllocationStats* stats, size_t statsCount) const {
+    (void)statsCount; // Unused
+    delete[] stats;
+}
+
 void SmallAllocator::getUsageHistory(size_t* outHistory, size_t* outCount) const {
     SDL_LockMutex(mutex_);
 

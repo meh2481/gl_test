@@ -449,6 +449,78 @@ void LargeMemoryAllocator::freeChunkInfo(ChunkInfo* chunkInfo, size_t chunkCount
     }
 }
 
+LargeMemoryAllocator::AllocationStats* LargeMemoryAllocator::getAllocationStats(size_t* outStatsCount) const {
+    SDL_LockMutex(m_mutex);
+
+    // First pass: count unique allocation IDs
+    size_t maxStats = 256; // Initial capacity
+    AllocationStats* tempStats = new AllocationStats[maxStats];
+    size_t statsCount = 0;
+
+    // Iterate through all chunks and blocks to collect stats
+    MemoryChunk* chunk = m_chunks;
+    while (chunk) {
+        char* chunkEnd = chunk->memory + chunk->size;
+        BlockHeader* block = chunk->firstBlock;
+
+        while ((char*)block < chunkEnd) {
+            if (!block->isFree && block->allocationId != nullptr) {
+                // Find or create entry for this allocation ID
+                size_t idx = 0;
+                for (idx = 0; idx < statsCount; idx++) {
+                    if (tempStats[idx].allocationId == block->allocationId) {
+                        break;
+                    }
+                }
+
+                if (idx == statsCount) {
+                    // New allocation ID
+                    if (statsCount >= maxStats) {
+                        // Need to grow the array
+                        size_t newMaxStats = maxStats * 2;
+                        AllocationStats* newTempStats = new AllocationStats[newMaxStats];
+                        memcpy(newTempStats, tempStats, statsCount * sizeof(AllocationStats));
+                        delete[] tempStats;
+                        tempStats = newTempStats;
+                        maxStats = newMaxStats;
+                    }
+                    tempStats[statsCount].allocationId = block->allocationId;
+                    tempStats[statsCount].count = 1;
+                    tempStats[statsCount].totalBytes = block->size;
+                    statsCount++;
+                } else {
+                    // Existing allocation ID
+                    tempStats[idx].count++;
+                    tempStats[idx].totalBytes += block->size;
+                }
+            }
+
+            // Move to next block
+            BlockHeader* nextBlock = (BlockHeader*)((char*)block + sizeof(BlockHeader) + block->size);
+            block = nextBlock;
+        }
+
+        chunk = chunk->next;
+    }
+
+    // Create right-sized output array
+    AllocationStats* stats = nullptr;
+    if (statsCount > 0) {
+        stats = new AllocationStats[statsCount];
+        memcpy(stats, tempStats, statsCount * sizeof(AllocationStats));
+    }
+    delete[] tempStats;
+
+    *outStatsCount = statsCount;
+    SDL_UnlockMutex(m_mutex);
+    return stats;
+}
+
+void LargeMemoryAllocator::freeAllocationStats(AllocationStats* stats, size_t statsCount) const {
+    (void)statsCount; // Unused
+    delete[] stats;
+}
+
 void LargeMemoryAllocator::getUsageHistory(size_t* outHistory, size_t* outCount) const {
     SDL_LockMutex(m_mutex);
 

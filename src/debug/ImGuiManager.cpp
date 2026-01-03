@@ -1863,6 +1863,147 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
             ImGui::EndTabItem();
         }
 
+        // Allocation Summary Tab
+        if (ImGui::BeginTabItem("Allocation Summary")) {
+            ImGui::Text("Allocation Statistics by ID");
+            ImGui::Separator();
+
+            // Sorting and search options
+            static int sortColumn = 2; // 0=ID, 1=Count, 2=Memory (default)
+            static bool sortAscending = false; // Default to descending (highest first)
+            static char searchBuffer[256] = "";
+
+            ImGui::Text("Search: ");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(300);
+            ImGui::InputText("##SearchAllocationId", searchBuffer, sizeof(searchBuffer));
+            ImGui::SameLine();
+            if (ImGui::Button("Clear")) {
+                searchBuffer[0] = '\0';
+            }
+
+            ImGui::Separator();
+
+            // Begin table with sortable headers
+            if (ImGui::BeginTable("AllocationStatsTable", 3, ImGuiTableFlags_Sortable | ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
+                ImGui::TableSetupColumn("Allocation ID", ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn("Count", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+                ImGui::TableSetupColumn("Total Memory", ImGuiTableColumnFlags_WidthFixed, 120.0f);
+                ImGui::TableSetupScrollFreeze(0, 1);
+                ImGui::TableHeadersRow();
+
+                // Handle column sorting
+                if (ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs()) {
+                    if (sortSpecs->SpecsDirty) {
+                        if (sortSpecs->SpecsCount > 0) {
+                            sortColumn = sortSpecs->Specs[0].ColumnIndex;
+                            sortAscending = sortSpecs->Specs[0].SortDirection == ImGuiSortDirection_Ascending;
+                        }
+                        sortSpecs->SpecsDirty = false;
+                    }
+                }
+
+                // Collect stats from both allocators
+                size_t smallStatsCount = 0;
+                size_t largeStatsCount = 0;
+                SmallAllocator::AllocationStats* smallStats = small->getAllocationStats(&smallStatsCount);
+                LargeMemoryAllocator::AllocationStats* largeStats = large->getAllocationStats(&largeStatsCount);
+
+                // Merge stats from both allocators
+                struct MergedStats {
+                    const char* allocationId;
+                    size_t count;
+                    size_t totalBytes;
+                };
+
+                size_t maxMergedStats = smallStatsCount + largeStatsCount;
+                MergedStats* mergedStats = new MergedStats[maxMergedStats];
+                size_t mergedCount = 0;
+
+                // Add small allocator stats
+                for (size_t i = 0; i < smallStatsCount; i++) {
+                    mergedStats[mergedCount].allocationId = smallStats[i].allocationId;
+                    mergedStats[mergedCount].count = smallStats[i].count;
+                    mergedStats[mergedCount].totalBytes = smallStats[i].totalBytes;
+                    mergedCount++;
+                }
+
+                // Add large allocator stats (merge with existing if same ID)
+                for (size_t i = 0; i < largeStatsCount; i++) {
+                    bool found = false;
+                    for (size_t j = 0; j < mergedCount; j++) {
+                        if (mergedStats[j].allocationId == largeStats[i].allocationId) {
+                            mergedStats[j].count += largeStats[i].count;
+                            mergedStats[j].totalBytes += largeStats[i].totalBytes;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        mergedStats[mergedCount].allocationId = largeStats[i].allocationId;
+                        mergedStats[mergedCount].count = largeStats[i].count;
+                        mergedStats[mergedCount].totalBytes = largeStats[i].totalBytes;
+                        mergedCount++;
+                    }
+                }
+
+                // Sort the merged stats
+                for (size_t i = 0; i < mergedCount; i++) {
+                    for (size_t j = i + 1; j < mergedCount; j++) {
+                        bool swap = false;
+                        if (sortColumn == 0) { // Sort by ID
+                            int cmp = strcmp(mergedStats[i].allocationId, mergedStats[j].allocationId);
+                            swap = sortAscending ? (cmp > 0) : (cmp < 0);
+                        } else if (sortColumn == 1) { // Sort by count
+                            swap = sortAscending ? (mergedStats[i].count > mergedStats[j].count) : (mergedStats[i].count < mergedStats[j].count);
+                        } else { // Sort by memory
+                            swap = sortAscending ? (mergedStats[i].totalBytes > mergedStats[j].totalBytes) : (mergedStats[i].totalBytes < mergedStats[j].totalBytes);
+                        }
+                        if (swap) {
+                            MergedStats temp = mergedStats[i];
+                            mergedStats[i] = mergedStats[j];
+                            mergedStats[j] = temp;
+                        }
+                    }
+                }
+
+                // Display the rows (with search filter)
+                for (size_t i = 0; i < mergedCount; i++) {
+                    // Apply search filter
+                    if (searchBuffer[0] != '\0') {
+                        if (strstr(mergedStats[i].allocationId, searchBuffer) == nullptr) {
+                            continue;
+                        }
+                    }
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", mergedStats[i].allocationId);
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%zu", mergedStats[i].count);
+
+                    ImGui::TableNextColumn();
+                    if (mergedStats[i].totalBytes < 1024) {
+                        ImGui::Text("%zu B", mergedStats[i].totalBytes);
+                    } else if (mergedStats[i].totalBytes < 1024 * 1024) {
+                        ImGui::Text("%.2f KB", mergedStats[i].totalBytes / 1024.0f);
+                    } else {
+                        ImGui::Text("%.2f MB", mergedStats[i].totalBytes / (1024.0f * 1024.0f));
+                    }
+                }
+
+                ImGui::EndTable();
+
+                // Cleanup
+                delete[] mergedStats;
+                small->freeAllocationStats(smallStats, smallStatsCount);
+                large->freeAllocationStats(largeStats, largeStatsCount);
+            }
+
+            ImGui::EndTabItem();
+        }
+
         ImGui::EndTabBar();
     }
 
