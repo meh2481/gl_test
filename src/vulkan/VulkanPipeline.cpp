@@ -1398,6 +1398,7 @@ void VulkanPipeline::destroyPipeline(uint64_t id) {
     if (pipelinePtr != nullptr) {
         vkDestroyPipeline(m_device, *pipelinePtr, nullptr);
         m_pipelines.remove(id);
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Destroyed pipeline %llu", (unsigned long long)id);
     }
     m_debugPipelines.remove(id);
 
@@ -1408,6 +1409,7 @@ void VulkanPipeline::destroyPipeline(uint64_t id) {
         info->~PipelineInfo();
         m_allocator->free(info);
         m_pipelineInfo.remove(id);
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Freed PipelineInfo for pipeline %llu", (unsigned long long)id);
     }
 
     // Delete the dynamically allocated shader parameter Vector
@@ -1417,6 +1419,7 @@ void VulkanPipeline::destroyPipeline(uint64_t id) {
         vec->~Vector<float>();
         m_allocator->free(vec);
         m_pipelineShaderParams.remove(id);
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Freed shader parameters for pipeline %llu", (unsigned long long)id);
     }
     m_pipelineShaderParamCount.remove(id);
 
@@ -1427,6 +1430,7 @@ void VulkanPipeline::destroyPipeline(uint64_t id) {
         vec->~Vector<ShaderRippleData>();
         m_allocator->free(vec);
         m_pipelineWaterRipples.remove(id);
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Freed water ripples for pipeline %llu", (unsigned long long)id);
     }
     m_pipelineWaterRippleCount.remove(id);
 
