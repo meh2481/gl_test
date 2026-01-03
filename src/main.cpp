@@ -193,634 +193,619 @@ int main()
     SmallAllocator* smallAllocator = new SmallAllocator();
     LargeMemoryAllocator* largeAllocator = new LargeMemoryAllocator();
 
-    // Scope to ensure objects using allocators are destroyed before allocators
-    {
-        // Create LargeMemoryAllocator early (needs ConsoleBuffer, so we'll create it after)
-        // First create a temporary console buffer on stack for initial logging
-        ConsoleBuffer *consoleBuffer = static_cast<ConsoleBuffer *>(
+    ConsoleBuffer *consoleBuffer = static_cast<ConsoleBuffer *>(
         smallAllocator->allocate(sizeof(ConsoleBuffer), "main::ConsoleBuffer"));
+    new (consoleBuffer) ConsoleBuffer(smallAllocator, largeAllocator);
 
-        // Now initialize console buffer with both allocators
-        new (consoleBuffer) ConsoleBuffer(smallAllocator, largeAllocator);
+    // Log machine info at startup
+    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "SDL version: %d", SDL_GetVersion());
+    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Platform: %s", SDL_GetPlatform());
+    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "CPU count: %d", SDL_GetNumLogicalCPUCores());
+    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "System RAM: %d MB", SDL_GetSystemRAM());
 
-        // Log machine info at startup
-        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "SDL version: %d", SDL_GetVersion());
-        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Platform: %s", SDL_GetPlatform());
-        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "CPU count: %d", SDL_GetNumLogicalCPUCores());
-        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "System RAM: %d MB", SDL_GetSystemRAM());
+    Config config = loadConfig();
 
-        Config config = loadConfig();
+    SDL_DisplayID primaryDisplay = SDL_GetPrimaryDisplay();
+    if (config.display == 0)
+    {
+        config.display = primaryDisplay;
+    }
 
-        SDL_DisplayID primaryDisplay = SDL_GetPrimaryDisplay();
-        if (config.display == 0)
-        {
-            config.display = primaryDisplay;
-        }
-
-        const SDL_DisplayMode *displayMode = SDL_GetDesktopDisplayMode(config.display);
+    const SDL_DisplayMode *displayMode = SDL_GetDesktopDisplayMode(config.display);
+    if (displayMode == nullptr)
+    {
+        config.display = primaryDisplay;
+        displayMode = SDL_GetDesktopDisplayMode(config.display);
         if (displayMode == nullptr)
         {
-            config.display = primaryDisplay;
-            displayMode = SDL_GetDesktopDisplayMode(config.display);
-            if (displayMode == nullptr)
-            {
-                consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
-                assert(false);
-            }
-        }
-
-        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Launching on display: %u", config.display);
-
-        int x = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
-        int y = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
-        SDL_PropertiesID props = SDL_CreateProperties();
-        SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Shader Triangle");
-        SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, x);
-        SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, y);
-        SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, displayMode->w);
-        SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, displayMode->h);
-        SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, SDL_WINDOW_VULKAN | config.fullscreenMode);
-
-        SDL_Window *window = SDL_CreateWindowWithProperties(props);
-        SDL_DestroyProperties(props);
-
-        if (window == nullptr)
-        {
-            consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "SDL_CreateWindowWithProperties failed: %s", SDL_GetError());
+            consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
             assert(false);
         }
+    }
 
-        // Log memory allocator initialization
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Memory allocators initialized" << ConsoleBuffer::endl;
+    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Launching on display: %u", config.display);
 
-        PakResource pakResource(largeAllocator, consoleBuffer);
-        if (!pakResource.load(PAK_FILE))
+    int x = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
+    int y = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Shader Triangle");
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, x);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, y);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, displayMode->w);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, displayMode->h);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, SDL_WINDOW_VULKAN | config.fullscreenMode);
+
+    SDL_Window *window = SDL_CreateWindowWithProperties(props);
+    SDL_DestroyProperties(props);
+
+    if (window == nullptr)
+    {
+        consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "SDL_CreateWindowWithProperties failed: %s", SDL_GetError());
+        assert(false);
+    }
+
+    PakResource pakResource(largeAllocator, consoleBuffer);
+    if (!pakResource.load(PAK_FILE))
+    {
+        consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "Failed to load resource pak: %s", PAK_FILE);
+        assert(false);
+    }
+
+    // Load trig lookup table
+    TrigLookup *trigLookup = static_cast<TrigLookup *>(
+        smallAllocator->allocate(sizeof(TrigLookup), "main::TrigLookup"));
+    assert(trigLookup != nullptr);
+    new (trigLookup) TrigLookup(smallAllocator, largeAllocator, consoleBuffer);
+    if (!trigLookup->load(&pakResource))
+    {
+        consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "Failed to load trig lookup table");
+        assert(false);
+    }
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Loaded TrigLookup table" << ConsoleBuffer::endl;
+
+    // Allocate SceneLayerManager first since Box2DPhysics needs it
+    SceneLayerManager *layerManager = static_cast<SceneLayerManager *>(
+        smallAllocator->allocate(sizeof(SceneLayerManager), "main::SceneLayerManager"));
+    assert(layerManager != nullptr);
+    new (layerManager) SceneLayerManager(smallAllocator, largeAllocator, trigLookup);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created SceneLayerManager" << ConsoleBuffer::endl;
+
+    // Allocate Box2DPhysics with layer manager
+    Box2DPhysics *physics = static_cast<Box2DPhysics *>(
+        smallAllocator->allocate(sizeof(Box2DPhysics), "main::Box2DPhysics"));
+    assert(physics != nullptr);
+    new (physics) Box2DPhysics(smallAllocator, largeAllocator, layerManager, consoleBuffer, trigLookup);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created Box2DPhysics" << ConsoleBuffer::endl;
+
+    // Allocate AudioManager using large allocator
+    AudioManager *audioManager = static_cast<AudioManager *>(
+        largeAllocator->allocate(sizeof(AudioManager), "main::AudioManager"));
+    assert(audioManager != nullptr);
+    new (audioManager) AudioManager(smallAllocator, consoleBuffer);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created AudioManager" << ConsoleBuffer::endl;
+
+    // Allocate ParticleSystemManager
+    ParticleSystemManager *particleManager = static_cast<ParticleSystemManager *>(
+        smallAllocator->allocate(sizeof(ParticleSystemManager), "main::ParticleSystemManager"));
+    assert(particleManager != nullptr);
+    new (particleManager) ParticleSystemManager(trigLookup);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created ParticleSystemManager" << ConsoleBuffer::endl;
+
+    // Allocate WaterEffectManager using large allocator
+    WaterEffectManager *waterEffectManager = static_cast<WaterEffectManager *>(
+        largeAllocator->allocate(sizeof(WaterEffectManager), "main::WaterEffectManager"));
+    assert(waterEffectManager != nullptr);
+    new (waterEffectManager) WaterEffectManager();
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created WaterEffectManager" << ConsoleBuffer::endl;
+
+    // Allocate VulkanRenderer
+    VulkanRenderer *renderer = static_cast<VulkanRenderer *>(
+        smallAllocator->allocate(sizeof(VulkanRenderer), "main::VulkanRenderer"));
+    assert(renderer != nullptr);
+    new (renderer) VulkanRenderer(smallAllocator, largeAllocator, consoleBuffer);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created VulkanRenderer" << ConsoleBuffer::endl;
+
+    renderer->initialize(window, config.gpuIndex);
+
+    // Update config with the selected GPU index
+    config.gpuIndex = renderer->getSelectedGpuIndex();
+
+    // Allocate VibrationManager
+    VibrationManager *vibrationManager = static_cast<VibrationManager *>(
+        smallAllocator->allocate(sizeof(VibrationManager), "main::VibrationManager"));
+    assert(vibrationManager != nullptr);
+    new (vibrationManager) VibrationManager();
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created VibrationManager" << ConsoleBuffer::endl;
+
+    // Create LuaInterface without SceneManager (will be set after SceneManager is created)
+    LuaInterface *luaInterface = static_cast<LuaInterface *>(
+        smallAllocator->allocate(sizeof(LuaInterface), "main::LuaInterface"));
+    assert(luaInterface != nullptr);
+    new (luaInterface) LuaInterface(pakResource, *renderer, smallAllocator, physics, layerManager,
+                                    audioManager, particleManager, waterEffectManager,
+                                    nullptr, vibrationManager, consoleBuffer);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created LuaInterface" << ConsoleBuffer::endl;
+
+    // Allocate SceneManager
+    SceneManager *sceneManager = static_cast<SceneManager *>(
+        smallAllocator->allocate(sizeof(SceneManager), "main::SceneManager"));
+    assert(sceneManager != nullptr);
+    new (sceneManager) SceneManager(smallAllocator, pakResource, *renderer, physics, layerManager,
+                                    audioManager, particleManager, waterEffectManager, luaInterface, consoleBuffer, trigLookup);
+
+    // Set SceneManager pointer in LuaInterface after SceneManager is created
+    luaInterface->setSceneManager(sceneManager);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created SceneManager and linked with LuaInterface" << ConsoleBuffer::endl;
+
+    // Allocate KeybindingManager
+    KeybindingManager *keybindings = static_cast<KeybindingManager *>(
+        smallAllocator->allocate(sizeof(KeybindingManager), "main::KeybindingManager"));
+    assert(keybindings != nullptr);
+    new (keybindings) KeybindingManager(smallAllocator);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created KeybindingManager" << ConsoleBuffer::endl;
+
+    // Load keybindings from config if available
+    if (config.keybindings[0] != '\0')
+    {
+        keybindings->deserializeBindings(config.keybindings);
+    }
+
+    // Open all available game controllers
+    SDL_Gamepad *gameController = nullptr;
+    int numJoysticks;
+    SDL_JoystickID *joysticks = SDL_GetJoysticks(&numJoysticks);
+    if (joysticks)
+    {
+        for (int i = 0; i < numJoysticks; ++i)
         {
-            consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "Failed to load resource pak: %s", PAK_FILE);
-            assert(false);
-        }
-
-        // Load trig lookup table
-        TrigLookup *trigLookup = static_cast<TrigLookup *>(
-            smallAllocator->allocate(sizeof(TrigLookup), "main::TrigLookup"));
-        assert(trigLookup != nullptr);
-        new (trigLookup) TrigLookup(smallAllocator, largeAllocator, consoleBuffer);
-        if (!trigLookup->load(&pakResource))
-        {
-            consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "Failed to load trig lookup table");
-            assert(false);
-        }
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Loaded TrigLookup table" << ConsoleBuffer::endl;
-
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Creating managers in main.cpp using allocators" << ConsoleBuffer::endl;
-
-        // Allocate SceneLayerManager first since Box2DPhysics needs it
-        SceneLayerManager *layerManager = static_cast<SceneLayerManager *>(
-            smallAllocator->allocate(sizeof(SceneLayerManager), "main::SceneLayerManager"));
-        assert(layerManager != nullptr);
-        new (layerManager) SceneLayerManager(smallAllocator, largeAllocator, trigLookup);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created SceneLayerManager" << ConsoleBuffer::endl;
-
-        // Allocate Box2DPhysics with layer manager
-        Box2DPhysics *physics = static_cast<Box2DPhysics *>(
-            smallAllocator->allocate(sizeof(Box2DPhysics), "main::Box2DPhysics"));
-        assert(physics != nullptr);
-        new (physics) Box2DPhysics(smallAllocator, largeAllocator, layerManager, consoleBuffer, trigLookup);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created Box2DPhysics" << ConsoleBuffer::endl;
-
-        // Allocate AudioManager using large allocator
-        AudioManager *audioManager = static_cast<AudioManager *>(
-            largeAllocator->allocate(sizeof(AudioManager), "main::AudioManager"));
-        assert(audioManager != nullptr);
-        new (audioManager) AudioManager(smallAllocator, consoleBuffer);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created AudioManager" << ConsoleBuffer::endl;
-
-        // Allocate ParticleSystemManager
-        ParticleSystemManager *particleManager = static_cast<ParticleSystemManager *>(
-            smallAllocator->allocate(sizeof(ParticleSystemManager), "main::ParticleSystemManager"));
-        assert(particleManager != nullptr);
-        new (particleManager) ParticleSystemManager(trigLookup);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created ParticleSystemManager" << ConsoleBuffer::endl;
-
-        // Allocate WaterEffectManager using large allocator
-        WaterEffectManager *waterEffectManager = static_cast<WaterEffectManager *>(
-            largeAllocator->allocate(sizeof(WaterEffectManager), "main::WaterEffectManager"));
-        assert(waterEffectManager != nullptr);
-        new (waterEffectManager) WaterEffectManager();
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created WaterEffectManager" << ConsoleBuffer::endl;
-
-        // Allocate VulkanRenderer
-        VulkanRenderer *renderer = static_cast<VulkanRenderer *>(
-            smallAllocator->allocate(sizeof(VulkanRenderer), "main::VulkanRenderer"));
-        assert(renderer != nullptr);
-        new (renderer) VulkanRenderer(smallAllocator, largeAllocator, consoleBuffer);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created VulkanRenderer" << ConsoleBuffer::endl;
-
-        renderer->initialize(window, config.gpuIndex);
-
-        // Update config with the selected GPU index
-        config.gpuIndex = renderer->getSelectedGpuIndex();
-
-        // Allocate VibrationManager
-        VibrationManager *vibrationManager = static_cast<VibrationManager *>(
-            smallAllocator->allocate(sizeof(VibrationManager), "main::VibrationManager"));
-        assert(vibrationManager != nullptr);
-        new (vibrationManager) VibrationManager();
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created VibrationManager" << ConsoleBuffer::endl;
-
-        // Create LuaInterface without SceneManager (will be set after SceneManager is created)
-        LuaInterface *luaInterface = static_cast<LuaInterface *>(
-            smallAllocator->allocate(sizeof(LuaInterface), "main::LuaInterface"));
-        assert(luaInterface != nullptr);
-        new (luaInterface) LuaInterface(pakResource, *renderer, smallAllocator, physics, layerManager,
-                                        audioManager, particleManager, waterEffectManager,
-                                        nullptr, vibrationManager, consoleBuffer);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created LuaInterface" << ConsoleBuffer::endl;
-
-        // Allocate SceneManager
-        SceneManager *sceneManager = static_cast<SceneManager *>(
-            smallAllocator->allocate(sizeof(SceneManager), "main::SceneManager"));
-        assert(sceneManager != nullptr);
-        new (sceneManager) SceneManager(smallAllocator, pakResource, *renderer, physics, layerManager,
-                                        audioManager, particleManager, waterEffectManager, luaInterface, consoleBuffer, trigLookup);
-
-        // Set SceneManager pointer in LuaInterface after SceneManager is created
-        luaInterface->setSceneManager(sceneManager);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created SceneManager and linked with LuaInterface" << ConsoleBuffer::endl;
-
-        // Allocate KeybindingManager
-        KeybindingManager *keybindings = static_cast<KeybindingManager *>(
-            smallAllocator->allocate(sizeof(KeybindingManager), "main::KeybindingManager"));
-        assert(keybindings != nullptr);
-        new (keybindings) KeybindingManager(smallAllocator);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created KeybindingManager" << ConsoleBuffer::endl;
-
-        // Load keybindings from config if available
-        if (config.keybindings[0] != '\0')
-        {
-            keybindings->deserializeBindings(config.keybindings);
-        }
-
-        // Open all available game controllers
-        SDL_Gamepad *gameController = nullptr;
-        int numJoysticks;
-        SDL_JoystickID *joysticks = SDL_GetJoysticks(&numJoysticks);
-        if (joysticks)
-        {
-            for (int i = 0; i < numJoysticks; ++i)
+            if (SDL_IsGamepad(joysticks[i]))
             {
-                if (SDL_IsGamepad(joysticks[i]))
+                gameController = SDL_OpenGamepad(joysticks[i]);
+                if (gameController)
                 {
-                    gameController = SDL_OpenGamepad(joysticks[i]);
-                    if (gameController)
+                    vibrationManager->setGameController(gameController);
+                    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Game Controller %d connected: %s", i, SDL_GetGamepadName(gameController));
+                    if (vibrationManager->hasRumbleSupport())
                     {
-                        vibrationManager->setGameController(gameController);
-                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Game Controller %d connected: %s", i, SDL_GetGamepadName(gameController));
-                        if (vibrationManager->hasRumbleSupport())
-                        {
-                            consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Rumble support: Yes");
-                        }
-                        if (vibrationManager->hasTriggerRumbleSupport())
-                        {
-                            consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Trigger rumble support: Yes (DualSense)");
-                        }
-                        break; // Use the first available controller
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Rumble support: Yes");
                     }
+                    if (vibrationManager->hasTriggerRumbleSupport())
+                    {
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Trigger rumble support: Yes (DualSense)");
+                    }
+                    break; // Use the first available controller
                 }
             }
-            SDL_free(joysticks);
         }
+        SDL_free(joysticks);
+    }
 
-        // Load initial scene
-        sceneManager->pushScene(LUA_SCRIPT_ID);
+    // Load initial scene
+    sceneManager->pushScene(LUA_SCRIPT_ID);
 
 #ifdef DEBUG
-        // Allocate ImGuiManager using large allocator
-        ImGuiManager *imguiManager = static_cast<ImGuiManager *>(
-            largeAllocator->allocate(sizeof(ImGuiManager), "main::ImGuiManager"));
-        assert(imguiManager != nullptr);
-        new (imguiManager) ImGuiManager(smallAllocator, consoleBuffer, trigLookup);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created ImGuiManager" << ConsoleBuffer::endl;
+    // Allocate ImGuiManager using large allocator
+    ImGuiManager *imguiManager = static_cast<ImGuiManager *>(
+        largeAllocator->allocate(sizeof(ImGuiManager), "main::ImGuiManager"));
+    assert(imguiManager != nullptr);
+    new (imguiManager) ImGuiManager(smallAllocator, consoleBuffer, trigLookup);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created ImGuiManager" << ConsoleBuffer::endl;
 
-        g_imguiManager = imguiManager;
-        imguiManager->initialize(window, renderer->getInstance(), renderer->getPhysicalDevice(),
-                                 renderer->getDevice(), renderer->getGraphicsQueueFamilyIndex(),
-                                 renderer->getGraphicsQueue(), renderer->getRenderPass(),
-                                 renderer->getSwapchainImageCount(), renderer->getMsaaSamples());
+    g_imguiManager = imguiManager;
+    imguiManager->initialize(window, renderer->getInstance(), renderer->getPhysicalDevice(),
+                                renderer->getDevice(), renderer->getGraphicsQueueFamilyIndex(),
+                                renderer->getGraphicsQueue(), renderer->getRenderPass(),
+                                renderer->getSwapchainImageCount(), renderer->getMsaaSamples());
 
-        // Set ImGui render callback in renderer
-        renderer->setImGuiRenderCallback(renderImGuiCallback);
+    // Set ImGui render callback in renderer
+    renderer->setImGuiRenderCallback(renderImGuiCallback);
 
-        // Initialize hot-reload thread
-        HotReloadData reloadData;
-        reloadData.mutex = SDL_CreateMutex();
-        assert(reloadData.mutex != nullptr);
-        SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
-        SDL_SetAtomicInt(&reloadData.reloadSuccess, 0);
-        SDL_SetAtomicInt(&reloadData.reloadRequested, 0);
+    // Initialize hot-reload thread
+    HotReloadData reloadData;
+    reloadData.mutex = SDL_CreateMutex();
+    assert(reloadData.mutex != nullptr);
+    SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
+    SDL_SetAtomicInt(&reloadData.reloadSuccess, 0);
+    SDL_SetAtomicInt(&reloadData.reloadRequested, 0);
 
-        SDL_Thread *reloadThread = SDL_CreateThread(hotReloadThread, "HotReload", &reloadData);
-        assert(reloadThread != nullptr);
+    SDL_Thread *reloadThread = SDL_CreateThread(hotReloadThread, "HotReload", &reloadData);
+    assert(reloadThread != nullptr);
 #endif
 
-        bool running = true;
-        SDL_Event event;
-        float lastTime = SDL_GetTicks() / 1000.0f;
-        while (running)
+    bool running = true;
+    SDL_Event event;
+    float lastTime = SDL_GetTicks() / 1000.0f;
+    while (running)
+    {
+        float currentTime = SDL_GetTicks() / 1000.0f;
+        float deltaTime = (currentTime - lastTime);
+        lastTime = currentTime;
+        while (SDL_PollEvent(&event))
         {
-            float currentTime = SDL_GetTicks() / 1000.0f;
-            float deltaTime = (currentTime - lastTime);
-            lastTime = currentTime;
-            while (SDL_PollEvent(&event))
-            {
 #ifdef DEBUG
-                // Process event for ImGui first
-                imguiManager->processEvent(&event);
+            // Process event for ImGui first
+            imguiManager->processEvent(&event);
 #endif
-                if (event.type == SDL_EVENT_QUIT)
-                {
-                    running = false;
-                }
-                if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat)
-                {
-                    // Handle actions bound to this key
-                    const ActionList &actionList = keybindings->getActionsForKey(event.key.key);
-                    for (int i = 0; i < actionList.count; ++i)
-                    {
-                        sceneManager->handleAction(actionList.actions[i]);
-                    }
-
-                    // Handle special case: ALT+ENTER for fullscreen toggle
-                    if (event.key.key == SDLK_RETURN && (event.key.mod & SDL_KMOD_ALT))
-                    {
-                        SDL_WindowFlags flags = SDL_GetWindowFlags(window);
-                        if (flags & SDL_WINDOW_FULLSCREEN)
-                        {
-                            SDL_SetWindowFullscreen(window, false);
-                            config.fullscreenMode = 0;
-                            config.display = SDL_GetDisplayForWindow(window);
-                            consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Toggled to windowed on display: %u", config.display);
-                        }
-                        else
-                        {
-                            SDL_SetWindowFullscreen(window, true);
-                            config.fullscreenMode = SDL_WINDOW_FULLSCREEN;
-                            config.display = SDL_GetDisplayForWindow(window);
-                            consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Toggled to fullscreen on display: %u", config.display);
-                        }
-                        saveConfig(config);
-                    }
-#ifdef DEBUG
-                    // Handle special case: F5 for hot reload
-                    if (event.key.key == SDLK_F5)
-                    {
-                        // Check if reload thread is ready
-                        if (SDL_GetAtomicInt(&reloadData.reloadRequested) == 0)
-                        {
-                            *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Requesting hot-reload..." << ConsoleBuffer::endl;
-                            SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
-                            SDL_SetAtomicInt(&reloadData.reloadRequested, 1);
-                        }
-                    }
-#endif
-                }
-                // Handle gamepad button press
-                if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN)
-                {
-                    const ActionList &actionList = keybindings->getActionsForGamepadButton(event.gbutton.button);
-                    for (int i = 0; i < actionList.count; ++i)
-                    {
-                        sceneManager->handleAction(actionList.actions[i]);
-                    }
-                }
-                // Handle gamepad connection
-                if (event.type == SDL_EVENT_GAMEPAD_ADDED && !gameController)
-                {
-                    gameController = SDL_OpenGamepad(event.gdevice.which);
-                    if (gameController)
-                    {
-                        vibrationManager->setGameController(gameController);
-                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Game Controller connected: %s", SDL_GetGamepadName(gameController));
-                        if (vibrationManager->hasRumbleSupport())
-                        {
-                            consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Rumble support: Yes");
-                        }
-                        if (vibrationManager->hasTriggerRumbleSupport())
-                        {
-                            consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Trigger rumble support: Yes (DualSense)");
-                        }
-                    }
-                }
-                // Handle gamepad disconnection
-                if (event.type == SDL_EVENT_GAMEPAD_REMOVED)
-                {
-                    if (gameController && event.gdevice.which == SDL_GetGamepadID(gameController))
-                    {
-                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Game Controller disconnected" << ConsoleBuffer::endl;
-                        vibrationManager->setGameController(nullptr);
-                        SDL_CloseGamepad(gameController);
-                        gameController = nullptr;
-                    }
-                }
-                // Handle mouse button press for drag actions
-                if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_LEFT)
-                {
-                    int windowWidth, windowHeight;
-                    float worldX, worldY;
-                    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
-                    screenToWorld(event.button.x, event.button.y, windowWidth, windowHeight,
-                                  sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
-                                  sceneManager->getCameraZoom(), &worldX, &worldY);
-                    sceneManager->setCursorPosition(worldX, worldY);
-                    sceneManager->handleAction(ACTION_DRAG_START);
-                }
-                // Handle mouse button release for drag actions
-                if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_LEFT)
-                {
-                    sceneManager->handleAction(ACTION_DRAG_END);
-                }
-                // Handle middle mouse button press for pan
-                if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_RIGHT)
-                {
-                    int windowWidth, windowHeight;
-                    float worldX, worldY;
-                    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
-                    screenToWorld(event.button.x, event.button.y, windowWidth, windowHeight,
-                                  sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
-                                  sceneManager->getCameraZoom(), &worldX, &worldY);
-                    sceneManager->setCursorPosition(worldX, worldY);
-                    isPanning = true;
-                    panStartCursorX = worldX;
-                    panStartCursorY = worldY;
-                    panStartCameraX = sceneManager->getCameraOffsetX();
-                    panStartCameraY = sceneManager->getCameraOffsetY();
-                    sceneManager->handleAction(ACTION_PAN_START);
-                }
-                // Handle middle mouse button release for pan
-                if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_RIGHT)
-                {
-                    isPanning = false;
-                    sceneManager->handleAction(ACTION_PAN_END);
-                }
-                // Handle mouse wheel for zoom
-                if (event.type == SDL_EVENT_MOUSE_WHEEL)
-                {
-#ifdef DEBUG
-                    // Don't zoom if ImGui wants the mouse (e.g., hovering over ImGui window)
-                    if (!imguiManager->wantCaptureMouse())
-                    {
-                        sceneManager->applyScrollZoom(event.wheel.y);
-                    }
-#else
-                    sceneManager->applyScrollZoom(event.wheel.y);
-#endif
-                }
-                // Handle mouse motion for cursor tracking
-                if (event.type == SDL_EVENT_MOUSE_MOTION)
-                {
-                    int windowWidth, windowHeight;
-                    float worldX, worldY;
-                    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
-
-                    // Update camera offset while panning (before calculating cursor position)
-                    if (isPanning)
-                    {
-                        // Calculate cursor position with original camera offset for delta calculation
-                        screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
-                                      panStartCameraX, panStartCameraY,
-                                      sceneManager->getCameraZoom(), &worldX, &worldY);
-                        float deltaX = worldX - panStartCursorX;
-                        float deltaY = worldY - panStartCursorY;
-                        sceneManager->setCameraOffset(panStartCameraX - deltaX, panStartCameraY - deltaY);
-                    }
-
-                    // Calculate final cursor position with current camera offset
-                    screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
-                                  sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
-                                  sceneManager->getCameraZoom(), &worldX, &worldY);
-                    sceneManager->setCursorPosition(worldX, worldY);
-                }
-            }
-
-#ifdef DEBUG
-            // Sync particle editor preview controls with camera
-            if (sceneManager->isParticleEditorActive())
-            {
-                ParticleEditorState &editorState = imguiManager->getEditorState();
-
-                // If preview controls were changed by user, update the camera
-                if (editorState.previewCameraChanged)
-                {
-                    luaInterface->setCameraOffset(editorState.previewOffsetX, editorState.previewOffsetY);
-                    luaInterface->setCameraZoom(editorState.previewZoom);
-                    editorState.previewCameraChanged = false;
-                }
-
-                // If reset was requested, also reset the camera
-                if (editorState.previewResetRequested)
-                {
-                    luaInterface->setCameraOffset(0.0f, 0.0f);
-                    luaInterface->setCameraZoom(1.0f);
-                    editorState.previewResetRequested = false;
-                }
-
-                // Otherwise, sync preview controls FROM the camera (mouse zoom/pan updates)
-                imguiManager->syncPreviewWithCamera(
-                    sceneManager->getCameraOffsetX(),
-                    sceneManager->getCameraOffsetY(),
-                    sceneManager->getCameraZoom());
-            }
-#endif
-
-            // Update renderer with current camera transform
-            renderer->setCameraTransform(sceneManager->getCameraOffsetX(),
-                                         sceneManager->getCameraOffsetY(),
-                                         sceneManager->getCameraZoom());
-
-            if (!sceneManager->updateActiveScene(deltaTime))
+            if (event.type == SDL_EVENT_QUIT)
             {
                 running = false;
             }
+            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat)
+            {
+                // Handle actions bound to this key
+                const ActionList &actionList = keybindings->getActionsForKey(event.key.key);
+                for (int i = 0; i < actionList.count; ++i)
+                {
+                    sceneManager->handleAction(actionList.actions[i]);
+                }
+
+                // Handle special case: ALT+ENTER for fullscreen toggle
+                if (event.key.key == SDLK_RETURN && (event.key.mod & SDL_KMOD_ALT))
+                {
+                    SDL_WindowFlags flags = SDL_GetWindowFlags(window);
+                    if (flags & SDL_WINDOW_FULLSCREEN)
+                    {
+                        SDL_SetWindowFullscreen(window, false);
+                        config.fullscreenMode = 0;
+                        config.display = SDL_GetDisplayForWindow(window);
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Toggled to windowed on display: %u", config.display);
+                    }
+                    else
+                    {
+                        SDL_SetWindowFullscreen(window, true);
+                        config.fullscreenMode = SDL_WINDOW_FULLSCREEN;
+                        config.display = SDL_GetDisplayForWindow(window);
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Toggled to fullscreen on display: %u", config.display);
+                    }
+                    saveConfig(config);
+                }
+#ifdef DEBUG
+                // Handle special case: F5 for hot reload
+                if (event.key.key == SDLK_F5)
+                {
+                    // Check if reload thread is ready
+                    if (SDL_GetAtomicInt(&reloadData.reloadRequested) == 0)
+                    {
+                        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Requesting hot-reload..." << ConsoleBuffer::endl;
+                        SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
+                        SDL_SetAtomicInt(&reloadData.reloadRequested, 1);
+                    }
+                }
+#endif
+            }
+            // Handle gamepad button press
+            if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN)
+            {
+                const ActionList &actionList = keybindings->getActionsForGamepadButton(event.gbutton.button);
+                for (int i = 0; i < actionList.count; ++i)
+                {
+                    sceneManager->handleAction(actionList.actions[i]);
+                }
+            }
+            // Handle gamepad connection
+            if (event.type == SDL_EVENT_GAMEPAD_ADDED && !gameController)
+            {
+                gameController = SDL_OpenGamepad(event.gdevice.which);
+                if (gameController)
+                {
+                    vibrationManager->setGameController(gameController);
+                    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Game Controller connected: %s", SDL_GetGamepadName(gameController));
+                    if (vibrationManager->hasRumbleSupport())
+                    {
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Rumble support: Yes");
+                    }
+                    if (vibrationManager->hasTriggerRumbleSupport())
+                    {
+                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Trigger rumble support: Yes (DualSense)");
+                    }
+                }
+            }
+            // Handle gamepad disconnection
+            if (event.type == SDL_EVENT_GAMEPAD_REMOVED)
+            {
+                if (gameController && event.gdevice.which == SDL_GetGamepadID(gameController))
+                {
+                    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Game Controller disconnected" << ConsoleBuffer::endl;
+                    vibrationManager->setGameController(nullptr);
+                    SDL_CloseGamepad(gameController);
+                    gameController = nullptr;
+                }
+            }
+            // Handle mouse button press for drag actions
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_LEFT)
+            {
+                int windowWidth, windowHeight;
+                float worldX, worldY;
+                SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+                screenToWorld(event.button.x, event.button.y, windowWidth, windowHeight,
+                                sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                                sceneManager->getCameraZoom(), &worldX, &worldY);
+                sceneManager->setCursorPosition(worldX, worldY);
+                sceneManager->handleAction(ACTION_DRAG_START);
+            }
+            // Handle mouse button release for drag actions
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_LEFT)
+            {
+                sceneManager->handleAction(ACTION_DRAG_END);
+            }
+            // Handle middle mouse button press for pan
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_RIGHT)
+            {
+                int windowWidth, windowHeight;
+                float worldX, worldY;
+                SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+                screenToWorld(event.button.x, event.button.y, windowWidth, windowHeight,
+                                sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                                sceneManager->getCameraZoom(), &worldX, &worldY);
+                sceneManager->setCursorPosition(worldX, worldY);
+                isPanning = true;
+                panStartCursorX = worldX;
+                panStartCursorY = worldY;
+                panStartCameraX = sceneManager->getCameraOffsetX();
+                panStartCameraY = sceneManager->getCameraOffsetY();
+                sceneManager->handleAction(ACTION_PAN_START);
+            }
+            // Handle middle mouse button release for pan
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_RIGHT)
+            {
+                isPanning = false;
+                sceneManager->handleAction(ACTION_PAN_END);
+            }
+            // Handle mouse wheel for zoom
+            if (event.type == SDL_EVENT_MOUSE_WHEEL)
+            {
+#ifdef DEBUG
+                // Don't zoom if ImGui wants the mouse (e.g., hovering over ImGui window)
+                if (!imguiManager->wantCaptureMouse())
+                {
+                    sceneManager->applyScrollZoom(event.wheel.y);
+                }
+#else
+                sceneManager->applyScrollZoom(event.wheel.y);
+#endif
+            }
+            // Handle mouse motion for cursor tracking
+            if (event.type == SDL_EVENT_MOUSE_MOTION)
+            {
+                int windowWidth, windowHeight;
+                float worldX, worldY;
+                SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+
+                // Update camera offset while panning (before calculating cursor position)
+                if (isPanning)
+                {
+                    // Calculate cursor position with original camera offset for delta calculation
+                    screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
+                                    panStartCameraX, panStartCameraY,
+                                    sceneManager->getCameraZoom(), &worldX, &worldY);
+                    float deltaX = worldX - panStartCursorX;
+                    float deltaY = worldY - panStartCursorY;
+                    sceneManager->setCameraOffset(panStartCameraX - deltaX, panStartCameraY - deltaY);
+                }
+
+                // Calculate final cursor position with current camera offset
+                screenToWorld(event.motion.x, event.motion.y, windowWidth, windowHeight,
+                                sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                                sceneManager->getCameraZoom(), &worldX, &worldY);
+                sceneManager->setCursorPosition(worldX, worldY);
+            }
+        }
 
 #ifdef DEBUG
-            // Check if hot-reload completed
-            if (SDL_GetAtomicInt(&reloadData.reloadComplete) == 1)
+        // Sync particle editor preview controls with camera
+        if (sceneManager->isParticleEditorActive())
+        {
+            ParticleEditorState &editorState = imguiManager->getEditorState();
+
+            // If preview controls were changed by user, update the camera
+            if (editorState.previewCameraChanged)
             {
-                if (SDL_GetAtomicInt(&reloadData.reloadSuccess) == 1)
-                {
-                    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Hot-reload complete, applying changes..." << ConsoleBuffer::endl;
-                    // Reload pak
-                    pakResource.reload(PAK_FILE);
-                    // Reload current scene with new resources
-                    sceneManager->reloadCurrentScene();
-                }
-                else
-                {
-                    *consoleBuffer << SDL_LOG_PRIORITY_ERROR << "Hot-reload failed!" << ConsoleBuffer::endl;
-                }
-                SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
+                luaInterface->setCameraOffset(editorState.previewOffsetX, editorState.previewOffsetY);
+                luaInterface->setCameraZoom(editorState.previewZoom);
+                editorState.previewCameraChanged = false;
             }
+
+            // If reset was requested, also reset the camera
+            if (editorState.previewResetRequested)
+            {
+                luaInterface->setCameraOffset(0.0f, 0.0f);
+                luaInterface->setCameraZoom(1.0f);
+                editorState.previewResetRequested = false;
+            }
+
+            // Otherwise, sync preview controls FROM the camera (mouse zoom/pan updates)
+            imguiManager->syncPreviewWithCamera(
+                sceneManager->getCameraOffsetX(),
+                sceneManager->getCameraOffsetY(),
+                sceneManager->getCameraZoom());
+        }
+#endif
+
+        // Update renderer with current camera transform
+        renderer->setCameraTransform(sceneManager->getCameraOffsetX(),
+                                        sceneManager->getCameraOffsetY(),
+                                        sceneManager->getCameraZoom());
+
+        if (!sceneManager->updateActiveScene(deltaTime))
+        {
+            running = false;
+        }
+
+#ifdef DEBUG
+        // Check if hot-reload completed
+        if (SDL_GetAtomicInt(&reloadData.reloadComplete) == 1)
+        {
+            if (SDL_GetAtomicInt(&reloadData.reloadSuccess) == 1)
+            {
+                *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Hot-reload complete, applying changes..." << ConsoleBuffer::endl;
+                // Reload pak
+                pakResource.reload(PAK_FILE);
+                // Reload current scene with new resources
+                sceneManager->reloadCurrentScene();
+            }
+            else
+            {
+                *consoleBuffer << SDL_LOG_PRIORITY_ERROR << "Hot-reload failed!" << ConsoleBuffer::endl;
+                assert(false);
+            }
+            SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
+        }
 #endif
 
 #ifdef DEBUG
-            // Start ImGui frame
-            int width, height;
-            SDL_GetWindowSize(window, &width, &height);
-            imguiManager->newFrame(width, height);
+        // Start ImGui frame
+        int width, height;
+        SDL_GetWindowSize(window, &width, &height);
+        imguiManager->newFrame(width, height);
 
-            // Show console window
-            imguiManager->showConsoleWindow();
+        // Show console window
+        imguiManager->showConsoleWindow();
 
-            // Show memory allocator window
-            imguiManager->showMemoryAllocatorWindow(smallAllocator, largeAllocator, currentTime);
+        // Show memory allocator window
+        imguiManager->showMemoryAllocatorWindow(smallAllocator, largeAllocator, currentTime);
 
-            // Show particle editor if scene wants it active
-            bool sceneWantsEditor = sceneManager->isParticleEditorActive();
-            bool editorWasActive = imguiManager->isParticleEditorActive();
+        // Show particle editor if scene wants it active
+        bool sceneWantsEditor = sceneManager->isParticleEditorActive();
+        bool editorWasActive = imguiManager->isParticleEditorActive();
 
-            if (sceneWantsEditor && !editorWasActive)
+        if (sceneWantsEditor && !editorWasActive)
+        {
+            // Transitioning from inactive to active - activate the editor
+            imguiManager->setParticleEditorActive(true);
+        }
+        else if (!sceneWantsEditor && editorWasActive)
+        {
+            // Transitioning from active to inactive - deactivate and destroy preview
+            if (luaInterface)
             {
-                // Transitioning from inactive to active - activate the editor
-                imguiManager->setParticleEditorActive(true);
+                imguiManager->destroyPreviewSystem(&luaInterface->getParticleSystemManager());
             }
-            else if (!sceneWantsEditor && editorWasActive)
-            {
-                // Transitioning from active to inactive - deactivate and destroy preview
-                if (luaInterface)
-                {
-                    imguiManager->destroyPreviewSystem(&luaInterface->getParticleSystemManager());
-                }
-                imguiManager->setParticleEditorActive(false);
-                // Reset background color to black when exiting editor
-                renderer->setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-            }
+            imguiManager->setParticleEditorActive(false);
+            // Reset background color to black when exiting editor
+            renderer->setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        }
 
-            if (sceneWantsEditor && luaInterface)
-            {
-                imguiManager->showParticleEditorWindow(
-                    &luaInterface->getParticleSystemManager(),
-                    &sceneManager->getPakResource(),
-                    renderer,
-                    luaInterface,
-                    deltaTime,
-                    sceneManager);
-            }
+        if (sceneWantsEditor && luaInterface)
+        {
+            imguiManager->showParticleEditorWindow(
+                &luaInterface->getParticleSystemManager(),
+                &sceneManager->getPakResource(),
+                renderer,
+                luaInterface,
+                deltaTime,
+                sceneManager);
+        }
 #endif
 
-            renderer->render(currentTime);
-        }
+        renderer->render(currentTime);
+    }
 
-        // Save current fullscreen state and display to config
-        SDL_WindowFlags flags = SDL_GetWindowFlags(window);
-        if (flags & SDL_WINDOW_FULLSCREEN)
-        {
-            config.fullscreenMode = SDL_WINDOW_FULLSCREEN;
-        }
-        else
-        {
-            config.fullscreenMode = 0;
-        }
-        config.display = SDL_GetDisplayForWindow(window);
-        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Saving display: %u", config.display);
+    // Save current fullscreen state and display to config
+    SDL_WindowFlags flags = SDL_GetWindowFlags(window);
+    if (flags & SDL_WINDOW_FULLSCREEN)
+    {
+        config.fullscreenMode = SDL_WINDOW_FULLSCREEN;
+    }
+    else
+    {
+        config.fullscreenMode = 0;
+    }
+    config.display = SDL_GetDisplayForWindow(window);
+    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Saving display: %u", config.display);
 
-        // Save keybindings to config
-        keybindings->serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
+    // Save keybindings to config
+    keybindings->serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
 
-        saveConfig(config);
+    saveConfig(config);
 
-        // Close game controller if open
-        if (gameController)
-        {
-            SDL_CloseGamepad(gameController);
-        }
+    // Close game controller if open
+    if (gameController)
+    {
+        SDL_CloseGamepad(gameController);
+    }
 
 #ifdef DEBUG
-        // Cleanup ImGui
-        g_imguiManager = nullptr;
-        imguiManager->cleanup();
+    // Cleanup ImGui
+    g_imguiManager = nullptr;
+    imguiManager->cleanup();
 
-        // Cleanup hot-reload thread
-        // Note: We can't cleanly stop the thread since it's in an infinite loop
-        // In a production app, we'd use a flag to signal thread exit
-        // For debug builds this is acceptable as the process is exiting anyway
-        SDL_DetachThread(reloadThread);
-        SDL_DestroyMutex(reloadData.mutex);
+    // Cleanup hot-reload thread
+    // Note: We can't cleanly stop the thread since it's in an infinite loop
+    // In a production app, we'd use a flag to signal thread exit
+    // For debug builds this is acceptable as the process is exiting anyway
+    SDL_DetachThread(reloadThread);
+    SDL_DestroyMutex(reloadData.mutex);
 
-        // Destroy ImGuiManager
-        imguiManager->~ImGuiManager();
-        largeAllocator->free(imguiManager);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed ImGuiManager" << ConsoleBuffer::endl;
+    // Destroy ImGuiManager
+    imguiManager->~ImGuiManager();
+    largeAllocator->free(imguiManager);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed ImGuiManager" << ConsoleBuffer::endl;
 #endif
-        renderer->cleanup();
+    renderer->cleanup();
 
-        // Cleanup managers in reverse order using allocators
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Cleaning up managers allocated with allocators" << ConsoleBuffer::endl;
+    // Destroy SceneManager
+    sceneManager->~SceneManager();
+    smallAllocator->free(sceneManager);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed SceneManager" << ConsoleBuffer::endl;
 
-        // Destroy SceneManager
-        sceneManager->~SceneManager();
-        smallAllocator->free(sceneManager);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed SceneManager" << ConsoleBuffer::endl;
+    // Destroy LuaInterface
+    luaInterface->~LuaInterface();
+    smallAllocator->free(luaInterface);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed LuaInterface" << ConsoleBuffer::endl;
 
-        // Destroy LuaInterface
-        luaInterface->~LuaInterface();
-        smallAllocator->free(luaInterface);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed LuaInterface" << ConsoleBuffer::endl;
+    // Destroy VibrationManager
+    vibrationManager->~VibrationManager();
+    smallAllocator->free(vibrationManager);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed VibrationManager" << ConsoleBuffer::endl;
 
-        // Destroy VibrationManager
-        vibrationManager->~VibrationManager();
-        smallAllocator->free(vibrationManager);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed VibrationManager" << ConsoleBuffer::endl;
+    // Destroy VulkanRenderer
+    renderer->~VulkanRenderer();
+    smallAllocator->free(renderer);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed VulkanRenderer" << ConsoleBuffer::endl;
 
-        // Destroy VulkanRenderer
-        renderer->~VulkanRenderer();
-        smallAllocator->free(renderer);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed VulkanRenderer" << ConsoleBuffer::endl;
+    // Destroy WaterEffectManager
+    waterEffectManager->~WaterEffectManager();
+    largeAllocator->free(waterEffectManager);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed WaterEffectManager" << ConsoleBuffer::endl;
 
-        // Destroy WaterEffectManager
-        waterEffectManager->~WaterEffectManager();
-        largeAllocator->free(waterEffectManager);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed WaterEffectManager" << ConsoleBuffer::endl;
+    // Destroy ParticleSystemManager
+    particleManager->~ParticleSystemManager();
+    smallAllocator->free(particleManager);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed ParticleSystemManager" << ConsoleBuffer::endl;
 
-        // Destroy ParticleSystemManager
-        particleManager->~ParticleSystemManager();
-        smallAllocator->free(particleManager);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed ParticleSystemManager" << ConsoleBuffer::endl;
+    // Destroy AudioManager
+    audioManager->~AudioManager();
+    largeAllocator->free(audioManager);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed AudioManager" << ConsoleBuffer::endl;
 
-        // Destroy AudioManager
-        audioManager->~AudioManager();
-        largeAllocator->free(audioManager);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed AudioManager" << ConsoleBuffer::endl;
+    // Destroy Box2DPhysics
+    physics->~Box2DPhysics();
+    smallAllocator->free(physics);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed Box2DPhysics" << ConsoleBuffer::endl;
 
-        // Destroy Box2DPhysics
-        physics->~Box2DPhysics();
-        smallAllocator->free(physics);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed Box2DPhysics" << ConsoleBuffer::endl;
+    // Destroy SceneLayerManager
+    layerManager->~SceneLayerManager();
+    smallAllocator->free(layerManager);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed SceneLayerManager" << ConsoleBuffer::endl;
 
-        // Destroy SceneLayerManager
-        layerManager->~SceneLayerManager();
-        smallAllocator->free(layerManager);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed SceneLayerManager" << ConsoleBuffer::endl;
+    // Destroy KeybindingManager
+    keybindings->~KeybindingManager();
+    smallAllocator->free(keybindings);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed KeybindingManager" << ConsoleBuffer::endl;
 
-        // Destroy KeybindingManager
-        keybindings->~KeybindingManager();
-        smallAllocator->free(keybindings);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed KeybindingManager" << ConsoleBuffer::endl;
+    // Destroy TrigLookup
+    trigLookup->~TrigLookup();
+    smallAllocator->free(trigLookup);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed TrigLookup" << ConsoleBuffer::endl;
 
-        // Destroy TrigLookup
-        trigLookup->~TrigLookup();
-        smallAllocator->free(trigLookup);
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed TrigLookup" << ConsoleBuffer::endl;
+    // Destroy ConsoleBuffer last (before allocators)
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Cleaning up ConsoleBuffer" << ConsoleBuffer::endl;
+    consoleBuffer->~ConsoleBuffer();
+    smallAllocator->free(consoleBuffer);
 
-        // Destroy ConsoleBuffer last (before allocators)
-        *consoleBuffer << SDL_LOG_PRIORITY_INFO << "All managers cleaned up" << ConsoleBuffer::endl;
-        consoleBuffer->~ConsoleBuffer();
-        smallAllocator->free(consoleBuffer);
+    SDL_DestroyWindow(window);
 
-        SDL_DestroyWindow(window);
-
-        delete largeAllocator;
-    } // End scope - destroy all objects using allocators before allocators are destroyed
-
+    delete largeAllocator;
     delete smallAllocator;
 
     // Close log file
