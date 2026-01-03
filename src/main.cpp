@@ -244,8 +244,12 @@ int main()
         assert(false);
     }
 
-    PakResource pakResource(largeAllocator, consoleBuffer);
-    if (!pakResource.load(PAK_FILE))
+    // Allocate PakResource using smallAllocator (the object itself is small)
+    PakResource *pakResource = static_cast<PakResource *>(
+        smallAllocator->allocate(sizeof(PakResource), "main::PakResource"));
+    assert(pakResource != nullptr);
+    new (pakResource) PakResource(largeAllocator, consoleBuffer);
+    if (!pakResource->load(PAK_FILE))
     {
         consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "Failed to load resource pak: %s", PAK_FILE);
         assert(false);
@@ -256,7 +260,7 @@ int main()
         smallAllocator->allocate(sizeof(TrigLookup), "main::TrigLookup"));
     assert(trigLookup != nullptr);
     new (trigLookup) TrigLookup(smallAllocator, largeAllocator, consoleBuffer);
-    if (!trigLookup->load(&pakResource))
+    if (!trigLookup->load(pakResource))
     {
         consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "Failed to load trig lookup table");
         assert(false);
@@ -321,7 +325,7 @@ int main()
     LuaInterface *luaInterface = static_cast<LuaInterface *>(
         smallAllocator->allocate(sizeof(LuaInterface), "main::LuaInterface"));
     assert(luaInterface != nullptr);
-    new (luaInterface) LuaInterface(pakResource, *renderer, smallAllocator, physics, layerManager,
+    new (luaInterface) LuaInterface(*pakResource, *renderer, smallAllocator, physics, layerManager,
                                     audioManager, particleManager, waterEffectManager,
                                     nullptr, vibrationManager, consoleBuffer);
     *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created LuaInterface" << ConsoleBuffer::endl;
@@ -330,7 +334,7 @@ int main()
     SceneManager *sceneManager = static_cast<SceneManager *>(
         smallAllocator->allocate(sizeof(SceneManager), "main::SceneManager"));
     assert(sceneManager != nullptr);
-    new (sceneManager) SceneManager(smallAllocator, pakResource, *renderer, physics, layerManager,
+    new (sceneManager) SceneManager(smallAllocator, *pakResource, *renderer, physics, layerManager,
                                     audioManager, particleManager, waterEffectManager, luaInterface, consoleBuffer, trigLookup);
 
     // Set SceneManager pointer in LuaInterface after SceneManager is created
@@ -639,7 +643,7 @@ int main()
             {
                 *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Hot-reload complete, applying changes..." << ConsoleBuffer::endl;
                 // Reload pak
-                pakResource.reload(PAK_FILE);
+                pakResource->reload(PAK_FILE);
                 // Reload current scene with new resources
                 sceneManager->reloadCurrentScene();
             }
@@ -797,6 +801,11 @@ int main()
     trigLookup->~TrigLookup();
     smallAllocator->free(trigLookup);
     *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed TrigLookup" << ConsoleBuffer::endl;
+
+    // Destroy PakResource (must be before allocators since it uses largeAllocator)
+    pakResource->~PakResource();
+    smallAllocator->free(pakResource);
+    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed PakResource" << ConsoleBuffer::endl;
 
     // Destroy ConsoleBuffer last (before allocators)
     *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Cleaning up ConsoleBuffer" << ConsoleBuffer::endl;
