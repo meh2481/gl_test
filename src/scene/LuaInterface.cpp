@@ -577,6 +577,22 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
     // Clear all lights
     renderer_.clearLights();
 
+    // Destroy all pipelines created by this scene
+    Vector<IntPair>** pipelinesPtr = scenePipelines_.find(sceneId);
+    if (pipelinesPtr != nullptr) {
+        Vector<IntPair>* pipelines = *pipelinesPtr;
+        assert(pipelines != nullptr);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::cleanupScene: destroying %zu pipelines for sceneId %llu", pipelines->size(), (unsigned long long)sceneId);
+        for (const auto& pair : *pipelines) {
+            uint64_t pipelineId = pair.first;
+            renderer_.destroyPipeline(pipelineId);
+        }
+        // Free the vector itself
+        pipelines->~Vector();
+        stringAllocator_->free(pipelines);
+        scenePipelines_.remove(sceneId);
+    }
+
     // Reset camera
     cameraOffsetX_ = 0.0f;
     cameraOffsetY_ = 0.0f;

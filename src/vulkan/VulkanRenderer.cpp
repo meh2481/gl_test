@@ -948,6 +948,10 @@ void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& ver
     m_pipelineManager.createParticlePipeline(id, vertShader, fragShader, blendMode);
 }
 
+void VulkanRenderer::destroyPipeline(uint64_t id) {
+    m_pipelineManager.destroyPipeline(id);
+}
+
 void VulkanRenderer::createDescriptorSetForTextures(uint64_t descriptorId, const Vector<uint64_t>& textureIds) {
     m_descriptorManager.createDescriptorSetForTextures(descriptorId, textureIds);
 }
