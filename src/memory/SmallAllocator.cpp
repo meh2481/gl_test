@@ -188,40 +188,14 @@ size_t SmallAllocator::getTotalMemory() const {
 
 size_t SmallAllocator::getUsedMemory() const {
     SDL_LockMutex(mutex_);
-    size_t used = 0;
-    MemoryPool* pool = firstPool_;
-    while (pool) {
-        // Iterate through all blocks in this pool
-        BlockHeader* block = pool->firstBlock;
-        while (block) {
-            if (!block->isFree) {
-                // Count allocated block size plus header
-                used += block->size + sizeof(BlockHeader);
-            }
-            block = block->next;
-        }
-        pool = pool->next;
-    }
+    size_t used = calculateUsedMemoryLocked();
     SDL_UnlockMutex(mutex_);
     return used;
 }
 
 size_t SmallAllocator::getFreeMemory() const {
     SDL_LockMutex(mutex_);
-    size_t used = 0;
-    MemoryPool* pool = firstPool_;
-    while (pool) {
-        // Iterate through all blocks in this pool
-        BlockHeader* block = pool->firstBlock;
-        while (block) {
-            if (!block->isFree) {
-                // Count allocated block size plus header
-                used += block->size + sizeof(BlockHeader);
-            }
-            block = block->next;
-        }
-        pool = pool->next;
-    }
+    size_t used = calculateUsedMemoryLocked();
     size_t result = totalCapacity_ > used ? totalCapacity_ - used : 0;
     SDL_UnlockMutex(mutex_);
     return result;
@@ -555,7 +529,19 @@ void SmallAllocator::updateMemoryHistory(float currentTime) {
 
     lastSampleTime_ = currentTime;
 
-    // Calculate used memory
+    // Calculate used memory while already holding the lock
+    size_t used = calculateUsedMemoryLocked();
+
+    usageHistory_[historyIndex_] = used;
+    historyIndex_ = (historyIndex_ + 1) % HISTORY_SIZE;
+    if (historyCount_ < HISTORY_SIZE) {
+        historyCount_++;
+    }
+
+    SDL_UnlockMutex(mutex_);
+}
+
+size_t SmallAllocator::calculateUsedMemoryLocked() const {
     size_t used = 0;
     MemoryPool* pool = firstPool_;
     while (pool) {
@@ -570,14 +556,7 @@ void SmallAllocator::updateMemoryHistory(float currentTime) {
         }
         pool = pool->next;
     }
-
-    usageHistory_[historyIndex_] = used;
-    historyIndex_ = (historyIndex_ + 1) % HISTORY_SIZE;
-    if (historyCount_ < HISTORY_SIZE) {
-        historyCount_++;
-    }
-
-    SDL_UnlockMutex(mutex_);
+    return used;
 }
 
 size_t SmallAllocator::getBlockHeaderSize() {

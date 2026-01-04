@@ -140,4 +140,7 @@ private:
 
     // Split a block if it's larger than needed
     void splitBlock(BlockHeader* block, size_t size);
+
+    // Calculate used memory without locking (caller must hold mutex_)
+    size_t calculateUsedMemoryLocked() const;
 };
