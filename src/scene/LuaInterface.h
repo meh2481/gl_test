@@ -239,6 +239,10 @@ private:
     // Water field to shader pipeline mapping for splash ripples
     HashTable<int, int> waterFieldShaderMap_; // waterFieldId -> pipelineId
 
+    // Particle pipeline cache: maps shader config hash to pipeline ID
+    // Key is hash of (vertShader ID, fragShader ID, blendMode)
+    HashTable<uint64_t, int> particlePipelineCache_;
+
     // Water visual setup helper (called from createForceField when water=true)
     void setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
                            float minX, float minY, float maxX, float maxY,

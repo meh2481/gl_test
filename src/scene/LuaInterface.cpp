@@ -19,6 +19,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       pipelineIndex_(0), currentSceneId_(0),
       scenePipelines_(*allocator, "LuaInterface::scenePipelines"),
       waterFieldShaderMap_(*allocator, "LuaInterface::waterFieldShaderMap"),
+      particlePipelineCache_(*allocator, "LuaInterface::particlePipelineCache"),
       nodes_(*allocator, "LuaInterface::nodes"),
       bodyToNodeMap_(*allocator, "LuaInterface::bodyToNodeMap"),
       cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f),
@@ -592,6 +593,9 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
         stringAllocator_->free(pipelines);
         scenePipelines_.remove(sceneId);
     }
+
+    // Clear particle pipeline cache since pipelines are destroyed
+    particlePipelineCache_.clear();
 
     // Reset camera
     cameraOffsetX_ = 0.0f;
@@ -2724,29 +2728,48 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     uint64_t vertId = hashCString(vertShaderName);
     uint64_t fragId = hashCString(fragShaderName);
 
-    ResourceData vertShader = interface->pakResource_.getResource(vertId);
-    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+    // Create a hash key for this shader configuration to check if we can reuse an existing pipeline
+    // Combine vertId, fragId, and blendMode into a single hash
+    uint64_t configHash = vertId ^ (fragId << 16) ^ ((uint64_t)blendMode << 32);
 
-    assert(vertShader.data != nullptr);
-    assert(fragShader.data != nullptr);
+    // Check if we already have a pipeline for this configuration
+    int* cachedPipelinePtr = interface->particlePipelineCache_.find(configHash);
+    int pipelineId;
 
-    int pipelineId = interface->pipelineIndex_++;
-    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: currentSceneId_=%d, zIndex=%d", interface->currentSceneId_, zIndex);
-    Vector<IntPair>** vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
-    if (vecPtr == nullptr) {
-        void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<IntPair>), "LuaInterface::loadParticleShaders::Vector");
-        assert(vectorMem != nullptr);
-        Vector<IntPair>* newVec = new (vectorMem) Vector<IntPair>(*interface->stringAllocator_, "LuaInterface::loadParticleShaders::data");
-        interface->scenePipelines_.insertNew(interface->currentSceneId_, newVec);
-        vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
-        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: created new vector for sceneId %d", interface->currentSceneId_);
+    if (cachedPipelinePtr != nullptr) {
+        // Reuse existing pipeline
+        pipelineId = *cachedPipelinePtr;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "LuaInterface::loadParticleShaders: Reusing existing particle pipeline %d", pipelineId);
+    } else {
+        // Create new pipeline
+        ResourceData vertShader = interface->pakResource_.getResource(vertId);
+        ResourceData fragShader = interface->pakResource_.getResource(fragId);
+
+        assert(vertShader.data != nullptr);
+        assert(fragShader.data != nullptr);
+
+        pipelineId = interface->pipelineIndex_++;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: currentSceneId_=%d, zIndex=%d", interface->currentSceneId_, zIndex);
+        Vector<IntPair>** vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
+        if (vecPtr == nullptr) {
+            void* vectorMem = interface->stringAllocator_->allocate(sizeof(Vector<IntPair>), "LuaInterface::loadParticleShaders::Vector");
+            assert(vectorMem != nullptr);
+            Vector<IntPair>* newVec = new (vectorMem) Vector<IntPair>(*interface->stringAllocator_, "LuaInterface::loadParticleShaders::data");
+            interface->scenePipelines_.insertNew(interface->currentSceneId_, newVec);
+            vecPtr = interface->scenePipelines_.find(interface->currentSceneId_);
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: created new vector for sceneId %d", interface->currentSceneId_);
+        }
+        assert(*vecPtr != nullptr);
+        (*vecPtr)->push_back({pipelineId, zIndex});
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: added pipeline %d with zIndex %d", pipelineId, zIndex);
+
+        // Create particle pipeline
+        interface->renderer_.createParticlePipeline(pipelineId, vertShader, fragShader, blendMode);
+
+        // Cache the pipeline ID for reuse
+        interface->particlePipelineCache_.insert(configHash, pipelineId);
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "LuaInterface::loadParticleShaders: Created and cached new particle pipeline %d", pipelineId);
     }
-    assert(*vecPtr != nullptr);
-    (*vecPtr)->push_back({pipelineId, zIndex});
-    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: added pipeline %d with zIndex %d", pipelineId, zIndex);
-
-    // Create particle pipeline
-    interface->renderer_.createParticlePipeline(pipelineId, vertShader, fragShader, blendMode);
 
     // Return the pipeline ID so it can be used in createParticleSystem
     lua_pushinteger(L, pipelineId);
