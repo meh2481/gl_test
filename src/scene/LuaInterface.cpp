@@ -2739,7 +2739,7 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     if (cachedPipelinePtr != nullptr) {
         // Reuse existing pipeline
         pipelineId = *cachedPipelinePtr;
-        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "LuaInterface::loadParticleShaders: Reusing existing particle pipeline %d", pipelineId);
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: Reusing existing particle pipeline %d", pipelineId);
     } else {
         // Create new pipeline
         ResourceData vertShader = interface->pakResource_.getResource(vertId);
@@ -3102,7 +3102,7 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
 
     const char* filename = lua_tostring(L, 1);
 
-    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading particle config: %s", filename);
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Loading particle config: %s", filename);
 
     // Hash the filename to get resource ID
     uint64_t resourceId = hashCString(filename);

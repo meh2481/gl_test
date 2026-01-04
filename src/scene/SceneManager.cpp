@@ -40,7 +40,7 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
     assert(trigLookup_ != nullptr);
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Received all managers and LuaInterface from main.cpp");
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Default transition times: fadeOut=%.3fs, fadeIn=%.3fs", fadeOutTime_, fadeInTime_);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "SceneManager: Default transition times: fadeOut=%.3fs, fadeIn=%.3fs", fadeOutTime_, fadeInTime_);
 
     // Load and create fade overlay pipeline
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Loading fade overlay shaders");
@@ -49,9 +49,7 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
     renderer_.createFadePipeline(fadeVertShader, fadeFragShader);
 }
 
-SceneManager::~SceneManager() {
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Destructor (managers owned by main.cpp)");
-}
+SceneManager::~SceneManager() {}
 
 void SceneManager::pushScene(uint64_t sceneId) {
     // If we're not currently in a transition and there's an active scene, start fade-out

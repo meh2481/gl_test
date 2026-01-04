@@ -265,49 +265,49 @@ int main()
         consoleBuffer->log(SDL_LOG_PRIORITY_CRITICAL, "Failed to load trig lookup table");
         assert(false);
     }
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Loaded TrigLookup table" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Loaded TrigLookup table" << ConsoleBuffer::endl;
 
     // Allocate SceneLayerManager first since Box2DPhysics needs it
     SceneLayerManager *layerManager = static_cast<SceneLayerManager *>(
         smallAllocator->allocate(sizeof(SceneLayerManager), "main::SceneLayerManager"));
     assert(layerManager != nullptr);
     new (layerManager) SceneLayerManager(smallAllocator, largeAllocator, trigLookup);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created SceneLayerManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created SceneLayerManager" << ConsoleBuffer::endl;
 
     // Allocate Box2DPhysics with layer manager
     Box2DPhysics *physics = static_cast<Box2DPhysics *>(
         smallAllocator->allocate(sizeof(Box2DPhysics), "main::Box2DPhysics"));
     assert(physics != nullptr);
     new (physics) Box2DPhysics(smallAllocator, largeAllocator, layerManager, consoleBuffer, trigLookup);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created Box2DPhysics" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created Box2DPhysics" << ConsoleBuffer::endl;
 
     // Allocate AudioManager using large allocator
     AudioManager *audioManager = static_cast<AudioManager *>(
         largeAllocator->allocate(sizeof(AudioManager), "main::AudioManager"));
     assert(audioManager != nullptr);
     new (audioManager) AudioManager(smallAllocator, consoleBuffer);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created AudioManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created AudioManager" << ConsoleBuffer::endl;
 
     // Allocate ParticleSystemManager
     ParticleSystemManager *particleManager = static_cast<ParticleSystemManager *>(
         smallAllocator->allocate(sizeof(ParticleSystemManager), "main::ParticleSystemManager"));
     assert(particleManager != nullptr);
     new (particleManager) ParticleSystemManager(trigLookup);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created ParticleSystemManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created ParticleSystemManager" << ConsoleBuffer::endl;
 
     // Allocate WaterEffectManager using large allocator
     WaterEffectManager *waterEffectManager = static_cast<WaterEffectManager *>(
         largeAllocator->allocate(sizeof(WaterEffectManager), "main::WaterEffectManager"));
     assert(waterEffectManager != nullptr);
     new (waterEffectManager) WaterEffectManager();
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created WaterEffectManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created WaterEffectManager" << ConsoleBuffer::endl;
 
     // Allocate VulkanRenderer
     VulkanRenderer *renderer = static_cast<VulkanRenderer *>(
         smallAllocator->allocate(sizeof(VulkanRenderer), "main::VulkanRenderer"));
     assert(renderer != nullptr);
     new (renderer) VulkanRenderer(smallAllocator, largeAllocator, consoleBuffer);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created VulkanRenderer" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created VulkanRenderer" << ConsoleBuffer::endl;
 
     renderer->initialize(window, config.gpuIndex);
 
@@ -319,7 +319,7 @@ int main()
         smallAllocator->allocate(sizeof(VibrationManager), "main::VibrationManager"));
     assert(vibrationManager != nullptr);
     new (vibrationManager) VibrationManager();
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created VibrationManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created VibrationManager" << ConsoleBuffer::endl;
 
     // Create LuaInterface without SceneManager (will be set after SceneManager is created)
     LuaInterface *luaInterface = static_cast<LuaInterface *>(
@@ -328,7 +328,7 @@ int main()
     new (luaInterface) LuaInterface(*pakResource, *renderer, smallAllocator, physics, layerManager,
                                     audioManager, particleManager, waterEffectManager,
                                     nullptr, vibrationManager, consoleBuffer);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created LuaInterface" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created LuaInterface" << ConsoleBuffer::endl;
 
     // Allocate SceneManager
     SceneManager *sceneManager = static_cast<SceneManager *>(
@@ -339,14 +339,14 @@ int main()
 
     // Set SceneManager pointer in LuaInterface after SceneManager is created
     luaInterface->setSceneManager(sceneManager);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created SceneManager and linked with LuaInterface" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created SceneManager and linked with LuaInterface" << ConsoleBuffer::endl;
 
     // Allocate KeybindingManager
     KeybindingManager *keybindings = static_cast<KeybindingManager *>(
         smallAllocator->allocate(sizeof(KeybindingManager), "main::KeybindingManager"));
     assert(keybindings != nullptr);
     new (keybindings) KeybindingManager(smallAllocator);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created KeybindingManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created KeybindingManager" << ConsoleBuffer::endl;
 
     // Load keybindings from config if available
     if (config.keybindings[0] != '\0')
@@ -393,7 +393,7 @@ int main()
         largeAllocator->allocate(sizeof(ImGuiManager), "main::ImGuiManager"));
     assert(imguiManager != nullptr);
     new (imguiManager) ImGuiManager(smallAllocator, consoleBuffer, trigLookup);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Created ImGuiManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created ImGuiManager" << ConsoleBuffer::endl;
 
     g_imguiManager = imguiManager;
     imguiManager->initialize(window, renderer->getInstance(), renderer->getPhysicalDevice(),
@@ -452,14 +452,14 @@ int main()
                         SDL_SetWindowFullscreen(window, false);
                         config.fullscreenMode = 0;
                         config.display = SDL_GetDisplayForWindow(window);
-                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Toggled to windowed on display: %u", config.display);
+                        consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Toggled to windowed on display: %u", config.display);
                     }
                     else
                     {
                         SDL_SetWindowFullscreen(window, true);
                         config.fullscreenMode = SDL_WINDOW_FULLSCREEN;
                         config.display = SDL_GetDisplayForWindow(window);
-                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Toggled to fullscreen on display: %u", config.display);
+                        consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Toggled to fullscreen on display: %u", config.display);
                     }
                     saveConfig(config);
                 }
@@ -743,72 +743,72 @@ int main()
     // Destroy ImGuiManager
     imguiManager->~ImGuiManager();
     largeAllocator->free(imguiManager);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed ImGuiManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed ImGuiManager" << ConsoleBuffer::endl;
 #endif
     renderer->cleanup();
 
     // Destroy SceneManager
     sceneManager->~SceneManager();
     smallAllocator->free(sceneManager);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed SceneManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed SceneManager" << ConsoleBuffer::endl;
 
     // Destroy LuaInterface
     luaInterface->~LuaInterface();
     smallAllocator->free(luaInterface);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed LuaInterface" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed LuaInterface" << ConsoleBuffer::endl;
 
     // Destroy VibrationManager
     vibrationManager->~VibrationManager();
     smallAllocator->free(vibrationManager);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed VibrationManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed VibrationManager" << ConsoleBuffer::endl;
 
     // Destroy VulkanRenderer
     renderer->~VulkanRenderer();
     smallAllocator->free(renderer);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed VulkanRenderer" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed VulkanRenderer" << ConsoleBuffer::endl;
 
     // Destroy WaterEffectManager
     waterEffectManager->~WaterEffectManager();
     largeAllocator->free(waterEffectManager);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed WaterEffectManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed WaterEffectManager" << ConsoleBuffer::endl;
 
     // Destroy ParticleSystemManager
     particleManager->~ParticleSystemManager();
     smallAllocator->free(particleManager);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed ParticleSystemManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed ParticleSystemManager" << ConsoleBuffer::endl;
 
     // Destroy AudioManager
     audioManager->~AudioManager();
     largeAllocator->free(audioManager);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed AudioManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed AudioManager" << ConsoleBuffer::endl;
 
     // Destroy Box2DPhysics
     physics->~Box2DPhysics();
     smallAllocator->free(physics);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed Box2DPhysics" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed Box2DPhysics" << ConsoleBuffer::endl;
 
     // Destroy SceneLayerManager
     layerManager->~SceneLayerManager();
     smallAllocator->free(layerManager);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed SceneLayerManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed SceneLayerManager" << ConsoleBuffer::endl;
 
     // Destroy KeybindingManager
     keybindings->~KeybindingManager();
     smallAllocator->free(keybindings);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed KeybindingManager" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed KeybindingManager" << ConsoleBuffer::endl;
 
     // Destroy TrigLookup
     trigLookup->~TrigLookup();
     smallAllocator->free(trigLookup);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed TrigLookup" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed TrigLookup" << ConsoleBuffer::endl;
 
     // Destroy PakResource (must be before allocators since it uses largeAllocator)
     pakResource->~PakResource();
     smallAllocator->free(pakResource);
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Destroyed PakResource" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed PakResource" << ConsoleBuffer::endl;
 
     // Destroy ConsoleBuffer last (before allocators)
-    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Cleaning up ConsoleBuffer" << ConsoleBuffer::endl;
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Cleaning up ConsoleBuffer" << ConsoleBuffer::endl;
     consoleBuffer->~ConsoleBuffer();
     smallAllocator->free(consoleBuffer);
 
