@@ -9,6 +9,15 @@
 // SDL log categories
 #define SDL_LOG_CATEGORY_APPLICATION SDL_LOG_CATEGORY_CUSTOM
 
+// Console line with priority
+struct ConsoleLine {
+    String text;
+    SDL_LogPriority priority;
+
+    ConsoleLine(const String& t, SDL_LogPriority p)
+        : text(t), priority(p) {}
+};
+
 // Console buffer to capture output for ImGui display and log via SDL
 class ConsoleBuffer {
 public:
@@ -39,7 +48,7 @@ public:
         SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, priority, "%s", message);
         // Store in buffer for ImGui display
         SDL_LockMutex(mutex_);
-        lines_.push_back(String(message, stringAllocator_));
+        lines_.push_back(ConsoleLine(String(message, stringAllocator_), priority));
         if (lines_.size() > 1000) {
             lines_.erase(0);
         }
@@ -54,7 +63,7 @@ public:
         SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, priority, "%s", buffer);
         // Store in buffer for ImGui display
         SDL_LockMutex(mutex_);
-        lines_.push_back(String(buffer, stringAllocator_));
+        lines_.push_back(ConsoleLine(String(buffer, stringAllocator_), priority));
         if (lines_.size() > 1000) {
             lines_.erase(0);
         }
@@ -157,7 +166,7 @@ public:
         return *this;
     }
 
-    const Vector<String>& getLines() {
+    const Vector<ConsoleLine>& getLines() {
         return lines_;
     }
 
@@ -168,7 +177,7 @@ public:
     }
 
 private:
-    Vector<String> lines_;
+    Vector<ConsoleLine> lines_;
     SDL_Mutex* mutex_;
     MemoryAllocator* stringAllocator_;
     String currentLine_;

@@ -7,7 +7,7 @@
 #include "../resources/resource.h"
 #include "../scene/SceneManager.h"
 #include "../scene/LuaInterface.h"
-#include "../memory/SmallAllocator.h"
+#include "../memory/SmallMemoryAllocator.h"
 #include "../core/hash.h"
 #include "../core/Vector.h"
 #include "../core/config.h"
@@ -262,13 +262,84 @@ void ImGuiManager::showConsoleWindow() {
     ImGui::SetNextWindowSize(ImVec2(600, 400), ImGuiCond_FirstUseEver);
     ImGui::Begin("Console Output", nullptr);
 
+    // Log level filter
+    static bool filterVerbose = true;
+    static bool filterDebug = true;
+    static bool filterInfo = true;
+    static bool filterWarn = true;
+    static bool filterError = true;
+    static bool filterCritical = true;
+
+    ImGui::Text("Filter by log level:");
+    ImGui::Checkbox("Verbose", &filterVerbose); ImGui::SameLine();
+    ImGui::Checkbox("Debug", &filterDebug); ImGui::SameLine();
+    ImGui::Checkbox("Info", &filterInfo); ImGui::SameLine();
+    ImGui::Checkbox("Warn", &filterWarn); ImGui::SameLine();
+    ImGui::Checkbox("Error", &filterError); ImGui::SameLine();
+    ImGui::Checkbox("Critical", &filterCritical);
+
+    ImGui::Separator();
+
     // Get console lines
     const auto& lines = consoleBuffer_->getLines();
 
     // Display lines in a scrollable region
     ImGui::BeginChild("ScrollingRegion", ImVec2(0, -30), false, ImGuiWindowFlags_HorizontalScrollbar);
     for (const auto& line : lines) {
-        ImGui::TextUnformatted(line.c_str());
+        // Apply filter
+        bool show = false;
+        switch (line.priority) {
+            case SDL_LOG_PRIORITY_VERBOSE:
+                show = filterVerbose;
+                break;
+            case SDL_LOG_PRIORITY_DEBUG:
+                show = filterDebug;
+                break;
+            case SDL_LOG_PRIORITY_INFO:
+                show = filterInfo;
+                break;
+            case SDL_LOG_PRIORITY_WARN:
+                show = filterWarn;
+                break;
+            case SDL_LOG_PRIORITY_ERROR:
+                show = filterError;
+                break;
+            case SDL_LOG_PRIORITY_CRITICAL:
+                show = filterCritical;
+                break;
+            default:
+                show = true;
+                break;
+        }
+
+        if (show) {
+            // Color code by log level
+            ImVec4 color;
+            switch (line.priority) {
+                case SDL_LOG_PRIORITY_VERBOSE:
+                    color = ImVec4(0.6f, 0.6f, 0.6f, 1.0f);
+                    break;
+                case SDL_LOG_PRIORITY_DEBUG:
+                    color = ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
+                    break;
+                case SDL_LOG_PRIORITY_INFO:
+                    color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+                    break;
+                case SDL_LOG_PRIORITY_WARN:
+                    color = ImVec4(1.0f, 1.0f, 0.0f, 1.0f);
+                    break;
+                case SDL_LOG_PRIORITY_ERROR:
+                    color = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
+                    break;
+                case SDL_LOG_PRIORITY_CRITICAL:
+                    color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+                    break;
+                default:
+                    color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+                    break;
+            }
+            ImGui::TextColored(color, "%s", line.text.c_str());
+        }
     }
 
     // Auto-scroll to bottom if we're near the bottom
@@ -418,6 +489,16 @@ void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManag
         editorState_.previewOffsetX = 0.0f;
         editorState_.previewOffsetY = 0.0f;
         editorState_.previewResetRequested = true;
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Refresh Particles")) {
+        // Destroy and recreate the preview system to reset particles
+        if (particleManager && editorState_.previewSystemId >= 0) {
+            particleManager->destroySystem(editorState_.previewSystemId);
+            editorState_.previewSystemId = -1;
+            // System will be recreated in next updatePreviewSystem call
+        }
     }
 
     ImGui::End();
@@ -1601,7 +1682,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
     }
 
     // Get allocator info
-    SmallAllocator* small = static_cast<SmallAllocator*>(smallAllocator);
+    SmallMemoryAllocator* small = static_cast<SmallMemoryAllocator*>(smallAllocator);
     LargeMemoryAllocator* large = static_cast<LargeMemoryAllocator*>(largeAllocator);
 
     // Update memory history (samples at regular intervals)
@@ -1644,17 +1725,43 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
             // Memory usage history graph
             size_t historyCount = 0;
-            size_t history[100];
+            size_t history[3000];
             small->getUsageHistory(history, &historyCount);
 
             if (historyCount > 0) {
-                ImGui::Text("Memory Usage Over Time");
-                float values[100];
+                ImGui::Text("Memory Usage Over Time (last %.1f minutes)", (historyCount * SmallMemoryAllocator::getBlockHeaderSize()) / 600.0f);
+                float values[3000];
                 for (size_t i = 0; i < historyCount; i++) {
-                    values[i] = (float)history[i];
+                    values[i] = (float)history[i] / (1024.0f * 1024.0f);  // Convert to MB
                 }
+
+                // Calculate max value for scaling
+                float maxValue = 0.0f;
+                for (size_t i = 0; i < historyCount; i++) {
+                    if (values[i] > maxValue) maxValue = values[i];
+                }
+
+                // Plot the graph
+                ImVec2 graphSize(0, 80);
                 ImGui::PlotLines("##SmallHistory", values, (int)historyCount, 0, nullptr,
-                                0.0f, (float)totalMem, ImVec2(0, 80));
+                                0.0f, maxValue * 1.1f, graphSize);
+
+                // Add custom hover text
+                if (ImGui::IsItemHovered()) {
+                    ImVec2 mousePos = ImGui::GetMousePos();
+                    ImVec2 graphPos = ImGui::GetItemRectMin();
+                    ImVec2 graphMax = ImGui::GetItemRectMax();
+                    float relX = (mousePos.x - graphPos.x) / (graphMax.x - graphPos.x);
+                    int index = (int)(relX * historyCount);
+                    if (index >= 0 && index < (int)historyCount) {
+                        float timeSeconds = index * 0.1f;  // SAMPLE_INTERVAL = 0.1s
+                        float memMB = values[index];
+                        ImGui::BeginTooltip();
+                        ImGui::Text("Time: %.1f seconds ago", (historyCount - index - 1) * 0.1f);
+                        ImGui::Text("Memory: %.2f MB", memMB);
+                        ImGui::EndTooltip();
+                    }
+                }
             }
 
             ImGui::Spacing();
@@ -1663,7 +1770,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
             // Pool visualization
             ImGui::Text("Memory Pools");
             size_t poolCount = 0;
-            SmallAllocator::MemoryPoolInfo* poolInfo = small->getPoolInfo(&poolCount);
+            SmallMemoryAllocator::MemoryPoolInfo* poolInfo = small->getPoolInfo(&poolCount);
 
             if (poolInfo && poolCount > 0) {
                 for (size_t i = 0; i < poolCount; i++) {
@@ -1684,9 +1791,9 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
                     // Draw blocks
                     for (size_t j = 0; j < poolInfo[i].blockCount; j++) {
-                        SmallAllocator::BlockInfo& block = poolInfo[i].blocks[j];
+                        SmallMemoryAllocator::BlockInfo& block = poolInfo[i].blocks[j];
                         float blockStart = (float)block.offset / poolInfo[i].capacity * width;
-                        float blockSize = (float)(block.size + SmallAllocator::getBlockHeaderSize()) / poolInfo[i].capacity * width;
+                        float blockSize = (float)(block.size + SmallMemoryAllocator::getBlockHeaderSize()) / poolInfo[i].capacity * width;
 
                         ImU32 color = block.isFree ? IM_COL32(50, 200, 50, 255) : IM_COL32(200, 50, 50, 255);
                         drawList->AddRectFilled(ImVec2(pos.x + blockStart, pos.y),
@@ -1705,9 +1812,9 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                         float relativeX = mousePos.x - pos.x;
                         if (relativeX >= 0 && relativeX <= width) {
                             for (size_t j = 0; j < poolInfo[i].blockCount; j++) {
-                                SmallAllocator::BlockInfo& block = poolInfo[i].blocks[j];
+                                SmallMemoryAllocator::BlockInfo& block = poolInfo[i].blocks[j];
                                 float blockStart = (float)block.offset / poolInfo[i].capacity * width;
-                                float blockSize = (float)(block.size + SmallAllocator::getBlockHeaderSize()) / poolInfo[i].capacity * width;
+                                float blockSize = (float)(block.size + SmallMemoryAllocator::getBlockHeaderSize()) / poolInfo[i].capacity * width;
 
                                 if (relativeX >= blockStart && relativeX < blockStart + blockSize) {
                                     ImGui::BeginTooltip();
@@ -1766,17 +1873,43 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
             // Memory usage history graph
             size_t historyCount = 0;
-            size_t history[100];
+            size_t history[3000];
             large->getUsageHistory(history, &historyCount);
 
             if (historyCount > 0) {
-                ImGui::Text("Memory Usage Over Time");
-                float values[100];
+                ImGui::Text("Memory Usage Over Time (last %.1f minutes)", (historyCount * 0.1f) / 60.0f);
+                float values[3000];
                 for (size_t i = 0; i < historyCount; i++) {
-                    values[i] = (float)history[i];
+                    values[i] = (float)history[i] / (1024.0f * 1024.0f);  // Convert to MB
                 }
+
+                // Calculate max value for scaling
+                float maxValue = 0.0f;
+                for (size_t i = 0; i < historyCount; i++) {
+                    if (values[i] > maxValue) maxValue = values[i];
+                }
+
+                // Plot the graph
+                ImVec2 graphSize(0, 80);
                 ImGui::PlotLines("##LargeHistory", values, (int)historyCount, 0, nullptr,
-                                0.0f, (float)totalMem, ImVec2(0, 80));
+                                0.0f, maxValue * 1.1f, graphSize);
+
+                // Add custom hover text
+                if (ImGui::IsItemHovered()) {
+                    ImVec2 mousePos = ImGui::GetMousePos();
+                    ImVec2 graphPos = ImGui::GetItemRectMin();
+                    ImVec2 graphMax = ImGui::GetItemRectMax();
+                    float relX = (mousePos.x - graphPos.x) / (graphMax.x - graphPos.x);
+                    int index = (int)(relX * historyCount);
+                    if (index >= 0 && index < (int)historyCount) {
+                        float timeSeconds = index * 0.1f;  // SAMPLE_INTERVAL = 0.1s
+                        float memMB = values[index];
+                        ImGui::BeginTooltip();
+                        ImGui::Text("Time: %.1f seconds ago", (historyCount - index - 1) * 0.1f);
+                        ImGui::Text("Memory: %.2f MB", memMB);
+                        ImGui::EndTooltip();
+                    }
+                }
             }
 
             ImGui::Spacing();
@@ -1868,8 +2001,32 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
             ImGui::Text("Allocation Statistics by ID");
             ImGui::Separator();
 
+            // Calculate and display total allocated memory
+            size_t smallUsed = small->getUsedMemory();
+            size_t largeUsed = large->getUsedMemory();
+            size_t totalUsed = smallUsed + largeUsed;
+
+            // Display total memory at the top
+            if (totalUsed < 1024) {
+                ImGui::Text("Total Allocated Memory: %zu B", totalUsed);
+            } else if (totalUsed < 1024 * 1024) {
+                ImGui::Text("Total Allocated Memory: %.2f KB", totalUsed / 1024.0f);
+            } else if (totalUsed < 1024 * 1024 * 1024) {
+                ImGui::Text("Total Allocated Memory: %.2f MB", totalUsed / (1024.0f * 1024.0f));
+            } else {
+                ImGui::Text("Total Allocated Memory: %.2f GB", totalUsed / (1024.0f * 1024.0f * 1024.0f));
+            }
+
+            // Show breakdown
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "(Small: %.2f MB", smallUsed / (1024.0f * 1024.0f));
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.5f, 1.0f), " | Large: %.2f MB)", largeUsed / (1024.0f * 1024.0f));
+
+            ImGui::Separator();
+
             // Sorting and search options
-            static int sortColumn = 2; // 0=ID, 1=Count, 2=Memory (default)
+            static int sortColumn = 3; // 0=ID, 1=Count, 2=Memory, 3=Allocator (default sort by memory)
             static bool sortAscending = false; // Default to descending (highest first)
             static char searchBuffer[256] = "";
 
@@ -1884,9 +2041,10 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
             ImGui::Separator();
 
-            // Begin table with sortable headers
-            if (ImGui::BeginTable("AllocationStatsTable", 3, ImGuiTableFlags_Sortable | ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
+            // Begin table with sortable headers - now with 4 columns
+            if (ImGui::BeginTable("AllocationStatsTable", 4, ImGuiTableFlags_Sortable | ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
                 ImGui::TableSetupColumn("Allocation ID", ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn("Allocator", ImGuiTableColumnFlags_WidthFixed, 80.0f);
                 ImGui::TableSetupColumn("Count", ImGuiTableColumnFlags_WidthFixed, 80.0f);
                 ImGui::TableSetupColumn("Total Memory", ImGuiTableColumnFlags_WidthFixed, 120.0f);
                 ImGui::TableSetupScrollFreeze(0, 1);
@@ -1906,14 +2064,16 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                 // Collect stats from both allocators
                 size_t smallStatsCount = 0;
                 size_t largeStatsCount = 0;
-                SmallAllocator::AllocationStats* smallStats = small->getAllocationStats(&smallStatsCount);
+                SmallMemoryAllocator::AllocationStats* smallStats = small->getAllocationStats(&smallStatsCount);
                 LargeMemoryAllocator::AllocationStats* largeStats = large->getAllocationStats(&largeStatsCount);
 
-                // Merge stats from both allocators
+                // Don't merge - keep them separate to show allocator info
                 struct MergedStats {
                     const char* allocationId;
-                    size_t count;
-                    size_t totalBytes;
+                    size_t smallCount;
+                    size_t smallBytes;
+                    size_t largeCount;
+                    size_t largeBytes;
                 };
 
                 size_t maxMergedStats = smallStatsCount + largeStatsCount;
@@ -1923,8 +2083,10 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                 // Add small allocator stats
                 for (size_t i = 0; i < smallStatsCount; i++) {
                     mergedStats[mergedCount].allocationId = smallStats[i].allocationId;
-                    mergedStats[mergedCount].count = smallStats[i].count;
-                    mergedStats[mergedCount].totalBytes = smallStats[i].totalBytes;
+                    mergedStats[mergedCount].smallCount = smallStats[i].count;
+                    mergedStats[mergedCount].smallBytes = smallStats[i].totalBytes;
+                    mergedStats[mergedCount].largeCount = 0;
+                    mergedStats[mergedCount].largeBytes = 0;
                     mergedCount++;
                 }
 
@@ -1933,16 +2095,18 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                     bool found = false;
                     for (size_t j = 0; j < mergedCount; j++) {
                         if (mergedStats[j].allocationId == largeStats[i].allocationId) {
-                            mergedStats[j].count += largeStats[i].count;
-                            mergedStats[j].totalBytes += largeStats[i].totalBytes;
+                            mergedStats[j].largeCount = largeStats[i].count;
+                            mergedStats[j].largeBytes = largeStats[i].totalBytes;
                             found = true;
                             break;
                         }
                     }
                     if (!found) {
                         mergedStats[mergedCount].allocationId = largeStats[i].allocationId;
-                        mergedStats[mergedCount].count = largeStats[i].count;
-                        mergedStats[mergedCount].totalBytes = largeStats[i].totalBytes;
+                        mergedStats[mergedCount].smallCount = 0;
+                        mergedStats[mergedCount].smallBytes = 0;
+                        mergedStats[mergedCount].largeCount = largeStats[i].count;
+                        mergedStats[mergedCount].largeBytes = largeStats[i].totalBytes;
                         mergedCount++;
                     }
                 }
@@ -1954,10 +2118,18 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                         if (sortColumn == 0) { // Sort by ID
                             int cmp = strcmp(mergedStats[i].allocationId, mergedStats[j].allocationId);
                             swap = sortAscending ? (cmp > 0) : (cmp < 0);
-                        } else if (sortColumn == 1) { // Sort by count
-                            swap = sortAscending ? (mergedStats[i].count > mergedStats[j].count) : (mergedStats[i].count < mergedStats[j].count);
+                        } else if (sortColumn == 1) { // Sort by allocator (arbitrary - small first)
+                            bool iHasSmall = mergedStats[i].smallCount > 0;
+                            bool jHasSmall = mergedStats[j].smallCount > 0;
+                            swap = sortAscending ? (iHasSmall < jHasSmall) : (iHasSmall > jHasSmall);
+                        } else if (sortColumn == 2) { // Sort by count
+                            size_t iTotal = mergedStats[i].smallCount + mergedStats[i].largeCount;
+                            size_t jTotal = mergedStats[j].smallCount + mergedStats[j].largeCount;
+                            swap = sortAscending ? (iTotal > jTotal) : (iTotal < jTotal);
                         } else { // Sort by memory
-                            swap = sortAscending ? (mergedStats[i].totalBytes > mergedStats[j].totalBytes) : (mergedStats[i].totalBytes < mergedStats[j].totalBytes);
+                            size_t iTotal = mergedStats[i].smallBytes + mergedStats[i].largeBytes;
+                            size_t jTotal = mergedStats[j].smallBytes + mergedStats[j].largeBytes;
+                            swap = sortAscending ? (iTotal > jTotal) : (iTotal < jTotal);
                         }
                         if (swap) {
                             MergedStats temp = mergedStats[i];
@@ -1980,16 +2152,34 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                     ImGui::TableNextColumn();
                     ImGui::Text("%s", mergedStats[i].allocationId);
 
+                    // Allocator column - show which allocator(s) this ID uses
                     ImGui::TableNextColumn();
-                    ImGui::Text("%zu", mergedStats[i].count);
-
-                    ImGui::TableNextColumn();
-                    if (mergedStats[i].totalBytes < 1024) {
-                        ImGui::Text("%zu B", mergedStats[i].totalBytes);
-                    } else if (mergedStats[i].totalBytes < 1024 * 1024) {
-                        ImGui::Text("%.2f KB", mergedStats[i].totalBytes / 1024.0f);
+                    if (mergedStats[i].smallCount > 0 && mergedStats[i].largeCount > 0) {
+                        ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.5f, 1.0f), "Both");
+                    } else if (mergedStats[i].smallCount > 0) {
+                        ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Small");
                     } else {
-                        ImGui::Text("%.2f MB", mergedStats[i].totalBytes / (1024.0f * 1024.0f));
+                        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.5f, 1.0f), "Large");
+                    }
+
+                    // Count column - show total count (or breakdown if both)
+                    ImGui::TableNextColumn();
+                    size_t totalCount = mergedStats[i].smallCount + mergedStats[i].largeCount;
+                    if (mergedStats[i].smallCount > 0 && mergedStats[i].largeCount > 0) {
+                        ImGui::Text("%zu (%zu+%zu)", totalCount, mergedStats[i].smallCount, mergedStats[i].largeCount);
+                    } else {
+                        ImGui::Text("%zu", totalCount);
+                    }
+
+                    // Memory column
+                    ImGui::TableNextColumn();
+                    size_t totalBytes = mergedStats[i].smallBytes + mergedStats[i].largeBytes;
+                    if (totalBytes < 1024) {
+                        ImGui::Text("%zu B", totalBytes);
+                    } else if (totalBytes < 1024 * 1024) {
+                        ImGui::Text("%.2f KB", totalBytes / 1024.0f);
+                    } else {
+                        ImGui::Text("%.2f MB", totalBytes / (1024.0f * 1024.0f));
                     }
                 }
 

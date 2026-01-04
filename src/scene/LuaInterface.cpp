@@ -3,7 +3,7 @@
 #include <SDL3/SDL.h>
 #include "SceneManager.h"
 #include "../physics/Box2DPhysics.h"
-#include "../memory/SmallAllocator.h"
+#include "../memory/SmallMemoryAllocator.h"
 #include "../core/hash.h"
 #include "../debug/ConsoleBuffer.h"
 #include <cassert>

@@ -5,10 +5,10 @@
 #include <cstdint>
 
 // Forward declaration
-class SmallAllocator;
+class SmallMemoryAllocator;
 
 // Lightweight UTF-8 string class
-// Uses SmallAllocator for memory management
+// Uses SmallMemoryAllocator for memory management
 // Optimized for performance via data-driven design
 class String {
 public:
@@ -90,7 +90,7 @@ private:
     size_t capacity_;  // Allocated capacity in bytes (excluding null terminator)
 
     // Get the global string allocator
-    static SmallAllocator& getAllocator();
+    static SmallMemoryAllocator& getAllocator();
 
     // Ensure capacity is sufficient for at least minCapacity bytes
     void ensureCapacity(size_t minCapacity);

@@ -14,7 +14,7 @@
 #include "input/InputActions.h"
 #include "input/VibrationManager.h"
 #include "scene/LuaInterface.h"
-#include "memory/SmallAllocator.h"
+#include "memory/SmallMemoryAllocator.h"
 #include "memory/LargeMemoryAllocator.h"
 #include "physics/Box2DPhysics.h"
 #include "scene/SceneLayer.h"
@@ -190,7 +190,7 @@ int main()
     }
 
     // Create single allocator instances for the entire application
-    SmallAllocator* smallAllocator = new SmallAllocator();
+    SmallMemoryAllocator* smallAllocator = new SmallMemoryAllocator();
     LargeMemoryAllocator* largeAllocator = new LargeMemoryAllocator();
 
     ConsoleBuffer *consoleBuffer = static_cast<ConsoleBuffer *>(

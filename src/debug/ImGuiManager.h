@@ -11,7 +11,7 @@
 #include "../core/String.h"
 #include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
-#include "../memory/SmallAllocator.h"
+#include "../memory/SmallMemoryAllocator.h"
 #include "../memory/LargeMemoryAllocator.h"
 #include <cstdint>
 

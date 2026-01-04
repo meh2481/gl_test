@@ -114,7 +114,8 @@ private:
 
 #ifdef DEBUG
     // Memory usage history (circular buffer)
-    static const size_t HISTORY_SIZE = 100;
+    // With 0.1s sample interval and 3000 samples = 300 seconds = 5 minutes
+    static const size_t HISTORY_SIZE = 3000;
     size_t usageHistory_[HISTORY_SIZE];
     size_t historyIndex_;
     size_t historyCount_;

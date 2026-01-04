@@ -1,7 +1,7 @@
 #include "Box2DPhysics.h"
 #include <SDL3/SDL.h>
 #include "../scene/SceneLayer.h"
-#include "../memory/SmallAllocator.h"
+#include "../memory/SmallMemoryAllocator.h"
 #include "../core/Vector.h"
 #include "../core/TrigLookup.h"
 #include "../debug/ConsoleBuffer.h"
@@ -58,7 +58,7 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* smallAllocator, MemoryAllocator* lar
       radialForceFields_(*smallAllocator, "Box2DPhysics::radialForceFields_"),
       bodyTypes_(*smallAllocator, "Box2DPhysics::bodyTypes_"),
       debugLineVertices_(*largeAllocator, "Box2DPhysics::debugLineVertices_"),
-      debugTriangleVertices_(*smallAllocator, "Box2DPhysics::debugTriangleVertices_"),
+      debugTriangleVertices_(*largeAllocator, "Box2DPhysics::debugTriangleVertices_"),
       collisionHitEvents_(*smallAllocator, "Box2DPhysics::collisionHitEvents_"),
       fractureEvents_(*largeAllocator, "Box2DPhysics::fractureEvents_"),
       pendingDestructions_(*smallAllocator, "Box2DPhysics::pendingDestructions_"),
