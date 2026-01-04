@@ -2,3 +2,12 @@
 * Implement a function to save the current game state to a file.
 * Make water splash particle effects only appear when the object is entering from the top of the water.
 * Test that lantern extinguish/relight works, as well as other object interactions
+* Refresh in the particle editor does not cause it to re-fire, it just stays dead
+* Console output window should be filterable by log level
+* Memory Usage Over Time graph should have a significantly longer time-frame (several minutes by default; configurable)
+* Memory Usage Over Time graph hover text is useless (e.g. "99: 2.531e+05"). Show time in seconds and memory in MB instead of raw bytes.
+* Allocation summary tab should show small allocator / large allocator memory differently, such as with a new column or color of text.
+* Allocation summary tab should show total allocated memory at the top, in GB/MB/KB.
+* Box2DPhysics::debugTriangleVertices_ should be allocated in the Large allocator, not the Small one.
+* Rename LargeMemoryAllocator and SmallAllocator to be more consistent (both with "Memory").
+* LargeMemoryAllocator always seems to have 2 pools allocated, the first 32MB and the second 1MB. The 32MB one is far less than half full, which begs the question why the 1MB one was even allocated in the first place. It does not seem to be using the pools efficiently.
