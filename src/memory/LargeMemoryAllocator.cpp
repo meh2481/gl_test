@@ -66,6 +66,18 @@ void LargeMemoryAllocator::addChunk(size_t size) {
     size_t chunkSize = size < m_chunkSize ? m_chunkSize : size;
     chunkSize = alignSize(chunkSize);
 
+    // If we're creating a chunk significantly larger than our current chunk size,
+    // grow m_chunkSize to avoid creating many small chunks later
+    // This prevents the pattern of having one large 32MB chunk and then many 1MB chunks
+    if (chunkSize > m_chunkSize * 2) {
+        // Grow chunk size to half the new chunk size (capped at 32MB to avoid excessive growth)
+        m_chunkSize = chunkSize / 2;
+        if (m_chunkSize > 32 * 1024 * 1024) {
+            m_chunkSize = 32 * 1024 * 1024;
+        }
+        m_chunkSize = alignSize(m_chunkSize);
+    }
+
     MemoryChunk* newChunk = (MemoryChunk*)SDL_malloc(sizeof(MemoryChunk));
     assert(newChunk != nullptr);
 

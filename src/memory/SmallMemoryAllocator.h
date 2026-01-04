@@ -11,10 +11,10 @@
 // - Automatic defragmentation
 // - No STL dependencies
 
-class SmallAllocator : public MemoryAllocator {
+class SmallMemoryAllocator : public MemoryAllocator {
 public:
-    SmallAllocator();
-    ~SmallAllocator() override;
+    SmallMemoryAllocator();
+    ~SmallMemoryAllocator() override;
 
     // Allocate memory of given size
     // Returns nullptr if allocation fails

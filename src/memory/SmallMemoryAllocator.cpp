@@ -4,7 +4,7 @@
 #include <cassert>
 #include <SDL3/SDL_log.h>
 
-SmallMemoryAllocator::SmallAllocator()
+SmallMemoryAllocator::SmallMemoryAllocator()
     : firstPool_(nullptr)
     , lastPool_(nullptr)
     , allocationCount_(0)
@@ -23,7 +23,7 @@ SmallMemoryAllocator::SmallAllocator()
     createPool(MIN_POOL_SIZE);
 }
 
-SmallMemoryAllocator::~SmallAllocator() {
+SmallMemoryAllocator::~SmallMemoryAllocator() {
     // Count pools
     size_t poolCount = 0;
     MemoryPool* pool = firstPool_;
