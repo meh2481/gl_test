@@ -24,7 +24,8 @@ public:
     ConsoleBuffer(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator)
         : stringAllocator_(smallAllocator)
         , lines_(*largeAllocator, "ConsoleBuffer::lines_")
-        , currentLine_(smallAllocator) {
+        , currentLine_(smallAllocator)
+        , filterMask_(0xFF) {  // Store all priorities by default
         assert(stringAllocator_ != nullptr);
         mutex_ = SDL_CreateMutex();
         assert(mutex_ != nullptr);
@@ -41,16 +42,30 @@ public:
         stringAllocator_ = nullptr;
     }
 
+    // Set which log priorities to store (bit mask)
+    void setFilterMask(uint8_t mask) {
+        SDL_LockMutex(mutex_);
+        filterMask_ = mask;
+        SDL_UnlockMutex(mutex_);
+    }
+
+    // Helper to check if a priority should be stored
+    bool shouldStore(SDL_LogPriority priority) const {
+        return (filterMask_ & (1 << priority)) != 0;
+    }
+
     // Log a message with specified priority
     void log(SDL_LogPriority priority, const char* message) {
         assert(message != nullptr);
         // Call SDL_Log to output to system log
         SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, priority, "%s", message);
-        // Store in buffer for ImGui display
+        // Store in buffer for ImGui display only if filter allows
         SDL_LockMutex(mutex_);
-        lines_.push_back(ConsoleLine(String(message, stringAllocator_), priority));
-        if (lines_.size() > 1000) {
-            lines_.erase(0);
+        if (shouldStore(priority)) {
+            lines_.push_back(ConsoleLine(String(message, stringAllocator_), priority));
+            if (lines_.size() > 10000) {
+                lines_.erase(0);
+            }
         }
         SDL_UnlockMutex(mutex_);
     }
@@ -61,11 +76,13 @@ public:
         char buffer[1024];
         SDL_snprintf(buffer, sizeof(buffer), format, args...);
         SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, priority, "%s", buffer);
-        // Store in buffer for ImGui display
+        // Store in buffer for ImGui display only if filter allows
         SDL_LockMutex(mutex_);
-        lines_.push_back(ConsoleLine(String(buffer, stringAllocator_), priority));
-        if (lines_.size() > 1000) {
-            lines_.erase(0);
+        if (shouldStore(priority)) {
+            lines_.push_back(ConsoleLine(String(buffer, stringAllocator_), priority));
+            if (lines_.size() > 10000) {
+                lines_.erase(0);
+            }
         }
         SDL_UnlockMutex(mutex_);
     }
@@ -182,6 +199,7 @@ private:
     MemoryAllocator* stringAllocator_;
     String currentLine_;
     SDL_LogPriority currentPriority_ = SDL_LOG_PRIORITY_INFO;
+    uint8_t filterMask_;  // Bit mask for which priorities to store
 };
 
 // Define static endl

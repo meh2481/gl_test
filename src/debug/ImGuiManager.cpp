@@ -271,12 +271,25 @@ void ImGuiManager::showConsoleWindow() {
     static bool filterCritical = true;
 
     ImGui::Text("Filter by log level:");
-    ImGui::Checkbox("Verbose", &filterVerbose); ImGui::SameLine();
-    ImGui::Checkbox("Debug", &filterDebug); ImGui::SameLine();
-    ImGui::Checkbox("Info", &filterInfo); ImGui::SameLine();
-    ImGui::Checkbox("Warn", &filterWarn); ImGui::SameLine();
-    ImGui::Checkbox("Error", &filterError); ImGui::SameLine();
-    ImGui::Checkbox("Critical", &filterCritical);
+    bool filterChanged = false;
+    filterChanged |= ImGui::Checkbox("Verbose", &filterVerbose); ImGui::SameLine();
+    filterChanged |= ImGui::Checkbox("Debug", &filterDebug); ImGui::SameLine();
+    filterChanged |= ImGui::Checkbox("Info", &filterInfo); ImGui::SameLine();
+    filterChanged |= ImGui::Checkbox("Warn", &filterWarn); ImGui::SameLine();
+    filterChanged |= ImGui::Checkbox("Error", &filterError); ImGui::SameLine();
+    filterChanged |= ImGui::Checkbox("Critical", &filterCritical);
+
+    // Update filter mask when checkboxes change
+    if (filterChanged) {
+        uint8_t mask = 0;
+        if (filterVerbose) mask |= (1 << SDL_LOG_PRIORITY_VERBOSE);
+        if (filterDebug) mask |= (1 << SDL_LOG_PRIORITY_DEBUG);
+        if (filterInfo) mask |= (1 << SDL_LOG_PRIORITY_INFO);
+        if (filterWarn) mask |= (1 << SDL_LOG_PRIORITY_WARN);
+        if (filterError) mask |= (1 << SDL_LOG_PRIORITY_ERROR);
+        if (filterCritical) mask |= (1 << SDL_LOG_PRIORITY_CRITICAL);
+        consoleBuffer_->setFilterMask(mask);
+    }
 
     ImGui::Separator();
 
@@ -1729,7 +1742,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
             small->getUsageHistory(history, &historyCount);
 
             if (historyCount > 0) {
-                ImGui::Text("Memory Usage Over Time (last %.1f minutes)", (historyCount * SmallMemoryAllocator::getBlockHeaderSize()) / 600.0f);
+                ImGui::Text("Memory Usage Over Time (last %.1f minutes)", (historyCount * 0.1f) / 60.0f);
                 float values[3000];
                 for (size_t i = 0; i < historyCount; i++) {
                     values[i] = (float)history[i] / (1024.0f * 1024.0f);  // Convert to MB
