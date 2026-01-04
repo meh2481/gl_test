@@ -646,6 +646,8 @@ int main()
                 pakResource->reload(PAK_FILE);
                 // Reload current scene with new resources
                 sceneManager->reloadCurrentScene();
+                // Notify ImGui particle editor to reset preview system
+                imguiManager->onSceneReload();
             }
             else
             {

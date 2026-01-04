@@ -138,6 +138,7 @@ public:
     ParticleEditorState& getEditorState() { return editorState_; }
     void destroyPreviewSystem(ParticleSystemManager* particleManager);
     int getPreviewSystemId() const { return editorState_.previewSystemId; }
+    void onSceneReload();  // Called when scene is reloaded (F5)
 
     // Sync preview controls with camera
     void syncPreviewWithCamera(float cameraOffsetX, float cameraOffsetY, float cameraZoom);

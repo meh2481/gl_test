@@ -395,6 +395,16 @@ void ImGuiManager::destroyPreviewSystem(ParticleSystemManager* particleManager) 
     }
 }
 
+void ImGuiManager::onSceneReload() {
+    // When scene is reloaded (F5), reset the particle editor preview system
+    // This ensures particles restart properly after hot-reload
+    if (editorState_.isActive && editorState_.previewSystemId >= 0) {
+        // Set the needsReset flag so the preview system will be destroyed and recreated
+        // on the next updatePreviewSystem call
+        editorState_.needsReset = true;
+    }
+}
+
 void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManager, PakResource* pakResource,
                                              VulkanRenderer* renderer, LuaInterface* luaInterface, float deltaTime, SceneManager* sceneManager) {
     if (!initialized_ || !editorState_.isActive || !luaInterface) {
@@ -489,16 +499,6 @@ void ImGuiManager::showParticleEditorWindow(ParticleSystemManager* particleManag
         editorState_.previewOffsetX = 0.0f;
         editorState_.previewOffsetY = 0.0f;
         editorState_.previewResetRequested = true;
-    }
-
-    ImGui::SameLine();
-    if (ImGui::Button("Refresh Particles")) {
-        // Destroy and recreate the preview system to reset particles
-        if (particleManager && editorState_.previewSystemId >= 0) {
-            particleManager->destroySystem(editorState_.previewSystemId);
-            editorState_.previewSystemId = -1;
-            // System will be recreated in next updatePreviewSystem call
-        }
     }
 
     ImGui::End();
