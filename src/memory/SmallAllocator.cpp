@@ -191,7 +191,15 @@ size_t SmallAllocator::getUsedMemory() const {
     size_t used = 0;
     MemoryPool* pool = firstPool_;
     while (pool) {
-        used += pool->used;
+        // Iterate through all blocks in this pool
+        BlockHeader* block = pool->firstBlock;
+        while (block) {
+            if (!block->isFree) {
+                // Count allocated block size plus header
+                used += block->size + sizeof(BlockHeader);
+            }
+            block = block->next;
+        }
         pool = pool->next;
     }
     SDL_UnlockMutex(mutex_);
@@ -203,7 +211,15 @@ size_t SmallAllocator::getFreeMemory() const {
     size_t used = 0;
     MemoryPool* pool = firstPool_;
     while (pool) {
-        used += pool->used;
+        // Iterate through all blocks in this pool
+        BlockHeader* block = pool->firstBlock;
+        while (block) {
+            if (!block->isFree) {
+                // Count allocated block size plus header
+                used += block->size + sizeof(BlockHeader);
+            }
+            block = block->next;
+        }
         pool = pool->next;
     }
     size_t result = totalCapacity_ > used ? totalCapacity_ - used : 0;
@@ -543,7 +559,15 @@ void SmallAllocator::updateMemoryHistory(float currentTime) {
     size_t used = 0;
     MemoryPool* pool = firstPool_;
     while (pool) {
-        used += pool->used;
+        // Iterate through all blocks in this pool
+        BlockHeader* block = pool->firstBlock;
+        while (block) {
+            if (!block->isFree) {
+                // Count allocated block size plus header
+                used += block->size + sizeof(BlockHeader);
+            }
+            block = block->next;
+        }
         pool = pool->next;
     }
 
