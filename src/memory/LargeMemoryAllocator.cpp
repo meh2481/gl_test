@@ -174,17 +174,30 @@ void LargeMemoryAllocator::free(void* ptr) {
     // Merge with adjacent blocks first - this may change which block we add to free list
     BlockHeader* finalBlock = mergeAdjacentBlocks(block);
 
-    // Only add to free list if the final block is not already in it
-    // (If we merged with a previous block, that block is already in the free list)
-    if (finalBlock == block) {
-        // This is a new block (not merged with a previous one), add it to free list
-        finalBlock->next = m_freeList;
-        finalBlock->prev = nullptr;
-        if (m_freeList) {
-            m_freeList->prev = finalBlock;
+    // Always add the final block to the free list, removing it first if it's already there
+    // This handles the case where we merged with a block that was already in the free list
+    if (finalBlock != block) {
+        // We merged with a previous block - it should already be in the free list
+        // But let's verify and re-add to be safe
+        // First, try to remove it from the free list if it's there
+        if (finalBlock->prev) {
+            finalBlock->prev->next = finalBlock->next;
         }
-        m_freeList = finalBlock;
+        if (finalBlock->next) {
+            finalBlock->next->prev = finalBlock->prev;
+        }
+        if (m_freeList == finalBlock) {
+            m_freeList = finalBlock->next;
+        }
     }
+    
+    // Now add the final block to the front of the free list
+    finalBlock->next = m_freeList;
+    finalBlock->prev = nullptr;
+    if (m_freeList) {
+        m_freeList->prev = finalBlock;
+    }
+    m_freeList = finalBlock;
 
     if (m_totalPoolSize > 0 && (float)m_usedMemory / m_totalPoolSize < SHRINK_THRESHOLD && m_totalPoolSize > m_chunkSize) {
         removeEmptyChunks();
