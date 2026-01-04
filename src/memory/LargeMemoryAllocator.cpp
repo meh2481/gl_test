@@ -68,14 +68,19 @@ void LargeMemoryAllocator::addChunk(size_t size) {
 
     // If we're creating a chunk significantly larger than our current chunk size,
     // grow m_chunkSize to avoid creating many small chunks later
-    // This prevents the pattern of having one large 32MB chunk and then many 1MB chunks
-    if (chunkSize > m_chunkSize * 2) {
-        // Grow chunk size to half the new chunk size (capped at 32MB to avoid excessive growth)
-        m_chunkSize = chunkSize / 2;
-        if (m_chunkSize > 32 * 1024 * 1024) {
-            m_chunkSize = 32 * 1024 * 1024;
+    // This prevents the pattern of having one large chunk and then many small 1MB chunks
+    if (chunkSize > m_chunkSize) {
+        // Grow chunk size more aggressively to match the new allocation pattern
+        // Use the larger of: (current * 2) or (new chunk size)
+        size_t newChunkSize = chunkSize;
+        if (m_chunkSize * 2 > newChunkSize) {
+            newChunkSize = m_chunkSize * 2;
         }
-        m_chunkSize = alignSize(m_chunkSize);
+        // Cap at 32MB to avoid excessive growth
+        if (newChunkSize > 32 * 1024 * 1024) {
+            newChunkSize = 32 * 1024 * 1024;
+        }
+        m_chunkSize = alignSize(newChunkSize);
     }
 
     MemoryChunk* newChunk = (MemoryChunk*)SDL_malloc(sizeof(MemoryChunk));
@@ -257,11 +262,15 @@ void LargeMemoryAllocator::removeEmptyChunks() {
         MemoryChunk* chunk = *chunkPtr;
         BlockHeader* block = (BlockHeader*)chunk->memory;
 
+        // Remove chunk if it's completely free
+        // Keep at least one chunk to avoid constant allocation/deallocation
         bool isEmpty = (block->isFree &&
-                       block->size == chunk->size - sizeof(BlockHeader) &&
-                       chunk != m_chunks);
+                       block->size == chunk->size - sizeof(BlockHeader));
+        
+        // Only remove if not the last chunk
+        bool isLastChunk = (m_chunks == chunk && chunk->next == nullptr);
 
-        if (isEmpty) {
+        if (isEmpty && !isLastChunk) {
             if (block->prev) {
                 block->prev->next = block->next;
             }
