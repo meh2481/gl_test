@@ -1715,9 +1715,6 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
         // Small Allocator Tab
         if (ImGui::BeginTabItem("Small Allocator")) {
             // Statistics
-            ImGui::Text("Small Allocator (for frequent small allocations)");
-            ImGui::Separator();
-
             size_t totalMem = small->getTotalMemory();
             size_t usedMem = small->getUsedMemory();
             size_t freeMem = small->getFreeMemory();
@@ -1864,10 +1861,6 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
         // Large Allocator Tab
         if (ImGui::BeginTabItem("Large Allocator")) {
-            // Statistics
-            ImGui::Text("Large Allocator (for large allocations)");
-            ImGui::Separator();
-
             size_t totalMem = large->getTotalMemory();
             size_t usedMem = large->getUsedMemory();
             size_t freeMem = large->getFreeMemory();
@@ -2011,9 +2004,6 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
         // Allocation Summary Tab
         if (ImGui::BeginTabItem("Allocation Summary")) {
-            ImGui::Text("Allocation Statistics by ID");
-            ImGui::Separator();
-
             // Calculate and display total allocated memory
             size_t smallUsed = small->getUsedMemory();
             size_t largeUsed = large->getUsedMemory();

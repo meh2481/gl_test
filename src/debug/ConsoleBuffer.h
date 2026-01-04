@@ -6,6 +6,8 @@
 #include "../core/Vector.h"
 #include "../memory/MemoryAllocator.h"
 
+#define MAX_CONSOLE_LINES 1000
+
 // SDL log categories
 #define SDL_LOG_CATEGORY_APPLICATION SDL_LOG_CATEGORY_CUSTOM
 
@@ -63,7 +65,7 @@ public:
         SDL_LockMutex(mutex_);
         if (shouldStore(priority)) {
             lines_.push_back(ConsoleLine(String(message, stringAllocator_), priority));
-            if (lines_.size() > 10000) {
+            if (lines_.size() > MAX_CONSOLE_LINES) {
                 lines_.erase(0);
             }
         }
@@ -80,7 +82,7 @@ public:
         SDL_LockMutex(mutex_);
         if (shouldStore(priority)) {
             lines_.push_back(ConsoleLine(String(buffer, stringAllocator_), priority));
-            if (lines_.size() > 10000) {
+            if (lines_.size() > MAX_CONSOLE_LINES) {
                 lines_.erase(0);
             }
         }
