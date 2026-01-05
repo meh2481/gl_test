@@ -1436,8 +1436,13 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     m_cameraOffsetX,
                     m_cameraOffsetY,
                     m_cameraZoom,
-                    params ? (*params)[0] : 0.0f, params ? (*params)[1] : 0.0f, params ? (*params)[2] : 0.0f,
-                    params ? (*params)[3] : 0.0f, params ? (*params)[4] : 0.0f, params ? (*params)[5] : 0.0f, params ? (*params)[6] : 0.0f
+                    (params && params->size() > 0) ? (*params)[0] : 0.0f,
+                    (params && params->size() > 1) ? (*params)[1] : 0.0f,
+                    (params && params->size() > 2) ? (*params)[2] : 0.0f,
+                    (params && params->size() > 3) ? (*params)[3] : 0.0f,
+                    (params && params->size() > 4) ? (*params)[4] : 0.0f,
+                    (params && params->size() > 5) ? (*params)[5] : 0.0f,
+                    (params && params->size() > 6) ? (*params)[6] : 0.0f
                 };
                 vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
             } else {
@@ -1750,8 +1755,13 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
                     m_cameraOffsetX,
                     flippedCameraY,
                     -m_cameraZoom,  // Negative zoom to flip Y
-                    params ? (*params)[0] : 0.0f, params ? (*params)[1] : 0.0f, params ? (*params)[2] : 0.0f,
-                    params ? (*params)[3] : 0.0f, params ? (*params)[4] : 0.0f, params ? (*params)[5] : 0.0f, params ? (*params)[6] : 0.0f
+                    (params && params->size() > 0) ? (*params)[0] : 0.0f,
+                    (params && params->size() > 1) ? (*params)[1] : 0.0f,
+                    (params && params->size() > 2) ? (*params)[2] : 0.0f,
+                    (params && params->size() > 3) ? (*params)[3] : 0.0f,
+                    (params && params->size() > 4) ? (*params)[4] : 0.0f,
+                    (params && params->size() > 5) ? (*params)[5] : 0.0f,
+                    (params && params->size() > 6) ? (*params)[6] : 0.0f
                 };
                 vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(extPushConstants), extPushConstants);
             } else {
