@@ -141,6 +141,7 @@ private:
     static int createRadialForceField(lua_State* L);
     static int getForceFieldBodyId(lua_State* L);
     static int setWaterPercentage(lua_State* L);
+    static int setWaterRotation(lua_State* L);
 
     // Scene layer Lua bindings
     static int createLayer(lua_State* L);
@@ -249,7 +250,7 @@ private:
 
     // Water visual setup helper (called from createForceField when water=true)
     void setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
-                           float minX, float minY, float maxX, float maxY,
+                           const float* vertices, int vertexCount,
                            float alpha, float rippleAmplitude, float rippleSpeed, float surfaceY);
 
     // Particle editor state (DEBUG only)

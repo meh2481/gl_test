@@ -19,14 +19,21 @@ struct WaterRipple {
     bool particlesCreated;  // Flag to prevent duplicate particle creation
 };
 
+// Maximum vertices per water polygon
+static const int MAX_WATER_POLYGON_VERTICES = 8;
+
 // Water force field visual configuration
 struct WaterForceFieldConfig {
-    float minX, minY, maxX, maxY;  // Bounds in world space
+    float vertices[MAX_WATER_POLYGON_VERTICES * 2];  // Polygon vertices (x,y pairs)
+    int vertexCount;                // Number of vertices in polygon
+    float rotation;                 // Rotation angle in radians
     float alpha;                    // Base transparency (0-1)
     float rippleAmplitude;          // Amplitude of ambient ripples
     float rippleSpeed;              // Speed of ambient ripples
     float surfaceY;                 // Y position of water surface (calculated from percentageFull)
     float percentageFull;           // Percentage full (0.0-1.0, 1.0 = 100% full at maxY, 0.0 = empty at minY)
+    float centerX, centerY;         // Center point of the polygon (for rotation)
+    float minX, minY, maxX, maxY;   // Cached bounding box (updated when vertices/rotation change)
 };
 
 // Water force field with visual effect
@@ -55,9 +62,10 @@ public:
 
     // Create a water force field with visual effect
     // Returns the water force field ID (different from physics force field ID)
+    // vertices: array of x,y pairs defining the polygon (3-8 vertices)
     // percentageFull: 0.0-1.0, where 1.0 = full (surface at maxY), 0.0 = empty (surface at minY)
     int createWaterForceField(int physicsForceFieldId,
-                               float minX, float minY, float maxX, float maxY,
+                               const float* vertices, int vertexCount,
                                float alpha, float rippleAmplitude, float rippleSpeed,
                                float percentageFull = 1.0f);
 
@@ -80,6 +88,9 @@ public:
     // Set water percentage (0.0-1.0, where 1.0 = 100% full)
     void setWaterPercentage(int waterFieldId, float percentage);
 
+    // Set rotation angle for water force field (in radians)
+    void setWaterRotation(int waterFieldId, float rotation);
+
     // Get water force field data for rendering
     const WaterForceField* getWaterForceField(int waterFieldId) const;
 
@@ -97,6 +108,8 @@ public:
     int findByPhysicsForceField(int physicsForceFieldId) const;
 
 private:
+    // Update bounding box and center point from polygon vertices and rotation
+    void updateBoundingBox(WaterForceFieldConfig& config);
     WaterForceField fields_[MAX_WATER_FORCE_FIELDS];
     int activeFieldCount_;
     int nextFieldId_;

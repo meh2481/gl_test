@@ -19,6 +19,7 @@ waterLayerId = nil
 waterShaderId = nil
 waterField = nil
 waterTime = 0
+waterRotationTime = 0
 
 function init()
     -- Load the nebula background shader (z-index -2 = background)
@@ -201,6 +202,11 @@ function update(deltaTime)
     waterTime = waterTime + deltaTime
     local waterPercent = 0.5 + 0.4 * math.sin(waterTime * 0.5)
     setWaterPercentage(waterField, waterPercent)
+
+    -- Update water rotation (slowly rotate the water force field)
+    waterRotationTime = waterRotationTime + deltaTime
+    local waterRotation = waterRotationTime * 0.3  -- 0.3 radians per second (~17 degrees/sec)
+    setWaterRotation(waterField, waterRotation)
 end
 
 function onAction(action)

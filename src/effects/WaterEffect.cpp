@@ -16,10 +16,50 @@ WaterEffectManager::WaterEffectManager() : activeFieldCount_(0), nextFieldId_(1)
 WaterEffectManager::~WaterEffectManager() {
 }
 
+void WaterEffectManager::updateBoundingBox(WaterForceFieldConfig& config) {
+    assert(config.vertexCount >= 3 && config.vertexCount <= MAX_WATER_POLYGON_VERTICES);
+
+    // Calculate center point (centroid)
+    config.centerX = 0.0f;
+    config.centerY = 0.0f;
+    for (int i = 0; i < config.vertexCount; ++i) {
+        config.centerX += config.vertices[i * 2];
+        config.centerY += config.vertices[i * 2 + 1];
+    }
+    config.centerX /= config.vertexCount;
+    config.centerY /= config.vertexCount;
+
+    // Calculate bounding box from rotated vertices
+    float cosAngle = SDL_cosf(config.rotation);
+    float sinAngle = SDL_sinf(config.rotation);
+
+    config.minX = 1e10f;
+    config.minY = 1e10f;
+    config.maxX = -1e10f;
+    config.maxY = -1e10f;
+
+    for (int i = 0; i < config.vertexCount; ++i) {
+        // Get vertex relative to center
+        float localX = config.vertices[i * 2] - config.centerX;
+        float localY = config.vertices[i * 2 + 1] - config.centerY;
+
+        // Rotate vertex
+        float rotatedX = config.centerX + localX * cosAngle - localY * sinAngle;
+        float rotatedY = config.centerY + localX * sinAngle + localY * cosAngle;
+
+        // Update bounds
+        if (rotatedX < config.minX) config.minX = rotatedX;
+        if (rotatedX > config.maxX) config.maxX = rotatedX;
+        if (rotatedY < config.minY) config.minY = rotatedY;
+        if (rotatedY > config.maxY) config.maxY = rotatedY;
+    }
+}
+
 int WaterEffectManager::createWaterForceField(int physicsForceFieldId,
-                                               float minX, float minY, float maxX, float maxY,
+                                               const float* vertices, int vertexCount,
                                                float alpha, float rippleAmplitude, float rippleSpeed,
                                                float percentageFull) {
+    assert(vertexCount >= 3 && vertexCount <= MAX_WATER_POLYGON_VERTICES);
     // Find an empty slot
     int slot = -1;
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
@@ -38,16 +78,24 @@ int WaterEffectManager::createWaterForceField(int physicsForceFieldId,
 
     field.waterFieldId = waterFieldId;
     field.forceFieldId = physicsForceFieldId;
-    field.config.minX = minX;
-    field.config.minY = minY;
-    field.config.maxX = maxX;
-    field.config.maxY = maxY;
+
+    // Copy vertices
+    field.config.vertexCount = vertexCount;
+    for (int i = 0; i < vertexCount * 2; ++i) {
+        field.config.vertices[i] = vertices[i];
+    }
+
+    field.config.rotation = 0.0f;
     field.config.alpha = alpha;
     field.config.rippleAmplitude = rippleAmplitude;
     field.config.rippleSpeed = rippleSpeed;
     field.config.percentageFull = percentageFull;
+
+    // Calculate bounding box and center
+    updateBoundingBox(field.config);
+
     // Calculate surface Y based on percentage full
-    field.config.surfaceY = minY + (maxY - minY) * percentageFull;
+    field.config.surfaceY = field.config.minY + (field.config.maxY - field.config.minY) * percentageFull;
     field.rippleCount = 0;
     field.trackedBodyCount = 0;
     field.active = true;
@@ -330,6 +378,20 @@ void WaterEffectManager::setWaterPercentage(int waterFieldId, float percentage) 
             field.config.percentageFull = percentage;
             // Recalculate surface Y
             field.config.surfaceY = field.config.minY + (field.config.maxY - field.config.minY) * percentage;
+            return;
+        }
+    }
+}
+
+void WaterEffectManager::setWaterRotation(int waterFieldId, float rotation) {
+    for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
+        if (fields_[i].active && fields_[i].waterFieldId == waterFieldId) {
+            WaterForceField& field = fields_[i];
+            field.config.rotation = rotation;
+            // Recalculate bounding box with new rotation
+            updateBoundingBox(field.config);
+            // Recalculate surface Y with updated bounds
+            field.config.surfaceY = field.config.minY + (field.config.maxY - field.config.minY) * field.config.percentageFull;
             return;
         }
     }

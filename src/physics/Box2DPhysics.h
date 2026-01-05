@@ -284,6 +284,9 @@ public:
     // Set the water surface Y for a water force field
     void setForceFieldWaterSurface(int forceFieldId, float surfaceY);
 
+    // Set the rotation angle for a force field body (in radians)
+    void setForceFieldRotation(int forceFieldId, float rotation);
+
     // Radial force field management
     // Creates a circular force field that applies radial force based on distance from center
     // centerX, centerY: center position of the field

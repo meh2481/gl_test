@@ -1539,6 +1539,23 @@ void Box2DPhysics::setForceFieldWaterSurface(int forceFieldId, float surfaceY) {
     SDL_UnlockMutex(physicsMutex_);
 }
 
+void Box2DPhysics::setForceFieldRotation(int forceFieldId, float rotation) {
+    SDL_LockMutex(physicsMutex_);
+
+    auto it = forceFields_.find(forceFieldId);
+    if (it != nullptr) {
+        auto bodyIt = bodies_.find(it->bodyId);
+        if (bodyIt != nullptr) {
+            b2Body_SetTransform(*bodyIt, b2Body_GetPosition(*bodyIt), b2MakeRot(rotation));
+            if (consoleBuffer_) {
+                consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::setForceFieldRotation: force field %d rotation updated to %.2f rad", forceFieldId, rotation);
+            }
+        }
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+}
+
 // Radial force field management
 int Box2DPhysics::createRadialForceField(float centerX, float centerY, float radius, float forceAtCenter, float forceAtEdge) {
     assert(radius > 0.0f);
