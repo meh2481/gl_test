@@ -180,8 +180,10 @@ void main() {
         discard;
     }
 
-    // Normalized depth (0 = at surface, 1 = at bottom)
-    float normalizedDepth = clamp(distFromSurface / waterHeight, 0.0, 1.0);
+    // Normalized depth (0 = at surface, 1 = at bottom of water)
+    // Use actual water depth (surfaceY - minY) instead of container height
+    float actualWaterDepth = surfaceY - waterBoundsMin.y;
+    float normalizedDepth = actualWaterDepth > 0.0 ? clamp(distFromSurface / actualWaterDepth, 0.0, 1.0) : 0.0;
 
     // Surface band thickness (for highlight effects)
     float surfaceBandThickness = 0.02;
