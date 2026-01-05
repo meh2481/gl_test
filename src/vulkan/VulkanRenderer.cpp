@@ -156,8 +156,8 @@ void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     m_descriptorManager.createDualTextureDescriptorSetLayout();
     m_descriptorManager.createLightDescriptorSetLayout();
     m_descriptorManager.createWaterPolygonDescriptorSetLayout();
-    m_descriptorManager.createWaterPipelineLayout();
     m_descriptorManager.createDualTexturePipelineLayout();
+    m_descriptorManager.createWaterPipelineLayout();  // Moved after dual texture layout creation
     m_descriptorManager.createDualTextureDescriptorPool();
     m_descriptorManager.createLightDescriptorPool();
     m_descriptorManager.createWaterPolygonDescriptorPool();
