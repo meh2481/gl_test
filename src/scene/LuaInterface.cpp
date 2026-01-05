@@ -441,7 +441,32 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
                 if (posY[i] < minY - 0.2f || posY[i] > surfaceY + 0.3f) continue;
 
                 // Update tracked body for potential splash
-                waterEffectManager_->updateTrackedBody(field.waterFieldId, bodyIds[i], posX[i], posY[i]);
+                bool crossedSurface = waterEffectManager_->updateTrackedBody(field.waterFieldId, bodyIds[i], posX[i], posY[i]);
+
+                // If body crossed the surface, check for type-based interactions
+                if (crossedSurface) {
+                    // Get the physics force field body ID for type checking
+                    const ForceField* forceField = physics_->getForceField(field.forceFieldId);
+                    if (forceField && forceField->isWater) {
+                        int waterBodyId = forceField->bodyId;
+                        Vector<String> waterTypes = physics_->getBodyTypes(waterBodyId);
+                        Vector<String> visitorTypes = physics_->getBodyTypes(bodyIds[i]);
+
+                        // Trigger collision callback if both bodies have types
+                        if (waterTypes.size() > 0 && visitorTypes.size() > 0) {
+                            // Calculate velocity for approach speed
+                            float velX = 0.0f;  // We don't have X velocity here, only Y
+                            float approachSpeed = SDL_sqrtf(velX * velX + velY[i] * velY[i]);
+                            consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+                                "Continuous water surface collision: water body %d, visitor body %d at surface Y=%.2f",
+                                waterBodyId, bodyIds[i], surfaceY);
+
+                            physics_->triggerCollisionCallback(waterBodyId, bodyIds[i],
+                                                              posX[i], surfaceY,
+                                                              0.0f, 1.0f, approachSpeed);
+                        }
+                    }
+                }
             }
 
             // Update the shader with ripple data if this field has an associated shader

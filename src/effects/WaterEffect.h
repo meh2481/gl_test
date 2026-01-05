@@ -83,7 +83,8 @@ public:
     void onBodyExitWater(int waterFieldId, int bodyId, float x, float y, float velocity);
 
     // Update tracked body position
-    void updateTrackedBody(int waterFieldId, int bodyId, float x, float y);
+    // Returns true if body crossed the water surface (for triggering splash-related events)
+    bool updateTrackedBody(int waterFieldId, int bodyId, float x, float y);
 
     // Set water percentage (0.0-1.0, where 1.0 = 100% full)
     void setWaterPercentage(int waterFieldId, float percentage);
