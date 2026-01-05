@@ -1811,8 +1811,6 @@ int LuaInterface::setWaterPercentage(lua_State* L) {
             }
 
             interface->renderer_.updateWaterPolygonVertices(rotatedVertices, field->config.vertexCount);
-
-            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterPercentage: updated water %d to %.2f%% (surfaceY=%.2f)", physicsForceFieldId, percentage * 100.0f, surfaceY);
         }
     }
 
@@ -1910,11 +1908,7 @@ int LuaInterface::setWaterRotation(lua_State* L) {
 
                 // Update the layer polygon with rotated vertices and UVs
                 interface->layerManager_->setLayerPolygon(layerId, rotatedVertices, uvs, nullptr, field->config.vertexCount);
-
-                interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated layer %d polygon with %d rotated vertices", layerId, field->config.vertexCount);
             }
-
-            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated water %d rotation to %.2f rad (surfaceY=%.2f)", physicsForceFieldId, rotation, surfaceY);
         }
     }
 
