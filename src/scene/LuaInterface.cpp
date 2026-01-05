@@ -1892,11 +1892,26 @@ int LuaInterface::setWaterRotation(lua_State* L) {
                 // Calculate new center and dimensions from rotated bounding box
                 float newCenterX = (field->config.minX + field->config.maxX) / 2.0f;
                 float newCenterY = (field->config.minY + field->config.maxY) / 2.0f;
+                float newWidth = field->config.maxX - field->config.minX;
+                float newHeight = field->config.maxY - field->config.minY;
 
-                // Update layer position to match new center of rotated bounding box
-                interface->layerManager_->setLayerPosition(layerId, newCenterX, newCenterY, 0.0f);
+                // Get the layer to calculate new scale
+                const HashTable<int, SceneLayer>& layers = interface->layerManager_->getLayers();
+                const SceneLayer* layerPtr = layers.find(layerId);
+                if (layerPtr) {
+                    const SceneLayer* layer = layerPtr;
 
-                interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated layer %d position to (%.2f, %.2f)", layerId, newCenterX, newCenterY);
+                    // Calculate the new scale needed to match the rotated bounding box
+                    // The layer width/height are the base dimensions, scale multiplies them
+                    float newScaleX = newWidth / layer->width;
+                    float newScaleY = newHeight / layer->height;
+
+                    // Update layer position and scale to match the rotated bounding box
+                    interface->layerManager_->setLayerPosition(layerId, newCenterX, newCenterY, 0.0f);
+                    interface->layerManager_->setLayerScale(layerId, newScaleX, newScaleY);
+
+                    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated layer %d position to (%.2f, %.2f) and scale to (%.2f, %.2f)", layerId, newCenterX, newCenterY, newScaleX, newScaleY);
+                }
             }
 
             interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated water %d rotation to %.2f rad (surfaceY=%.2f)", physicsForceFieldId, rotation, surfaceY);
