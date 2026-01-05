@@ -84,6 +84,23 @@ void VulkanWaterPolygon::createUniformBuffer() {
 void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCount) {
     assert(vertexCount >= 0 && vertexCount <= 8);
     
+    // If buffer not created yet, just store the data for later
+    if (m_uniformBufferMapped == nullptr) {
+        SDL_Log("VulkanWaterPolygon::updateUniformBuffer - buffer not mapped yet, storing data for later");
+        m_bufferData.vertexCount = vertexCount;
+        for (int i = 0; i < vertexCount * 2; ++i) {
+            m_bufferData.vertices[i] = vertices[i];
+        }
+        // Pad remaining vertices
+        if (vertexCount > 0) {
+            for (int i = vertexCount; i < 8; ++i) {
+                m_bufferData.vertices[i * 2] = vertices[(vertexCount - 1) * 2];
+                m_bufferData.vertices[i * 2 + 1] = vertices[(vertexCount - 1) * 2 + 1];
+            }
+        }
+        return;
+    }
+    
     m_bufferData.vertexCount = vertexCount;
     for (int i = 0; i < vertexCount * 2; ++i) {
         m_bufferData.vertices[i] = vertices[i];
@@ -98,4 +115,6 @@ void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCo
     }
     
     memcpy(m_uniformBufferMapped, &m_bufferData, sizeof(WaterPolygonBufferData));
+    SDL_Log("VulkanWaterPolygon::updateUniformBuffer - updated buffer with %d vertices (first vertex: %.3f, %.3f)", 
+            vertexCount, vertices[0], vertices[1]);
 }
