@@ -149,10 +149,12 @@ void WaterEffectManager::onBodyEnterWater(int waterFieldId, int bodyId, float x,
             ++field.trackedBodyCount;
         }
 
-        // Add splash based on entry velocity
-        float splashAmplitude = SDL_fabsf(velocity) * 0.1f;
-        if (splashAmplitude > 0.01f) {
-            addSplash(waterFieldId, x, field.config.surfaceY, splashAmplitude);
+        // Only add splash if entering from above (negative velocity = downward motion)
+        if (velocity < 0.0f) {
+            float splashAmplitude = SDL_fabsf(velocity) * 0.1f;
+            if (splashAmplitude > 0.01f) {
+                addSplash(waterFieldId, x, field.config.surfaceY, splashAmplitude);
+            }
         }
         return;
     }
@@ -175,11 +177,7 @@ void WaterEffectManager::onBodyExitWater(int waterFieldId, int bodyId, float x, 
             }
         }
 
-        // Add splash based on exit velocity
-        float splashAmplitude = SDL_fabsf(velocity) * 0.08f;
-        if (splashAmplitude > 0.01f) {
-            addSplash(waterFieldId, x, field.config.surfaceY, splashAmplitude);
-        }
+        // No splash on exit - splashes only occur when entering from above
         return;
     }
 }
@@ -200,7 +198,8 @@ void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
                 bool wasAboveSurface = lastY > surfaceY;
                 bool isAboveSurface = y > surfaceY;
 
-                if (wasAboveSurface != isAboveSurface) {
+                // Only create splash when entering from above (wasAboveSurface && !isAboveSurface)
+                if (wasAboveSurface && !isAboveSurface) {
                     float velocity = (y - lastY) / PHYSICS_TIMESTEP;
                     float splashAmplitude = SDL_fabsf(velocity) * 0.15f;
                     if (splashAmplitude > 0.01f) {

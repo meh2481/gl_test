@@ -89,54 +89,8 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                     if (waterFieldId >= 0) {
                         const WaterForceField* waterField = waterEffectManager_->getWaterForceField(waterFieldId);
                         if (waterField) {
+                            // Only create splash particles when entering water, not when exiting
                             if (event.isBegin) {
-                                // Load particle shaders if not loaded
-                                lua_getglobal(luaState_, "loadParticleShaders");
-                                lua_pushstring(luaState_, "res/shaders/particle_vertex.spv");
-                                lua_pushstring(luaState_, "res/shaders/particle_fragment.spv");
-                                lua_pushinteger(luaState_, 1); // Alpha blend
-                                lua_pushboolean(luaState_, 1); // Has texture
-                                if (lua_pcall(luaState_, 4, 1, 0) != LUA_OK) {
-                                    const char* errorMsg = lua_tostring(luaState_, -1);
-                                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "loadParticleShaders error: %s", (errorMsg ? errorMsg : "unknown"));
-                                    lua_pop(luaState_, 1);
-                                    assert(false);
-                                    return;
-                                }
-                                int pipelineId = lua_tointeger(luaState_, -1);
-                                lua_pop(luaState_, 1);
-                                // Create splash particles
-                                lua_getglobal(luaState_, "loadParticleConfig");
-                                lua_pushstring(luaState_, "res/fx/splash1.lua");
-                                if (lua_pcall(luaState_, 1, 1, 0) != LUA_OK) {
-                                    const char* errorMsg = lua_tostring(luaState_, -1);
-                                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "loadParticleConfig error: %s", (errorMsg ? errorMsg : "unknown"));
-                                    lua_pop(luaState_, 1);
-                                    assert(false);
-                                    return;
-                                }
-                                int configRef = luaL_ref(luaState_, LUA_REGISTRYINDEX);
-                                lua_getglobal(luaState_, "createParticleSystem");
-                                lua_rawgeti(luaState_, LUA_REGISTRYINDEX, configRef);
-                                lua_pushinteger(luaState_, pipelineId);
-                                if (lua_pcall(luaState_, 2, 1, 0) != LUA_OK) {
-                                    const char* errorMsg = lua_tostring(luaState_, -1);
-                                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "createParticleSystem error: %s", (errorMsg ? errorMsg : "unknown"));
-                                    lua_pop(luaState_, 1);
-                                    luaL_unref(luaState_, LUA_REGISTRYINDEX, configRef);
-                                    assert(false);
-                                    return;
-                                }
-                                int particleSystemId = lua_tointeger(luaState_, -1);
-                                lua_pop(luaState_, 1);
-                                luaL_unref(luaState_, LUA_REGISTRYINDEX, configRef);
-                                // Set position
-                                lua_getglobal(luaState_, "setParticleSystemPosition");
-                                lua_pushinteger(luaState_, particleSystemId);
-                                lua_pushnumber(luaState_, event.visitorX);
-                                lua_pushnumber(luaState_, waterField->config.surfaceY);
-                                lua_pcall(luaState_, 3, 0, 0);
-                            } else {
                                 // Load particle shaders if not loaded
                                 lua_getglobal(luaState_, "loadParticleShaders");
                                 lua_pushstring(luaState_, "res/shaders/particle_vertex.spv");
