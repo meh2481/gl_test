@@ -190,7 +190,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "b2QueryBodyAtPoint", "b2CreateMouseJoint", "b2UpdateMouseJointTarget", "b2DestroyMouseJoint",
                                      "b2SetBodyDestructible", "b2SetBodyDestructibleLayer", "b2ClearBodyDestructible", "b2CleanupAllFragments",
                                      "b2AddBodyType", "b2RemoveBodyType", "b2ClearBodyTypes", "b2BodyHasType", "b2GetBodyTypes", "b2SetCollisionCallback",
-                                     "createForceField", "createRadialForceField", "getForceFieldBodyId",
+                                     "createForceField", "createRadialForceField", "getForceFieldBodyId", "setWaterPercentage",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "setLayerOffset", "setLayerUseLocalUV", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
                                      "setLayerSpin", "setLayerBlink", "setLayerWave", "setLayerColor", "setLayerColorCycle",
                                      "audioLoadOpus", "audioCreateSource", "audioPlaySource",
@@ -669,6 +669,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "createForceField", createForceField);
     lua_register(luaState_, "createRadialForceField", createRadialForceField);
     lua_register(luaState_, "getForceFieldBodyId", getForceFieldBodyId);
+    lua_register(luaState_, "setWaterPercentage", setWaterPercentage);
 
     // Register scene layer functions
     lua_register(luaState_, "createLayer", createLayer);
@@ -1592,10 +1593,10 @@ int LuaInterface::createForceField(lua_State* L) {
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: vertices table, forceX (number), forceY (number), [water (boolean)], [damping (number)]
+    // Arguments: vertices table, forceX (number), forceY (number), [water (boolean)], [damping (number)], [percentageFull (number)]
     // vertices table format: {x1, y1, x2, y2, x3, y3, ...} (3-8 vertices)
     int numArgs = lua_gettop(L);
-    assert(numArgs >= 3 && numArgs <= 5);
+    assert(numArgs >= 3 && numArgs <= 6);
     assert(lua_istable(L, 1));
     assert(lua_isnumber(L, 2));
     assert(lua_isnumber(L, 3));
@@ -1629,6 +1630,16 @@ int LuaInterface::createForceField(lua_State* L) {
         damping = lua_tonumber(L, 5);
     }
 
+    // Optional percentageFull parameter (6th argument)
+    // Default is 1.0 (100% full, surface at maxY)
+    float percentageFull = 1.0f;
+    if (numArgs >= 6 && lua_isnumber(L, 6)) {
+        percentageFull = lua_tonumber(L, 6);
+        // Clamp to valid range
+        if (percentageFull < 0.0f) percentageFull = 0.0f;
+        if (percentageFull > 1.0f) percentageFull = 1.0f;
+    }
+
     int forceFieldId = interface->physics_->createForceField(vertices, vertexCount, forceX, forceY, damping, water);
 
     if (water) {
@@ -1651,12 +1662,18 @@ int LuaInterface::createForceField(lua_State* L) {
 
         // Create water visual effect
         int waterFieldId = interface->waterEffectManager_->createWaterForceField(
-            forceFieldId, minX, minY, maxX, maxY, alpha, rippleAmplitude, rippleSpeed);
+            forceFieldId, minX, minY, maxX, maxY, alpha, rippleAmplitude, rippleSpeed, percentageFull);
+
+        // Calculate surfaceY based on percentageFull
+        float surfaceY = minY + (maxY - minY) * percentageFull;
+
+        // Update physics force field with water surface Y
+        interface->physics_->setForceFieldWaterSurface(forceFieldId, surfaceY);
 
         // Set up all water visuals automatically
         interface->setupWaterVisuals(forceFieldId, waterFieldId,
                                       minX, minY, maxX, maxY,
-                                      alpha, rippleAmplitude, rippleSpeed);
+                                      alpha, rippleAmplitude, rippleSpeed, surfaceY);
     }
 
     lua_pushinteger(L, forceFieldId);
@@ -1704,6 +1721,66 @@ int LuaInterface::getForceFieldBodyId(lua_State* L) {
 }
 
 // Water force field Lua binding implementations
+
+int LuaInterface::setWaterPercentage(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: physicsForceFieldId (integer), percentage (number 0.0-1.0)
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isnumber(L, 2));
+
+    int physicsForceFieldId = lua_tointeger(L, 1);
+    float percentage = lua_tonumber(L, 2);
+
+    // Clamp percentage to valid range
+    if (percentage < 0.0f) percentage = 0.0f;
+    if (percentage > 1.0f) percentage = 1.0f;
+
+    // Find the water field ID from the physics force field ID
+    int waterFieldId = interface->waterEffectManager_->findByPhysicsForceField(physicsForceFieldId);
+    if (waterFieldId < 0) {
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "setWaterPercentage: force field %d is not a water force field", physicsForceFieldId);
+        return 0;
+    }
+
+    // Update the water percentage
+    interface->waterEffectManager_->setWaterPercentage(waterFieldId, percentage);
+
+    // Get updated water field config
+    const WaterForceField* field = interface->waterEffectManager_->getWaterForceField(waterFieldId);
+    if (field) {
+        float surfaceY = field->config.surfaceY;
+
+        // Update physics force field with new water surface Y
+        interface->physics_->setForceFieldWaterSurface(physicsForceFieldId, surfaceY);
+
+        // Update reflection surface
+        interface->renderer_.enableReflection(surfaceY);
+
+        // Update shader parameters
+        int* pipelineIdPtr = interface->waterFieldShaderMap_.find(waterFieldId);
+        if (pipelineIdPtr) {
+            int pipelineId = *pipelineIdPtr;
+            // Update shader params: alpha, rippleAmplitude, rippleSpeed, surfaceY, minX, minY, maxX
+            float shaderParams[7] = {
+                field->config.alpha,
+                field->config.rippleAmplitude,
+                field->config.rippleSpeed,
+                surfaceY,
+                field->config.minX,
+                field->config.minY,
+                field->config.maxX
+            };
+            interface->renderer_.setShaderParameters(pipelineId, 7, shaderParams);
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterPercentage: updated water %d to %.2f%% (surfaceY=%.2f)", physicsForceFieldId, percentage * 100.0f, surfaceY);
+        }
+    }
+
+    return 0;
+}
 
 // Scene layer Lua binding implementations
 
@@ -3469,12 +3546,10 @@ void LuaInterface::handleNodeSensorEvent(const SensorEvent& event) {
 
 void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
                                       float minX, float minY, float maxX, float maxY,
-                                      float alpha, float rippleAmplitude, float rippleSpeed) {
+                                      float alpha, float rippleAmplitude, float rippleSpeed, float surfaceY) {
     // Water visual setup constants
     static const float WAVE_BUFFER = 0.1f;
     static const int WATER_SHADER_Z_INDEX = 2;
-
-    float surfaceY = maxY;
 
     // 1. Enable reflection at the water surface
     renderer_.enableReflection(surfaceY);

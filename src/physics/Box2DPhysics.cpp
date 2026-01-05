@@ -1480,6 +1480,17 @@ int Box2DPhysics::createForceField(const float* vertices, int vertexCount, float
     field.forceY = forceY;
     field.damping = damping;
     field.isWater = isWater;
+    // Initialize waterSurfaceY to maxY (will be updated by setForceFieldWaterSurface if needed)
+    field.waterSurfaceY = 0.0f;
+    if (isWater) {
+        // Calculate maxY from vertices for initial surface
+        float maxY = vertices[1];
+        for (int i = 1; i < vertexCount; ++i) {
+            float y = vertices[i * 2 + 1];
+            if (y > maxY) maxY = y;
+        }
+        field.waterSurfaceY = maxY;
+    }
     forceFields_.insert(forceFieldId, field);
 
     SDL_UnlockMutex(physicsMutex_);
@@ -1509,6 +1520,20 @@ void Box2DPhysics::setForceFieldDamping(int forceFieldId, float damping) {
     auto it = forceFields_.find(forceFieldId);
     if (it != nullptr) {
         it->damping = damping;
+    }
+
+    SDL_UnlockMutex(physicsMutex_);
+}
+
+void Box2DPhysics::setForceFieldWaterSurface(int forceFieldId, float surfaceY) {
+    SDL_LockMutex(physicsMutex_);
+
+    auto it = forceFields_.find(forceFieldId);
+    if (it != nullptr && it->isWater) {
+        it->waterSurfaceY = surfaceY;
+        if (consoleBuffer_) {
+            consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::setForceFieldWaterSurface: force field %d surface Y updated to %.2f", forceFieldId, surfaceY);
+        }
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -1625,19 +1650,25 @@ void Box2DPhysics::applyForceFields() {
                 // Get the body's center of mass position
                 b2Vec2 centerOfMass = b2Body_GetPosition(overlappingBodyId);
 
+                // For water force fields, use the actual water surface Y
+                // For non-water fields, use the field's max Y (top of AABB)
+                float surfaceY = field.isWater ? field.waterSurfaceY : fieldAABB.upperBound.y;
+
                 // Only apply force if the center of mass is inside the force field
+                // For water, also check that the body is below the water surface
                 bool centerInField = (centerOfMass.x >= fieldAABB.lowerBound.x &&
                                       centerOfMass.x <= fieldAABB.upperBound.x &&
                                       centerOfMass.y >= fieldAABB.lowerBound.y &&
-                                      centerOfMass.y <= fieldAABB.upperBound.y);
+                                      centerOfMass.y <= fieldAABB.upperBound.y &&
+                                      centerOfMass.y <= surfaceY);
 
                 // Check if body is near the surface (within margin above water)
                 // Large margin to catch objects that bounce above the surface
                 const float surfaceMargin = 0.5f;
                 bool nearSurface = (centerOfMass.x >= fieldAABB.lowerBound.x &&
                                     centerOfMass.x <= fieldAABB.upperBound.x &&
-                                    centerOfMass.y > fieldAABB.upperBound.y &&
-                                    centerOfMass.y <= fieldAABB.upperBound.y + surfaceMargin);
+                                    centerOfMass.y > surfaceY &&
+                                    centerOfMass.y <= surfaceY + surfaceMargin);
 
                 if (centerInField) {
                     b2Vec2 vel = b2Body_GetLinearVelocity(overlappingBodyId);

@@ -24,7 +24,8 @@ struct WaterForceFieldConfig {
     float alpha;                    // Base transparency (0-1)
     float rippleAmplitude;          // Amplitude of ambient ripples
     float rippleSpeed;              // Speed of ambient ripples
-    float surfaceY;                 // Y position of water surface (top)
+    float surfaceY;                 // Y position of water surface (calculated from percentageFull)
+    float percentageFull;           // Percentage full (0.0-1.0, 1.0 = 100% full at maxY, 0.0 = empty at minY)
 };
 
 // Water force field with visual effect
@@ -53,9 +54,11 @@ public:
 
     // Create a water force field with visual effect
     // Returns the water force field ID (different from physics force field ID)
+    // percentageFull: 0.0-1.0, where 1.0 = full (surface at maxY), 0.0 = empty (surface at minY)
     int createWaterForceField(int physicsForceFieldId,
                                float minX, float minY, float maxX, float maxY,
-                               float alpha, float rippleAmplitude, float rippleSpeed);
+                               float alpha, float rippleAmplitude, float rippleSpeed,
+                               float percentageFull = 1.0f);
 
     // Destroy a water force field
     void destroyWaterForceField(int waterFieldId);
@@ -72,6 +75,9 @@ public:
 
     // Update tracked body position
     void updateTrackedBody(int waterFieldId, int bodyId, float x, float y);
+
+    // Set water percentage (0.0-1.0, where 1.0 = 100% full)
+    void setWaterPercentage(int waterFieldId, float percentage);
 
     // Get water force field data for rendering
     const WaterForceField* getWaterForceField(int waterFieldId) const;

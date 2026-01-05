@@ -18,7 +18,8 @@ WaterEffectManager::~WaterEffectManager() {
 
 int WaterEffectManager::createWaterForceField(int physicsForceFieldId,
                                                float minX, float minY, float maxX, float maxY,
-                                               float alpha, float rippleAmplitude, float rippleSpeed) {
+                                               float alpha, float rippleAmplitude, float rippleSpeed,
+                                               float percentageFull) {
     // Find an empty slot
     int slot = -1;
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
@@ -44,7 +45,9 @@ int WaterEffectManager::createWaterForceField(int physicsForceFieldId,
     field.config.alpha = alpha;
     field.config.rippleAmplitude = rippleAmplitude;
     field.config.rippleSpeed = rippleSpeed;
-    field.config.surfaceY = maxY;
+    field.config.percentageFull = percentageFull;
+    // Calculate surface Y based on percentage full
+    field.config.surfaceY = minY + (maxY - minY) * percentageFull;
     field.rippleCount = 0;
     field.trackedBodyCount = 0;
     field.active = true;
@@ -313,4 +316,20 @@ void WaterEffectManager::clear() {
         fields_[i].waterFieldId = -1;
     }
     activeFieldCount_ = 0;
+}
+
+void WaterEffectManager::setWaterPercentage(int waterFieldId, float percentage) {
+    // Clamp percentage to valid range
+    if (percentage < 0.0f) percentage = 0.0f;
+    if (percentage > 1.0f) percentage = 1.0f;
+
+    for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
+        if (fields_[i].active && fields_[i].waterFieldId == waterFieldId) {
+            WaterForceField& field = fields_[i];
+            field.config.percentageFull = percentage;
+            // Recalculate surface Y
+            field.config.surfaceY = field.config.minY + (field.config.maxY - field.config.minY) * percentage;
+            return;
+        }
+    }
 }

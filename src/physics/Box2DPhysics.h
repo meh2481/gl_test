@@ -112,6 +112,7 @@ struct ForceField {
     float forceX, forceY; // Force vector to apply
     float damping;        // Velocity damping factor (0 = no damping, higher = more damping)
     bool isWater;         // True if this is a water force field
+    float waterSurfaceY;  // Water surface Y (only valid if isWater=true)
 };
 
 // Radial force field that applies force based on distance from center
@@ -279,6 +280,9 @@ public:
 
     // Set the damping factor for an existing force field
     void setForceFieldDamping(int forceFieldId, float damping);
+
+    // Set the water surface Y for a water force field
+    void setForceFieldWaterSurface(int forceFieldId, float surfaceY);
 
     // Radial force field management
     // Creates a circular force field that applies radial force based on distance from center
