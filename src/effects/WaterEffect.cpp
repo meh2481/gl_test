@@ -199,13 +199,17 @@ void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
                 bool isAboveSurface = y > surfaceY;
 
                 // Only create splash when entering from above (wasAboveSurface && !isAboveSurface)
+                // and moving downward (negative velocity)
                 if (wasAboveSurface && !isAboveSurface) {
                     float velocity = (y - lastY) / PHYSICS_TIMESTEP;
-                    float splashAmplitude = SDL_fabsf(velocity) * 0.15f;
-                    if (splashAmplitude > 0.01f) {
-                        // Clamp splash amplitude to reasonable range
-                        if (splashAmplitude > 0.05f) splashAmplitude = 0.05f;
-                        addSplash(waterFieldId, x, surfaceY, splashAmplitude);
+                    // Verify downward motion (negative velocity)
+                    if (velocity < 0.0f) {
+                        float splashAmplitude = SDL_fabsf(velocity) * 0.15f;
+                        if (splashAmplitude > 0.01f) {
+                            // Clamp splash amplitude to reasonable range
+                            if (splashAmplitude > 0.05f) splashAmplitude = 0.05f;
+                            addSplash(waterFieldId, x, surfaceY, splashAmplitude);
+                        }
                     }
                 }
 
@@ -220,10 +224,7 @@ void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
             field.trackedBodyLastY[field.trackedBodyCount] = y;
             ++field.trackedBodyCount;
 
-            // If body is entering water (below surface), trigger a splash
-            if (y < surfaceY) {
-                addSplash(waterFieldId, x, surfaceY, 0.02f);
-            }
+            // No splash on initial tracking - splashes only occur when crossing surface from above
         } else {
             // Remove oldest tracked body to make room for new one
             for (int k = 0; k < field.trackedBodyCount - 1; ++k) {
