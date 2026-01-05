@@ -442,12 +442,14 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
                 renderer_.setWaterRipples(pipelineId, shaderRippleCount, shaderRipples);
             }
 
-            // Check for newly created ripples (time < 0.016) and create particle splashes for them
-            // Using a very tight window (one frame at 60fps) to avoid duplicate particle creation
+            // Check for ripples that need particle splash effects created
+            // Using a flag instead of time window to be framerate-independent
             for (int r = 0; r < field.rippleCount; ++r) {
-                if (field.ripples[r].time > 0.0f && field.ripples[r].time < 0.016f && field.ripples[r].amplitude > 0.0f) {
-                    // This is a new ripple, create particle splash
+                if (!field.ripples[r].particlesCreated && field.ripples[r].amplitude > 0.0f) {
+                    // This ripple needs particles created
                     createSplashParticles(field.ripples[r].x, field.ripples[r].y);
+                    // Mark as done to prevent duplicate creation
+                    const_cast<WaterForceField&>(field).ripples[r].particlesCreated = true;
                 }
             }
         }

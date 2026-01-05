@@ -134,6 +134,7 @@ void WaterEffectManager::addSplash(int waterFieldId, float x, float y, float amp
             field.ripples[targetSlot].y = y;
             field.ripples[targetSlot].time = 0.0f;
             field.ripples[targetSlot].amplitude = amplitude;
+            field.ripples[targetSlot].particlesCreated = false;  // Mark as needing particles
         }
         return;
     }

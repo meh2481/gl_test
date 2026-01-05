@@ -16,6 +16,7 @@ struct WaterRipple {
     float x, y;        // Position of ripple center
     float time;        // Time since ripple started
     float amplitude;   // Initial amplitude
+    bool particlesCreated;  // Flag to prevent duplicate particle creation
 };
 
 // Water force field visual configuration
