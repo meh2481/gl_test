@@ -1787,8 +1787,7 @@ int LuaInterface::setWaterPercentage(lua_State* L) {
             float cosAngle = SDL_cosf(field->config.rotation);
             float sinAngle = SDL_sinf(field->config.rotation);
             
-            int vertexCount = (field->config.vertexCount > 7) ? 7 : field->config.vertexCount;
-            float shaderParams[21];  // 7 base + 14 vertex coords (7 vertices max)
+            float shaderParams[23];  // 7 base + 16 vertex coords (8 vertices, full Box2D support)
             shaderParams[0] = field->config.alpha;
             shaderParams[1] = field->config.rippleAmplitude;
             shaderParams[2] = field->config.rippleSpeed;
@@ -1797,9 +1796,9 @@ int LuaInterface::setWaterPercentage(lua_State* L) {
             shaderParams[5] = field->config.minY;
             shaderParams[6] = field->config.maxX;
             
-            // Pass up to 7 rotated vertices (padding with last vertex if fewer)
-            for (int i = 0; i < 7; ++i) {
-                int srcIdx = (i < vertexCount) ? i : (vertexCount - 1);
+            // Pass 8 rotated vertices (padding with last vertex if fewer than 8)
+            for (int i = 0; i < 8; ++i) {
+                int srcIdx = (i < field->config.vertexCount) ? i : (field->config.vertexCount - 1);
                 float localX = field->config.vertices[srcIdx * 2] - field->config.centerX;
                 float localY = field->config.vertices[srcIdx * 2 + 1] - field->config.centerY;
                 float rotatedX = field->config.centerX + localX * cosAngle - localY * sinAngle;
@@ -1808,7 +1807,7 @@ int LuaInterface::setWaterPercentage(lua_State* L) {
                 shaderParams[7 + i * 2 + 1] = rotatedY;
             }
             
-            interface->renderer_.setShaderParameters(pipelineId, 21, shaderParams);
+            interface->renderer_.setShaderParameters(pipelineId, 23, shaderParams);
             interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterPercentage: updated water %d to %.2f%% (surfaceY=%.2f)", physicsForceFieldId, percentage * 100.0f, surfaceY);
         }
     }
@@ -1859,8 +1858,7 @@ int LuaInterface::setWaterRotation(lua_State* L) {
             float cosAngle = SDL_cosf(field->config.rotation);
             float sinAngle = SDL_sinf(field->config.rotation);
             
-            int vertexCount = (field->config.vertexCount > 7) ? 7 : field->config.vertexCount;
-            float shaderParams[21];  // 7 base + 14 vertex coords (7 vertices max)
+            float shaderParams[23];  // 7 base + 16 vertex coords (8 vertices, full Box2D support)
             shaderParams[0] = field->config.alpha;
             shaderParams[1] = field->config.rippleAmplitude;
             shaderParams[2] = field->config.rippleSpeed;
@@ -1869,9 +1867,9 @@ int LuaInterface::setWaterRotation(lua_State* L) {
             shaderParams[5] = field->config.minY;
             shaderParams[6] = field->config.maxX;
             
-            // Pass up to 7 rotated vertices (padding with last vertex if fewer)
-            for (int i = 0; i < 7; ++i) {
-                int srcIdx = (i < vertexCount) ? i : (vertexCount - 1);
+            // Pass 8 rotated vertices (padding with last vertex if fewer than 8)
+            for (int i = 0; i < 8; ++i) {
+                int srcIdx = (i < field->config.vertexCount) ? i : (field->config.vertexCount - 1);
                 float localX = field->config.vertices[srcIdx * 2] - field->config.centerX;
                 float localY = field->config.vertices[srcIdx * 2 + 1] - field->config.centerY;
                 float rotatedX = field->config.centerX + localX * cosAngle - localY * sinAngle;
@@ -1880,7 +1878,7 @@ int LuaInterface::setWaterRotation(lua_State* L) {
                 shaderParams[7 + i * 2 + 1] = rotatedY;
             }
             
-            interface->renderer_.setShaderParameters(pipelineId, 21, shaderParams);
+            interface->renderer_.setShaderParameters(pipelineId, 23, shaderParams);
             interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated water %d rotation to %.2f rad (surfaceY=%.2f)", physicsForceFieldId, rotation, surfaceY);
         }
     }
@@ -3786,8 +3784,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
 
     // 9. Set water shader parameters with polygon data
     // Parameters: alpha, rippleAmplitude, rippleSpeed, surfaceY, minX, minY, maxX,
-    //             rotated polygon vertices (7 vertices = 14 floats to fit in push constants)
-    //             Note: 8th vertex trimmed to fit - use simpler polygons or increase push constant size
+    //             rotated polygon vertices (8 vertices = 16 floats, full Box2D spec support)
     
     // Get the water field to access polygon data
     int waterForceFieldIdInternal = waterEffectManager_->findByPhysicsForceField(physicsForceFieldId);
@@ -3800,8 +3797,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
         float cosAngle = SDL_cosf(config.rotation);
         float sinAngle = SDL_sinf(config.rotation);
         
-        int vertexCount = (config.vertexCount > 7) ? 7 : config.vertexCount;  // Limit to 7 due to push constant space
-        float shaderParams[21];  // 7 base + 14 vertex coords (7 vertices max)
+        float shaderParams[23];  // 7 base + 16 vertex coords (8 vertices, full Box2D support)
         shaderParams[0] = alpha;
         shaderParams[1] = rippleAmplitude;
         shaderParams[2] = rippleSpeed;
@@ -3810,9 +3806,9 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
         shaderParams[5] = minY;
         shaderParams[6] = maxX;
         
-        // Pass up to 7 rotated vertices (padding with last vertex if fewer)
-        for (int i = 0; i < 7; ++i) {
-            int srcIdx = (i < vertexCount) ? i : (vertexCount - 1);
+        // Pass 8 rotated vertices (padding with last vertex if fewer than 8)
+        for (int i = 0; i < 8; ++i) {
+            int srcIdx = (i < config.vertexCount) ? i : (config.vertexCount - 1);
             float localX = config.vertices[srcIdx * 2] - config.centerX;
             float localY = config.vertices[srcIdx * 2 + 1] - config.centerY;
             float rotatedX = config.centerX + localX * cosAngle - localY * sinAngle;
@@ -3821,8 +3817,8 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
             shaderParams[7 + i * 2 + 1] = rotatedY;
         }
         
-        renderer_.setShaderParameters(waterShaderId, 21, shaderParams);
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "setupWaterVisuals: configured %d vertices for water field (max 7 due to push constant limits)", vertexCount);
+        renderer_.setShaderParameters(waterShaderId, 23, shaderParams);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "setupWaterVisuals: configured %d vertices for water field (full Box2D 8-vertex support)", config.vertexCount);
     } else {
         // Fallback to basic parameters if water field not found
         float shaderParams[7] = {alpha, rippleAmplitude, rippleSpeed, surfaceY, minX, minY, maxX};

@@ -4,8 +4,8 @@
 #include <cassert>
 #include <vector>
 
-// Animation push constant size: 6 base + 7 params + 20 animation = 33 floats
-static const uint32_t ANIM_PUSH_CONSTANT_FLOAT_COUNT = 33;
+// Animation push constant size: 6 base + 7 params + 22 for water polygon (2 ripples + 8 vertices) = 35 floats
+static const uint32_t ANIM_PUSH_CONSTANT_FLOAT_COUNT = 35;
 
 // Helper function to convert VkResult to readable string for error logging
 static const char* vkResultToString(VkResult result) {

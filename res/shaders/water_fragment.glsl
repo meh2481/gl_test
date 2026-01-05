@@ -21,7 +21,7 @@ layout(push_constant) uniform PushConstants {
     float ripple1_x;
     float ripple1_time;
     float ripple1_amplitude;
-    // Polygon vertices (7 vertices for up to heptagon - Box2D max 8, but push constants limited)
+    // Polygon vertices (8 vertices for full Box2D spec support - octagon)
     float polyVertex0X;
     float polyVertex0Y;
     float polyVertex1X;
@@ -36,6 +36,8 @@ layout(push_constant) uniform PushConstants {
     float polyVertex5Y;
     float polyVertex6X;
     float polyVertex6Y;
+    float polyVertex7X;
+    float polyVertex7Y;
 } pc;
 
 layout(location = 0) in vec2 fragTexCoord;
@@ -142,9 +144,9 @@ float getTotalSplashHeight(float x) {
     return totalSplash;
 }
 
-// Point-in-polygon test for convex polygon (up to 7 vertices)
+// Point-in-polygon test for convex polygon (up to 8 vertices - full Box2D spec)
 // Returns true if point is inside the polygon
-bool isPointInPolygon(vec2 point, vec2 vertices[7], int vertexCount) {
+bool isPointInPolygon(vec2 point, vec2 vertices[8], int vertexCount) {
     // Use cross product to determine if point is on the same side of all edges
     // For a convex polygon, point is inside if it's on the "inside" side of all edges
     
@@ -182,7 +184,7 @@ void main() {
     float surfaceY = pc.param3;  // Actual water surface Y (accounts for percentage full)
     
     // Test if pixel is inside the water polygon (exact shape, not just bounding box)
-    vec2 polyVertices[7];
+    vec2 polyVertices[8];
     polyVertices[0] = vec2(pc.polyVertex0X, pc.polyVertex0Y);
     polyVertices[1] = vec2(pc.polyVertex1X, pc.polyVertex1Y);
     polyVertices[2] = vec2(pc.polyVertex2X, pc.polyVertex2Y);
@@ -190,11 +192,12 @@ void main() {
     polyVertices[4] = vec2(pc.polyVertex4X, pc.polyVertex4Y);
     polyVertices[5] = vec2(pc.polyVertex5X, pc.polyVertex5Y);
     polyVertices[6] = vec2(pc.polyVertex6X, pc.polyVertex6Y);
+    polyVertices[7] = vec2(pc.polyVertex7X, pc.polyVertex7Y);
     
     // Determine actual vertex count (vertices are padded with duplicates)
     // Count unique vertices by checking distance between consecutive vertices
-    int actualVertexCount = 7;
-    for (int i = 1; i < 7; ++i) {
+    int actualVertexCount = 8;
+    for (int i = 1; i < 8; ++i) {
         if (distance(polyVertices[i], polyVertices[i-1]) < 0.001) {
             actualVertexCount = i;
             break;

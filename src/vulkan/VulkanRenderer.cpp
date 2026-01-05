@@ -1339,9 +1339,9 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 m_pipelineManager.getWaterRipples(batch.pipelineId, rippleCount, ripples);
 
                 // Build water push constants with polygon data
-                // To fit 7 vertices (14 floats), reduce ripple count from 4 to 2 (saves 6 floats)
-                // Layout: system(6) + params(7) + ripples(6) + vertices(14) = 33 floats
-                float waterPushConstants[33] = {
+                // To fit 8 vertices (16 floats), reduce ripple count from 4 to 2 (saves 6 floats)
+                // Layout: system(6) + params(7) + ripples(6) + vertices(16) = 35 floats
+                float waterPushConstants[35] = {
                     static_cast<float>(m_swapchainExtent.width),          // 0
                     static_cast<float>(m_swapchainExtent.height),         // 1
                     time,                                                  // 2
@@ -1363,7 +1363,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     rippleCount > 1 ? ripples[1].x : 0.0f,                 // 16
                     rippleCount > 1 ? ripples[1].time : -1.0f,             // 17
                     rippleCount > 1 ? ripples[1].amplitude : 0.0f,         // 18
-                    // Polygon vertices (indices 19-32, 14 floats = 7 vertices)
+                    // Polygon vertices (indices 19-34, 16 floats = 8 vertices - full Box2D support)
                     params && params->size() > 7 ? (*params)[7] : 0.0f,    // 19: vertex0 x
                     params && params->size() > 8 ? (*params)[8] : 0.0f,    // 20: vertex0 y
                     params && params->size() > 9 ? (*params)[9] : 0.0f,    // 21: vertex1 x
@@ -1377,7 +1377,9 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     params && params->size() > 17 ? (*params)[17] : 0.0f,  // 29: vertex5 x
                     params && params->size() > 18 ? (*params)[18] : 0.0f,  // 30: vertex5 y
                     params && params->size() > 19 ? (*params)[19] : 0.0f,  // 31: vertex6 x
-                    params && params->size() > 20 ? (*params)[20] : 0.0f   // 32: vertex6 y
+                    params && params->size() > 20 ? (*params)[20] : 0.0f,  // 32: vertex6 y
+                    params && params->size() > 21 ? (*params)[21] : 0.0f,  // 33: vertex7 x
+                    params && params->size() > 22 ? (*params)[22] : 0.0f   // 34: vertex7 y
                 };
                 vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(waterPushConstants), waterPushConstants);
             } else if (info->usesAnimationPushConstants) {

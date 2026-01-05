@@ -21,7 +21,7 @@ layout(push_constant) uniform PushConstants {
     float ripple1_x;
     float ripple1_time;
     float ripple1_amplitude;
-    // Polygon vertices (7 vertices for up to heptagon - Box2D max 8, but push constants limited)
+    // Polygon vertices (8 vertices for full Box2D spec support - octagon)
     float polyVertex0X;
     float polyVertex0Y;
     float polyVertex1X;
@@ -36,6 +36,8 @@ layout(push_constant) uniform PushConstants {
     float polyVertex5Y;
     float polyVertex6X;
     float polyVertex6Y;
+    float polyVertex7X;
+    float polyVertex7Y;
 } pc;
 
 layout(location = 0) in vec2 inPosition;
