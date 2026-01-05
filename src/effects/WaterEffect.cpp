@@ -392,6 +392,8 @@ void WaterEffectManager::setWaterRotation(int waterFieldId, float rotation) {
             updateBoundingBox(field.config);
             // Recalculate surface Y with updated bounds
             field.config.surfaceY = field.config.minY + (field.config.maxY - field.config.minY) * field.config.percentageFull;
+            SDL_Log("WaterEffectManager::setWaterRotation: waterFieldId=%d rotation=%.2f bounds=(%.2f,%.2f)-(%.2f,%.2f) surfaceY=%.2f",
+                    waterFieldId, rotation, field.config.minX, field.config.minY, field.config.maxX, field.config.maxY, field.config.surfaceY);
             return;
         }
     }
