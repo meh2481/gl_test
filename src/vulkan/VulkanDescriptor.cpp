@@ -37,6 +37,10 @@ VulkanDescriptor::VulkanDescriptor(MemoryAllocator* allocator) :
     m_lightDescriptorSetLayout(VK_NULL_HANDLE),
     m_lightDescriptorPool(VK_NULL_HANDLE),
     m_lightDescriptorSet(VK_NULL_HANDLE),
+    m_waterPolygonDescriptorSetLayout(VK_NULL_HANDLE),
+    m_waterPolygonDescriptorPool(VK_NULL_HANDLE),
+    m_waterPolygonDescriptorSet(VK_NULL_HANDLE),
+    m_waterPipelineLayout(VK_NULL_HANDLE),
     m_allocator(allocator)
 {
     assert(m_allocator != nullptr);
@@ -84,6 +88,14 @@ void VulkanDescriptor::cleanup() {
     if (m_lightDescriptorSetLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(m_device, m_lightDescriptorSetLayout, nullptr);
         m_lightDescriptorSetLayout = VK_NULL_HANDLE;
+    }
+    if (m_waterPolygonDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_device, m_waterPolygonDescriptorSetLayout, nullptr);
+        m_waterPolygonDescriptorSetLayout = VK_NULL_HANDLE;
+    }
+    if (m_waterPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(m_device, m_waterPipelineLayout, nullptr);
+        m_waterPipelineLayout = VK_NULL_HANDLE;
     }
     if (m_animSingleTexturePipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(m_device, m_animSingleTexturePipelineLayout, nullptr);
@@ -464,6 +476,89 @@ void VulkanDescriptor::createAnimDualTexturePipelineLayout() {
     VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_animDualTexturePipelineLayout);
     if (result != VK_SUCCESS) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreatePipelineLayout (anim dual texture) failed: %s", vkResultToString(result));
+        assert(false);
+    }
+}
+
+void VulkanDescriptor::createWaterPolygonDescriptorSetLayout() {
+    VkDescriptorSetLayoutBinding uboLayoutBinding{};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    uboLayoutBinding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &uboLayoutBinding;
+
+    assert(vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_waterPolygonDescriptorSetLayout) == VK_SUCCESS);
+}
+
+void VulkanDescriptor::createWaterPolygonDescriptorPool() {
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = 1;
+
+    assert(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_waterPolygonDescriptorPool) == VK_SUCCESS);
+}
+
+void VulkanDescriptor::createWaterPolygonDescriptorSet(VkBuffer waterPolygonUniformBuffer, VkDeviceSize bufferSize) {
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_waterPolygonDescriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_waterPolygonDescriptorSetLayout;
+
+    assert(vkAllocateDescriptorSets(m_device, &allocInfo, &m_waterPolygonDescriptorSet) == VK_SUCCESS);
+
+    VkDescriptorBufferInfo bufferInfo{};
+    bufferInfo.buffer = waterPolygonUniformBuffer;
+    bufferInfo.offset = 0;
+    bufferInfo.range = bufferSize;
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = m_waterPolygonDescriptorSet;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pBufferInfo = &bufferInfo;
+
+    vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
+}
+
+void VulkanDescriptor::createWaterPipelineLayout() {
+    // Water pipeline uses: dual texture + light + water polygon
+    VkDescriptorSetLayout setLayouts[] = {
+        m_dualTextureDescriptorSetLayout, 
+        m_lightDescriptorSetLayout,
+        m_waterPolygonDescriptorSetLayout
+    };
+
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(float) * ANIM_PUSH_CONSTANT_FLOAT_COUNT;
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 3;  // 3 descriptor sets for water
+    pipelineLayoutInfo.pSetLayouts = setLayouts;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+    VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_waterPipelineLayout);
+    if (result != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreatePipelineLayout (water) failed: %s", vkResultToString(result));
         assert(false);
     }
 }

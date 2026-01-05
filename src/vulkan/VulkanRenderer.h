@@ -10,6 +10,7 @@
 #include "VulkanDescriptor.h"
 #include "VulkanPipeline.h"
 #include "VulkanLight.h"
+#include "VulkanWaterPolygon.h"
 
 // Forward declarations
 struct SpriteBatch;
@@ -30,6 +31,7 @@ public:
     void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
     void createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
+    void createWaterPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 2);
     void createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode = 0);
     void destroyPipeline(uint64_t id);
     void associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId);
@@ -49,6 +51,7 @@ public:
     void setPipelineParallaxDepth(int pipelineId, float depth);
     void markPipelineAsWater(int pipelineId);
     void setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples);
+    void updateWaterPolygonVertices(const float* vertices, int vertexCount);
     bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
     void setCameraTransform(float offsetX, float offsetY, float zoom);
     void setClearColor(float r, float g, float b, float a = 1.0f);
@@ -95,6 +98,7 @@ private:
     VulkanDescriptor m_descriptorManager;
     VulkanPipeline m_pipelineManager;
     VulkanLight m_lightManager;
+    VulkanWaterPolygon m_waterPolygonManager;
 
     // Vulkan core handles
     VkInstance m_instance;

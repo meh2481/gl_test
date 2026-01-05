@@ -28,12 +28,14 @@ public:
     VkDescriptorSetLayout getSingleTextureLayout() const { return m_singleTextureDescriptorSetLayout; }
     VkDescriptorSetLayout getDualTextureLayout() const { return m_dualTextureDescriptorSetLayout; }
     VkDescriptorSetLayout getLightLayout() const { return m_lightDescriptorSetLayout; }
+    VkDescriptorSetLayout getWaterPolygonLayout() const { return m_waterPolygonDescriptorSetLayout; }
 
     // Pipeline layout management
     VkPipelineLayout getSingleTexturePipelineLayout() const { return m_singleTexturePipelineLayout; }
     VkPipelineLayout getDualTexturePipelineLayout() const { return m_dualTexturePipelineLayout; }
     VkPipelineLayout getAnimSingleTexturePipelineLayout() const { return m_animSingleTexturePipelineLayout; }
     VkPipelineLayout getAnimDualTexturePipelineLayout() const { return m_animDualTexturePipelineLayout; }
+    VkPipelineLayout getWaterPipelineLayout() const { return m_waterPipelineLayout; }
 
     // Create layouts and pools
     void createSingleTextureDescriptorSetLayout();
@@ -44,6 +46,9 @@ public:
     void createDualTextureDescriptorPool();
     void createLightDescriptorSetLayout();
     void createLightDescriptorPool();
+    void createWaterPolygonDescriptorSetLayout();
+    void createWaterPolygonDescriptorPool();
+    void createWaterPipelineLayout();
     void createAnimSingleTexturePipelineLayout();
     void createAnimDualTexturePipelineLayout();
 
@@ -55,6 +60,10 @@ public:
     // Light descriptor set (special case - single set for all lights)
     void createLightDescriptorSet(VkBuffer lightUniformBuffer, VkDeviceSize bufferSize);
     VkDescriptorSet getLightDescriptorSet() const { return m_lightDescriptorSet; }
+
+    // Water polygon descriptor set (special case - single set for water polygons)
+    void createWaterPolygonDescriptorSet(VkBuffer waterPolygonUniformBuffer, VkDeviceSize bufferSize);
+    VkDescriptorSet getWaterPolygonDescriptorSet() const { return m_waterPolygonDescriptorSet; }
 
     // Get descriptor sets
     VkDescriptorSet getSingleTextureDescriptorSet(uint64_t textureId) const;
@@ -99,6 +108,12 @@ private:
     VkDescriptorSetLayout m_lightDescriptorSetLayout;
     VkDescriptorPool m_lightDescriptorPool;
     VkDescriptorSet m_lightDescriptorSet;
+
+    // Water polygon descriptors
+    VkDescriptorSetLayout m_waterPolygonDescriptorSetLayout;
+    VkDescriptorPool m_waterPolygonDescriptorPool;
+    VkDescriptorSet m_waterPolygonDescriptorSet;
+    VkPipelineLayout m_waterPipelineLayout;
 
     MemoryAllocator* m_allocator;
     ConsoleBuffer* m_consoleBuffer;

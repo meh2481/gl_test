@@ -61,6 +61,7 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_descriptorManager(smallAllocator),
     m_pipelineManager(smallAllocator, largeAllocator),
     m_lightManager(smallAllocator),
+    m_waterPolygonManager(smallAllocator),
     m_instance(VK_NULL_HANDLE),
     m_surface(VK_NULL_HANDLE),
     m_physicalDevice(VK_NULL_HANDLE),
@@ -146,6 +147,7 @@ void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     m_descriptorManager.init(m_device, m_consoleBuffer);
     m_descriptorManager.setTextureManager(&m_textureManager);
     m_lightManager.init(m_device, m_physicalDevice);
+    m_waterPolygonManager.init(m_device, m_physicalDevice);
 
     // Create descriptor layouts and pools
     m_descriptorManager.createSingleTextureDescriptorSetLayout();
@@ -153,15 +155,22 @@ void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     m_descriptorManager.createSingleTextureDescriptorPool();
     m_descriptorManager.createDualTextureDescriptorSetLayout();
     m_descriptorManager.createLightDescriptorSetLayout();
+    m_descriptorManager.createWaterPolygonDescriptorSetLayout();
+    m_descriptorManager.createWaterPipelineLayout();
     m_descriptorManager.createDualTexturePipelineLayout();
     m_descriptorManager.createDualTextureDescriptorPool();
     m_descriptorManager.createLightDescriptorPool();
+    m_descriptorManager.createWaterPolygonDescriptorPool();
     m_descriptorManager.createAnimSingleTexturePipelineLayout();
     m_descriptorManager.createAnimDualTexturePipelineLayout();
 
     // Create light uniform buffer and descriptor set
     m_lightManager.createLightUniformBuffer();
     m_descriptorManager.createLightDescriptorSet(m_lightManager.getUniformBuffer(), m_lightManager.getBufferSize());
+
+    // Create water polygon uniform buffer and descriptor set
+    m_waterPolygonManager.createUniformBuffer();
+    m_descriptorManager.createWaterPolygonDescriptorSet(m_waterPolygonManager.getUniformBuffer(), m_waterPolygonManager.getBufferSize());
 
     // Initialize pipeline manager
     m_pipelineManager.init(m_device, m_renderPass, m_msaaSamples, m_swapchainExtent, m_consoleBuffer);
@@ -322,6 +331,7 @@ void VulkanRenderer::cleanup() {
     // Cleanup managers
     m_pipelineManager.cleanup();
     m_lightManager.cleanup();
+    m_waterPolygonManager.cleanup();
     m_descriptorManager.cleanup();
     m_textureManager.cleanup();
     m_bufferManager.cleanup();
@@ -944,6 +954,10 @@ void VulkanRenderer::createAnimTexturedPipeline(uint64_t id, const ResourceData&
     m_pipelineManager.createAnimTexturedPipeline(id, vertShader, fragShader, numTextures);
 }
 
+void VulkanRenderer::createWaterPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
+    m_pipelineManager.createWaterPipeline(id, vertShader, fragShader, numTextures);
+}
+
 void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode) {
     m_pipelineManager.createParticlePipeline(id, vertShader, fragShader, blendMode);
 }
@@ -973,6 +987,10 @@ void VulkanRenderer::markPipelineAsWater(int pipelineId) {
 
 void VulkanRenderer::setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples) {
     m_pipelineManager.setWaterRipples(pipelineId, rippleCount, ripples);
+}
+
+void VulkanRenderer::updateWaterPolygonVertices(const float* vertices, int vertexCount) {
+    m_waterPolygonManager.updateUniformBuffer(vertices, vertexCount);
 }
 
 void VulkanRenderer::setCameraTransform(float offsetX, float offsetY, float zoom) {
@@ -1455,7 +1473,16 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 );
 
                 if (descriptorSet != VK_NULL_HANDLE) {
-                    if (info->usesDualTexture) {
+                    if (info->isWaterPipeline) {
+                        // Water pipeline uses 3 descriptor sets: dual texture + light + water polygon
+                        VkDescriptorSet descriptorSets[] = {
+                            descriptorSet, 
+                            m_descriptorManager.getLightDescriptorSet(),
+                            m_descriptorManager.getWaterPolygonDescriptorSet()
+                        };
+                        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                              info->layout, 0, 3, descriptorSets, 0, nullptr);
+                    } else if (info->usesDualTexture) {
                         VkDescriptorSet descriptorSets[] = {descriptorSet, m_descriptorManager.getLightDescriptorSet()};
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                               info->layout, 0, 2, descriptorSets, 0, nullptr);

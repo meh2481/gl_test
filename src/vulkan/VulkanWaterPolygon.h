@@ -6,14 +6,11 @@
 #include <cstdint>
 #include <cstring>
 
-// Maximum vertices per water polygon (Box2D specification)
-static const int MAX_WATER_POLYGON_VERTICES = 8;
-
 // Water polygon uniform buffer data (must match shader layout with std140 alignment)
 struct WaterPolygonBufferData {
-    float vertices[MAX_WATER_POLYGON_VERTICES * 2];  // 8 vertices × 2 coords = 16 floats = 64 bytes
-    int vertexCount;                                   // 4 bytes at offset 64
-    float padding[3];                                  // 12 bytes padding to align to 16-byte boundary
+    float vertices[8 * 2];  // 8 vertices × 2 coords = 16 floats = 64 bytes
+    int vertexCount;        // 4 bytes at offset 64
+    float padding[3];       // 12 bytes padding to align to 16-byte boundary
 };  // Total: 80 bytes
 
 // Helper class for managing water polygon uniform buffers

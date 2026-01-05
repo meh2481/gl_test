@@ -77,7 +77,7 @@ void VulkanWaterPolygon::createUniformBuffer() {
 }
 
 void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCount) {
-    assert(vertexCount >= 0 && vertexCount <= MAX_WATER_POLYGON_VERTICES);
+    assert(vertexCount >= 0 && vertexCount <= 8);
     
     m_bufferData.vertexCount = vertexCount;
     for (int i = 0; i < vertexCount * 2; ++i) {
@@ -86,7 +86,7 @@ void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCo
     
     // Pad remaining vertices with last vertex (for shader simplicity)
     if (vertexCount > 0) {
-        for (int i = vertexCount; i < MAX_WATER_POLYGON_VERTICES; ++i) {
+        for (int i = vertexCount; i < 8; ++i) {
             m_bufferData.vertices[i * 2] = vertices[(vertexCount - 1) * 2];
             m_bufferData.vertices[i * 2 + 1] = vertices[(vertexCount - 1) * 2 + 1];
         }
