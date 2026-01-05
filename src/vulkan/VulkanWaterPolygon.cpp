@@ -1,4 +1,5 @@
 #include "VulkanWaterPolygon.h"
+#include <SDL3/SDL_log.h>
 #include <cassert>
 
 VulkanWaterPolygon::VulkanWaterPolygon(MemoryAllocator* allocator) :
@@ -51,6 +52,8 @@ uint32_t VulkanWaterPolygon::findMemoryType(uint32_t typeFilter, VkMemoryPropert
 
 void VulkanWaterPolygon::createUniformBuffer() {
     VkDeviceSize bufferSize = sizeof(WaterPolygonBufferData);
+    
+    SDL_Log("VulkanWaterPolygon::createUniformBuffer - Creating buffer of size %zu bytes", (size_t)bufferSize);
 
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -74,6 +77,8 @@ void VulkanWaterPolygon::createUniformBuffer() {
 
     // Map the buffer memory for persistent updating
     vkMapMemory(m_device, m_uniformBufferMemory, 0, bufferSize, 0, &m_uniformBufferMapped);
+    
+    SDL_Log("VulkanWaterPolygon::createUniformBuffer - Buffer created successfully: %p", (void*)m_uniformBuffer);
 }
 
 void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCount) {

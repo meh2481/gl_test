@@ -1480,10 +1480,18 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 if (descriptorSet != VK_NULL_HANDLE) {
                     if (info->isWaterPipeline) {
                         // Water pipeline uses 3 descriptor sets: dual texture + light + water polygon
+                        VkDescriptorSet lightSet = m_descriptorManager.getLightDescriptorSet();
+                        VkDescriptorSet waterPolygonSet = m_descriptorManager.getWaterPolygonDescriptorSet();
+                        
+                        // Validate descriptor sets before binding
+                        assert(descriptorSet != VK_NULL_HANDLE && "Water texture descriptor set is null");
+                        assert(lightSet != VK_NULL_HANDLE && "Light descriptor set is null");
+                        assert(waterPolygonSet != VK_NULL_HANDLE && "Water polygon descriptor set is null");
+                        
                         VkDescriptorSet descriptorSets[] = {
                             descriptorSet, 
-                            m_descriptorManager.getLightDescriptorSet(),
-                            m_descriptorManager.getWaterPolygonDescriptorSet()
+                            lightSet,
+                            waterPolygonSet
                         };
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                               info->layout, 0, 3, descriptorSets, 0, nullptr);
