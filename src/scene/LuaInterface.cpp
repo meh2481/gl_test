@@ -3705,11 +3705,6 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
     (*vecPtr)->push_back({waterShaderId, WATER_SHADER_Z_INDEX});
     consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::setupWaterVisuals: added pipeline %d with zIndex %d", waterShaderId, WATER_SHADER_Z_INDEX);
 
-    // Create animation textured pipeline for water (uses 33 float push constants)
-    // Water needs 2 textures: primary texture and reflection render target
-    // NOTE: Using standard anim pipeline until water-specific descriptor sets are fixed
-    renderer_.createAnimTexturedPipeline(waterShaderId, vertShader, fragShader, 2);
-
     // 3. Load a placeholder texture (required for layer creation)
     const char* placeholderTextureName = "res/textures/rock1.png";
     uint64_t placeholderTexId = hashCString(placeholderTextureName);
@@ -3719,7 +3714,21 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
         renderer_.loadTexture(placeholderTexId, texData);
     }
 
-    // 4. Calculate layer dimensions
+    // 4. Get reflection texture ID
+    uint64_t reflectionTexId = 0;
+    if (renderer_.isReflectionEnabled()) {
+        reflectionTexId = renderer_.getReflectionTextureId();
+    }
+
+    // 5. Create water-specific pipeline and descriptor set
+    // Water pipeline uses a single descriptor set with 3 bindings:
+    // - binding 0: primary texture sampler
+    // - binding 1: reflection texture sampler
+    // - binding 2: water polygon uniform buffer
+    renderer_.createWaterPipeline(waterShaderId, vertShader, fragShader, 2);
+    renderer_.createWaterDescriptorSet(placeholderTexId, reflectionTexId);
+
+    // 6. Calculate layer dimensions
     float waterWidth = maxX - minX;
     float waterHeight = maxY - minY;
     float totalHeight = waterHeight + WAVE_BUFFER;
@@ -3744,12 +3753,6 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
     } else {
         width = layerSize * aspectRatio;
         height = layerSize;
-    }
-
-    // 6. Get reflection texture ID (passed as normalMapId to createLayer)
-    uint64_t reflectionTexId = 0;
-    if (renderer_.isReflectionEnabled()) {
-        reflectionTexId = renderer_.getReflectionTextureId();
     }
 
     // 7. Create layer with primary texture and reflection texture as normalMap

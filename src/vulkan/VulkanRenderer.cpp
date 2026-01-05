@@ -156,11 +156,13 @@ void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     m_descriptorManager.createDualTextureDescriptorSetLayout();
     m_descriptorManager.createLightDescriptorSetLayout();
     m_descriptorManager.createWaterPolygonDescriptorSetLayout();
+    m_descriptorManager.createWaterDescriptorSetLayout();  // NEW: Water descriptor set with 3 bindings
     m_descriptorManager.createDualTexturePipelineLayout();
-    m_descriptorManager.createWaterPipelineLayout();  // Moved after dual texture layout creation
+    m_descriptorManager.createWaterPipelineLayout();  // Uses water descriptor set layout
     m_descriptorManager.createDualTextureDescriptorPool();
     m_descriptorManager.createLightDescriptorPool();
     m_descriptorManager.createWaterPolygonDescriptorPool();
+    m_descriptorManager.createWaterDescriptorPool();  // NEW: Pool for water descriptor set
     m_descriptorManager.createAnimSingleTexturePipelineLayout();
     m_descriptorManager.createAnimDualTexturePipelineLayout();
 
@@ -171,6 +173,9 @@ void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     // Create water polygon uniform buffer and descriptor set
     m_waterPolygonManager.createUniformBuffer();
     m_descriptorManager.createWaterPolygonDescriptorSet(m_waterPolygonManager.getUniformBuffer(), m_waterPolygonManager.getBufferSize());
+
+    // NOTE: Water descriptor set (with textures + uniform buffer) will be created when water is set up
+    // This happens in setupWaterVisuals() after textures are loaded
 
     // Initialize pipeline manager
     m_pipelineManager.init(m_device, m_renderPass, m_msaaSamples, m_swapchainExtent, m_consoleBuffer);
@@ -993,6 +998,14 @@ void VulkanRenderer::updateWaterPolygonVertices(const float* vertices, int verte
     m_waterPolygonManager.updateUniformBuffer(vertices, vertexCount);
 }
 
+void VulkanRenderer::createWaterDescriptorSet(uint64_t primaryTextureId, uint64_t reflectionTextureId) {
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Creating water descriptor set with primary texture %llu and reflection texture %llu",
+                        (unsigned long long)primaryTextureId, (unsigned long long)reflectionTextureId);
+    m_descriptorManager.createWaterDescriptorSet(primaryTextureId, reflectionTextureId,
+                                                 m_waterPolygonManager.getUniformBuffer(),
+                                                 m_waterPolygonManager.getBufferSize());
+}
+
 void VulkanRenderer::setCameraTransform(float offsetX, float offsetY, float zoom) {
     m_cameraOffsetX = offsetX;
     m_cameraOffsetY = offsetY;
@@ -1479,22 +1492,20 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 
                 if (descriptorSet != VK_NULL_HANDLE) {
                     if (info->isWaterPipeline) {
-                        // Water pipeline uses 3 descriptor sets: dual texture + light + water polygon
+                        // Water pipeline uses 2 descriptor sets: water (with 3 bindings) + light
+                        VkDescriptorSet waterSet = m_descriptorManager.getWaterDescriptorSet();
                         VkDescriptorSet lightSet = m_descriptorManager.getLightDescriptorSet();
-                        VkDescriptorSet waterPolygonSet = m_descriptorManager.getWaterPolygonDescriptorSet();
-                        
+
                         // Validate descriptor sets before binding
-                        assert(descriptorSet != VK_NULL_HANDLE && "Water texture descriptor set is null");
+                        assert(waterSet != VK_NULL_HANDLE && "Water descriptor set is null");
                         assert(lightSet != VK_NULL_HANDLE && "Light descriptor set is null");
-                        assert(waterPolygonSet != VK_NULL_HANDLE && "Water polygon descriptor set is null");
-                        
+
                         VkDescriptorSet descriptorSets[] = {
-                            descriptorSet, 
-                            lightSet,
-                            waterPolygonSet
+                            waterSet,
+                            lightSet
                         };
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                              info->layout, 0, 3, descriptorSets, 0, nullptr);
+                                              info->layout, 0, 2, descriptorSets, 0, nullptr);
                     } else if (info->usesDualTexture) {
                         VkDescriptorSet descriptorSets[] = {descriptorSet, m_descriptorManager.getLightDescriptorSet()};
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,

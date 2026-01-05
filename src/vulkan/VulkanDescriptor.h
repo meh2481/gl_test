@@ -29,6 +29,7 @@ public:
     VkDescriptorSetLayout getDualTextureLayout() const { return m_dualTextureDescriptorSetLayout; }
     VkDescriptorSetLayout getLightLayout() const { return m_lightDescriptorSetLayout; }
     VkDescriptorSetLayout getWaterPolygonLayout() const { return m_waterPolygonDescriptorSetLayout; }
+    VkDescriptorSetLayout getWaterLayout() const { return m_waterDescriptorSetLayout; }
 
     // Pipeline layout management
     VkPipelineLayout getSingleTexturePipelineLayout() const { return m_singleTexturePipelineLayout; }
@@ -48,6 +49,8 @@ public:
     void createLightDescriptorPool();
     void createWaterPolygonDescriptorSetLayout();
     void createWaterPolygonDescriptorPool();
+    void createWaterDescriptorSetLayout();
+    void createWaterDescriptorPool();
     void createWaterPipelineLayout();
     void createAnimSingleTexturePipelineLayout();
     void createAnimDualTexturePipelineLayout();
@@ -64,6 +67,10 @@ public:
     // Water polygon descriptor set (special case - single set for water polygons)
     void createWaterPolygonDescriptorSet(VkBuffer waterPolygonUniformBuffer, VkDeviceSize bufferSize);
     VkDescriptorSet getWaterPolygonDescriptorSet() const { return m_waterPolygonDescriptorSet; }
+
+    // Water descriptor set (single set with 3 bindings: 2 textures + 1 uniform buffer)
+    void createWaterDescriptorSet(uint64_t texture1Id, uint64_t texture2Id, VkBuffer waterPolygonUniformBuffer, VkDeviceSize bufferSize);
+    VkDescriptorSet getWaterDescriptorSet() const { return m_waterDescriptorSet; }
 
     // Get descriptor sets
     VkDescriptorSet getSingleTextureDescriptorSet(uint64_t textureId) const;
@@ -109,10 +116,15 @@ private:
     VkDescriptorPool m_lightDescriptorPool;
     VkDescriptorSet m_lightDescriptorSet;
 
-    // Water polygon descriptors
+    // Water polygon descriptors (deprecated - kept for compatibility)
     VkDescriptorSetLayout m_waterPolygonDescriptorSetLayout;
     VkDescriptorPool m_waterPolygonDescriptorPool;
     VkDescriptorSet m_waterPolygonDescriptorSet;
+
+    // Water descriptors (proper implementation: 1 set with 3 bindings)
+    VkDescriptorSetLayout m_waterDescriptorSetLayout;
+    VkDescriptorPool m_waterDescriptorPool;
+    VkDescriptorSet m_waterDescriptorSet;
     VkPipelineLayout m_waterPipelineLayout;
 
     MemoryAllocator* m_allocator;

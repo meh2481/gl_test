@@ -40,6 +40,9 @@ VulkanDescriptor::VulkanDescriptor(MemoryAllocator* allocator) :
     m_waterPolygonDescriptorSetLayout(VK_NULL_HANDLE),
     m_waterPolygonDescriptorPool(VK_NULL_HANDLE),
     m_waterPolygonDescriptorSet(VK_NULL_HANDLE),
+    m_waterDescriptorSetLayout(VK_NULL_HANDLE),
+    m_waterDescriptorPool(VK_NULL_HANDLE),
+    m_waterDescriptorSet(VK_NULL_HANDLE),
     m_waterPipelineLayout(VK_NULL_HANDLE),
     m_allocator(allocator)
 {
@@ -93,6 +96,14 @@ void VulkanDescriptor::cleanup() {
         vkDestroyDescriptorSetLayout(m_device, m_waterPolygonDescriptorSetLayout, nullptr);
         m_waterPolygonDescriptorSetLayout = VK_NULL_HANDLE;
     }
+    if (m_waterDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_device, m_waterDescriptorSetLayout, nullptr);
+        m_waterDescriptorSetLayout = VK_NULL_HANDLE;
+    }
+    if (m_waterDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(m_device, m_waterDescriptorPool, nullptr);
+        m_waterDescriptorPool = VK_NULL_HANDLE;
+    }
     if (m_waterPipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(m_device, m_waterPipelineLayout, nullptr);
         m_waterPipelineLayout = VK_NULL_HANDLE;
@@ -109,6 +120,8 @@ void VulkanDescriptor::cleanup() {
     m_singleTextureDescriptorSets.clear();
     m_dualTextureDescriptorSets.clear();
     m_lightDescriptorSet = VK_NULL_HANDLE;
+    m_waterPolygonDescriptorSet = VK_NULL_HANDLE;
+    m_waterDescriptorSet = VK_NULL_HANDLE;
     m_initialized = false;
 }
 
@@ -537,11 +550,10 @@ void VulkanDescriptor::createWaterPolygonDescriptorSet(VkBuffer waterPolygonUnif
 }
 
 void VulkanDescriptor::createWaterPipelineLayout() {
-    // Water pipeline uses: dual texture + light + water polygon
+    // Water pipeline uses: single water descriptor set (with 3 bindings) + light descriptor set
     VkDescriptorSetLayout setLayouts[] = {
-        m_dualTextureDescriptorSetLayout, 
-        m_lightDescriptorSetLayout,
-        m_waterPolygonDescriptorSetLayout
+        m_waterDescriptorSetLayout,
+        m_lightDescriptorSetLayout
     };
 
     VkPushConstantRange pushConstantRange{};
@@ -551,7 +563,7 @@ void VulkanDescriptor::createWaterPipelineLayout() {
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 3;  // 3 descriptor sets for water
+    pipelineLayoutInfo.setLayoutCount = 2;
     pipelineLayoutInfo.pSetLayouts = setLayouts;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
@@ -561,4 +573,141 @@ void VulkanDescriptor::createWaterPipelineLayout() {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreatePipelineLayout (water) failed: %s", vkResultToString(result));
         assert(false);
     }
+}
+
+void VulkanDescriptor::createWaterDescriptorSetLayout() {
+    // Water descriptor set: 3 bindings in a single set
+    // - binding 0: primary texture sampler
+    // - binding 1: reflection texture sampler
+    // - binding 2: water polygon uniform buffer
+    VkDescriptorSetLayoutBinding bindings[3];
+
+    bindings[0].binding = 0;
+    bindings[0].descriptorCount = 1;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[0].pImmutableSamplers = nullptr;
+    bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    bindings[1].binding = 1;
+    bindings[1].descriptorCount = 1;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[1].pImmutableSamplers = nullptr;
+    bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    bindings[2].binding = 2;
+    bindings[2].descriptorCount = 1;
+    bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[2].pImmutableSamplers = nullptr;
+    bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 3;
+    layoutInfo.pBindings = bindings;
+
+    VkResult result = vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_waterDescriptorSetLayout);
+    if (result != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreateDescriptorSetLayout (water) failed: %s", vkResultToString(result));
+        assert(false);
+    }
+}
+
+void VulkanDescriptor::createWaterDescriptorPool() {
+    // Pool needs space for 2 samplers + 1 uniform buffer
+    VkDescriptorPoolSize poolSizes[2];
+    
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[0].descriptorCount = 2;  // 2 texture samplers
+    
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[1].descriptorCount = 1;  // 1 uniform buffer
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 2;
+    poolInfo.pPoolSizes = poolSizes;
+    poolInfo.maxSets = 1;  // Only one water descriptor set needed
+
+    VkResult result = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_waterDescriptorPool);
+    if (result != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreateDescriptorPool (water) failed: %s", vkResultToString(result));
+        assert(false);
+    }
+}
+
+void VulkanDescriptor::createWaterDescriptorSet(uint64_t texture1Id, uint64_t texture2Id, VkBuffer waterPolygonUniformBuffer, VkDeviceSize bufferSize) {
+    assert(m_textureManager != nullptr);
+
+    VulkanTexture::TextureData tex1, tex2;
+    assert(m_textureManager->getTexture(texture1Id, &tex1));
+    assert(m_textureManager->getTexture(texture2Id, &tex2));
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_waterDescriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_waterDescriptorSetLayout;
+
+    VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, &m_waterDescriptorSet);
+    if (result != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkAllocateDescriptorSets (water) failed: %s", vkResultToString(result));
+        assert(false);
+    }
+
+    // Prepare descriptor writes for all 3 bindings
+    VkDescriptorImageInfo imageInfos[2];
+    imageInfos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfos[0].imageView = tex1.imageView;
+    imageInfos[0].sampler = tex1.sampler;
+
+    imageInfos[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfos[1].imageView = tex2.imageView;
+    imageInfos[1].sampler = tex2.sampler;
+
+    VkDescriptorBufferInfo bufferInfo{};
+    bufferInfo.buffer = waterPolygonUniformBuffer;
+    bufferInfo.offset = 0;
+    bufferInfo.range = bufferSize;
+
+    VkWriteDescriptorSet descriptorWrites[3];
+    
+    // Binding 0: primary texture
+    descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[0].dstSet = m_waterDescriptorSet;
+    descriptorWrites[0].dstBinding = 0;
+    descriptorWrites[0].dstArrayElement = 0;
+    descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrites[0].descriptorCount = 1;
+    descriptorWrites[0].pImageInfo = &imageInfos[0];
+    descriptorWrites[0].pBufferInfo = nullptr;
+    descriptorWrites[0].pTexelBufferView = nullptr;
+    descriptorWrites[0].pNext = nullptr;
+
+    // Binding 1: reflection texture
+    descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[1].dstSet = m_waterDescriptorSet;
+    descriptorWrites[1].dstBinding = 1;
+    descriptorWrites[1].dstArrayElement = 0;
+    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrites[1].descriptorCount = 1;
+    descriptorWrites[1].pImageInfo = &imageInfos[1];
+    descriptorWrites[1].pBufferInfo = nullptr;
+    descriptorWrites[1].pTexelBufferView = nullptr;
+    descriptorWrites[1].pNext = nullptr;
+
+    // Binding 2: water polygon uniform buffer
+    descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[2].dstSet = m_waterDescriptorSet;
+    descriptorWrites[2].dstBinding = 2;
+    descriptorWrites[2].dstArrayElement = 0;
+    descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorWrites[2].descriptorCount = 1;
+    descriptorWrites[2].pImageInfo = nullptr;
+    descriptorWrites[2].pBufferInfo = &bufferInfo;
+    descriptorWrites[2].pTexelBufferView = nullptr;
+    descriptorWrites[2].pNext = nullptr;
+
+    vkUpdateDescriptorSets(m_device, 3, descriptorWrites, 0, nullptr);
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Created water descriptor set with 3 bindings (2 textures + polygon uniform buffer)");
 }

@@ -49,15 +49,12 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 0) uniform sampler2D texSampler;        // Primary texture (unused for water)
 layout(binding = 1) uniform sampler2D reflectionSampler; // Reflection render target
 
-// Water polygon uniform buffer (binding 2) - TEMPORARILY DISABLED
-// TODO: Fix descriptor set architecture to properly support this
-/*
+// Water polygon uniform buffer (binding 2) - NOW ENABLED
 layout(binding = 2, std140) uniform WaterPolygonBuffer {
     vec2 vertices[8];  // 8 vertices, 64 bytes
     int vertexCount;   // 4 bytes
     // padding added automatically by std140
 } waterPolygon;
-*/
 
 const float PI = 3.14159265359;
 
@@ -154,33 +151,29 @@ float getTotalSplashHeight(float x) {
     return totalSplash;
 }
 
-// Point-in-polygon test TEMPORARILY DISABLED - always returns true (render to bounding box)
-// TODO: Re-enable once uniform buffer descriptor sets are fixed
+// Point-in-polygon test for exact polygon clipping
 bool isPointInPolygon(vec2 point, int vertexCount) {
-    return true;  // Temporary: always inside (renders to full bounding box)
-    /*
     // Use cross product to determine if point is on the same side of all edges
     // For a convex polygon, point is inside if it's on the "inside" side of all edges
-    
+
     bool allPositive = true;
     bool allNegative = true;
-    
+
     for (int i = 0; i < vertexCount; ++i) {
         vec2 v0 = waterPolygon.vertices[i];
         vec2 v1 = waterPolygon.vertices[(i + 1) % vertexCount];
-        
+
         vec2 edge = v1 - v0;
         vec2 toPoint = point - v0;
-        
+
         // Cross product (z component)
         float cross = edge.x * toPoint.y - edge.y * toPoint.x;
-        
+
         if (cross < 0.0) allPositive = false;
         if (cross > 0.0) allNegative = false;
     }
-    
+
     return allPositive || allNegative;
-    */
 }
 
 void main() {
@@ -195,11 +188,9 @@ void main() {
     float rippleAmplitude = pc.param1;
     float rippleSpeed = pc.param2;
     float surfaceY = pc.param3;  // Actual water surface Y (accounts for percentage full)
-    
+
     // Test if pixel is inside the water polygon (exact shape, not just bounding box)
-    // TEMPORARILY DISABLED - rendering to bounding box until descriptor sets are fixed
-    // TODO: Re-enable polygon clipping once uniform buffer is properly bound
-    if (!isPointInPolygon(fragWorldPos, 8)) {  // Always returns true for now
+    if (!isPointInPolygon(fragWorldPos, waterPolygon.vertexCount)) {
         discard;  // Outside the polygon - discard immediately
     }
 

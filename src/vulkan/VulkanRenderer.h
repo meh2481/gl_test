@@ -52,6 +52,7 @@ public:
     void markPipelineAsWater(int pipelineId);
     void setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples);
     void updateWaterPolygonVertices(const float* vertices, int vertexCount);
+    void createWaterDescriptorSet(uint64_t primaryTextureId, uint64_t reflectionTextureId);
     bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
     void setCameraTransform(float offsetX, float offsetY, float zoom);
     void setClearColor(float r, float g, float b, float a = 1.0f);
