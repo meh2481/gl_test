@@ -206,8 +206,8 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             Vector<String> sensorTypes = getBodyTypes(sensorInternalId);
             Vector<String> visitorTypes = getBodyTypes(visitorInternalId);
 
-            // Check if there are any types on either body that should trigger interactions
-            if (sensorTypes.size() > 0 || visitorTypes.size() > 0) {
+            // Only trigger callback if both bodies have types (matches Lua callback expectations)
+            if (sensorTypes.size() > 0 && visitorTypes.size() > 0) {
                 // Use visitor velocity magnitude as approach speed for sensor interactions
                 float approachSpeed = SDL_sqrtf(visitorVel.x * visitorVel.x + visitorVel.y * visitorVel.y);
                 consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Sensor collision detected: sensor body %d, visitor body %d, approach speed: %.2f", sensorInternalId, visitorInternalId, approachSpeed);
