@@ -197,21 +197,63 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             event.visitorVelX = visitorVel.x;
             event.visitorVelY = visitorVel.y;
             event.isBegin = true;
+            // Set surfaceY for water force fields
+            event.surfaceY = 0.0f;
+            for (auto it = forceFields_.begin(); it != forceFields_.end(); ++it) {
+                if (it.value().bodyId == sensorInternalId && it.value().isWater) {
+                    event.surfaceY = it.value().waterSurfaceY;
+                    break;
+                }
+            }
             sensorCallback_(event);
         }
 
         // Also trigger collision callback for type-based interactions with sensors
         // This allows sensor bodies (like water) to interact with typed bodies (like fire)
+        // Only trigger when the body is actually at the water surface (like splash detection)
         if (sensorInternalId >= 0 && visitorInternalId >= 0 && collisionCallback_) {
             Vector<String> sensorTypes = getBodyTypes(sensorInternalId);
             Vector<String> visitorTypes = getBodyTypes(visitorInternalId);
 
             // Only trigger callback if both bodies have types (matches Lua callback expectations)
             if (sensorTypes.size() > 0 && visitorTypes.size() > 0) {
-                // Use visitor velocity magnitude as approach speed for sensor interactions
-                float approachSpeed = SDL_sqrtf(visitorVel.x * visitorVel.x + visitorVel.y * visitorVel.y);
-                consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Sensor collision detected: sensor body %d, visitor body %d, approach speed: %.2f", sensorInternalId, visitorInternalId, approachSpeed);
-                collisionCallback_(sensorInternalId, visitorInternalId, visitorPos.x, visitorPos.y, 0.0f, 1.0f, approachSpeed);
+                // Find if this sensor is a water force field
+                const ForceField* waterField = nullptr;
+                for (auto it = forceFields_.begin(); it != forceFields_.end(); ++it) {
+                    if (it.value().bodyId == sensorInternalId && it.value().isWater) {
+                        waterField = &it.value();
+                        break;
+                    }
+                }
+
+                // If this is a water sensor, apply splash detection logic
+                // Only trigger collision callback when body is at the surface (like splash creation)
+                bool shouldTrigger = false;
+                if (waterField) {
+                    // Get water field AABB for horizontal bounds checking
+                    b2AABB fieldAABB = b2Shape_GetAABB(waterField->shapeId);
+                    float surfaceY = waterField->waterSurfaceY;
+                    float distanceFromSurface = SDL_fabsf(visitorPos.y - surfaceY);
+                    float surfaceTolerance = 0.2f; // Same tolerance as splash detection
+
+                    bool withinHorizontalBounds = (visitorPos.x >= fieldAABB.lowerBound.x &&
+                                                   visitorPos.x <= fieldAABB.upperBound.x);
+
+                    // Only trigger when near surface, within bounds, and moving downward (entering)
+                    if (distanceFromSurface < surfaceTolerance && withinHorizontalBounds && visitorVel.y < 0.0f) {
+                        shouldTrigger = true;
+                        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Water surface collision: sensor body %d, visitor body %d at surface Y=%.2f", sensorInternalId, visitorInternalId, surfaceY);
+                    }
+                } else {
+                    // For non-water sensors with types, trigger immediately
+                    shouldTrigger = true;
+                }
+
+                if (shouldTrigger) {
+                    // Use visitor velocity magnitude as approach speed for sensor interactions
+                    float approachSpeed = SDL_sqrtf(visitorVel.x * visitorVel.x + visitorVel.y * visitorVel.y);
+                    collisionCallback_(sensorInternalId, visitorInternalId, visitorPos.x, visitorPos.y, 0.0f, 1.0f, approachSpeed);
+                }
             }
         }
     }
@@ -233,6 +275,14 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             event.visitorVelX = visitorVel.x;
             event.visitorVelY = visitorVel.y;
             event.isBegin = false;
+            // Set surfaceY for water force fields
+            event.surfaceY = 0.0f;
+            for (auto it = forceFields_.begin(); it != forceFields_.end(); ++it) {
+                if (it.value().bodyId == sensorInternalId && it.value().isWater) {
+                    event.surfaceY = it.value().waterSurfaceY;
+                    break;
+                }
+            }
             sensorCallback_(event);
         }
     }
