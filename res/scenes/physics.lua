@@ -18,6 +18,7 @@ foregroundTexId = nil
 waterLayerId = nil
 waterShaderId = nil
 waterField = nil
+waterTime = 0
 
 function init()
     -- Load the nebula background shader (z-index -2 = background)
@@ -69,6 +70,7 @@ function init()
     }
     -- Create force field with water=true to automatically set up water visuals
     waterField = createForceField(waterVertices, 0.0, 15.0, true)
+    setWaterPercentage(waterField, 0.6)  -- 60% filled
 
     -- Add "water" type to the water force field body
     local waterBodyId = getForceFieldBodyId(waterField)
@@ -194,6 +196,11 @@ function update(deltaTime)
             b2SetBodyAwake(draggedBodyId, true)
         end
     end
+
+    -- Update water percentage in a sinusoidal pattern
+    waterTime = waterTime + deltaTime
+    local waterPercent = 0.5 + 0.4 * math.sin(waterTime * 0.5)
+    setWaterPercentage(waterField, waterPercent)
 end
 
 function onAction(action)
