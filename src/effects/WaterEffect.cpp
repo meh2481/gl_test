@@ -177,7 +177,13 @@ void WaterEffectManager::onBodyExitWater(int waterFieldId, int bodyId, float x, 
             }
         }
 
-        // No splash on exit - splashes only occur when entering from above
+        // Add splash if exiting upward through top surface (positive velocity = upward motion)
+        if (velocity > 0.0f) {
+            float splashAmplitude = SDL_fabsf(velocity) * 0.08f;
+            if (splashAmplitude > 0.01f) {
+                addSplash(waterFieldId, x, field.config.surfaceY, splashAmplitude);
+            }
+        }
         return;
     }
 }
@@ -198,12 +204,22 @@ void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
                 bool wasAboveSurface = lastY > surfaceY;
                 bool isAboveSurface = y > surfaceY;
 
-                // Only create splash when entering from above (wasAboveSurface && !isAboveSurface)
-                // and moving downward (negative velocity)
+                // Create splash when crossing surface with appropriate motion
                 if (wasAboveSurface && !isAboveSurface) {
+                    // Entering from above - check downward motion (negative velocity)
                     float velocity = (y - lastY) / PHYSICS_TIMESTEP;
-                    // Verify downward motion (negative velocity)
                     if (velocity < 0.0f) {
+                        float splashAmplitude = SDL_fabsf(velocity) * 0.15f;
+                        if (splashAmplitude > 0.01f) {
+                            // Clamp splash amplitude to reasonable range
+                            if (splashAmplitude > 0.05f) splashAmplitude = 0.05f;
+                            addSplash(waterFieldId, x, surfaceY, splashAmplitude);
+                        }
+                    }
+                } else if (!wasAboveSurface && isAboveSurface) {
+                    // Exiting upward through top surface - check upward motion (positive velocity)
+                    float velocity = (y - lastY) / PHYSICS_TIMESTEP;
+                    if (velocity > 0.0f) {
                         float splashAmplitude = SDL_fabsf(velocity) * 0.15f;
                         if (splashAmplitude > 0.01f) {
                             // Clamp splash amplitude to reasonable range

@@ -89,8 +89,17 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                     if (waterFieldId >= 0) {
                         const WaterForceField* waterField = waterEffectManager_->getWaterForceField(waterFieldId);
                         if (waterField) {
-                            // Only create splash particles when entering water, not when exiting
+                            // Create splash particles when entering from above or exiting upward through top surface
+                            bool shouldCreateSplash = false;
                             if (event.isBegin) {
+                                // Entering water - check if moving downward
+                                shouldCreateSplash = (event.visitorVelY < 0.0f);
+                            } else {
+                                // Exiting water - check if moving upward
+                                shouldCreateSplash = (event.visitorVelY > 0.0f);
+                            }
+
+                            if (shouldCreateSplash) {
                                 // Load particle shaders if not loaded
                                 lua_getglobal(luaState_, "loadParticleShaders");
                                 lua_pushstring(luaState_, "res/shaders/particle_vertex.spv");
