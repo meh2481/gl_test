@@ -58,16 +58,13 @@ function init()
     createBoundaries()
 
     -- Create water force field (with visual effect via water=true flag)
-    local waterMinX = -0.3
-    local waterMaxX = 0.3
-    local waterMinY = -0.9
-    local waterMaxY = 0.0
-
     local waterVertices = {
-        waterMinX, waterMinY,   -- bottom-left
-        waterMaxX, waterMinY,   -- bottom-right
-        waterMaxX, waterMaxY,   -- top-right (surface)
-        waterMinX, waterMaxY    -- top-left (surface)
+        -0.4, 0.0,  -- top left rim
+        0.4, 0.0,   -- top right rim
+        0.3, -0.5,  -- middle right
+        0.2, -0.9,  -- bottom right
+        -0.2, -0.9, -- bottom left
+        -0.3, -0.5  -- middle left
     }
     -- Create force field with water=true to automatically set up water visuals
     waterField = createForceField(waterVertices, 0.0, 15.0, true)
