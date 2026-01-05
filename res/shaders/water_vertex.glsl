@@ -21,21 +21,21 @@ layout(push_constant) uniform PushConstants {
     float ripple1_x;
     float ripple1_time;
     float ripple1_amplitude;
-    float ripple2_x;
-    float ripple2_time;
-    float ripple2_amplitude;
-    float ripple3_x;
-    float ripple3_time;
-    float ripple3_amplitude;
-    // Unused animation slots
-    float unused0;
-    float unused1;
-    float unused2;
-    float unused3;
-    float unused4;
-    float unused5;
-    float unused6;
-    float unused7;
+    // Polygon vertices (7 vertices for up to heptagon - Box2D max 8, but push constants limited)
+    float polyVertex0X;
+    float polyVertex0Y;
+    float polyVertex1X;
+    float polyVertex1Y;
+    float polyVertex2X;
+    float polyVertex2Y;
+    float polyVertex3X;
+    float polyVertex3Y;
+    float polyVertex4X;
+    float polyVertex4Y;
+    float polyVertex5X;
+    float polyVertex5Y;
+    float polyVertex6X;
+    float polyVertex6Y;
 } pc;
 
 layout(location = 0) in vec2 inPosition;

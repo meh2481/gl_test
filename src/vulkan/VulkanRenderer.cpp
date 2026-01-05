@@ -1338,30 +1338,46 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 ShaderRippleData ripples[MAX_SHADER_RIPPLES];
                 m_pipelineManager.getWaterRipples(batch.pipelineId, rippleCount, ripples);
 
+                // Build water push constants with polygon data
+                // To fit 7 vertices (14 floats), reduce ripple count from 4 to 2 (saves 6 floats)
+                // Layout: system(6) + params(7) + ripples(6) + vertices(14) = 33 floats
                 float waterPushConstants[33] = {
-                    static_cast<float>(m_swapchainExtent.width),
-                    static_cast<float>(m_swapchainExtent.height),
-                    time,
-                    m_cameraOffsetX,
-                    m_cameraOffsetY,
-                    m_cameraZoom,
-                    params ? (*params)[0] : 0.0f, params ? (*params)[1] : 0.0f, params ? (*params)[2] : 0.0f,
-                    params ? (*params)[3] : 0.0f, params ? (*params)[4] : 0.0f, params ? (*params)[5] : 0.0f, params ? (*params)[6] : 0.0f,
-                    // Ripple data (4 ripples x 3 values)
-                    rippleCount > 0 ? ripples[0].x : 0.0f,
-                    rippleCount > 0 ? ripples[0].time : -1.0f,
-                    rippleCount > 0 ? ripples[0].amplitude : 0.0f,
-                    rippleCount > 1 ? ripples[1].x : 0.0f,
-                    rippleCount > 1 ? ripples[1].time : -1.0f,
-                    rippleCount > 1 ? ripples[1].amplitude : 0.0f,
-                    rippleCount > 2 ? ripples[2].x : 0.0f,
-                    rippleCount > 2 ? ripples[2].time : -1.0f,
-                    rippleCount > 2 ? ripples[2].amplitude : 0.0f,
-                    rippleCount > 3 ? ripples[3].x : 0.0f,
-                    rippleCount > 3 ? ripples[3].time : -1.0f,
-                    rippleCount > 3 ? ripples[3].amplitude : 0.0f,
-                    // Unused slots
-                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
+                    static_cast<float>(m_swapchainExtent.width),          // 0
+                    static_cast<float>(m_swapchainExtent.height),         // 1
+                    time,                                                  // 2
+                    m_cameraOffsetX,                                       // 3
+                    m_cameraOffsetY,                                       // 4
+                    m_cameraZoom,                                          // 5
+                    // Standard water params (indices 6-12)
+                    params ? (*params)[0] : 0.0f,                          // 6: alpha
+                    params ? (*params)[1] : 0.0f,                          // 7: rippleAmplitude
+                    params ? (*params)[2] : 0.0f,                          // 8: rippleSpeed
+                    params ? (*params)[3] : 0.0f,                          // 9: surfaceY
+                    params ? (*params)[4] : 0.0f,                          // 10: minX
+                    params ? (*params)[5] : 0.0f,                          // 11: minY
+                    params ? (*params)[6] : 0.0f,                          // 12: maxX
+                    // Ripple data (indices 13-18, 2 ripples x 3 values - reduced from 4)
+                    rippleCount > 0 ? ripples[0].x : 0.0f,                 // 13
+                    rippleCount > 0 ? ripples[0].time : -1.0f,             // 14
+                    rippleCount > 0 ? ripples[0].amplitude : 0.0f,         // 15
+                    rippleCount > 1 ? ripples[1].x : 0.0f,                 // 16
+                    rippleCount > 1 ? ripples[1].time : -1.0f,             // 17
+                    rippleCount > 1 ? ripples[1].amplitude : 0.0f,         // 18
+                    // Polygon vertices (indices 19-32, 14 floats = 7 vertices)
+                    params && params->size() > 7 ? (*params)[7] : 0.0f,    // 19: vertex0 x
+                    params && params->size() > 8 ? (*params)[8] : 0.0f,    // 20: vertex0 y
+                    params && params->size() > 9 ? (*params)[9] : 0.0f,    // 21: vertex1 x
+                    params && params->size() > 10 ? (*params)[10] : 0.0f,  // 22: vertex1 y
+                    params && params->size() > 11 ? (*params)[11] : 0.0f,  // 23: vertex2 x
+                    params && params->size() > 12 ? (*params)[12] : 0.0f,  // 24: vertex2 y
+                    params && params->size() > 13 ? (*params)[13] : 0.0f,  // 25: vertex3 x
+                    params && params->size() > 14 ? (*params)[14] : 0.0f,  // 26: vertex3 y
+                    params && params->size() > 15 ? (*params)[15] : 0.0f,  // 27: vertex4 x
+                    params && params->size() > 16 ? (*params)[16] : 0.0f,  // 28: vertex4 y
+                    params && params->size() > 17 ? (*params)[17] : 0.0f,  // 29: vertex5 x
+                    params && params->size() > 18 ? (*params)[18] : 0.0f,  // 30: vertex5 y
+                    params && params->size() > 19 ? (*params)[19] : 0.0f,  // 31: vertex6 x
+                    params && params->size() > 20 ? (*params)[20] : 0.0f   // 32: vertex6 y
                 };
                 vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(waterPushConstants), waterPushConstants);
             } else if (info->usesAnimationPushConstants) {

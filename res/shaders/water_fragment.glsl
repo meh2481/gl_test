@@ -21,21 +21,21 @@ layout(push_constant) uniform PushConstants {
     float ripple1_x;
     float ripple1_time;
     float ripple1_amplitude;
-    float ripple2_x;
-    float ripple2_time;
-    float ripple2_amplitude;
-    float ripple3_x;
-    float ripple3_time;
-    float ripple3_amplitude;
-    // Unused animation slots
-    float unused0;
-    float unused1;
-    float unused2;
-    float unused3;
-    float unused4;
-    float unused5;
-    float unused6;
-    float unused7;
+    // Polygon vertices (7 vertices for up to heptagon - Box2D max 8, but push constants limited)
+    float polyVertex0X;
+    float polyVertex0Y;
+    float polyVertex1X;
+    float polyVertex1Y;
+    float polyVertex2X;
+    float polyVertex2Y;
+    float polyVertex3X;
+    float polyVertex3Y;
+    float polyVertex4X;
+    float polyVertex4Y;
+    float polyVertex5X;
+    float polyVertex5Y;
+    float polyVertex6X;
+    float polyVertex6Y;
 } pc;
 
 layout(location = 0) in vec2 fragTexCoord;
@@ -131,17 +131,41 @@ float getSplashRippleHeight(float x, float rippleX, float rippleTime, float ripp
     return wave * wavefrontFade;
 }
 
-// Calculate total splash ripple contribution from all active ripples
+// Calculate total splash ripple contribution from all active ripples (reduced to 2)
 float getTotalSplashHeight(float x) {
     float totalSplash = 0.0;
 
-    // Add contribution from each ripple
+    // Add contribution from each ripple (only 2 now to save space for polygon vertices)
     totalSplash += getSplashRippleHeight(x, pc.ripple0_x, pc.ripple0_time, pc.ripple0_amplitude);
     totalSplash += getSplashRippleHeight(x, pc.ripple1_x, pc.ripple1_time, pc.ripple1_amplitude);
-    totalSplash += getSplashRippleHeight(x, pc.ripple2_x, pc.ripple2_time, pc.ripple2_amplitude);
-    totalSplash += getSplashRippleHeight(x, pc.ripple3_x, pc.ripple3_time, pc.ripple3_amplitude);
 
     return totalSplash;
+}
+
+// Point-in-polygon test for convex polygon (up to 7 vertices)
+// Returns true if point is inside the polygon
+bool isPointInPolygon(vec2 point, vec2 vertices[7], int vertexCount) {
+    // Use cross product to determine if point is on the same side of all edges
+    // For a convex polygon, point is inside if it's on the "inside" side of all edges
+    
+    bool allPositive = true;
+    bool allNegative = true;
+    
+    for (int i = 0; i < vertexCount; ++i) {
+        vec2 v0 = vertices[i];
+        vec2 v1 = vertices[(i + 1) % vertexCount];
+        
+        vec2 edge = v1 - v0;
+        vec2 toPoint = point - v0;
+        
+        // Cross product (z component)
+        float cross = edge.x * toPoint.y - edge.y * toPoint.x;
+        
+        if (cross < 0.0) allPositive = false;
+        if (cross > 0.0) allNegative = false;
+    }
+    
+    return allPositive || allNegative;
 }
 
 void main() {
@@ -156,6 +180,30 @@ void main() {
     float rippleAmplitude = pc.param1;
     float rippleSpeed = pc.param2;
     float surfaceY = pc.param3;  // Actual water surface Y (accounts for percentage full)
+    
+    // Test if pixel is inside the water polygon (exact shape, not just bounding box)
+    vec2 polyVertices[7];
+    polyVertices[0] = vec2(pc.polyVertex0X, pc.polyVertex0Y);
+    polyVertices[1] = vec2(pc.polyVertex1X, pc.polyVertex1Y);
+    polyVertices[2] = vec2(pc.polyVertex2X, pc.polyVertex2Y);
+    polyVertices[3] = vec2(pc.polyVertex3X, pc.polyVertex3Y);
+    polyVertices[4] = vec2(pc.polyVertex4X, pc.polyVertex4Y);
+    polyVertices[5] = vec2(pc.polyVertex5X, pc.polyVertex5Y);
+    polyVertices[6] = vec2(pc.polyVertex6X, pc.polyVertex6Y);
+    
+    // Determine actual vertex count (vertices are padded with duplicates)
+    // Count unique vertices by checking distance between consecutive vertices
+    int actualVertexCount = 7;
+    for (int i = 1; i < 7; ++i) {
+        if (distance(polyVertices[i], polyVertices[i-1]) < 0.001) {
+            actualVertexCount = i;
+            break;
+        }
+    }
+    
+    if (!isPointInPolygon(fragWorldPos, polyVertices, actualVertexCount)) {
+        discard;  // Outside the polygon - discard immediately
+    }
 
     // Calculate animated surface height at this X position (ambient waves)
     float surfaceWaveOffset = getWaterSurfaceHeight(fragWorldPos.x, pc.time, rippleAmplitude, rippleSpeed);

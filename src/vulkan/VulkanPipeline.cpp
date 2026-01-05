@@ -1295,9 +1295,10 @@ void VulkanPipeline::setShaderParameters(int pipelineId, int paramCount, const f
         m_pipelineShaderParams.insert(pipelineId, paramsVec);
     }
 
-    // Resize to 7 elements and populate
-    paramsVec->resize(7, 0.0f);
-    for (int i = 0; i < paramCount && i < 7; ++i) {
+    // Resize to accommodate all parameters (up to 25 for water with polygon data)
+    int maxParams = (paramCount > 25) ? 25 : paramCount;
+    paramsVec->resize(maxParams, 0.0f);
+    for (int i = 0; i < paramCount && i < maxParams; ++i) {
         (*paramsVec)[i] = params[i];
     }
 
