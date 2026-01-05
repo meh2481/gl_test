@@ -22,6 +22,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       scenePipelines_(*allocator, "LuaInterface::scenePipelines"),
       waterFieldShaderMap_(*allocator, "LuaInterface::waterFieldShaderMap"),
       waterFieldLayerMap_(*allocator, "LuaInterface::waterFieldLayerMap"),
+      waterSurfaceCollisionBodies_(*allocator, "LuaInterface::waterSurfaceCollisionBodies"),
       particlePipelineCache_(*allocator, "LuaInterface::particlePipelineCache"),
       nodes_(*allocator, "LuaInterface::nodes"),
       bodyToNodeMap_(*allocator, "LuaInterface::bodyToNodeMap"),
@@ -121,26 +122,6 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
 
                             if (shouldCreateSplash) {
                                 createSplashParticles(event.visitorX, surfaceY);
-
-                                // Also trigger collision callback for type-based interactions when splashing
-                                // This allows water-fire interactions (lantern extinguishing) at the correct water level
-                                Vector<String> sensorTypes = physics_->getBodyTypes(event.sensorBodyId);
-                                Vector<String> visitorTypes = physics_->getBodyTypes(event.visitorBodyId);
-
-                                if (sensorTypes.size() > 0 && visitorTypes.size() > 0) {
-                                    // Calculate approach speed from velocity
-                                    float approachSpeed = SDL_sqrtf(event.visitorVelX * event.visitorVelX +
-                                                                   event.visitorVelY * event.visitorVelY);
-                                    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
-                                        "Water splash collision callback: sensor body %d, visitor body %d at actual surface Y=%.2f",
-                                        event.sensorBodyId, event.visitorBodyId, surfaceY);
-
-                                    // Trigger the collision callback through the physics system
-                                    // This will call the Lua handleCollision function that was registered
-                                    physics_->triggerCollisionCallback(event.sensorBodyId, event.visitorBodyId,
-                                                                       event.visitorX, surfaceY,
-                                                                       0.0f, 1.0f, approachSpeed);
-                                }
                             }
                         }
                     }
@@ -441,32 +422,7 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
                 if (posY[i] < minY - 0.2f || posY[i] > surfaceY + 0.3f) continue;
 
                 // Update tracked body for potential splash
-                bool crossedSurface = waterEffectManager_->updateTrackedBody(field.waterFieldId, bodyIds[i], posX[i], posY[i]);
-
-                // If body crossed the surface, check for type-based interactions
-                if (crossedSurface) {
-                    // Get the physics force field body ID for type checking
-                    const ForceField* forceField = physics_->getForceField(field.forceFieldId);
-                    if (forceField && forceField->isWater) {
-                        int waterBodyId = forceField->bodyId;
-                        Vector<String> waterTypes = physics_->getBodyTypes(waterBodyId);
-                        Vector<String> visitorTypes = physics_->getBodyTypes(bodyIds[i]);
-
-                        // Trigger collision callback if both bodies have types
-                        if (waterTypes.size() > 0 && visitorTypes.size() > 0) {
-                            // Calculate velocity for approach speed
-                            float velX = 0.0f;  // We don't have X velocity here, only Y
-                            float approachSpeed = SDL_sqrtf(velX * velX + velY[i] * velY[i]);
-                            consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
-                                "Continuous water surface collision: water body %d, visitor body %d at surface Y=%.2f",
-                                waterBodyId, bodyIds[i], surfaceY);
-
-                            physics_->triggerCollisionCallback(waterBodyId, bodyIds[i],
-                                                              posX[i], surfaceY,
-                                                              0.0f, 1.0f, approachSpeed);
-                        }
-                    }
-                }
+                waterEffectManager_->updateTrackedBody(field.waterFieldId, bodyIds[i], posX[i], posY[i]);
             }
 
             // Update the shader with ripple data if this field has an associated shader
@@ -1856,6 +1812,15 @@ int LuaInterface::setWaterPercentage(lua_State* L) {
             }
 
             interface->renderer_.updateWaterPolygonVertices(rotatedVertices, field->config.vertexCount);
+        }
+
+        // Update the surface collision body position to match the new water level
+        int* surfaceBodyIdPtr = interface->waterSurfaceCollisionBodies_.find(waterFieldId);
+        if (surfaceBodyIdPtr) {
+            int surfaceBodyId = *surfaceBodyIdPtr;
+            interface->physics_->setBodyPosition(surfaceBodyId, 0.0f, surfaceY);
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, 
+                "Updated water surface collision body %d to Y=%.2f", surfaceBodyId, surfaceY);
         }
     }
 
@@ -3902,6 +3867,15 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
     // 10. Associate the water shader and layer with the water force field
     waterFieldShaderMap_.insert(waterFieldId, waterShaderId);
     waterFieldLayerMap_.insert(waterFieldId, waterLayerId);
+
+    // 11. Create a thin collision body at the water surface for fire/water interactions
+    // This allows Box2D's normal collision detection to trigger the collision callback
+    int surfaceBodyId = physics_->createBody(0, 0.0f, surfaceY, 0.0f); // Static body at surface
+    physics_->addSegmentFixture(surfaceBodyId, minX, surfaceY, maxX, surfaceY, 0.0f, 0.0f); // Thin line segment
+    physics_->addBodyType(surfaceBodyId, "water"); // Add water type for collision detection
+    waterSurfaceCollisionBodies_.insert(waterFieldId, surfaceBodyId);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Created water surface collision body %d at Y=%.2f from X=%.2f to %.2f", 
+                       surfaceBodyId, surfaceY, minX, maxX);
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
 }
