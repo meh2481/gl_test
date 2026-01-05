@@ -225,7 +225,13 @@ void main() {
     // The reflected position is: reflectedY = 2 * surfaceY - fragWorldPos.y
     // This ensures reflection stays fixed relative to water surface, not camera
     float reflectedWorldY = 2.0 * surfaceY - fragWorldPos.y + reflectDistort * 0.15;
-    reflectUV.y = ((reflectedWorldY + pc.cameraY) * pc.cameraZoom + 1.0) * 0.5;
+    
+    // The reflection texture was rendered with a flipped camera position
+    // flippedCameraY = 2 * surfaceY - cameraY
+    // Screen space conversion: screenY = (cameraY - worldY) * zoom
+    // UV.y = (screenY + 1.0) * 0.5
+    float flippedCameraY = 2.0 * surfaceY - pc.cameraY;
+    reflectUV.y = ((flippedCameraY - reflectedWorldY) * pc.cameraZoom + 1.0) * 0.5;
 
     // Clamp to valid UV range
     reflectUV = clamp(reflectUV, 0.01, 0.99);
