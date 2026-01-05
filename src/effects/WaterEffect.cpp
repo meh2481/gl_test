@@ -150,10 +150,15 @@ void WaterEffectManager::onBodyEnterWater(int waterFieldId, int bodyId, float x,
         }
 
         // Only add splash if entering from above (negative velocity = downward motion)
-        if (velocity < 0.0f) {
+        // AND body is near the water surface (not entering from side/bottom)
+        float surfaceY = field.config.surfaceY;
+        float distanceFromSurface = SDL_fabsf(y - surfaceY);
+        float surfaceTolerance = 0.2f;
+
+        if (velocity < 0.0f && distanceFromSurface < surfaceTolerance) {
             float splashAmplitude = SDL_fabsf(velocity) * 0.1f;
             if (splashAmplitude > 0.01f) {
-                addSplash(waterFieldId, x, field.config.surfaceY, splashAmplitude);
+                addSplash(waterFieldId, x, surfaceY, splashAmplitude);
             }
         }
         return;
@@ -178,10 +183,15 @@ void WaterEffectManager::onBodyExitWater(int waterFieldId, int bodyId, float x, 
         }
 
         // Add splash if exiting upward through top surface (positive velocity = upward motion)
-        if (velocity > 0.0f) {
+        // AND body is near the water surface (not exiting from side/bottom)
+        float surfaceY = field.config.surfaceY;
+        float distanceFromSurface = SDL_fabsf(y - surfaceY);
+        float surfaceTolerance = 0.2f;
+
+        if (velocity > 0.0f && distanceFromSurface < surfaceTolerance) {
             float splashAmplitude = SDL_fabsf(velocity) * 0.08f;
             if (splashAmplitude > 0.01f) {
-                addSplash(waterFieldId, x, field.config.surfaceY, splashAmplitude);
+                addSplash(waterFieldId, x, surfaceY, splashAmplitude);
             }
         }
         return;

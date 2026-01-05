@@ -89,14 +89,21 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                     if (waterFieldId >= 0) {
                         const WaterForceField* waterField = waterEffectManager_->getWaterForceField(waterFieldId);
                         if (waterField) {
-                            // Create splash particles when entering from above or exiting upward through top surface
+                            // Create splash particles only when crossing the water surface (not sides/bottom)
+                            // Check if body is near the surface Y position
+                            float surfaceY = waterField->config.surfaceY;
+                            float distanceFromSurface = SDL_fabsf(event.visitorY - surfaceY);
+                            float surfaceTolerance = 0.2f; // Allow some tolerance for surface crossing detection
+
                             bool shouldCreateSplash = false;
-                            if (event.isBegin) {
-                                // Entering water - check if moving downward
-                                shouldCreateSplash = (event.visitorVelY < 0.0f);
-                            } else {
-                                // Exiting water - check if moving upward
-                                shouldCreateSplash = (event.visitorVelY > 0.0f);
+                            if (distanceFromSurface < surfaceTolerance) {
+                                if (event.isBegin) {
+                                    // Entering water near surface - check if moving downward
+                                    shouldCreateSplash = (event.visitorVelY < 0.0f);
+                                } else {
+                                    // Exiting water near surface - check if moving upward
+                                    shouldCreateSplash = (event.visitorVelY > 0.0f);
+                                }
                             }
 
                             if (shouldCreateSplash) {
@@ -144,7 +151,7 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                 lua_getglobal(luaState_, "setParticleSystemPosition");
                                 lua_pushinteger(luaState_, particleSystemId);
                                 lua_pushnumber(luaState_, event.visitorX);
-                                lua_pushnumber(luaState_, waterField->config.surfaceY);
+                                lua_pushnumber(luaState_, surfaceY);
                                 lua_pcall(luaState_, 3, 0, 0);
                             }
                         }
