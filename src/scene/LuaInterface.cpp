@@ -3705,9 +3705,10 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
     (*vecPtr)->push_back({waterShaderId, WATER_SHADER_Z_INDEX});
     consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::setupWaterVisuals: added pipeline %d with zIndex %d", waterShaderId, WATER_SHADER_Z_INDEX);
 
-    // Create water pipeline (uses 33 float push constants + uniform buffer for polygon vertices)
+    // Create animation textured pipeline for water (uses 33 float push constants)
     // Water needs 2 textures: primary texture and reflection render target
-    renderer_.createWaterPipeline(waterShaderId, vertShader, fragShader, 2);
+    // NOTE: Using standard anim pipeline until water-specific descriptor sets are fixed
+    renderer_.createAnimTexturedPipeline(waterShaderId, vertShader, fragShader, 2);
 
     // 3. Load a placeholder texture (required for layer creation)
     const char* placeholderTextureName = "res/textures/rock1.png";

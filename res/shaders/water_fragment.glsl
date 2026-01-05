@@ -49,12 +49,15 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 0) uniform sampler2D texSampler;        // Primary texture (unused for water)
 layout(binding = 1) uniform sampler2D reflectionSampler; // Reflection render target
 
-// Water polygon uniform buffer (binding 2)
+// Water polygon uniform buffer (binding 2) - TEMPORARILY DISABLED
+// TODO: Fix descriptor set architecture to properly support this
+/*
 layout(binding = 2, std140) uniform WaterPolygonBuffer {
     vec2 vertices[8];  // 8 vertices, 64 bytes
     int vertexCount;   // 4 bytes
     // padding added automatically by std140
 } waterPolygon;
+*/
 
 const float PI = 3.14159265359;
 
@@ -151,9 +154,11 @@ float getTotalSplashHeight(float x) {
     return totalSplash;
 }
 
-// Point-in-polygon test for convex polygon (up to 8 vertices - full Box2D spec)
-// Returns true if point is inside the polygon
+// Point-in-polygon test TEMPORARILY DISABLED - always returns true (render to bounding box)
+// TODO: Re-enable once uniform buffer descriptor sets are fixed
 bool isPointInPolygon(vec2 point, int vertexCount) {
+    return true;  // Temporary: always inside (renders to full bounding box)
+    /*
     // Use cross product to determine if point is on the same side of all edges
     // For a convex polygon, point is inside if it's on the "inside" side of all edges
     
@@ -175,6 +180,7 @@ bool isPointInPolygon(vec2 point, int vertexCount) {
     }
     
     return allPositive || allNegative;
+    */
 }
 
 void main() {
@@ -191,8 +197,9 @@ void main() {
     float surfaceY = pc.param3;  // Actual water surface Y (accounts for percentage full)
     
     // Test if pixel is inside the water polygon (exact shape, not just bounding box)
-    // Polygon vertices now come from uniform buffer
-    if (!isPointInPolygon(fragWorldPos, waterPolygon.vertexCount)) {
+    // TEMPORARILY DISABLED - rendering to bounding box until descriptor sets are fixed
+    // TODO: Re-enable polygon clipping once uniform buffer is properly bound
+    if (!isPointInPolygon(fragWorldPos, 8)) {  // Always returns true for now
         discard;  // Outside the polygon - discard immediately
     }
 
