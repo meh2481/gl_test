@@ -200,8 +200,8 @@ function update(deltaTime)
 
     -- Update water percentage in a sinusoidal pattern
     waterTime = waterTime + deltaTime
-    local waterPercent = 0.5 + 0.4 * math.sin(waterTime * 0.5)
-    setWaterPercentage(waterField, waterPercent)
+    -- local waterPercent = 0.5 + 0.4 * math.sin(waterTime * 0.5)
+    -- setWaterPercentage(waterField, waterPercent)
 
     -- Update water rotation (slowly rotate the water force field)
     waterRotationTime = waterRotationTime + deltaTime

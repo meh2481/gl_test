@@ -1531,9 +1531,6 @@ void Box2DPhysics::setForceFieldWaterSurface(int forceFieldId, float surfaceY) {
     auto it = forceFields_.find(forceFieldId);
     if (it != nullptr && it->isWater) {
         it->waterSurfaceY = surfaceY;
-        if (consoleBuffer_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::setForceFieldWaterSurface: force field %d surface Y updated to %.2f", forceFieldId, surfaceY);
-        }
     }
 
     SDL_UnlockMutex(physicsMutex_);
@@ -1547,9 +1544,6 @@ void Box2DPhysics::setForceFieldRotation(int forceFieldId, float rotation) {
         auto bodyIt = bodies_.find(it->bodyId);
         if (bodyIt != nullptr) {
             b2Body_SetTransform(*bodyIt, b2Body_GetPosition(*bodyIt), b2MakeRot(rotation));
-            if (consoleBuffer_) {
-                consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::setForceFieldRotation: force field %d rotation updated to %.2f rad", forceFieldId, rotation);
-            }
         }
     }
 

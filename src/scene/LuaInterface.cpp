@@ -1784,7 +1784,7 @@ int LuaInterface::setWaterPercentage(lua_State* L) {
         int* pipelineIdPtr = interface->waterFieldShaderMap_.find(waterFieldId);
         if (pipelineIdPtr) {
             int pipelineId = *pipelineIdPtr;
-            
+
             float shaderParams[7] = {
                 field->config.alpha,
                 field->config.rippleAmplitude,
@@ -1794,13 +1794,13 @@ int LuaInterface::setWaterPercentage(lua_State* L) {
                 field->config.minY,
                 field->config.maxX
             };
-            
+
             interface->renderer_.setShaderParameters(pipelineId, 7, shaderParams);
-            
+
             // Update water polygon uniform buffer with rotated vertices
             float cosAngle = SDL_cosf(field->config.rotation);
             float sinAngle = SDL_sinf(field->config.rotation);
-            
+
             float rotatedVertices[MAX_WATER_POLYGON_VERTICES * 2];
             for (int i = 0; i < field->config.vertexCount; ++i) {
                 float localX = field->config.vertices[i * 2] - field->config.centerX;
@@ -1808,9 +1808,9 @@ int LuaInterface::setWaterPercentage(lua_State* L) {
                 rotatedVertices[i * 2] = field->config.centerX + localX * cosAngle - localY * sinAngle;
                 rotatedVertices[i * 2 + 1] = field->config.centerY + localX * sinAngle + localY * cosAngle;
             }
-            
+
             interface->renderer_.updateWaterPolygonVertices(rotatedVertices, field->config.vertexCount);
-            
+
             interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterPercentage: updated water %d to %.2f%% (surfaceY=%.2f)", physicsForceFieldId, percentage * 100.0f, surfaceY);
         }
     }
@@ -1856,7 +1856,7 @@ int LuaInterface::setWaterRotation(lua_State* L) {
         int* pipelineIdPtr = interface->waterFieldShaderMap_.find(waterFieldId);
         if (pipelineIdPtr) {
             int pipelineId = *pipelineIdPtr;
-            
+
             float shaderParams[7] = {
                 field->config.alpha,
                 field->config.rippleAmplitude,
@@ -1866,13 +1866,13 @@ int LuaInterface::setWaterRotation(lua_State* L) {
                 field->config.minY,
                 field->config.maxX
             };
-            
+
             interface->renderer_.setShaderParameters(pipelineId, 7, shaderParams);
-            
+
             // Update water polygon uniform buffer with rotated vertices
             float cosAngle = SDL_cosf(field->config.rotation);
             float sinAngle = SDL_sinf(field->config.rotation);
-            
+
             float rotatedVertices[MAX_WATER_POLYGON_VERTICES * 2];
             for (int i = 0; i < field->config.vertexCount; ++i) {
                 float localX = field->config.vertices[i * 2] - field->config.centerX;
@@ -1880,10 +1880,8 @@ int LuaInterface::setWaterRotation(lua_State* L) {
                 rotatedVertices[i * 2] = field->config.centerX + localX * cosAngle - localY * sinAngle;
                 rotatedVertices[i * 2 + 1] = field->config.centerY + localX * sinAngle + localY * cosAngle;
             }
-            
+
             interface->renderer_.updateWaterPolygonVertices(rotatedVertices, field->config.vertexCount);
-            
-            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated water %d rotation to %.2f rad (surfaceY=%.2f)", physicsForceFieldId, rotation, surfaceY);
         }
     }
 
@@ -3791,17 +3789,17 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
     // Parameters: alpha, rippleAmplitude, rippleSpeed, surfaceY, minX, minY, maxX
     float shaderParams[7] = {alpha, rippleAmplitude, rippleSpeed, surfaceY, minX, minY, maxX};
     renderer_.setShaderParameters(waterShaderId, 7, shaderParams);
-    
+
     // 10. Update water polygon uniform buffer with rotated vertices
     int waterForceFieldIdInternal = waterEffectManager_->findByPhysicsForceField(physicsForceFieldId);
     const WaterForceField* waterField = waterEffectManager_->getWaterForceField(waterForceFieldIdInternal);
     if (waterField) {
         const WaterForceFieldConfig& config = waterField->config;
-        
+
         // Calculate rotated vertices
         float cosAngle = SDL_cosf(config.rotation);
         float sinAngle = SDL_sinf(config.rotation);
-        
+
         float rotatedVertices[MAX_WATER_POLYGON_VERTICES * 2];
         for (int i = 0; i < config.vertexCount; ++i) {
             float localX = config.vertices[i * 2] - config.centerX;
@@ -3809,11 +3807,11 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
             rotatedVertices[i * 2] = config.centerX + localX * cosAngle - localY * sinAngle;
             rotatedVertices[i * 2 + 1] = config.centerY + localX * sinAngle + localY * cosAngle;
         }
-        
+
         renderer_.updateWaterPolygonVertices(rotatedVertices, config.vertexCount);
         consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water polygon buffer updated: %d vertices", config.vertexCount);
     }
-    
+
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
 
     // 10. Associate the water shader with the water force field for splash ripples
