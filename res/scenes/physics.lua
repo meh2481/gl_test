@@ -94,7 +94,7 @@ function init()
     print("Polygon node created at position: (" .. polyX .. ", " .. polyY .. ")")
 
     -- Load objects
-    table.insert(objects, loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.7 }))
+    table.insert(objects, loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.2 }))
     table.insert(objects, loadObject("res/objects/lightsaber/lightsaber.lua", { x = 0.3, y = 0.2, colorR = 0.3, colorG = 0.7, colorB = 1.0 }))
     table.insert(objects, loadObject("res/objects/lightsaber/lightsaber.lua", { x = 0.5, y = 0.2, colorR = 1.0, colorG = 0.0, colorB = 0.0 }))
     table.insert(objects, loadObject("res/objects/destructible_box/destructible_box.lua", { x = 0.8, y = 0.5 }))

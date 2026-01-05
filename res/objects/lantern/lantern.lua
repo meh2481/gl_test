@@ -13,6 +13,7 @@ Lantern.chainAnchor = nil
 Lantern.lightId = nil
 Lantern.particleSystemId = nil
 Lantern.config = nil
+Lantern.bloomLayerId = nil
 
 -- Loaded resources (loaded once on first create)
 Lantern.lanternTexId = nil
@@ -136,10 +137,10 @@ function Lantern.create(params)
     table.insert(Lantern.layers, lanternLayerId)
 
     -- Add bloom effect
-    local bloomLayerId = createLayer(Lantern.bloomTexId, 1.6, Lantern.bloomShaderId)
-    attachLayerToBody(bloomLayerId, Lantern.lightBody)
-    setLayerOffset(bloomLayerId, 0, -0.004)
-    table.insert(Lantern.layers, bloomLayerId)
+    Lantern.bloomLayerId = createLayer(Lantern.bloomTexId, 1.6, Lantern.bloomShaderId)
+    attachLayerToBody(Lantern.bloomLayerId, Lantern.lightBody)
+    setLayerOffset(Lantern.bloomLayerId, 0, -0.004)
+    table.insert(Lantern.layers, Lantern.bloomLayerId)
 
     -- Connect light to the last chain link
     local lightJointId = b2CreateRevoluteJoint(
@@ -172,7 +173,7 @@ function Lantern.create(params)
 end
 
 function Lantern.extinguish()
-    if not Lantern.lightId then return end
+    if not Lantern.particleSystemId then return end
 
     if Lantern.particleSystemId then
         destroyParticleSystem(Lantern.particleSystemId)
@@ -181,10 +182,9 @@ function Lantern.extinguish()
 
     updateLight(Lantern.lightId, 0, 0, 0, 0, 0, 0, 0)
 
-    if Lantern.layers and #Lantern.layers >= 3 then
-        local bloomLayerId = Lantern.layers[3]
-        if bloomLayerId then
-            setLayerScale(bloomLayerId, 0, 0)
+    if Lantern.bloomLayerId then
+        if Lantern.bloomLayerId then
+            setLayerScale(Lantern.bloomLayerId, 0, 0)
         end
     end
 end
@@ -197,11 +197,8 @@ function Lantern.relight()
 
     updateLight(Lantern.lightId, x, y, Lantern.config.lightZ, Lantern.config.lightR, Lantern.config.lightG, Lantern.config.lightB, Lantern.config.lightIntensity)
 
-    if Lantern.layers and #Lantern.layers >= 3 then
-        local bloomLayerId = Lantern.layers[3]
-        if bloomLayerId then
-            setLayerScale(bloomLayerId, 1.0, 1.0)
-        end
+    if Lantern.bloomLayerId then
+        setLayerScale(Lantern.bloomLayerId, 1.0, 1.0)
     end
 
     if Lantern.config.enableParticles and Lantern.particlePipelineId and not Lantern.particleSystemId then
