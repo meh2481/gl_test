@@ -137,6 +137,7 @@ private:
         float parallaxDepth;
         uint32_t indexCount;
         uint32_t firstIndex;
+        uint32_t orderIndex;  // Stable ordering index to preserve creation order
         bool isParticle;  // true = particle batch, false = sprite batch
 
         // Animation parameters

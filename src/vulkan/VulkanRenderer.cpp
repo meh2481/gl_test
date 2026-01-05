@@ -1059,6 +1059,7 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
     Vector<float> allVertexData(*m_allocator, "VulkanRenderer::generateSpriteBatches::allVertexData");
     Vector<uint16_t> allIndices(*m_allocator, "VulkanRenderer::generateSpriteBatches::allIndices");
     uint32_t baseVertex = 0;
+    uint32_t orderIndex = 0;
 
     for (const auto& batch : batches) {
         if (batch.vertices.empty() || batch.indices.empty()) {
@@ -1073,6 +1074,7 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
         drawData.parallaxDepth = batch.parallaxDepth;
         drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        drawData.orderIndex = orderIndex++;
         drawData.isParticle = false;
 
         // Copy animation parameters
@@ -1132,6 +1134,8 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
     Vector<float> allVertexData(*m_allocator, "VulkanRenderer::generateParticleBatches::allVertexData");
     Vector<uint16_t> allIndices(*m_allocator, "VulkanRenderer::generateParticleBatches::allIndices");
     uint32_t baseVertex = 0;
+    // Start order index after sprite batches to preserve creation order
+    uint32_t orderIndex = static_cast<uint32_t>(m_spriteBatches.size());
 
     for (const auto& batch : batches) {
         if (batch.vertices.empty() || batch.indices.empty()) {
@@ -1146,6 +1150,7 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
         drawData.parallaxDepth = batch.parallaxDepth;
         drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        drawData.orderIndex = orderIndex++;
         drawData.isParticle = true;
 
         // Initialize animation parameters to defaults (no animation for particles)
@@ -1207,9 +1212,18 @@ void VulkanRenderer::rebuildAllBatches() {
         m_allBatches.push_back(b);
     }
     // Sort by parallax depth (higher = background = drawn first)
+    // Then by order index to preserve creation order (lower = created earlier = drawn first)
     m_allBatches.sort([](const BatchDrawData& a, const BatchDrawData& b) {
-        return a.parallaxDepth > b.parallaxDepth;
+        if (a.parallaxDepth != b.parallaxDepth) {
+            return a.parallaxDepth > b.parallaxDepth;
+        }
+        return a.orderIndex < b.orderIndex;
     });
+
+    if (m_consoleBuffer) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Rebuilt %zu batches (%zu sprites, %zu particles)",
+                            m_allBatches.size(), m_spriteBatches.size(), m_particleBatches.size());
+    }
 }
 
 // Light management delegation
