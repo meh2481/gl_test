@@ -1696,6 +1696,10 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
     for (const auto& batch : m_allBatches) {
         if (batch.isParticle) continue;  // Skip particles for reflection
 
+        // Skip batches that are at or below the water surface
+        // Batches below water have their center Y <= surfaceY
+        if (batch.centerY <= m_reflectionSurfaceY) continue;
+
         VkPipeline pipeline = m_pipelineManager.getPipeline(batch.pipelineId);
         const PipelineInfo* info = m_pipelineManager.getPipelineInfo(batch.pipelineId);
 
