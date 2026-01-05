@@ -1,4 +1,5 @@
 * Add a node script that, when an object of type "player" enters it, loads a specified scene.
 * Implement a function to save the current game state to a file.
-* Make water splash particle effects only appear when the object is entering from the top of the water.
 * Test that lantern extinguish/relight works, as well as other object interactions
+* Make water force field areas support polygons instead of just boxes (and able to rotate)
+* Add a water percentage fill property to water force fields (100% full = current behavior)
