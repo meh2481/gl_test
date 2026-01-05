@@ -121,6 +121,40 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
 
                             if (shouldCreateSplash) {
                                 createSplashParticles(event.visitorX, surfaceY);
+
+                                // Also trigger collision callback for type-based interactions when splashing
+                                // This allows water-fire interactions (lantern extinguishing) at the correct water level
+                                Vector<String> sensorTypes = physics_->getBodyTypes(event.sensorBodyId);
+                                Vector<String> visitorTypes = physics_->getBodyTypes(event.visitorBodyId);
+
+                                if (sensorTypes.size() > 0 && visitorTypes.size() > 0) {
+                                    // Calculate approach speed from velocity
+                                    float approachSpeed = SDL_sqrtf(event.visitorVelX * event.visitorVelX +
+                                                                   event.visitorVelY * event.visitorVelY);
+                                    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+                                        "Water splash collision callback: sensor body %d, visitor body %d at actual surface Y=%.2f",
+                                        event.sensorBodyId, event.visitorBodyId, surfaceY);
+
+                                    // Trigger Lua collision callback with the splash event
+                                    lua_getglobal(luaState_, "handleCollision");
+                                    if (lua_isfunction(luaState_, -1)) {
+                                        lua_pushinteger(luaState_, event.sensorBodyId);
+                                        lua_pushinteger(luaState_, event.visitorBodyId);
+                                        lua_pushnumber(luaState_, event.visitorX);
+                                        lua_pushnumber(luaState_, surfaceY);  // Use actual water surface Y
+                                        lua_pushnumber(luaState_, 0.0f);
+                                        lua_pushnumber(luaState_, 1.0f);
+                                        lua_pushnumber(luaState_, approachSpeed);
+                                        if (lua_pcall(luaState_, 7, 0, 0) != LUA_OK) {
+                                            const char* errorMsg = lua_tostring(luaState_, -1);
+                                            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+                                                "handleCollision error: %s", (errorMsg ? errorMsg : "unknown"));
+                                            lua_pop(luaState_, 1);
+                                        }
+                                    } else {
+                                        lua_pop(luaState_, 1);  // Pop non-function value
+                                    }
+                                }
                             }
                         }
                     }
