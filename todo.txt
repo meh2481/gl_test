@@ -2,4 +2,3 @@
 * Implement a function to save the current game state to a file.
 * Test that lantern extinguish/relight works, as well as other object interactions
 * Make water force field areas support polygons instead of just boxes (and able to rotate)
-* Add a water percentage fill property to water force fields (100% full = current behavior)
