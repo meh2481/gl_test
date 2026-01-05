@@ -263,7 +263,7 @@ void ImGuiManager::showConsoleWindow() {
     ImGui::Begin("Console Output", nullptr);
 
     // Log level filter
-    static bool filterVerbose = true;
+    static bool filterVerbose = false;
     static bool filterDebug = true;
     static bool filterInfo = true;
     static bool filterWarn = true;

@@ -2273,7 +2273,6 @@ bool Box2DPhysics::bodyHasType(int bodyId, const char* type) const {
 
 Vector<String> Box2DPhysics::getBodyTypes(int bodyId) const {
     SDL_LockMutex(physicsMutex_);
-    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::getBodyTypes: bodyId=%d", bodyId);
     Vector<String>* const* it = bodyTypes_.find(bodyId);
     Vector<String> result(*stringAllocator_, "Box2DPhysics::getBodyTypes::result");
     if (it != nullptr) {
@@ -2282,7 +2281,6 @@ Vector<String> Box2DPhysics::getBodyTypes(int bodyId) const {
         for (const auto& t : *types) {
             result.push_back(t);
         }
-        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::getBodyTypes: returning %zu types", result.size());
     }
     SDL_UnlockMutex(physicsMutex_);
     return result;

@@ -27,7 +27,7 @@ public:
         : stringAllocator_(smallAllocator)
         , lines_(*largeAllocator, "ConsoleBuffer::lines_")
         , currentLine_(smallAllocator)
-        , filterMask_(0xFF) {  // Store all priorities by default
+        , filterMask_(0xFF & ~(1 << SDL_LOG_PRIORITY_VERBOSE)) {  // Store all priorities except verbose by default
         assert(stringAllocator_ != nullptr);
         mutex_ = SDL_CreateMutex();
         assert(mutex_ != nullptr);
