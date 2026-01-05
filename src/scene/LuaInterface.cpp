@@ -89,6 +89,13 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                     if (waterFieldId >= 0) {
                         const WaterForceField* waterField = waterEffectManager_->getWaterForceField(waterFieldId);
                         if (waterField) {
+                            // Track body entry/exit for continuous splash detection
+                            if (event.isBegin) {
+                                waterEffectManager_->onBodyEnterWater(waterFieldId, event.visitorBodyId, event.visitorX, event.visitorY, event.visitorVelY);
+                            } else {
+                                waterEffectManager_->onBodyExitWater(waterFieldId, event.visitorBodyId, event.visitorX, event.visitorY, event.visitorVelY);
+                            }
+
                             // Create splash particles only when crossing the water surface (not sides/bottom)
                             // Check if body is near the surface Y position
                             // AND within the horizontal bounds of the water (not past left/right edges)

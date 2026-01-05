@@ -155,7 +155,7 @@ void main() {
     float waterAlpha = pc.param0;
     float rippleAmplitude = pc.param1;
     float rippleSpeed = pc.param2;
-    float surfaceY = waterBoundsMax.y;
+    float surfaceY = pc.param3;  // Actual water surface Y (accounts for percentage full)
 
     // Calculate animated surface height at this X position (ambient waves)
     float surfaceWaveOffset = getWaterSurfaceHeight(fragWorldPos.x, pc.time, rippleAmplitude, rippleSpeed);
