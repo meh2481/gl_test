@@ -615,10 +615,10 @@ void VulkanDescriptor::createWaterDescriptorSetLayout() {
 void VulkanDescriptor::createWaterDescriptorPool() {
     // Pool needs space for 2 samplers + 1 uniform buffer
     VkDescriptorPoolSize poolSizes[2];
-    
+
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[0].descriptorCount = 2;  // 2 texture samplers
-    
+
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[1].descriptorCount = 1;  // 1 uniform buffer
 
@@ -680,7 +680,7 @@ void VulkanDescriptor::createWaterDescriptorSet(uint64_t texture1Id, uint64_t te
     bufferInfo.range = bufferSize;
 
     VkWriteDescriptorSet descriptorWrites[3];
-    
+
     // Binding 0: primary texture
     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrites[0].dstSet = m_waterDescriptorSet;
