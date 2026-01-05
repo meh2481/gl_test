@@ -91,12 +91,15 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                         if (waterField) {
                             // Create splash particles only when crossing the water surface (not sides/bottom)
                             // Check if body is near the surface Y position
+                            // AND within the horizontal bounds of the water (not past left/right edges)
                             float surfaceY = waterField->config.surfaceY;
                             float distanceFromSurface = SDL_fabsf(event.visitorY - surfaceY);
                             float surfaceTolerance = 0.2f; // Allow some tolerance for surface crossing detection
+                            bool withinHorizontalBounds = (event.visitorX >= waterField->config.minX &&
+                                                          event.visitorX <= waterField->config.maxX);
 
                             bool shouldCreateSplash = false;
-                            if (distanceFromSurface < surfaceTolerance) {
+                            if (distanceFromSurface < surfaceTolerance && withinHorizontalBounds) {
                                 if (event.isBegin) {
                                     // Entering water near surface - check if moving downward
                                     shouldCreateSplash = (event.visitorVelY < 0.0f);
