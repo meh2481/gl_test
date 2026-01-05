@@ -524,8 +524,8 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
         }
 
         int score = rateDevice(devices[i]);
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  [%d] %s (%s) - %llu MB - Score: %d", 
-                             i, props.deviceName, deviceTypeStr, 
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  [%d] %s (%s) - %llu MB - Score: %d",
+                             i, props.deviceName, deviceTypeStr,
                              (unsigned long long)(maxDeviceLocalMemory / (1024 * 1024)), score);
     }
 
@@ -1219,11 +1219,6 @@ void VulkanRenderer::rebuildAllBatches() {
         }
         return a.orderIndex < b.orderIndex;
     });
-
-    if (m_consoleBuffer) {
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Rebuilt %zu batches (%zu sprites, %zu particles)",
-                            m_allBatches.size(), m_spriteBatches.size(), m_particleBatches.size());
-    }
 }
 
 // Light management delegation

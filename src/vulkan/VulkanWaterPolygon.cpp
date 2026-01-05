@@ -52,7 +52,7 @@ uint32_t VulkanWaterPolygon::findMemoryType(uint32_t typeFilter, VkMemoryPropert
 
 void VulkanWaterPolygon::createUniformBuffer() {
     VkDeviceSize bufferSize = sizeof(WaterPolygonBufferData);
-    
+
     SDL_Log("VulkanWaterPolygon::createUniformBuffer - Creating buffer of size %zu bytes", (size_t)bufferSize);
 
     VkBufferCreateInfo bufferInfo{};
@@ -77,13 +77,13 @@ void VulkanWaterPolygon::createUniformBuffer() {
 
     // Map the buffer memory for persistent updating
     vkMapMemory(m_device, m_uniformBufferMemory, 0, bufferSize, 0, &m_uniformBufferMapped);
-    
+
     SDL_Log("VulkanWaterPolygon::createUniformBuffer - Buffer created successfully: %p", (void*)m_uniformBuffer);
 }
 
 void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCount) {
     assert(vertexCount >= 0 && vertexCount <= 8);
-    
+
     // If buffer not created yet, just store the data for later
     if (m_uniformBufferMapped == nullptr) {
         SDL_Log("VulkanWaterPolygon::updateUniformBuffer - buffer not mapped yet, storing data for later");
@@ -100,12 +100,12 @@ void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCo
         }
         return;
     }
-    
+
     m_bufferData.vertexCount = vertexCount;
     for (int i = 0; i < vertexCount * 2; ++i) {
         m_bufferData.vertices[i] = vertices[i];
     }
-    
+
     // Pad remaining vertices with last vertex (for shader simplicity)
     if (vertexCount > 0) {
         for (int i = vertexCount; i < 8; ++i) {
@@ -113,8 +113,6 @@ void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCo
             m_bufferData.vertices[i * 2 + 1] = vertices[(vertexCount - 1) * 2 + 1];
         }
     }
-    
+
     memcpy(m_uniformBufferMapped, &m_bufferData, sizeof(WaterPolygonBufferData));
-    SDL_Log("VulkanWaterPolygon::updateUniformBuffer - updated buffer with %d vertices (first vertex: %.3f, %.3f)", 
-            vertexCount, vertices[0], vertices[1]);
 }
