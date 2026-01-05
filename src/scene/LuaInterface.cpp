@@ -21,6 +21,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       pipelineIndex_(0), currentSceneId_(0),
       scenePipelines_(*allocator, "LuaInterface::scenePipelines"),
       waterFieldShaderMap_(*allocator, "LuaInterface::waterFieldShaderMap"),
+      waterFieldLayerMap_(*allocator, "LuaInterface::waterFieldLayerMap"),
       particlePipelineCache_(*allocator, "LuaInterface::particlePipelineCache"),
       nodes_(*allocator, "LuaInterface::nodes"),
       bodyToNodeMap_(*allocator, "LuaInterface::bodyToNodeMap"),
@@ -1882,6 +1883,23 @@ int LuaInterface::setWaterRotation(lua_State* L) {
             }
 
             interface->renderer_.updateWaterPolygonVertices(rotatedVertices, field->config.vertexCount);
+
+            // Update the water layer bounds to match the rotated bounding box
+            int* layerIdPtr = interface->waterFieldLayerMap_.find(waterFieldId);
+            if (layerIdPtr) {
+                int layerId = *layerIdPtr;
+
+                // Calculate new center and dimensions from rotated bounding box
+                float newCenterX = (field->config.minX + field->config.maxX) / 2.0f;
+                float newCenterY = (field->config.minY + field->config.maxY) / 2.0f;
+
+                // Update layer position to match new center of rotated bounding box
+                interface->layerManager_->setLayerPosition(layerId, newCenterX, newCenterY, 0.0f);
+
+                interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated layer %d position to (%.2f, %.2f)", layerId, newCenterX, newCenterY);
+            }
+
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated water %d rotation to %.2f rad (surfaceY=%.2f)", physicsForceFieldId, rotation, surfaceY);
         }
     }
 
@@ -3814,8 +3832,9 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
 
-    // 10. Associate the water shader with the water force field for splash ripples
+    // 10. Associate the water shader and layer with the water force field
     waterFieldShaderMap_.insert(waterFieldId, waterShaderId);
+    waterFieldLayerMap_.insert(waterFieldId, waterLayerId);
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
 }
