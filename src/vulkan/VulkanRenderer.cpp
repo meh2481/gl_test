@@ -1219,6 +1219,11 @@ void VulkanRenderer::rebuildAllBatches() {
         }
         return a.orderIndex < b.orderIndex;
     });
+
+    if (m_consoleBuffer) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Rebuilt %zu batches (%zu sprites, %zu particles)",
+                            m_allBatches.size(), m_spriteBatches.size(), m_particleBatches.size());
+    }
 }
 
 // Light management delegation
