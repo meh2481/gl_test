@@ -1884,34 +1884,34 @@ int LuaInterface::setWaterRotation(lua_State* L) {
 
             interface->renderer_.updateWaterPolygonVertices(rotatedVertices, field->config.vertexCount);
 
-            // Update the water layer bounds to match the rotated bounding box
+            // Update the water layer polygon with rotated vertices
             int* layerIdPtr = interface->waterFieldLayerMap_.find(waterFieldId);
             if (layerIdPtr) {
                 int layerId = *layerIdPtr;
 
-                // Calculate new center and dimensions from rotated bounding box
-                float newCenterX = (field->config.minX + field->config.maxX) / 2.0f;
-                float newCenterY = (field->config.minY + field->config.maxY) / 2.0f;
-                float newWidth = field->config.maxX - field->config.minX;
-                float newHeight = field->config.maxY - field->config.minY;
+                // Set up UV coordinates for the polygon vertices
+                // We want the texture to map across the entire polygon
+                // Use simple planar UV mapping based on bounding box
+                float uvs[MAX_WATER_POLYGON_VERTICES * 2];
+                float minX = field->config.minX;
+                float maxX = field->config.maxX;
+                float minY = field->config.minY;
+                float maxY = field->config.maxY;
+                float rangeX = maxX - minX;
+                float rangeY = maxY - minY;
 
-                // Get the layer to calculate new scale
-                const HashTable<int, SceneLayer>& layers = interface->layerManager_->getLayers();
-                const SceneLayer* layerPtr = layers.find(layerId);
-                if (layerPtr) {
-                    const SceneLayer* layer = layerPtr;
-
-                    // Calculate the new scale needed to match the rotated bounding box
-                    // The layer width/height are the base dimensions, scale multiplies them
-                    float newScaleX = newWidth / layer->width;
-                    float newScaleY = newHeight / layer->height;
-
-                    // Update layer position and scale to match the rotated bounding box
-                    interface->layerManager_->setLayerPosition(layerId, newCenterX, newCenterY, 0.0f);
-                    interface->layerManager_->setLayerScale(layerId, newScaleX, newScaleY);
-
-                    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated layer %d position to (%.2f, %.2f) and scale to (%.2f, %.2f)", layerId, newCenterX, newCenterY, newScaleX, newScaleY);
+                for (int i = 0; i < field->config.vertexCount; ++i) {
+                    // Map vertex position to UV space (0..1)
+                    float vx = rotatedVertices[i * 2];
+                    float vy = rotatedVertices[i * 2 + 1];
+                    uvs[i * 2] = (vx - minX) / rangeX;        // U
+                    uvs[i * 2 + 1] = (vy - minY) / rangeY;    // V
                 }
+
+                // Update the layer polygon with rotated vertices and UVs
+                interface->layerManager_->setLayerPolygon(layerId, rotatedVertices, uvs, nullptr, field->config.vertexCount);
+
+                interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated layer %d polygon with %d rotated vertices", layerId, field->config.vertexCount);
             }
 
             interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "setWaterRotation: updated water %d rotation to %.2f rad (surfaceY=%.2f)", physicsForceFieldId, rotation, surfaceY);
@@ -3804,14 +3804,8 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
                                         atlasUV.u0, atlasUV.v0, atlasUV.u1, atlasUV.v1);
     }
 
-    // 8. Set layer properties
-    layerManager_->setLayerPosition(waterLayerId, centerX, centerY, 0.0f);
-
-    // Scale height to cover the water area plus wave buffer
-    float scaleY = (totalHeight * aspectRatio) / waterWidth;
-    layerManager_->setLayerScale(waterLayerId, 1.0f, scaleY);
-
-    // Use a tiny positive parallax depth so the layer isn't skipped
+    // 8. Set layer properties - use polygon rendering instead of quad
+    // Use a tiny negative parallax depth so the layer isn't skipped
     // (layers with no physics body and zero parallax are skipped in SceneLayerManager)
     layerManager_->setLayerParallaxDepth(waterLayerId, -0.001f);
 
@@ -3823,7 +3817,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
     float shaderParams[7] = {alpha, rippleAmplitude, rippleSpeed, surfaceY, minX, minY, maxX};
     renderer_.setShaderParameters(waterShaderId, 7, shaderParams);
 
-    // 10. Update water polygon uniform buffer with rotated vertices
+    // 10. Set up polygon vertices and UVs for the water layer
     int waterForceFieldIdInternal = waterEffectManager_->findByPhysicsForceField(physicsForceFieldId);
     const WaterForceField* waterField = waterEffectManager_->getWaterForceField(waterForceFieldIdInternal);
     if (waterField) {
@@ -3841,8 +3835,27 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
             rotatedVertices[i * 2 + 1] = config.centerY + localX * sinAngle + localY * cosAngle;
         }
 
+        // Update water polygon uniform buffer
         renderer_.updateWaterPolygonVertices(rotatedVertices, config.vertexCount);
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water polygon buffer updated: %d vertices", config.vertexCount);
+
+        // Set up UV coordinates for the polygon vertices
+        // Use planar UV mapping based on bounding box
+        float uvs[MAX_WATER_POLYGON_VERTICES * 2];
+        float rangeX = maxX - minX;
+        float rangeY = maxY - minY;
+
+        for (int i = 0; i < config.vertexCount; ++i) {
+            // Map vertex position to UV space (0..1)
+            float vx = rotatedVertices[i * 2];
+            float vy = rotatedVertices[i * 2 + 1];
+            uvs[i * 2] = (vx - minX) / rangeX;        // U
+            uvs[i * 2 + 1] = (vy - minY) / rangeY;    // V
+        }
+
+        // Set the layer to render as a polygon with the rotated vertices
+        layerManager_->setLayerPolygon(waterLayerId, rotatedVertices, uvs, nullptr, config.vertexCount);
+
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water polygon layer setup: %d vertices", config.vertexCount);
     }
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
