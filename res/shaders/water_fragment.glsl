@@ -21,23 +21,21 @@ layout(push_constant) uniform PushConstants {
     float ripple1_x;
     float ripple1_time;
     float ripple1_amplitude;
-    // Polygon vertices (8 vertices for full Box2D spec support - octagon)
-    float polyVertex0X;
-    float polyVertex0Y;
-    float polyVertex1X;
-    float polyVertex1Y;
-    float polyVertex2X;
-    float polyVertex2Y;
-    float polyVertex3X;
-    float polyVertex3Y;
-    float polyVertex4X;
-    float polyVertex4Y;
-    float polyVertex5X;
-    float polyVertex5Y;
-    float polyVertex6X;
-    float polyVertex6Y;
-    float polyVertex7X;
-    float polyVertex7Y;
+    float ripple2_x;
+    float ripple2_time;
+    float ripple2_amplitude;
+    float ripple3_x;
+    float ripple3_time;
+    float ripple3_amplitude;
+    // Unused animation slots (polygon data now in uniform buffer)
+    float unused0;
+    float unused1;
+    float unused2;
+    float unused3;
+    float unused4;
+    float unused5;
+    float unused6;
+    float unused7;
 } pc;
 
 layout(location = 0) in vec2 fragTexCoord;
@@ -50,6 +48,13 @@ layout(location = 0) out vec4 outColor;
 
 layout(binding = 0) uniform sampler2D texSampler;        // Primary texture (unused for water)
 layout(binding = 1) uniform sampler2D reflectionSampler; // Reflection render target
+
+// Water polygon uniform buffer (binding 2)
+layout(binding = 2, std140) uniform WaterPolygonBuffer {
+    vec2 vertices[8];  // 8 vertices, 64 bytes
+    int vertexCount;   // 4 bytes
+    // padding added automatically by std140
+} waterPolygon;
 
 const float PI = 3.14159265359;
 
@@ -133,20 +138,22 @@ float getSplashRippleHeight(float x, float rippleX, float rippleTime, float ripp
     return wave * wavefrontFade;
 }
 
-// Calculate total splash ripple contribution from all active ripples (reduced to 2)
+// Calculate total splash ripple contribution from all active ripples (back to 4 ripples)
 float getTotalSplashHeight(float x) {
     float totalSplash = 0.0;
 
-    // Add contribution from each ripple (only 2 now to save space for polygon vertices)
+    // Add contribution from each ripple
     totalSplash += getSplashRippleHeight(x, pc.ripple0_x, pc.ripple0_time, pc.ripple0_amplitude);
     totalSplash += getSplashRippleHeight(x, pc.ripple1_x, pc.ripple1_time, pc.ripple1_amplitude);
+    totalSplash += getSplashRippleHeight(x, pc.ripple2_x, pc.ripple2_time, pc.ripple2_amplitude);
+    totalSplash += getSplashRippleHeight(x, pc.ripple3_x, pc.ripple3_time, pc.ripple3_amplitude);
 
     return totalSplash;
 }
 
 // Point-in-polygon test for convex polygon (up to 8 vertices - full Box2D spec)
 // Returns true if point is inside the polygon
-bool isPointInPolygon(vec2 point, vec2 vertices[8], int vertexCount) {
+bool isPointInPolygon(vec2 point, int vertexCount) {
     // Use cross product to determine if point is on the same side of all edges
     // For a convex polygon, point is inside if it's on the "inside" side of all edges
     
@@ -154,8 +161,8 @@ bool isPointInPolygon(vec2 point, vec2 vertices[8], int vertexCount) {
     bool allNegative = true;
     
     for (int i = 0; i < vertexCount; ++i) {
-        vec2 v0 = vertices[i];
-        vec2 v1 = vertices[(i + 1) % vertexCount];
+        vec2 v0 = waterPolygon.vertices[i];
+        vec2 v1 = waterPolygon.vertices[(i + 1) % vertexCount];
         
         vec2 edge = v1 - v0;
         vec2 toPoint = point - v0;
@@ -184,27 +191,8 @@ void main() {
     float surfaceY = pc.param3;  // Actual water surface Y (accounts for percentage full)
     
     // Test if pixel is inside the water polygon (exact shape, not just bounding box)
-    vec2 polyVertices[8];
-    polyVertices[0] = vec2(pc.polyVertex0X, pc.polyVertex0Y);
-    polyVertices[1] = vec2(pc.polyVertex1X, pc.polyVertex1Y);
-    polyVertices[2] = vec2(pc.polyVertex2X, pc.polyVertex2Y);
-    polyVertices[3] = vec2(pc.polyVertex3X, pc.polyVertex3Y);
-    polyVertices[4] = vec2(pc.polyVertex4X, pc.polyVertex4Y);
-    polyVertices[5] = vec2(pc.polyVertex5X, pc.polyVertex5Y);
-    polyVertices[6] = vec2(pc.polyVertex6X, pc.polyVertex6Y);
-    polyVertices[7] = vec2(pc.polyVertex7X, pc.polyVertex7Y);
-    
-    // Determine actual vertex count (vertices are padded with duplicates)
-    // Count unique vertices by checking distance between consecutive vertices
-    int actualVertexCount = 8;
-    for (int i = 1; i < 8; ++i) {
-        if (distance(polyVertices[i], polyVertices[i-1]) < 0.001) {
-            actualVertexCount = i;
-            break;
-        }
-    }
-    
-    if (!isPointInPolygon(fragWorldPos, polyVertices, actualVertexCount)) {
+    // Polygon vertices now come from uniform buffer
+    if (!isPointInPolygon(fragWorldPos, waterPolygon.vertexCount)) {
         discard;  // Outside the polygon - discard immediately
     }
 
