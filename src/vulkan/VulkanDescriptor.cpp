@@ -642,6 +642,16 @@ void VulkanDescriptor::createWaterDescriptorSet(uint64_t texture1Id, uint64_t te
     assert(m_textureManager->getTexture(texture1Id, &tex1));
     assert(m_textureManager->getTexture(texture2Id, &tex2));
 
+    // Reset the descriptor pool to free any previously allocated descriptor sets
+    // This is necessary when reloading scenes to avoid VK_ERROR_OUT_OF_POOL_MEMORY
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Resetting water descriptor pool before creating new descriptor set");
+    VkResult resetResult = vkResetDescriptorPool(m_device, m_waterDescriptorPool, 0);
+    if (resetResult != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkResetDescriptorPool (water) failed: %s", vkResultToString(resetResult));
+        assert(false);
+    }
+    m_waterDescriptorSet = VK_NULL_HANDLE;
+
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = m_waterDescriptorPool;
