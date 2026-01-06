@@ -326,7 +326,7 @@ int main()
     AnimationEngine *animationEngine = static_cast<AnimationEngine *>(
         smallAllocator->allocate(sizeof(AnimationEngine), "main::AnimationEngine"));
     assert(animationEngine != nullptr);
-    new (animationEngine) AnimationEngine(smallAllocator, layerManager);
+    new (animationEngine) AnimationEngine(smallAllocator, layerManager, consoleBuffer);
     *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created AnimationEngine" << ConsoleBuffer::endl;
 
     // Create LuaInterface without SceneManager (will be set after SceneManager is created)

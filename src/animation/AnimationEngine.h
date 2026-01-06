@@ -6,6 +6,7 @@
 #include <cstdint>
 
 class SceneLayerManager;
+class ConsoleBuffer;
 
 // Interpolation types supported by the animation engine
 enum InterpolationType {
@@ -51,7 +52,7 @@ struct Animation {
 // Animation engine manages all active animations
 class AnimationEngine {
 public:
-    AnimationEngine(MemoryAllocator* allocator, SceneLayerManager* layerManager);
+    AnimationEngine(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer);
     ~AnimationEngine();
 
     // Start a new animation and return its ID
@@ -91,6 +92,7 @@ private:
 
     MemoryAllocator* allocator_;
     SceneLayerManager* layerManager_;
-    HashTable<int, Animation> animations_;  // animationId -> Animation
+    ConsoleBuffer* consoleBuffer_;
+    HashTable<int, Animation*> animations_;  // animationId -> Animation*
     int nextAnimationId_;
 };
