@@ -203,9 +203,8 @@ function Lantern.extinguish()
     updateLight(Lantern.lightId, 0, 0, 0, 0, 0, 0, 0)
 
     if Lantern.bloomLayerId then
-        if Lantern.bloomLayerId then
-            setLayerScale(Lantern.bloomLayerId, 0, 0)
-        end
+        -- Animate bloom scale from current scale to 0,0 over 0.3 seconds with ease-in interpolation
+        animateLayerScale(Lantern.bloomLayerId, 1.0, 1.0, 0.0, 0.0, 0.3, INTERPOLATION_EASE_IN)
     end
 end
 
@@ -218,7 +217,8 @@ function Lantern.relight()
     updateLight(Lantern.lightId, x, y, Lantern.config.lightZ, Lantern.config.lightR, Lantern.config.lightG, Lantern.config.lightB, Lantern.config.lightIntensity)
 
     if Lantern.bloomLayerId then
-        setLayerScale(Lantern.bloomLayerId, 1.0, 1.0)
+        -- Animate bloom scale from 0,0 to 1.0,1.0 over 0.5 seconds with ease-out interpolation
+        animateLayerScale(Lantern.bloomLayerId, 0.0, 0.0, 1.0, 1.0, 0.5, INTERPOLATION_EASE_OUT)
     end
 
     if Lantern.config.enableParticles and Lantern.particlePipelineId and not Lantern.particleSystemId then
