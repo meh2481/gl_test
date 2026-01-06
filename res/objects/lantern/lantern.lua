@@ -206,6 +206,9 @@ function Lantern.extinguish()
     if Lantern.bloomLayerId then
         setLayerScale(Lantern.bloomLayerId, 0, 0)
     end
+
+    -- Unset fire
+    b2RemoveBodyType(Lantern.lightBody, "fire")
 end
 
 function Lantern.relight()
@@ -231,6 +234,9 @@ function Lantern.relight()
             setParticleSystemPosition(Lantern.particleSystemId, x, y)
         end
     end
+
+    -- Set fire
+    b2AddBodyType(Lantern.lightBody, "fire")
 end
 
 function Lantern.handleCollision(otherBodyId, pointX, pointY, normalX, normalY, approachSpeed)
@@ -250,8 +256,8 @@ function Lantern.handleCollision(otherBodyId, pointX, pointY, normalX, normalY, 
         Lantern.extinguish()
     end
 
-    -- Check if the other body is a laser (relight the lantern)
-    if hasType(otherTypes, "laser") then
+    -- Check if the other body is a fire (relight the lantern)
+    if hasType(otherTypes, "fire") then
         Lantern.relight()
     end
 end

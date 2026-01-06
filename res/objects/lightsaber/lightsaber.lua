@@ -101,8 +101,9 @@ function Lightsaber.create(params)
     b2AddBoxFixture(Lightsaber.bladeBody, bladeHalfW, bladeHalfH, 0.1, 0.1, 0.0)
     table.insert(Lightsaber.bodies, Lightsaber.bladeBody)
 
-    -- Add "laser" type to blade for type-based interactions
+    -- Add types to blade for type-based interactions
     b2AddBodyType(Lightsaber.bladeBody, "laser")
+    b2AddBodyType(Lightsaber.bladeBody, "fire")
 
     -- Connect blade to hilt with a stiff revolute joint
     local bladeJointId = b2CreateRevoluteJoint(
