@@ -56,6 +56,11 @@ vec3 calculateLight(Light light, vec3 normal, vec3 viewDir, vec3 texColor) {
     vec3 lightPos = light.position;
     vec3 lightColor = light.color;
     float intensity = light.intensity;
+    
+    // Skip lights with zero or near-zero intensity (e.g., extinguished lanterns)
+    if (intensity < 0.001) {
+        return vec3(0.0);
+    }
 
     vec3 lightDir = normalize(lightPos - fragPos);
 
