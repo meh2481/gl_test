@@ -22,7 +22,6 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       scenePipelines_(*allocator, "LuaInterface::scenePipelines"),
       waterFieldShaderMap_(*allocator, "LuaInterface::waterFieldShaderMap"),
       waterFieldLayerMap_(*allocator, "LuaInterface::waterFieldLayerMap"),
-      waterSurfaceCollisionBodies_(*allocator, "LuaInterface::waterSurfaceCollisionBodies"),
       particlePipelineCache_(*allocator, "LuaInterface::particlePipelineCache"),
       nodes_(*allocator, "LuaInterface::nodes"),
       bodyToNodeMap_(*allocator, "LuaInterface::bodyToNodeMap"),
@@ -122,6 +121,39 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
 
                             if (shouldCreateSplash) {
                                 createSplashParticles(event.visitorX, surfaceY);
+                            }
+
+                            // Check for type-based interactions (e.g., fire + water)
+                            // Trigger collision callback when bodies with types interact
+                            if (event.isBegin) {
+                                Vector<String> sensorTypes = physics_->getBodyTypes(event.sensorBodyId);
+                                Vector<String> visitorTypes = physics_->getBodyTypes(event.visitorBodyId);
+                                
+                                if (sensorTypes.size() > 0 && visitorTypes.size() > 0) {
+                                    // Calculate approach speed from velocity
+                                    float approachSpeed = SDL_sqrtf(event.visitorVelX * event.visitorVelX + 
+                                                                   event.visitorVelY * event.visitorVelY);
+                                    
+                                    // Call the Lua collision callback
+                                    lua_getglobal(luaState_, "handleCollision");
+                                    if (lua_isfunction(luaState_, -1)) {
+                                        lua_pushinteger(luaState_, event.sensorBodyId);
+                                        lua_pushinteger(luaState_, event.visitorBodyId);
+                                        lua_pushnumber(luaState_, event.visitorX);
+                                        lua_pushnumber(luaState_, event.visitorY);
+                                        lua_pushnumber(luaState_, 0.0f); // normalX
+                                        lua_pushnumber(luaState_, 1.0f); // normalY
+                                        lua_pushnumber(luaState_, approachSpeed);
+                                        if (lua_pcall(luaState_, 7, 0, 0) != LUA_OK) {
+                                            const char* errorMsg = lua_tostring(luaState_, -1);
+                                            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+                                                "handleCollision error: %s", (errorMsg ? errorMsg : "unknown"));
+                                            lua_pop(luaState_, 1);
+                                        }
+                                    } else {
+                                        lua_pop(luaState_, 1);
+                                    }
+                                }
                             }
                         }
                     }
@@ -1812,34 +1844,6 @@ int LuaInterface::setWaterPercentage(lua_State* L) {
             }
 
             interface->renderer_.updateWaterPolygonVertices(rotatedVertices, field->config.vertexCount);
-        }
-
-        // Update the water sensor body to match the new water level
-        // Destroy and recreate the body with the new water volume
-        int* waterBodyIdPtr = interface->waterSurfaceCollisionBodies_.find(waterFieldId);
-        if (waterBodyIdPtr) {
-            int oldBodyId = *waterBodyIdPtr;
-            interface->physics_->destroyBody(oldBodyId);
-            
-            // Create new sensor body with updated water volume
-            float minX = field->config.minX;
-            float maxX = field->config.maxX;
-            float minY = field->config.minY;
-            
-            float waterVolumeVertices[8] = {
-                minX, minY,      // bottom left
-                maxX, minY,      // bottom right
-                maxX, surfaceY,  // top right
-                minX, surfaceY   // top left
-            };
-            
-            int newBodyId = interface->physics_->createBody(0, 0.0f, 0.0f, 0.0f);
-            interface->physics_->addPolygonSensorWithContacts(newBodyId, waterVolumeVertices, 4);
-            interface->physics_->addBodyType(newBodyId, "water");
-            interface->waterSurfaceCollisionBodies_.insert(waterFieldId, newBodyId);
-            
-            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
-                "Updated water sensor body %d -> %d to cover Y[%.2f, %.2f]", oldBodyId, newBodyId, minY, surfaceY);
         }
     }
 
@@ -3886,24 +3890,6 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
     // 10. Associate the water shader and layer with the water force field
     waterFieldShaderMap_.insert(waterFieldId, waterShaderId);
     waterFieldLayerMap_.insert(waterFieldId, waterLayerId);
-
-    // 11. Create a sensor collision body for the water volume (for fire/water interactions)
-    // Use a polygon sensor that matches the water shape (doesn't block physics but detects collisions)
-    // Create a rectangular polygon from minX to maxX, minY to surfaceY
-    float waterVolumeVertices[8] = {
-        minX, minY,      // bottom left
-        maxX, minY,      // bottom right
-        maxX, surfaceY,  // top right
-        minX, surfaceY   // top left
-    };
-    
-    int waterBodyId = physics_->createBody(0, 0.0f, 0.0f, 0.0f); // Static body at origin
-    physics_->addPolygonSensorWithContacts(waterBodyId, waterVolumeVertices, 4);
-    physics_->addBodyType(waterBodyId, "water"); // Add water type for collision detection
-    waterSurfaceCollisionBodies_.insert(waterFieldId, waterBodyId);
-    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, 
-                       "Created water sensor body %d covering X[%.2f, %.2f] Y[%.2f, %.2f]", 
-                       waterBodyId, minX, maxX, minY, surfaceY);
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
 }

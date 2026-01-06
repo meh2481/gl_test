@@ -40,7 +40,6 @@ struct WaterForceFieldConfig {
 struct WaterForceField {
     int waterFieldId;               // Water effect ID (for lookups)
     int forceFieldId;               // Physics force field ID
-    int surfaceCollisionBodyId;     // Collision body at water surface for fire/water interactions
     WaterForceFieldConfig config;
 
     // Ripple state
@@ -84,8 +83,7 @@ public:
     void onBodyExitWater(int waterFieldId, int bodyId, float x, float y, float velocity);
 
     // Update tracked body position
-    // Returns true if body crossed the water surface (for triggering splash-related events)
-    bool updateTrackedBody(int waterFieldId, int bodyId, float x, float y);
+    void updateTrackedBody(int waterFieldId, int bodyId, float x, float y);
 
     // Set water percentage (0.0-1.0, where 1.0 = 100% full)
     void setWaterPercentage(int waterFieldId, float percentage);

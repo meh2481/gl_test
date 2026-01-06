@@ -197,14 +197,6 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             event.visitorVelX = visitorVel.x;
             event.visitorVelY = visitorVel.y;
             event.isBegin = true;
-            // Set surfaceY for water force fields
-            event.surfaceY = 0.0f;
-            for (auto it = forceFields_.begin(); it != forceFields_.end(); ++it) {
-                if (it.value().bodyId == sensorInternalId && it.value().isWater) {
-                    event.surfaceY = it.value().waterSurfaceY;
-                    break;
-                }
-            }
             sensorCallback_(event);
         }
     }
@@ -226,14 +218,6 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             event.visitorVelX = visitorVel.x;
             event.visitorVelY = visitorVel.y;
             event.isBegin = false;
-            // Set surfaceY for water force fields
-            event.surfaceY = 0.0f;
-            for (auto it = forceFields_.begin(); it != forceFields_.end(); ++it) {
-                if (it.value().bodyId == sensorInternalId && it.value().isWater) {
-                    event.surfaceY = it.value().waterSurfaceY;
-                    break;
-                }
-            }
             sensorCallback_(event);
         }
     }
@@ -575,27 +559,6 @@ void Box2DPhysics::addPolygonSensor(int bodyId, const float* vertices, int verte
     b2ShapeDef shapeDef = b2DefaultShapeDef();
     shapeDef.isSensor = true;
     shapeDef.enableSensorEvents = true;
-
-    b2CreatePolygonShape(*it, &shapeDef, &polygon);
-}
-
-void Box2DPhysics::addPolygonSensorWithContacts(int bodyId, const float* vertices, int vertexCount) {
-    auto it = bodies_.find(bodyId);
-    assert(it != nullptr);
-    assert(vertexCount >= 3 && vertexCount <= 8);
-
-    b2Vec2 points[8];
-    for (int i = 0; i < vertexCount; ++i) {
-        points[i] = (b2Vec2){vertices[i * 2], vertices[i * 2 + 1]};
-    }
-
-    b2Hull hull = b2ComputeHull(points, vertexCount);
-    b2Polygon polygon = b2MakePolygon(&hull, 0.0f);
-
-    b2ShapeDef shapeDef = b2DefaultShapeDef();
-    shapeDef.isSensor = true;
-    shapeDef.enableSensorEvents = true;
-    shapeDef.enableContactEvents = true; // Also enable contact events for collision callback
 
     b2CreatePolygonShape(*it, &shapeDef, &polygon);
 }

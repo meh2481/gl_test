@@ -176,7 +176,6 @@ public:
     // Sensor shape management (for nodes)
     void addCircleSensor(int bodyId, float radius);
     void addPolygonSensor(int bodyId, const float* vertices, int vertexCount);
-    void addPolygonSensorWithContacts(int bodyId, const float* vertices, int vertexCount); // Sensor that also triggers contact events
 
     // Joint management
     int createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy, float anchorBx, float anchorBy, bool enableLimit = false, float lowerAngle = 0.0f, float upperAngle = 0.0f);
@@ -324,13 +323,6 @@ public:
     // Collision callback for type-based interactions
     using CollisionCallback = std::function<void(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed)>;
     void setCollisionCallback(CollisionCallback callback) { collisionCallback_ = callback; }
-
-    // Trigger the collision callback manually (e.g., for sensor events)
-    void triggerCollisionCallback(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed) {
-        if (collisionCallback_) {
-            collisionCallback_(bodyIdA, bodyIdB, pointX, pointY, normalX, normalY, approachSpeed);
-        }
-    }
 
 private:
     // Debug draw callbacks

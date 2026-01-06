@@ -254,7 +254,7 @@ void WaterEffectManager::onBodyExitWater(int waterFieldId, int bodyId, float x, 
     }
 }
 
-bool WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x, float y) {
+void WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x, float y) {
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
         if (!fields_[i].active || fields_[i].waterFieldId != waterFieldId) continue;
 
@@ -270,8 +270,6 @@ bool WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
                 bool wasAboveSurface = lastY > surfaceY;
                 bool isAboveSurface = y > surfaceY;
 
-                bool crossedSurface = false;
-
                 // Create splash when crossing surface with appropriate motion
                 if (wasAboveSurface && !isAboveSurface) {
                     // Entering from above - check downward motion (negative velocity)
@@ -284,7 +282,6 @@ bool WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
                             // Clamp splash amplitude to reasonable range
                             if (splashAmplitude > 0.05f) splashAmplitude = 0.05f;
                             addSplash(waterFieldId, x, surfaceY, splashAmplitude);
-                            crossedSurface = true;
                         }
                     }
                 } else if (!wasAboveSurface && isAboveSurface) {
@@ -298,13 +295,12 @@ bool WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
                             // Clamp splash amplitude to reasonable range
                             if (splashAmplitude > 0.05f) splashAmplitude = 0.05f;
                             addSplash(waterFieldId, x, surfaceY, splashAmplitude);
-                            crossedSurface = true;
                         }
                     }
                 }
 
                 field.trackedBodyLastY[j] = y;
-                return crossedSurface;
+                return;
             }
         }
 
@@ -324,9 +320,8 @@ bool WaterEffectManager::updateTrackedBody(int waterFieldId, int bodyId, float x
             field.trackedBodies[field.trackedBodyCount - 1] = bodyId;
             field.trackedBodyLastY[field.trackedBodyCount - 1] = y;
         }
-        return false;
+        return;
     }
-    return false;
 }
 
 const WaterForceField* WaterEffectManager::getWaterForceField(int waterFieldId) const {
