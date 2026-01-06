@@ -154,24 +154,22 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             b2Vec2 velB = b2Body_GetLinearVelocity(bodyIdB);
             b2Vec2 relativeVel = b2Sub(velA, velB);
             float approachSpeed = -b2Dot(relativeVel, beginEvent.manifold.normal);
-            if (approachSpeed > 0.0f) {
-                // Treat as hit event
-                int internalIdA = findInternalBodyId(bodyIdA);
-                int internalIdB = findInternalBodyId(bodyIdB);
-                if (internalIdA >= 0 || internalIdB >= 0) {
-                    CollisionHitEvent event;
-                    event.bodyIdA = internalIdA;
-                    event.bodyIdB = internalIdB;
-                    event.pointX = beginEvent.manifold.points[0].point.x; // Use first contact point
-                    event.pointY = beginEvent.manifold.points[0].point.y;
-                    event.normalX = beginEvent.manifold.normal.x;
-                    event.normalY = beginEvent.manifold.normal.y;
-                    event.approachSpeed = approachSpeed;
-                    collisionHitEvents_.push_back(event);
+            // Treat as hit event
+            int internalIdA = findInternalBodyId(bodyIdA);
+            int internalIdB = findInternalBodyId(bodyIdB);
+            if (internalIdA >= 0 || internalIdB >= 0) {
+                CollisionHitEvent event;
+                event.bodyIdA = internalIdA;
+                event.bodyIdB = internalIdB;
+                event.pointX = beginEvent.manifold.points[0].point.x; // Use first contact point
+                event.pointY = beginEvent.manifold.points[0].point.y;
+                event.normalX = beginEvent.manifold.normal.x;
+                event.normalY = beginEvent.manifold.normal.y;
+                event.approachSpeed = approachSpeed;
+                collisionHitEvents_.push_back(event);
 
-                    if (collisionCallback_ && internalIdA >= 0 && internalIdB >= 0) {
-                        collisionCallback_(internalIdA, internalIdB, event.pointX, event.pointY, event.normalX, event.normalY, event.approachSpeed);
-                    }
+                if (collisionCallback_ && internalIdA >= 0 && internalIdB >= 0) {
+                    collisionCallback_(internalIdA, internalIdB, event.pointX, event.pointY, event.normalX, event.normalY, event.approachSpeed);
                 }
             }
         }
@@ -1613,14 +1611,14 @@ void Box2DPhysics::destroyRadialForceField(int forceFieldId) {
 }
 
 // Maximum number of overlapping shapes to process per force field
-static constexpr int MAX_FORCE_FIELD_OVERLAPS = 64;
+static constexpr int MAX_FORCE_FIELD_OVERLAPS = 256;
 
 void Box2DPhysics::applyForceFields() {
     // Stack-allocated buffer for sensor overlaps
-    b2ShapeId overlaps[MAX_FORCE_FIELD_OVERLAPS];
+    b2ShapeId* overlaps = (b2ShapeId*)stringAllocator_->allocate(sizeof(b2ShapeId) * MAX_FORCE_FIELD_OVERLAPS, "Box2DPhysics::applyForceFields::overlaps");
 
     // Track bodies already processed to avoid applying force multiple times
-    b2BodyId processedBodies[MAX_FORCE_FIELD_OVERLAPS];
+    b2BodyId* processedBodies = (b2BodyId*)stringAllocator_->allocate(sizeof(b2BodyId) * MAX_FORCE_FIELD_OVERLAPS, "Box2DPhysics::applyForceFields::processedBodies");
     int processedCount = 0;
 
     // Apply force to all bodies overlapping with force field sensors
@@ -1737,14 +1735,15 @@ void Box2DPhysics::applyForceFields() {
             }
         }
     }
+    stringAllocator_->free(overlaps);
+    stringAllocator_->free(processedBodies);
 }
 
 void Box2DPhysics::applyRadialForceFields() {
-    // Stack-allocated buffer for sensor overlaps
-    b2ShapeId overlaps[MAX_FORCE_FIELD_OVERLAPS];
+    b2ShapeId* overlaps = (b2ShapeId*)stringAllocator_->allocate(sizeof(b2ShapeId) * MAX_FORCE_FIELD_OVERLAPS, "Box2DPhysics::applyRadialForceFields::overlaps");
 
     // Track bodies already processed to avoid applying force multiple times
-    b2BodyId processedBodies[MAX_FORCE_FIELD_OVERLAPS];
+    b2BodyId* processedBodies = (b2BodyId*)stringAllocator_->allocate(sizeof(b2BodyId) * MAX_FORCE_FIELD_OVERLAPS, "Box2DPhysics::applyRadialForceFields::processedBodies");
     int processedCount = 0;
 
     // Apply force to all bodies overlapping with radial force field sensors
@@ -1818,6 +1817,8 @@ void Box2DPhysics::applyRadialForceFields() {
             }
         }
     }
+    stringAllocator_->free(overlaps);
+    stringAllocator_->free(processedBodies);
 }
 
 // Process fractures for destructible bodies
