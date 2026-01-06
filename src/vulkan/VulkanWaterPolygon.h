@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 #include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
+#include "../debug/ConsoleBuffer.h"
 #include <cstdint>
 #include <cstring>
 
@@ -16,7 +17,7 @@ struct WaterPolygonBufferData {
 // Helper class for managing water polygon uniform buffers
 class VulkanWaterPolygon {
 public:
-    VulkanWaterPolygon(MemoryAllocator* allocator);
+    VulkanWaterPolygon(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer);
     ~VulkanWaterPolygon();
 
     // Initialization
@@ -42,4 +43,5 @@ private:
 
     WaterPolygonBufferData m_bufferData;
     MemoryAllocator* m_allocator;
+    ConsoleBuffer* m_consoleBuffer;
 };

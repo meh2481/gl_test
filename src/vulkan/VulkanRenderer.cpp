@@ -61,7 +61,7 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_descriptorManager(smallAllocator),
     m_pipelineManager(smallAllocator, largeAllocator),
     m_lightManager(smallAllocator),
-    m_waterPolygonManager(smallAllocator),
+    m_waterPolygonManager(smallAllocator, consoleBuffer),
     m_instance(VK_NULL_HANDLE),
     m_surface(VK_NULL_HANDLE),
     m_physicalDevice(VK_NULL_HANDLE),

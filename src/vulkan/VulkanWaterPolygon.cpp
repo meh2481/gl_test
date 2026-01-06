@@ -2,16 +2,18 @@
 #include <SDL3/SDL_log.h>
 #include <cassert>
 
-VulkanWaterPolygon::VulkanWaterPolygon(MemoryAllocator* allocator) :
+VulkanWaterPolygon::VulkanWaterPolygon(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer) :
     m_device(VK_NULL_HANDLE),
     m_physicalDevice(VK_NULL_HANDLE),
     m_initialized(false),
     m_uniformBuffer(VK_NULL_HANDLE),
     m_uniformBufferMemory(VK_NULL_HANDLE),
     m_uniformBufferMapped(nullptr),
-    m_allocator(allocator)
+    m_allocator(allocator),
+    m_consoleBuffer(consoleBuffer)
 {
     assert(m_allocator != nullptr);
+    assert(m_consoleBuffer != nullptr);
     memset(&m_bufferData, 0, sizeof(m_bufferData));
     m_bufferData.vertexCount = 0;
 }
@@ -53,7 +55,7 @@ uint32_t VulkanWaterPolygon::findMemoryType(uint32_t typeFilter, VkMemoryPropert
 void VulkanWaterPolygon::createUniformBuffer() {
     VkDeviceSize bufferSize = sizeof(WaterPolygonBufferData);
 
-    SDL_Log("VulkanWaterPolygon::createUniformBuffer - Creating buffer of size %zu bytes", (size_t)bufferSize);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "VulkanWaterPolygon::createUniformBuffer - Creating buffer of size %zu bytes", (size_t)bufferSize);
 
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -78,7 +80,7 @@ void VulkanWaterPolygon::createUniformBuffer() {
     // Map the buffer memory for persistent updating
     vkMapMemory(m_device, m_uniformBufferMemory, 0, bufferSize, 0, &m_uniformBufferMapped);
 
-    SDL_Log("VulkanWaterPolygon::createUniformBuffer - Buffer created successfully: %p", (void*)m_uniformBuffer);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "VulkanWaterPolygon::createUniformBuffer - Buffer created successfully: %p", (void*)m_uniformBuffer);
 }
 
 void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCount) {
@@ -86,7 +88,7 @@ void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCo
 
     // If buffer not created yet, just store the data for later
     if (m_uniformBufferMapped == nullptr) {
-        SDL_Log("VulkanWaterPolygon::updateUniformBuffer - buffer not mapped yet, storing data for later");
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "VulkanWaterPolygon::updateUniformBuffer - buffer not mapped yet, storing data for later");
         m_bufferData.vertexCount = vertexCount;
         for (int i = 0; i < vertexCount * 2; ++i) {
             m_bufferData.vertices[i] = vertices[i];
