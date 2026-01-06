@@ -134,25 +134,15 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                                     float approachSpeed = SDL_sqrtf(event.visitorVelX * event.visitorVelX + 
                                                                    event.visitorVelY * event.visitorVelY);
                                     
-                                    // Call the Lua collision callback
-                                    lua_getglobal(luaState_, "handleCollision");
-                                    if (lua_isfunction(luaState_, -1)) {
-                                        lua_pushinteger(luaState_, event.sensorBodyId);
-                                        lua_pushinteger(luaState_, event.visitorBodyId);
-                                        lua_pushnumber(luaState_, event.visitorX);
-                                        lua_pushnumber(luaState_, event.visitorY);
-                                        lua_pushnumber(luaState_, 0.0f); // normalX
-                                        lua_pushnumber(luaState_, 1.0f); // normalY
-                                        lua_pushnumber(luaState_, approachSpeed);
-                                        if (lua_pcall(luaState_, 7, 0, 0) != LUA_OK) {
-                                            const char* errorMsg = lua_tostring(luaState_, -1);
-                                            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
-                                                "handleCollision error: %s", (errorMsg ? errorMsg : "unknown"));
-                                            lua_pop(luaState_, 1);
-                                        }
-                                    } else {
-                                        lua_pop(luaState_, 1);
-                                    }
+                                    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+                                        "Water sensor collision: sensor body %d, visitor body %d", 
+                                        event.sensorBodyId, event.visitorBodyId);
+                                    
+                                    // Trigger the collision callback through the physics system
+                                    // This will call the Lua handleCollision function that was registered
+                                    physics_->triggerCollisionCallback(event.sensorBodyId, event.visitorBodyId,
+                                                                       event.visitorX, event.visitorY,
+                                                                       0.0f, 1.0f, approachSpeed);
                                 }
                             }
                         }

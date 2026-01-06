@@ -324,6 +324,13 @@ public:
     using CollisionCallback = std::function<void(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed)>;
     void setCollisionCallback(CollisionCallback callback) { collisionCallback_ = callback; }
 
+    // Trigger the collision callback manually (e.g., for sensor events)
+    void triggerCollisionCallback(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed) {
+        if (collisionCallback_) {
+            collisionCallback_(bodyIdA, bodyIdB, pointX, pointY, normalX, normalY, approachSpeed);
+        }
+    }
+
 private:
     // Debug draw callbacks
     static void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context);
