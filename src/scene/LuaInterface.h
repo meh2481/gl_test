@@ -18,6 +18,7 @@
 
 class SceneManager;
 class ConsoleBuffer;
+class AnimationEngine;
 
 // Simple struct to replace pair<int, int> for pipeline data (pipelineId, zIndex)
 struct IntPair {
@@ -33,7 +34,8 @@ public:
     LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
                  Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                  ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                 SceneManager* sceneManager, VibrationManager* vibrationManager, ConsoleBuffer* consoleBuffer);
+                 SceneManager* sceneManager, VibrationManager* vibrationManager, ConsoleBuffer* consoleBuffer,
+                 AnimationEngine* animationEngine);
     ~LuaInterface();
 
     // Execute a Lua script from ResourceData
@@ -213,6 +215,15 @@ private:
     static int destroyNode(lua_State* L);
     static int getNodePosition(lua_State* L);
 
+    // Animation Lua bindings
+    static int animateLayerScale(lua_State* L);
+    static int animateLayerPosition(lua_State* L);
+    static int animateLayerRotation(lua_State* L);
+    static int animateLayerColor(lua_State* L);
+    static int animateLayerOffset(lua_State* L);
+    static int stopAnimation(lua_State* L);
+    static int stopLayerAnimations(lua_State* L);
+
     void registerFunctions();
 
     PakResource& pakResource_;
@@ -232,6 +243,7 @@ private:
     ParticleSystemManager* particleManager_;
     WaterEffectManager* waterEffectManager_;
     VibrationManager* vibrationManager_;
+    AnimationEngine* animationEngine_;
     float cursorX_;
     float cursorY_;
     float cameraOffsetX_;

@@ -6,6 +6,7 @@
 #include "../memory/SmallMemoryAllocator.h"
 #include "../core/hash.h"
 #include "../debug/ConsoleBuffer.h"
+#include "../animation/AnimationEngine.h"
 #include <cassert>
 #ifndef M_PI
     #define M_PI 3.14159265358979323846
@@ -16,7 +17,8 @@
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                            ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                           SceneManager* sceneManager, VibrationManager* vibrationManager, ConsoleBuffer* consoleBuffer)
+                           SceneManager* sceneManager, VibrationManager* vibrationManager, ConsoleBuffer* consoleBuffer,
+                           AnimationEngine* animationEngine)
     : pakResource_(pakResource), renderer_(renderer), sceneManager_(sceneManager), vibrationManager_(vibrationManager),
       pipelineIndex_(0), currentSceneId_(0),
       scenePipelines_(*allocator, "LuaInterface::scenePipelines"),
@@ -28,7 +30,8 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f),
       nextNodeId_(1), stringAllocator_(allocator), sceneObjects_(*allocator, "LuaInterface::sceneObjects_"),
       physics_(physics), layerManager_(layerManager), audioManager_(audioManager),
-      particleManager_(particleManager), waterEffectManager_(waterEffectManager), consoleBuffer_(consoleBuffer)
+      particleManager_(particleManager), waterEffectManager_(waterEffectManager), consoleBuffer_(consoleBuffer),
+      animationEngine_(animationEngine)
 {
     assert(stringAllocator_ != nullptr);
     assert(physics_ != nullptr);
@@ -36,6 +39,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
     assert(audioManager_ != nullptr);
     assert(particleManager_ != nullptr);
     assert(waterEffectManager_ != nullptr);
+    assert(animationEngine_ != nullptr);
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "LuaInterface: Using shared memory allocator and pre-created managers");
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
@@ -817,6 +821,15 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "destroyNode", destroyNode);
     lua_register(luaState_, "getNodePosition", getNodePosition);
 
+    // Register animation functions
+    lua_register(luaState_, "animateLayerScale", animateLayerScale);
+    lua_register(luaState_, "animateLayerPosition", animateLayerPosition);
+    lua_register(luaState_, "animateLayerRotation", animateLayerRotation);
+    lua_register(luaState_, "animateLayerColor", animateLayerColor);
+    lua_register(luaState_, "animateLayerOffset", animateLayerOffset);
+    lua_register(luaState_, "stopAnimation", stopAnimation);
+    lua_register(luaState_, "stopLayerAnimations", stopLayerAnimations);
+
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
     lua_setglobal(luaState_, "B2_STATIC_BODY");
@@ -864,6 +877,20 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "AUDIO_EFFECT_LOWPASS");
     lua_pushinteger(luaState_, AUDIO_EFFECT_REVERB);
     lua_setglobal(luaState_, "AUDIO_EFFECT_REVERB");
+
+    // Register interpolation type constants
+    lua_pushinteger(luaState_, INTERPOLATION_LINEAR);
+    lua_setglobal(luaState_, "INTERPOLATION_LINEAR");
+    lua_pushinteger(luaState_, INTERPOLATION_EASE_IN);
+    lua_setglobal(luaState_, "INTERPOLATION_EASE_IN");
+    lua_pushinteger(luaState_, INTERPOLATION_EASE_OUT);
+    lua_setglobal(luaState_, "INTERPOLATION_EASE_OUT");
+    lua_pushinteger(luaState_, INTERPOLATION_EASE_IN_OUT);
+    lua_setglobal(luaState_, "INTERPOLATION_EASE_IN_OUT");
+    lua_pushinteger(luaState_, INTERPOLATION_SMOOTH_STEP);
+    lua_setglobal(luaState_, "INTERPOLATION_SMOOTH_STEP");
+    lua_pushinteger(luaState_, INTERPOLATION_CATMULL_ROM);
+    lua_setglobal(luaState_, "INTERPOLATION_CATMULL_ROM");
 }
 
 int LuaInterface::loadShaders(lua_State* L) {
@@ -3997,6 +4024,167 @@ int LuaInterface::b2SetCollisionCallback(lua_State* L) {
             lua_pop(interface->luaState_, 1);
         }
     });
+
+    return 0;
+}
+
+// Animation Lua bindings implementation
+
+int LuaInterface::animateLayerScale(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId, startX, startY, endX, endY, duration, interpolationType
+    assert(lua_gettop(L) >= 6);
+    int layerId = luaL_checkinteger(L, 1);
+    float startX = luaL_checknumber(L, 2);
+    float startY = luaL_checknumber(L, 3);
+    float endX = luaL_checknumber(L, 4);
+    float endY = luaL_checknumber(L, 5);
+    float duration = luaL_checknumber(L, 6);
+    int interpolationType = (lua_gettop(L) >= 7) ? luaL_checkinteger(L, 7) : INTERPOLATION_LINEAR;
+
+    float startValues[2] = {startX, startY};
+    float endValues[2] = {endX, endY};
+
+    int animId = interface->animationEngine_->startAnimation(
+        layerId, PROPERTY_LAYER_SCALE, (InterpolationType)interpolationType,
+        startValues, endValues, 2, duration);
+
+    lua_pushinteger(L, animId);
+    return 1;
+}
+
+int LuaInterface::animateLayerPosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId, startX, startY, endX, endY, duration, interpolationType
+    assert(lua_gettop(L) >= 6);
+    int layerId = luaL_checkinteger(L, 1);
+    float startX = luaL_checknumber(L, 2);
+    float startY = luaL_checknumber(L, 3);
+    float endX = luaL_checknumber(L, 4);
+    float endY = luaL_checknumber(L, 5);
+    float duration = luaL_checknumber(L, 6);
+    int interpolationType = (lua_gettop(L) >= 7) ? luaL_checkinteger(L, 7) : INTERPOLATION_LINEAR;
+
+    float startValues[2] = {startX, startY};
+    float endValues[2] = {endX, endY};
+
+    int animId = interface->animationEngine_->startAnimation(
+        layerId, PROPERTY_LAYER_POSITION, (InterpolationType)interpolationType,
+        startValues, endValues, 2, duration);
+
+    lua_pushinteger(L, animId);
+    return 1;
+}
+
+int LuaInterface::animateLayerRotation(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId, startAngle, endAngle, duration, interpolationType
+    assert(lua_gettop(L) >= 4);
+    int layerId = luaL_checkinteger(L, 1);
+    float startAngle = luaL_checknumber(L, 2);
+    float endAngle = luaL_checknumber(L, 3);
+    float duration = luaL_checknumber(L, 4);
+    int interpolationType = (lua_gettop(L) >= 5) ? luaL_checkinteger(L, 5) : INTERPOLATION_LINEAR;
+
+    float startValues[1] = {startAngle};
+    float endValues[1] = {endAngle};
+
+    int animId = interface->animationEngine_->startAnimation(
+        layerId, PROPERTY_LAYER_ROTATION, (InterpolationType)interpolationType,
+        startValues, endValues, 1, duration);
+
+    lua_pushinteger(L, animId);
+    return 1;
+}
+
+int LuaInterface::animateLayerColor(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId, startR, startG, startB, startA, endR, endG, endB, endA, duration, interpolationType
+    assert(lua_gettop(L) >= 10);
+    int layerId = luaL_checkinteger(L, 1);
+    float startR = luaL_checknumber(L, 2);
+    float startG = luaL_checknumber(L, 3);
+    float startB = luaL_checknumber(L, 4);
+    float startA = luaL_checknumber(L, 5);
+    float endR = luaL_checknumber(L, 6);
+    float endG = luaL_checknumber(L, 7);
+    float endB = luaL_checknumber(L, 8);
+    float endA = luaL_checknumber(L, 9);
+    float duration = luaL_checknumber(L, 10);
+    int interpolationType = (lua_gettop(L) >= 11) ? luaL_checkinteger(L, 11) : INTERPOLATION_LINEAR;
+
+    float startValues[4] = {startR, startG, startB, startA};
+    float endValues[4] = {endR, endG, endB, endA};
+
+    int animId = interface->animationEngine_->startAnimation(
+        layerId, PROPERTY_LAYER_COLOR, (InterpolationType)interpolationType,
+        startValues, endValues, 4, duration);
+
+    lua_pushinteger(L, animId);
+    return 1;
+}
+
+int LuaInterface::animateLayerOffset(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: layerId, startX, startY, endX, endY, duration, interpolationType
+    assert(lua_gettop(L) >= 6);
+    int layerId = luaL_checkinteger(L, 1);
+    float startX = luaL_checknumber(L, 2);
+    float startY = luaL_checknumber(L, 3);
+    float endX = luaL_checknumber(L, 4);
+    float endY = luaL_checknumber(L, 5);
+    float duration = luaL_checknumber(L, 6);
+    int interpolationType = (lua_gettop(L) >= 7) ? luaL_checkinteger(L, 7) : INTERPOLATION_LINEAR;
+
+    float startValues[2] = {startX, startY};
+    float endValues[2] = {endX, endY};
+
+    int animId = interface->animationEngine_->startAnimation(
+        layerId, PROPERTY_LAYER_OFFSET, (InterpolationType)interpolationType,
+        startValues, endValues, 2, duration);
+
+    lua_pushinteger(L, animId);
+    return 1;
+}
+
+int LuaInterface::stopAnimation(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) >= 1);
+    int animId = luaL_checkinteger(L, 1);
+
+    interface->animationEngine_->stopAnimation(animId);
+
+    return 0;
+}
+
+int LuaInterface::stopLayerAnimations(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) >= 2);
+    int layerId = luaL_checkinteger(L, 1);
+    int propertyType = luaL_checkinteger(L, 2);
+
+    interface->animationEngine_->stopAnimationsForTarget(layerId, (AnimationPropertyType)propertyType);
 
     return 0;
 }

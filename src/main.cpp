@@ -21,6 +21,7 @@
 #include "audio/AudioManager.h"
 #include "effects/ParticleSystem.h"
 #include "effects/WaterEffect.h"
+#include "animation/AnimationEngine.h"
 
 #ifdef DEBUG
 #include "debug/ImGuiManager.h"
@@ -321,13 +322,20 @@ int main()
     new (vibrationManager) VibrationManager();
     *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created VibrationManager" << ConsoleBuffer::endl;
 
+    // Allocate AnimationEngine
+    AnimationEngine *animationEngine = static_cast<AnimationEngine *>(
+        smallAllocator->allocate(sizeof(AnimationEngine), "main::AnimationEngine"));
+    assert(animationEngine != nullptr);
+    new (animationEngine) AnimationEngine(smallAllocator, layerManager);
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created AnimationEngine" << ConsoleBuffer::endl;
+
     // Create LuaInterface without SceneManager (will be set after SceneManager is created)
     LuaInterface *luaInterface = static_cast<LuaInterface *>(
         smallAllocator->allocate(sizeof(LuaInterface), "main::LuaInterface"));
     assert(luaInterface != nullptr);
     new (luaInterface) LuaInterface(*pakResource, *renderer, smallAllocator, physics, layerManager,
                                     audioManager, particleManager, waterEffectManager,
-                                    nullptr, vibrationManager, consoleBuffer);
+                                    nullptr, vibrationManager, consoleBuffer, animationEngine);
     *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created LuaInterface" << ConsoleBuffer::endl;
 
     // Allocate SceneManager
@@ -335,7 +343,7 @@ int main()
         smallAllocator->allocate(sizeof(SceneManager), "main::SceneManager"));
     assert(sceneManager != nullptr);
     new (sceneManager) SceneManager(smallAllocator, *pakResource, *renderer, physics, layerManager,
-                                    audioManager, particleManager, waterEffectManager, luaInterface, consoleBuffer, trigLookup);
+                                    audioManager, particleManager, waterEffectManager, luaInterface, consoleBuffer, trigLookup, animationEngine);
 
     // Set SceneManager pointer in LuaInterface after SceneManager is created
     luaInterface->setSceneManager(sceneManager);
@@ -763,6 +771,11 @@ int main()
     vibrationManager->~VibrationManager();
     smallAllocator->free(vibrationManager);
     *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed VibrationManager" << ConsoleBuffer::endl;
+
+    // Destroy AnimationEngine
+    animationEngine->~AnimationEngine();
+    smallAllocator->free(animationEngine);
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed AnimationEngine" << ConsoleBuffer::endl;
 
     // Destroy VulkanRenderer
     renderer->~VulkanRenderer();

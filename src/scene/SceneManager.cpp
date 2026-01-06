@@ -7,6 +7,7 @@
 #include "../physics/Box2DPhysics.h"
 #include "../audio/AudioManager.h"
 #include "../effects/WaterEffect.h"
+#include "../animation/AnimationEngine.h"
 #include "../debug/ConsoleBuffer.h"
 #include <SDL3/SDL.h>
 #include <cassert>
@@ -18,10 +19,11 @@ static const float DEFAULT_FADE_IN_TIME = 0.25f;   // 250ms fade-in
 SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource, VulkanRenderer& renderer,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                            ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                           LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup)
+                           LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup,
+                           AnimationEngine* animationEngine)
     : allocator_(allocator), pakResource_(pakResource), renderer_(renderer), physics_(physics), layerManager_(layerManager),
       audioManager_(audioManager), particleManager_(particleManager), waterEffectManager_(waterEffectManager),
-      luaInterface_(luaInterface), sceneStack_(*allocator, "SceneManager::sceneStack_"),
+      luaInterface_(luaInterface), animationEngine_(animationEngine), sceneStack_(*allocator, "SceneManager::sceneStack_"),
       loadedScenes_(*allocator, "SceneManager::loadedScenes_"),
       initializedScenes_(*allocator, "SceneManager::initializedScenes_"), pendingPop_(false),
       transitionState_(TRANSITION_NONE), transitionTimer_(0.0f), fadeOutTime_(DEFAULT_FADE_OUT_TIME), fadeInTime_(DEFAULT_FADE_IN_TIME),
@@ -38,6 +40,7 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
     assert(waterEffectManager_ != nullptr);
     assert(luaInterface_ != nullptr);
     assert(trigLookup_ != nullptr);
+    assert(animationEngine_ != nullptr);
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Received all managers and LuaInterface from main.cpp");
     consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "SceneManager: Default transition times: fadeOut=%.3fs, fadeIn=%.3fs", fadeOutTime_, fadeInTime_);
@@ -154,6 +157,9 @@ bool SceneManager::updateActiveScene(float deltaTime) {
     if (!sceneStack_.empty()) {
         uint64_t activeSceneId = sceneStack_.top();
         luaInterface_->updateScene(activeSceneId, deltaTime);
+
+        // Update animations
+        animationEngine_->update(deltaTime);
 
         // Update scene layer transforms from physics bodies
         Box2DPhysics& physics = luaInterface_->getPhysics();

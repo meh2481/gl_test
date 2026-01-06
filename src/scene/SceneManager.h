@@ -16,13 +16,15 @@ class ParticleSystemManager;
 class WaterEffectManager;
 class ConsoleBuffer;
 class TrigLookup;
+class AnimationEngine;
 
 class SceneManager {
 public:
     SceneManager(MemoryAllocator* allocator, PakResource& pakResource, VulkanRenderer& renderer,
                  Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                  ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
-                 LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup);
+                 LuaInterface* luaInterface, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup,
+                 AnimationEngine* animationEngine);
     ~SceneManager();
 
     // Scene management
@@ -89,6 +91,7 @@ private:
     ParticleSystemManager* particleManager_;
     WaterEffectManager* waterEffectManager_;
     LuaInterface* luaInterface_;
+    AnimationEngine* animationEngine_;
     Stack<uint64_t> sceneStack_;
     HashSet<uint64_t> loadedScenes_;
     HashSet<uint64_t> initializedScenes_;
