@@ -451,6 +451,29 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
 
                 // Update tracked body for potential splash
                 waterEffectManager_->updateTrackedBody(field.waterFieldId, bodyIds[i], posX[i], posY[i]);
+                
+                // Check for type-based interactions when body is in the water volume
+                // This handles cases where body enters sensor above water then descends into water
+                bool isInWater = (posY[i] <= surfaceY && posY[i] >= minY);
+                if (isInWater) {
+                    // Get the force field body ID for type checking  
+                    const ForceField* forceField = physics_->getForceField(field.forceFieldId);
+                    if (forceField && forceField->isWater) {
+                        int waterBodyId = forceField->bodyId;
+                        Vector<String> waterTypes = physics_->getBodyTypes(waterBodyId);
+                        Vector<String> visitorTypes = physics_->getBodyTypes(bodyIds[i]);
+                        
+                        // Only trigger if both have types (e.g., water + fire)
+                        if (waterTypes.size() > 0 && visitorTypes.size() > 0) {
+                            // Trigger collision callback - Lua side handles deduplication
+                            // This is called every frame while body is in water, but extinguish() is idempotent
+                            float approachSpeed = SDL_fabsf(velY[i]);
+                            physics_->triggerCollisionCallback(waterBodyId, bodyIds[i],
+                                                              posX[i], posY[i],
+                                                              0.0f, 1.0f, approachSpeed);
+                        }
+                    }
+                }
             }
 
             // Update the shader with ripple data if this field has an associated shader
