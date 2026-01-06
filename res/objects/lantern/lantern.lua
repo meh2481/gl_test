@@ -213,7 +213,8 @@ function Lantern.relight()
     local x, y = b2GetBodyPosition(Lantern.lightBody)
     if x == nil or y == nil then return end
 
-    updateLight(Lantern.lightId, x, y, Lantern.config.lightZ, Lantern.config.lightR, Lantern.config.lightG, Lantern.config.lightB, Lantern.config.lightIntensity)
+    -- Animate light intensity from 0 to target intensity over 0.5 seconds with ease-out
+    animateLightIntensity(Lantern.lightId, 0.0, Lantern.config.lightIntensity, 0.5, INTERPOLATION_EASE_OUT)
 
     if Lantern.bloomLayerId then
         -- Animate bloom scale from 0,0 to 1.0,1.0 over 0.5 seconds with ease-out interpolation
@@ -235,7 +236,13 @@ function Lantern.update(deltaTime)
     if Lantern.lightBody and Lantern.particleSystemId then
         local x, y = b2GetBodyPosition(Lantern.lightBody)
         if x ~= nil and y ~= nil then
-            updateLight(Lantern.lightId, x, y, config.lightZ, config.lightR, config.lightG, config.lightB, config.lightIntensity)
+            -- Get animated intensity if available, otherwise use default
+            local intensity = getLightIntensity(Lantern.lightId)
+            if intensity == nil then
+                intensity = config.lightIntensity
+            end
+
+            updateLight(Lantern.lightId, x, y, config.lightZ, config.lightR, config.lightG, config.lightB, intensity)
             if Lantern.particleSystemId then
                 setParticleSystemPosition(Lantern.particleSystemId, x, y)
             end

@@ -221,6 +221,8 @@ private:
     static int animateLayerRotation(lua_State* L);
     static int animateLayerColor(lua_State* L);
     static int animateLayerOffset(lua_State* L);
+    static int animateLightIntensity(lua_State* L);
+    static int getLightIntensity(lua_State* L);
     static int stopAnimation(lua_State* L);
     static int stopLayerAnimations(lua_State* L);
 

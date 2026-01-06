@@ -827,6 +827,8 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "animateLayerRotation", animateLayerRotation);
     lua_register(luaState_, "animateLayerColor", animateLayerColor);
     lua_register(luaState_, "animateLayerOffset", animateLayerOffset);
+    lua_register(luaState_, "animateLightIntensity", animateLightIntensity);
+    lua_register(luaState_, "getLightIntensity", getLightIntensity);
     lua_register(luaState_, "stopAnimation", stopAnimation);
     lua_register(luaState_, "stopLayerAnimations", stopLayerAnimations);
 
@@ -4160,6 +4162,51 @@ int LuaInterface::animateLayerOffset(lua_State* L) {
 
     lua_pushinteger(L, animId);
     return 1;
+}
+
+int LuaInterface::animateLightIntensity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: lightId, startIntensity, endIntensity, duration, interpolationType
+    assert(lua_gettop(L) >= 4);
+    int lightId = luaL_checkinteger(L, 1);
+    float startIntensity = luaL_checknumber(L, 2);
+    float endIntensity = luaL_checknumber(L, 3);
+    float duration = luaL_checknumber(L, 4);
+    int interpolationType = (lua_gettop(L) >= 5) ? luaL_checkinteger(L, 5) : INTERPOLATION_LINEAR;
+
+    float startValues[1] = {startIntensity};
+    float endValues[1] = {endIntensity};
+
+    int animId = interface->animationEngine_->startAnimation(
+        lightId, PROPERTY_LIGHT_INTENSITY, (InterpolationType)interpolationType,
+        startValues, endValues, 1, duration);
+
+    lua_pushinteger(L, animId);
+    return 1;
+}
+
+int LuaInterface::getLightIntensity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) >= 1);
+    int lightId = luaL_checkinteger(L, 1);
+
+    float intensity = 0.0f;
+    bool hasAnimation = interface->animationEngine_->getLightIntensity(lightId, intensity);
+
+    if (hasAnimation) {
+        lua_pushnumber(L, intensity);
+        return 1;
+    } else {
+        // Return nil if no animation is active for this light
+        lua_pushnil(L);
+        return 1;
+    }
 }
 
 int LuaInterface::stopAnimation(lua_State* L) {
