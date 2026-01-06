@@ -200,7 +200,7 @@ function Lantern.extinguish()
         Lantern.particleSystemId = nil
     end
 
-    updateLight(Lantern.lightId, 0, 0, 0, 0, 0, 0, 0)
+    updateLightIntensity(Lantern.lightId, 0)
 
     if Lantern.bloomLayerId then
         setLayerScale(Lantern.bloomLayerId, 0, 0)
@@ -236,13 +236,7 @@ function Lantern.update(deltaTime)
     if Lantern.lightBody and Lantern.particleSystemId then
         local x, y = b2GetBodyPosition(Lantern.lightBody)
         if x ~= nil and y ~= nil then
-            -- Get animated intensity if available, otherwise use default
-            local intensity = getLightIntensity(Lantern.lightId)
-            if intensity == nil then
-                intensity = config.lightIntensity
-            end
-
-            updateLight(Lantern.lightId, x, y, config.lightZ, config.lightR, config.lightG, config.lightB, intensity)
+            updateLightPosition(Lantern.lightId, x, y, config.lightZ)
             if Lantern.particleSystemId then
                 setParticleSystemPosition(Lantern.particleSystemId, x, y)
             end

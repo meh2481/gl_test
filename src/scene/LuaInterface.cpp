@@ -242,7 +242,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
                                      "getCursorPosition",
                                      "setCameraOffset", "setCameraZoom",
                                      "setTransitionFadeTime", "setTransitionColor",
-                                     "addLight", "updateLight", "removeLight", "setAmbientLight",
+                                     "addLight", "updateLightPosition", "updateLightColor", "updateLightIntensity", "removeLight", "setAmbientLight",
                                      "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "loadParticleShaders",
                                      "openParticleEditor", "loadParticleConfig", "loadObject", "createNode", "getNode", "destroyNode", "getNodePosition",
                                      "ipairs", "pairs", nullptr};
@@ -797,7 +797,9 @@ void LuaInterface::registerFunctions() {
 
     // Register light management functions
     lua_register(luaState_, "addLight", addLight);
-    lua_register(luaState_, "updateLight", updateLight);
+    lua_register(luaState_, "updateLightPosition", updateLightPosition);
+    lua_register(luaState_, "updateLightColor", updateLightColor);
+    lua_register(luaState_, "updateLightIntensity", updateLightIntensity);
     lua_register(luaState_, "removeLight", removeLight);
     lua_register(luaState_, "setAmbientLight", setAmbientLight);
 
@@ -828,7 +830,6 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "animateLayerColor", animateLayerColor);
     lua_register(luaState_, "animateLayerOffset", animateLayerOffset);
     lua_register(luaState_, "animateLightIntensity", animateLightIntensity);
-    lua_register(luaState_, "getLightIntensity", getLightIntensity);
     lua_register(luaState_, "stopAnimation", stopAnimation);
     lua_register(luaState_, "stopLayerAnimations", stopLayerAnimations);
 
@@ -2918,23 +2919,49 @@ int LuaInterface::addLight(lua_State* L) {
     return 1;
 }
 
-int LuaInterface::updateLight(lua_State* L) {
+int LuaInterface::updateLightPosition(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    // Arguments: lightId, x, y, z, r, g, b, intensity
-    assert(lua_gettop(L) == 8);
+    // Arguments: lightId, x, y, z
+    assert(lua_gettop(L) == 4);
     int lightId = (int)lua_tointeger(L, 1);
     float x = (float)lua_tonumber(L, 2);
     float y = (float)lua_tonumber(L, 3);
     float z = (float)lua_tonumber(L, 4);
-    float r = (float)lua_tonumber(L, 5);
-    float g = (float)lua_tonumber(L, 6);
-    float b = (float)lua_tonumber(L, 7);
-    float intensity = (float)lua_tonumber(L, 8);
 
-    interface->renderer_.updateLight(lightId, x, y, z, r, g, b, intensity);
+    interface->renderer_.updateLightPosition(lightId, x, y, z);
+    return 0;
+}
+
+int LuaInterface::updateLightColor(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: lightId, r, g, b
+    assert(lua_gettop(L) == 4);
+    int lightId = (int)lua_tointeger(L, 1);
+    float r = (float)lua_tonumber(L, 2);
+    float g = (float)lua_tonumber(L, 3);
+    float b = (float)lua_tonumber(L, 4);
+
+    interface->renderer_.updateLightColor(lightId, r, g, b);
+    return 0;
+}
+
+int LuaInterface::updateLightIntensity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    // Arguments: lightId, intensity
+    assert(lua_gettop(L) == 2);
+    int lightId = (int)lua_tointeger(L, 1);
+    float intensity = (float)lua_tonumber(L, 2);
+
+    interface->renderer_.updateLightIntensity(lightId, intensity);
     return 0;
 }
 
@@ -4186,27 +4213,6 @@ int LuaInterface::animateLightIntensity(lua_State* L) {
 
     lua_pushinteger(L, animId);
     return 1;
-}
-
-int LuaInterface::getLightIntensity(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    assert(lua_gettop(L) >= 1);
-    int lightId = luaL_checkinteger(L, 1);
-
-    float intensity = 0.0f;
-    bool hasAnimation = interface->animationEngine_->getLightIntensity(lightId, intensity);
-
-    if (hasAnimation) {
-        lua_pushnumber(L, intensity);
-        return 1;
-    } else {
-        // Return nil if no animation is active for this light
-        lua_pushnil(L);
-        return 1;
-    }
 }
 
 int LuaInterface::stopAnimation(lua_State* L) {

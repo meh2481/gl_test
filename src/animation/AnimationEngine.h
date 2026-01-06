@@ -82,10 +82,6 @@ public:
     // Get active animation count for debugging
     int getActiveAnimationCount() const { return animations_.size(); }
 
-    // Get the current animated value for a light intensity property
-    // Returns true if the light has an active intensity animation, false otherwise
-    bool getLightIntensity(int lightId, float& outIntensity) const;
-
 private:
     // Apply interpolation function
     float interpolate(float t, InterpolationType type) const;
@@ -101,6 +97,5 @@ private:
     ConsoleBuffer* consoleBuffer_;
     VulkanRenderer* renderer_;
     HashTable<int, Animation*> animations_;  // animationId -> Animation*
-    HashTable<int, float> lightIntensities_; // lightId -> current animated intensity
     int nextAnimationId_;
 };

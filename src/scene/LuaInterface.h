@@ -193,7 +193,9 @@ private:
 
     // Light management Lua bindings
     static int addLight(lua_State* L);
-    static int updateLight(lua_State* L);
+    static int updateLightPosition(lua_State* L);
+    static int updateLightColor(lua_State* L);
+    static int updateLightIntensity(lua_State* L);
     static int removeLight(lua_State* L);
     static int setAmbientLight(lua_State* L);
 
@@ -222,7 +224,6 @@ private:
     static int animateLayerColor(lua_State* L);
     static int animateLayerOffset(lua_State* L);
     static int animateLightIntensity(lua_State* L);
-    static int getLightIntensity(lua_State* L);
     static int stopAnimation(lua_State* L);
     static int stopLayerAnimations(lua_State* L);
 

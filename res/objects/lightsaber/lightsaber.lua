@@ -198,7 +198,8 @@ function Lightsaber.update(deltaTime)
         local x, y = b2GetBodyPosition(Lightsaber.bladeBody)
         if x ~= nil and y ~= nil then
             local intensity = config.lightIntensity * Lightsaber.bladeExtension
-            updateLight(Lightsaber.lightId, x, y, config.lightZ, config.colorR, config.colorG, config.colorB, intensity)
+            updateLightPosition(Lightsaber.lightId, x, y, config.lightZ)
+            updateLightIntensity(Lightsaber.lightId, intensity)
         end
     end
 end

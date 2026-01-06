@@ -44,7 +44,9 @@ public:
 
     // Light management
     int addLight(float x, float y, float z, float r, float g, float b, float intensity);
-    void updateLight(int lightId, float x, float y, float z, float r, float g, float b, float intensity);
+    void updateLightPosition(int lightId, float x, float y, float z);
+    void updateLightColor(int lightId, float r, float g, float b);
+    void updateLightIntensity(int lightId, float intensity);
     void removeLight(int lightId);
     void clearLights();
     void setAmbientLight(float r, float g, float b);

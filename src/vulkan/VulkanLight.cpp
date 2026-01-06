@@ -114,7 +114,7 @@ int VulkanLight::addLight(float x, float y, float z, float r, float g, float b, 
     return lightId;
 }
 
-void VulkanLight::updateLight(int lightId, float x, float y, float z, float r, float g, float b, float intensity) {
+void VulkanLight::updateLightPosition(int lightId, float x, float y, float z) {
     int* indexPtr = m_lightIdToIndex.find(lightId);
     if (indexPtr == nullptr) {
         return;
@@ -124,9 +124,29 @@ void VulkanLight::updateLight(int lightId, float x, float y, float z, float r, f
     m_lightBufferData.lights[index].posX = x;
     m_lightBufferData.lights[index].posY = y;
     m_lightBufferData.lights[index].posZ = z;
+    m_lightBufferDirty = true;
+}
+
+void VulkanLight::updateLightColor(int lightId, float r, float g, float b) {
+    int* indexPtr = m_lightIdToIndex.find(lightId);
+    if (indexPtr == nullptr) {
+        return;
+    }
+
+    int index = *indexPtr;
     m_lightBufferData.lights[index].colorR = r;
     m_lightBufferData.lights[index].colorG = g;
     m_lightBufferData.lights[index].colorB = b;
+    m_lightBufferDirty = true;
+}
+
+void VulkanLight::updateLightIntensity(int lightId, float intensity) {
+    int* indexPtr = m_lightIdToIndex.find(lightId);
+    if (indexPtr == nullptr) {
+        return;
+    }
+
+    int index = *indexPtr;
     m_lightBufferData.lights[index].intensity = intensity;
     m_lightBufferDirty = true;
 }

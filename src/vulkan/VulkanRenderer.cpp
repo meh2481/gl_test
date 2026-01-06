@@ -1227,8 +1227,16 @@ int VulkanRenderer::addLight(float x, float y, float z, float r, float g, float 
     return m_lightManager.addLight(x, y, z, r, g, b, intensity);
 }
 
-void VulkanRenderer::updateLight(int lightId, float x, float y, float z, float r, float g, float b, float intensity) {
-    m_lightManager.updateLight(lightId, x, y, z, r, g, b, intensity);
+void VulkanRenderer::updateLightPosition(int lightId, float x, float y, float z) {
+    m_lightManager.updateLightPosition(lightId, x, y, z);
+}
+
+void VulkanRenderer::updateLightColor(int lightId, float r, float g, float b) {
+    m_lightManager.updateLightColor(lightId, r, g, b);
+}
+
+void VulkanRenderer::updateLightIntensity(int lightId, float intensity) {
+    m_lightManager.updateLightIntensity(lightId, intensity);
 }
 
 void VulkanRenderer::removeLight(int lightId) {
