@@ -124,25 +124,31 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                             }
 
                             // Check for type-based interactions (e.g., fire + water)
-                            // Trigger collision callback when bodies with types interact
+                            // Only trigger collision callback when body is actually IN the water (below surface)
                             if (event.isBegin) {
                                 Vector<String> sensorTypes = physics_->getBodyTypes(event.sensorBodyId);
                                 Vector<String> visitorTypes = physics_->getBodyTypes(event.visitorBodyId);
                                 
                                 if (sensorTypes.size() > 0 && visitorTypes.size() > 0) {
-                                    // Calculate approach speed from velocity
-                                    float approachSpeed = SDL_sqrtf(event.visitorVelX * event.visitorVelX + 
-                                                                   event.visitorVelY * event.visitorVelY);
+                                    // Check if body is actually in the water (below surface level)
+                                    // Water fills from minY (bottom) to surfaceY (current water level)
+                                    bool isInWater = (event.visitorY <= surfaceY && event.visitorY >= waterField->config.minY);
                                     
-                                    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
-                                        "Water sensor collision: sensor body %d, visitor body %d", 
-                                        event.sensorBodyId, event.visitorBodyId);
-                                    
-                                    // Trigger the collision callback through the physics system
-                                    // This will call the Lua handleCollision function that was registered
-                                    physics_->triggerCollisionCallback(event.sensorBodyId, event.visitorBodyId,
-                                                                       event.visitorX, event.visitorY,
-                                                                       0.0f, 1.0f, approachSpeed);
+                                    if (isInWater) {
+                                        // Calculate approach speed from velocity
+                                        float approachSpeed = SDL_sqrtf(event.visitorVelX * event.visitorVelX + 
+                                                                       event.visitorVelY * event.visitorVelY);
+                                        
+                                        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+                                            "Body in water: sensor body %d, visitor body %d at Y=%.2f (surface=%.2f)", 
+                                            event.sensorBodyId, event.visitorBodyId, event.visitorY, surfaceY);
+                                        
+                                        // Trigger the collision callback through the physics system
+                                        // This will call the Lua handleCollision function that was registered
+                                        physics_->triggerCollisionCallback(event.sensorBodyId, event.visitorBodyId,
+                                                                           event.visitorX, event.visitorY,
+                                                                           0.0f, 1.0f, approachSpeed);
+                                    }
                                 }
                             }
                         }
