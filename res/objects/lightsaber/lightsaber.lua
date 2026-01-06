@@ -12,9 +12,7 @@ Lightsaber.lightId = nil
 Lightsaber.bodies = {}
 Lightsaber.layers = {}
 Lightsaber.joints = {}
-Lightsaber.bladeExtension = 1.0
-Lightsaber.targetExtension = 1.0
-Lightsaber.bladeEnabled = true
+Lightsaber.bladeActive = true
 
 -- Animation tracking
 Lightsaber.scaleAnimId = nil
@@ -47,7 +45,7 @@ local config = {
 
 -- Constants
 local BLADE_CORE_SCALE = 1.2
-local EXTENSION_SPEED = 6.0
+local ANIMATION_DURATION = 0.167  -- ~1/6 second for blade extension/retraction
 
 -- Load all required resources internally
 local function loadResources()
@@ -132,58 +130,8 @@ function Lightsaber.create(params)
 end
 
 function Lightsaber.update(deltaTime)
-    -- Update blade extension for physics calculations only
-    -- Visual animations (scale, offset, light intensity) are handled by the animation engine
-    if Lightsaber.bladeExtension < Lightsaber.targetExtension then
-        Lightsaber.bladeExtension = math.min(Lightsaber.targetExtension, Lightsaber.bladeExtension + EXTENSION_SPEED * deltaTime)
-    elseif Lightsaber.bladeExtension > Lightsaber.targetExtension then
-        Lightsaber.bladeExtension = math.max(Lightsaber.targetExtension, Lightsaber.bladeExtension - EXTENSION_SPEED * deltaTime)
-    end
-
-    -- Update blade body position and size based on extension
-    if Lightsaber.bladeBody and Lightsaber.hiltBody then
-        if Lightsaber.bladeExtension <= 0.01 then
-            if Lightsaber.bladeEnabled then
-                b2DisableBody(Lightsaber.bladeBody)
-                Lightsaber.bladeEnabled = false
-            end
-
-            local hiltX, hiltY = b2GetBodyPosition(Lightsaber.hiltBody)
-            local hiltAngle = b2GetBodyAngle(Lightsaber.hiltBody)
-            local bladeOffsetY = config.hiltLength / 2 + config.bladeLength / 2
-
-            local cosAngle = math.cos(hiltAngle)
-            local sinAngle = math.sin(hiltAngle)
-            local bladeX = hiltX - bladeOffsetY * sinAngle
-            local bladeY = hiltY + bladeOffsetY * cosAngle
-
-            b2SetBodyPosition(Lightsaber.bladeBody, bladeX, bladeY)
-            b2SetBodyAngle(Lightsaber.bladeBody, hiltAngle)
-        else
-            if not Lightsaber.bladeEnabled then
-                Lightsaber.bladeEnabled = true
-                b2EnableBody(Lightsaber.bladeBody)
-            end
-
-            -- Update physics fixture based on current extension
-            if Lightsaber.bladeExtension ~= 1.0 then
-                b2ClearAllFixtures(Lightsaber.bladeBody)
-
-                local currentBladeLength = config.bladeLength * Lightsaber.bladeExtension
-                local bladeHalfW = config.bladeWidth / 2
-
-                local vertices = {
-                    -bladeHalfW, -config.bladeLength / 2,
-                    bladeHalfW, -config.bladeLength / 2,
-                    bladeHalfW, -config.bladeLength / 2 + currentBladeLength,
-                    -bladeHalfW, -config.bladeLength / 2 + currentBladeLength
-                }
-                b2AddPolygonFixture(Lightsaber.bladeBody, vertices, 0.1, 0.1, 0.0)
-            end
-        end
-    end
-
-    -- Update light position (follows blade body)
+    -- All visual animations (scale, offset, light intensity) are handled by the animation engine
+    -- Only update light position to follow blade body
     if Lightsaber.bladeBody and Lightsaber.lightId then
         local x, y = b2GetBodyPosition(Lightsaber.bladeBody)
         if x ~= nil and y ~= nil then
@@ -219,17 +167,8 @@ function Lightsaber.getBladeBody()
 end
 
 function Lightsaber.toggleBlade()
-    -- Calculate animation duration based on distance to travel
-    local currentExtension = Lightsaber.bladeExtension
-    local targetExt = (Lightsaber.targetExtension > 0.5) and 0.0 or 1.0
-    Lightsaber.targetExtension = targetExt
-
-    local distance = math.abs(targetExt - currentExtension)
-    local duration = distance / EXTENSION_SPEED
-
-    if duration < 0.01 then
-        return -- Already at target
-    end
+    -- Toggle blade state
+    Lightsaber.bladeActive = not Lightsaber.bladeActive
 
     -- Stop any existing animations
     if Lightsaber.scaleAnimId then
@@ -242,14 +181,37 @@ function Lightsaber.toggleBlade()
         stopAnimation(Lightsaber.lightAnimId)
     end
 
+    local startScaleY, endScaleY
+    local startIntensity, endIntensity
+
+    if Lightsaber.bladeActive then
+        -- Extending blade: 0 -> 1
+        startScaleY = 0.0
+        endScaleY = 1.0
+        startIntensity = 0.0
+        endIntensity = config.lightIntensity
+        -- Enable blade body for physics
+        if Lightsaber.bladeBody then
+            b2EnableBody(Lightsaber.bladeBody)
+        end
+    else
+        -- Retracting blade: 1 -> 0
+        startScaleY = 1.0
+        endScaleY = 0.0
+        startIntensity = config.lightIntensity
+        endIntensity = 0.0
+        -- Disable blade body for physics
+        if Lightsaber.bladeBody then
+            b2DisableBody(Lightsaber.bladeBody)
+        end
+    end
+
     -- Animate blade layer scale
-    local startScaleY = currentExtension
-    local endScaleY = targetExt
     Lightsaber.scaleAnimId = animateLayerScale(
         Lightsaber.bladeLayer,
         1.0, startScaleY,
         1.0, endScaleY,
-        duration,
+        ANIMATION_DURATION,
         INTERPOLATION_LINEAR
     )
 
@@ -260,18 +222,16 @@ function Lightsaber.toggleBlade()
         Lightsaber.bladeLayer,
         0.0, startOffsetY,
         0.0, endOffsetY,
-        duration,
+        ANIMATION_DURATION,
         INTERPOLATION_LINEAR
     )
 
     -- Animate light intensity
-    local startIntensity = config.lightIntensity * currentExtension
-    local endIntensity = config.lightIntensity * targetExt
     Lightsaber.lightAnimId = animateLightIntensity(
         Lightsaber.lightId,
         startIntensity,
         endIntensity,
-        duration,
+        ANIMATION_DURATION,
         INTERPOLATION_LINEAR
     )
 end
@@ -287,10 +247,8 @@ function Lightsaber.reset()
     local startY = config.y
     local bladeOffsetY = config.hiltLength / 2 + config.bladeLength / 2
 
-    -- Reset blade extension state
-    Lightsaber.bladeExtension = 1.0
-    Lightsaber.targetExtension = 1.0
-    Lightsaber.bladeEnabled = true
+    -- Reset blade state
+    Lightsaber.bladeActive = true
 
     -- Stop any active animations
     if Lightsaber.scaleAnimId then
