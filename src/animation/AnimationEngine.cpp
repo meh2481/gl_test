@@ -1,17 +1,21 @@
 #include "AnimationEngine.h"
 #include "../scene/SceneLayer.h"
 #include "../debug/ConsoleBuffer.h"
+#include "../vulkan/VulkanRenderer.h"
 #include <cassert>
 
-AnimationEngine::AnimationEngine(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer)
+AnimationEngine::AnimationEngine(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer, VulkanRenderer* renderer)
     : allocator_(allocator)
     , layerManager_(layerManager)
     , consoleBuffer_(consoleBuffer)
+    , renderer_(renderer)
     , animations_(*allocator, "AnimationEngine::animations_")
+    , lightIntensities_(*allocator, "AnimationEngine::lightIntensities_")
     , nextAnimationId_(1) {
     assert(allocator != nullptr);
     assert(layerManager != nullptr);
     assert(consoleBuffer != nullptr);
+    assert(renderer != nullptr);
     consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "AnimationEngine: Created");
 }
 
@@ -194,6 +198,7 @@ void AnimationEngine::clear() {
     }
 
     animations_.clear();
+    lightIntensities_.clear();
 
     if (count > 0) {
         consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE,
@@ -310,8 +315,23 @@ void AnimationEngine::applyAnimation(const Animation& anim, float t) {
             layerManager_->setLayerOffset(anim.targetId, interpolatedValues[0], interpolatedValues[1]);
             break;
 
+        case PROPERTY_LIGHT_INTENSITY:
+            assert(anim.valueCount >= 1);
+            // Store the current intensity in the map so it can be queried
+            lightIntensities_.insert(anim.targetId, interpolatedValues[0]);
+            break;
+
         default:
             assert(false);
             break;
     }
+}
+
+bool AnimationEngine::getLightIntensity(int lightId, float& outIntensity) const {
+    const float* intensity = lightIntensities_.find(lightId);
+    if (intensity != nullptr) {
+        outIntensity = *intensity;
+        return true;
+    }
+    return false;
 }

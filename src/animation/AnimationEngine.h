@@ -7,6 +7,7 @@
 
 class SceneLayerManager;
 class ConsoleBuffer;
+class VulkanRenderer;
 
 // Interpolation types supported by the animation engine
 enum InterpolationType {
@@ -24,7 +25,8 @@ enum AnimationPropertyType {
     PROPERTY_LAYER_POSITION,     // Position of a layer (2 floats: x, y)
     PROPERTY_LAYER_ROTATION,     // Rotation of a layer (1 float: angle)
     PROPERTY_LAYER_COLOR,        // Color of a layer (4 floats: r, g, b, a)
-    PROPERTY_LAYER_OFFSET        // Offset of a layer (2 floats: x, y)
+    PROPERTY_LAYER_OFFSET,       // Offset of a layer (2 floats: x, y)
+    PROPERTY_LIGHT_INTENSITY     // Intensity of a light (1 float: intensity)
 };
 
 // Animation definition
@@ -52,7 +54,7 @@ struct Animation {
 // Animation engine manages all active animations
 class AnimationEngine {
 public:
-    AnimationEngine(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer);
+    AnimationEngine(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer, VulkanRenderer* renderer);
     ~AnimationEngine();
 
     // Start a new animation and return its ID
@@ -80,6 +82,10 @@ public:
     // Get active animation count for debugging
     int getActiveAnimationCount() const { return animations_.size(); }
 
+    // Get the current animated value for a light intensity property
+    // Returns true if the light has an active intensity animation, false otherwise
+    bool getLightIntensity(int lightId, float& outIntensity) const;
+
 private:
     // Apply interpolation function
     float interpolate(float t, InterpolationType type) const;
@@ -93,6 +99,8 @@ private:
     MemoryAllocator* allocator_;
     SceneLayerManager* layerManager_;
     ConsoleBuffer* consoleBuffer_;
+    VulkanRenderer* renderer_;
     HashTable<int, Animation*> animations_;  // animationId -> Animation*
+    HashTable<int, float> lightIntensities_; // lightId -> current animated intensity
     int nextAnimationId_;
 };
