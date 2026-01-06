@@ -1814,13 +1814,30 @@ int LuaInterface::setWaterPercentage(lua_State* L) {
             interface->renderer_.updateWaterPolygonVertices(rotatedVertices, field->config.vertexCount);
         }
 
-        // Update the surface collision body position to match the new water level
-        int* surfaceBodyIdPtr = interface->waterSurfaceCollisionBodies_.find(waterFieldId);
-        if (surfaceBodyIdPtr) {
-            int surfaceBodyId = *surfaceBodyIdPtr;
-            interface->physics_->setBodyPosition(surfaceBodyId, 0.0f, surfaceY);
-            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, 
-                "Updated water surface collision body %d to Y=%.2f", surfaceBodyId, surfaceY);
+        // Update the water collision body to match the new water level
+        // Destroy and recreate the body with the new water volume
+        int* waterBodyIdPtr = interface->waterSurfaceCollisionBodies_.find(waterFieldId);
+        if (waterBodyIdPtr) {
+            int oldBodyId = *waterBodyIdPtr;
+            interface->physics_->destroyBody(oldBodyId);
+            
+            // Create new collision body with updated water volume
+            float minX = field->config.minX;
+            float maxX = field->config.maxX;
+            float minY = field->config.minY;
+            
+            float waterCenterX = (minX + maxX) / 2.0f;
+            float waterCenterY = (minY + surfaceY) / 2.0f;
+            float waterHalfWidth = (maxX - minX) / 2.0f;
+            float waterHalfHeight = (surfaceY - minY) / 2.0f;
+            
+            int newBodyId = interface->physics_->createBody(0, waterCenterX, waterCenterY, 0.0f);
+            interface->physics_->addBoxFixture(newBodyId, waterHalfWidth, waterHalfHeight, 0.0f, 0.0f, 0.0f);
+            interface->physics_->addBodyType(newBodyId, "water");
+            interface->waterSurfaceCollisionBodies_.insert(waterFieldId, newBodyId);
+            
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+                "Updated water collision body %d -> %d to cover Y[%.2f, %.2f]", oldBodyId, newBodyId, minY, surfaceY);
         }
     }
 
@@ -3868,14 +3885,21 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
     waterFieldShaderMap_.insert(waterFieldId, waterShaderId);
     waterFieldLayerMap_.insert(waterFieldId, waterLayerId);
 
-    // 11. Create a thin collision body at the water surface for fire/water interactions
+    // 11. Create a collision body for the water volume (for fire/water interactions)
+    // Create a box collision body covering the water volume from minX to maxX, minY to surfaceY
     // This allows Box2D's normal collision detection to trigger the collision callback
-    int surfaceBodyId = physics_->createBody(0, 0.0f, surfaceY, 0.0f); // Static body at surface
-    physics_->addSegmentFixture(surfaceBodyId, minX, surfaceY, maxX, surfaceY, 0.0f, 0.0f); // Thin line segment
-    physics_->addBodyType(surfaceBodyId, "water"); // Add water type for collision detection
-    waterSurfaceCollisionBodies_.insert(waterFieldId, surfaceBodyId);
-    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Created water surface collision body %d at Y=%.2f from X=%.2f to %.2f", 
-                       surfaceBodyId, surfaceY, minX, maxX);
+    float waterCenterX = (minX + maxX) / 2.0f;
+    float waterCenterY = (minY + surfaceY) / 2.0f;
+    float waterHalfWidth = (maxX - minX) / 2.0f;
+    float waterHalfHeight = (surfaceY - minY) / 2.0f;
+    
+    int waterBodyId = physics_->createBody(0, waterCenterX, waterCenterY, 0.0f); // Static body at water center
+    physics_->addBoxFixture(waterBodyId, waterHalfWidth, waterHalfHeight, 0.0f, 0.0f, 0.0f);
+    physics_->addBodyType(waterBodyId, "water"); // Add water type for collision detection
+    waterSurfaceCollisionBodies_.insert(waterFieldId, waterBodyId);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, 
+                       "Created water collision body %d covering X[%.2f, %.2f] Y[%.2f, %.2f]", 
+                       waterBodyId, minX, maxX, minY, surfaceY);
 
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
 }
