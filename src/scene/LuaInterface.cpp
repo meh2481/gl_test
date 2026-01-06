@@ -128,21 +128,17 @@ void LuaInterface::handleSensorEvent(const SensorEvent& event) {
                             if (event.isBegin) {
                                 Vector<String> sensorTypes = physics_->getBodyTypes(event.sensorBodyId);
                                 Vector<String> visitorTypes = physics_->getBodyTypes(event.visitorBodyId);
-                                
+
                                 if (sensorTypes.size() > 0 && visitorTypes.size() > 0) {
                                     // Check if body is actually in the water (below surface level)
                                     // Water fills from minY (bottom) to surfaceY (current water level)
                                     bool isInWater = (event.visitorY <= surfaceY && event.visitorY >= waterField->config.minY);
-                                    
+
                                     if (isInWater) {
                                         // Calculate approach speed from velocity
-                                        float approachSpeed = SDL_sqrtf(event.visitorVelX * event.visitorVelX + 
+                                        float approachSpeed = SDL_sqrtf(event.visitorVelX * event.visitorVelX +
                                                                        event.visitorVelY * event.visitorVelY);
-                                        
-                                        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
-                                            "Body in water: sensor body %d, visitor body %d at Y=%.2f (surface=%.2f)", 
-                                            event.sensorBodyId, event.visitorBodyId, event.visitorY, surfaceY);
-                                        
+
                                         // Trigger the collision callback through the physics system
                                         // This will call the Lua handleCollision function that was registered
                                         physics_->triggerCollisionCallback(event.sensorBodyId, event.visitorBodyId,
@@ -451,18 +447,18 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
 
                 // Update tracked body for potential splash
                 waterEffectManager_->updateTrackedBody(field.waterFieldId, bodyIds[i], posX[i], posY[i]);
-                
+
                 // Check for type-based interactions when body is in the water volume
                 // This handles cases where body enters sensor above water then descends into water
                 bool isInWater = (posY[i] <= surfaceY && posY[i] >= minY);
                 if (isInWater) {
-                    // Get the force field body ID for type checking  
+                    // Get the force field body ID for type checking
                     const ForceField* forceField = physics_->getForceField(field.forceFieldId);
                     if (forceField && forceField->isWater) {
                         int waterBodyId = forceField->bodyId;
                         Vector<String> waterTypes = physics_->getBodyTypes(waterBodyId);
                         Vector<String> visitorTypes = physics_->getBodyTypes(bodyIds[i]);
-                        
+
                         // Only trigger if both have types (e.g., water + fire)
                         if (waterTypes.size() > 0 && visitorTypes.size() > 0) {
                             // Trigger collision callback - Lua side handles deduplication
