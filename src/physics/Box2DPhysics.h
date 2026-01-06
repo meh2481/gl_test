@@ -176,6 +176,7 @@ public:
     // Sensor shape management (for nodes)
     void addCircleSensor(int bodyId, float radius);
     void addPolygonSensor(int bodyId, const float* vertices, int vertexCount);
+    void addPolygonSensorWithContacts(int bodyId, const float* vertices, int vertexCount); // Sensor that also triggers contact events
 
     // Joint management
     int createRevoluteJoint(int bodyIdA, int bodyIdB, float anchorAx, float anchorAy, float anchorBx, float anchorBy, bool enableLimit = false, float lowerAngle = 0.0f, float upperAngle = 0.0f);
