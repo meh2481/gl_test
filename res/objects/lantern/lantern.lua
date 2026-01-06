@@ -203,13 +203,12 @@ function Lantern.extinguish()
     updateLight(Lantern.lightId, 0, 0, 0, 0, 0, 0, 0)
 
     if Lantern.bloomLayerId then
-        -- Animate bloom scale from current scale to 0,0 over 0.3 seconds with ease-in interpolation
-        animateLayerScale(Lantern.bloomLayerId, 1.0, 1.0, 0.0, 0.0, 0.3, INTERPOLATION_EASE_IN)
+        setLayerScale(Lantern.bloomLayerId, 0, 0)
     end
 end
 
 function Lantern.relight()
-    if not Lantern.lightBody or not Lantern.config then return end
+    if Lantern.particleSystemId then return end
 
     local x, y = b2GetBodyPosition(Lantern.lightBody)
     if x == nil or y == nil then return end
