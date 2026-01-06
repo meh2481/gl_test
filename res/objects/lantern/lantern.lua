@@ -90,7 +90,7 @@ function Lantern.create(params)
     b2AddCircleFixture(Lantern.chainAnchor, 0.002, 1.0, 0.3, 0.0)
     table.insert(Lantern.bodies, Lantern.chainAnchor)
 
-    local prevBodyId = nil --Lantern.chainAnchor
+    local prevBodyId = Lantern.chainAnchor
 
     -- Create chain links
     for i = 1, config.chainLength do
@@ -155,6 +155,7 @@ function Lantern.create(params)
         false, 0.0, 0.0
     )
     table.insert(Lantern.joints, lightJointId)
+    Lantern.attached = true
 
     -- Create the light
     Lantern.lightId = addLight(startX, startY, config.lightZ, config.lightR, config.lightG, config.lightB, config.lightIntensity)
@@ -232,6 +233,46 @@ function Lantern.relight()
     end
 end
 
+function Lantern.onAction(action)
+    if action == ACTION_TOGGLE_BLADE then
+        Lantern.toggleAttach()
+    end
+end
+
+function Lantern.toggleAttach()
+    if Lantern.attached then
+        -- Detach the lantern
+        if #Lantern.joints > 0 then
+            b2DestroyJoint(Lantern.joints[#Lantern.joints])
+            table.remove(Lantern.joints)
+        end
+        Lantern.attached = false
+    else
+        -- Reattach the lantern
+        local prevBodyId = Lantern.chainLinks[#Lantern.chainLinks]
+        if prevBodyId then
+            local linkHeight = Lantern.config.chainLinkHeight
+            -- Position the lantern below the last chain link
+            local x, y = b2GetBodyPosition(prevBodyId)
+            if x and y then
+                b2SetBodyPosition(Lantern.lightBody, x, y - linkHeight)
+                b2SetBodyLinearVelocity(Lantern.lightBody, 0, 0)
+                b2SetBodyAngularVelocity(Lantern.lightBody, 0)
+                -- Recreate the joint
+                local jointId = b2CreateRevoluteJoint(
+                    prevBodyId,
+                    Lantern.lightBody,
+                    0.0, -linkHeight / 2 + Lantern.config.chainOffset,
+                    0.0, 0.05 - Lantern.config.chainOffset,
+                    false, 0.0, 0.0
+                )
+                table.insert(Lantern.joints, jointId)
+                Lantern.attached = true
+            end
+        end
+    end
+end
+
 function Lantern.update(deltaTime)
     if Lantern.lightBody and Lantern.particleSystemId then
         local x, y = b2GetBodyPosition(Lantern.lightBody)
@@ -284,6 +325,21 @@ function Lantern.reset()
         b2SetBodyLinearVelocity(Lantern.lightBody, 0, 0)
         b2SetBodyAngularVelocity(Lantern.lightBody, 0)
         b2SetBodyAwake(Lantern.lightBody, true)
+    end
+
+    -- Ensure lantern is attached
+    if not Lantern.attached then
+        local prevBodyId = Lantern.chainLinks[#Lantern.chainLinks]
+        local linkHeight = config.chainLinkHeight
+        local jointId = b2CreateRevoluteJoint(
+            prevBodyId,
+            Lantern.lightBody,
+            0.0, -linkHeight / 2 + config.chainOffset,
+            0.0, 0.05 - config.chainOffset,
+            false, 0.0, 0.0
+        )
+        table.insert(Lantern.joints, jointId)
+        Lantern.attached = true
     end
 end
 

@@ -94,7 +94,7 @@ function init()
     print("Polygon node created at position: (" .. polyX .. ", " .. polyY .. ")")
 
     -- Load objects
-    table.insert(objects, loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.2 }))
+    table.insert(objects, loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.7 }))
     table.insert(objects, loadObject("res/objects/lightsaber/lightsaber.lua", { x = 0.3, y = 0.2, colorR = 0.3, colorG = 0.7, colorB = 1.0 }))
     table.insert(objects, loadObject("res/objects/lightsaber/lightsaber.lua", { x = 0.5, y = 0.2, colorR = 1.0, colorG = 0.0, colorB = 0.0 }))
     table.insert(objects, loadObject("res/objects/destructible_box/destructible_box.lua", { x = 0.8, y = 0.5 }))
@@ -121,7 +121,6 @@ function handleCollision(bodyIdA, bodyIdB, pointX, pointY, normalX, normalY, app
     local fireBody = nil
     local waterBody = nil
     local laserBody = nil
-    local destructibleBody = nil
 
     if hasType(typesA, "fire") then fireBody = bodyIdA end
     if hasType(typesB, "fire") then fireBody = bodyIdB end
@@ -129,8 +128,6 @@ function handleCollision(bodyIdA, bodyIdB, pointX, pointY, normalX, normalY, app
     if hasType(typesB, "water") then waterBody = bodyIdB end
     if hasType(typesA, "laser") then laserBody = bodyIdA end
     if hasType(typesB, "laser") then laserBody = bodyIdB end
-    if hasType(typesA, "destructible") then destructibleBody = bodyIdA end
-    if hasType(typesB, "destructible") then destructibleBody = bodyIdB end
 
     if fireBody and waterBody then
         for _, obj in ipairs(objects) do
@@ -144,21 +141,6 @@ function handleCollision(bodyIdA, bodyIdB, pointX, pointY, normalX, normalY, app
         for _, obj in ipairs(objects) do
             if obj.lightBody and obj.lightBody == fireBody and obj.relight then
                 obj.relight()
-            end
-        end
-    end
-
-    if laserBody and destructibleBody then
-        local x, y = b2GetBodyPosition(destructibleBody)
-        if x then
-            for _, obj in ipairs(objects) do
-                if obj.getBody and obj.getBody() == destructibleBody then
-                    local verts = obj.getVertices and obj.getVertices()
-                    if not verts then
-                        verts = {-0.12, -0.12, 0.12, -0.12, 0.12, 0.12, -0.12, 0.12}
-                    end
-                    b2SetBodyDestructible(destructibleBody, 0.1, 0.9, verts, obj.texId or 0, obj.normId or 0, obj.shaderId or 0)
-                end
             end
         end
     end
