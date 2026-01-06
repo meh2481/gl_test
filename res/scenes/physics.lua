@@ -100,50 +100,6 @@ function init()
     table.insert(objects, loadObject("res/objects/destructible_box/destructible_box.lua", { x = 0.8, y = 0.5 }))
     table.insert(objects, loadObject("res/objects/destructible_box/destructible_box.lua", { x = 1.2, y = 0.5 }))
     table.insert(objects, loadObject("res/objects/rock/rock.lua", { x = 0.0, y = 0.5 }))
-
-    -- Set up collision callback for type-based interactions
-    b2SetCollisionCallback(handleCollision)
-end
-
-function handleCollision(bodyIdA, bodyIdB, pointX, pointY, normalX, normalY, approachSpeed)
-    local typesA = b2GetBodyTypes(bodyIdA)
-    local typesB = b2GetBodyTypes(bodyIdB)
-
-    if not typesA or not typesB then return end
-
-    local function hasType(types, type)
-        for _, t in ipairs(types) do
-            if t == type then return true end
-        end
-        return false
-    end
-
-    local fireBody = nil
-    local waterBody = nil
-    local laserBody = nil
-
-    if hasType(typesA, "fire") then fireBody = bodyIdA end
-    if hasType(typesB, "fire") then fireBody = bodyIdB end
-    if hasType(typesA, "water") then waterBody = bodyIdA end
-    if hasType(typesB, "water") then waterBody = bodyIdB end
-    if hasType(typesA, "laser") then laserBody = bodyIdA end
-    if hasType(typesB, "laser") then laserBody = bodyIdB end
-
-    if fireBody and waterBody then
-        for _, obj in ipairs(objects) do
-            if obj.lightBody and obj.lightBody == fireBody and obj.extinguish then
-                obj.extinguish()
-            end
-        end
-    end
-
-    if laserBody and fireBody then
-        for _, obj in ipairs(objects) do
-            if obj.lightBody and obj.lightBody == fireBody and obj.relight then
-                obj.relight()
-            end
-        end
-    end
 end
 
 function createBoundaries()

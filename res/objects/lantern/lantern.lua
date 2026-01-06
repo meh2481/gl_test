@@ -233,6 +233,29 @@ function Lantern.relight()
     end
 end
 
+function Lantern.handleCollision(otherBodyId, pointX, pointY, normalX, normalY, approachSpeed)
+    -- Get the types of the other body
+    local otherTypes = b2GetBodyTypes(otherBodyId)
+    if not otherTypes then return end
+
+    local function hasType(types, type)
+        for _, t in ipairs(types) do
+            if t == type then return true end
+        end
+        return false
+    end
+
+    -- Check if the other body is water (extinguish the lantern)
+    if hasType(otherTypes, "water") then
+        Lantern.extinguish()
+    end
+
+    -- Check if the other body is a laser (relight the lantern)
+    if hasType(otherTypes, "laser") then
+        Lantern.relight()
+    end
+end
+
 function Lantern.onAction(action)
     if action == ACTION_TOGGLE_BLADE then
         Lantern.toggleAttach()
