@@ -177,6 +177,7 @@ function Lantern.create(params)
 end
 
 function Lantern.extinguish()
+    -- Use particle system ID to check if already extinguished
     if not Lantern.particleSystemId then return end
 
     -- Get lantern position for smoke effect
@@ -232,7 +233,7 @@ function Lantern.relight()
 end
 
 function Lantern.update(deltaTime)
-    if Lantern.lightBody then
+    if Lantern.lightBody and Lantern.particleSystemId then
         local x, y = b2GetBodyPosition(Lantern.lightBody)
         if x ~= nil and y ~= nil then
             updateLight(Lantern.lightId, x, y, config.lightZ, config.lightR, config.lightG, config.lightB, config.lightIntensity)
