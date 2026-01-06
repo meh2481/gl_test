@@ -1,21 +1,23 @@
 #include "AnimationEngine.h"
 #include "../scene/SceneLayer.h"
+#include "../debug/ConsoleBuffer.h"
 #include <cassert>
-#include <SDL3/SDL_log.h>
 
-AnimationEngine::AnimationEngine(MemoryAllocator* allocator, SceneLayerManager* layerManager)
+AnimationEngine::AnimationEngine(MemoryAllocator* allocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer)
     : allocator_(allocator)
     , layerManager_(layerManager)
+    , consoleBuffer_(consoleBuffer)
     , animations_(*allocator, "AnimationEngine::animations_")
     , nextAnimationId_(1) {
     assert(allocator != nullptr);
     assert(layerManager != nullptr);
-    SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "AnimationEngine: Created");
+    assert(consoleBuffer != nullptr);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "AnimationEngine: Created");
 }
 
 AnimationEngine::~AnimationEngine() {
     clear();
-    SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "AnimationEngine: Destroyed");
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "AnimationEngine: Destroyed");
 }
 
 int AnimationEngine::startAnimation(int targetId, AnimationPropertyType propertyType,
@@ -27,23 +29,26 @@ int AnimationEngine::startAnimation(int targetId, AnimationPropertyType property
     assert(valueCount > 0 && valueCount <= 8);
     assert(duration > 0.0f);
 
-    Animation anim;
-    anim.targetId = targetId;
-    anim.propertyType = propertyType;
-    anim.interpolationType = interpolationType;
-    anim.elapsedTime = 0.0f;
-    anim.duration = duration;
-    anim.valueCount = valueCount;
+    Animation* anim = static_cast<Animation*>(allocator_->allocate(sizeof(Animation), "AnimationEngine::startAnimation"));
+    assert(anim != nullptr);
+    new (anim) Animation();
+
+    anim->targetId = targetId;
+    anim->propertyType = propertyType;
+    anim->interpolationType = interpolationType;
+    anim->elapsedTime = 0.0f;
+    anim->duration = duration;
+    anim->valueCount = valueCount;
 
     for (int i = 0; i < valueCount; ++i) {
-        anim.startValues[i] = startValues[i];
-        anim.endValues[i] = endValues[i];
+        anim->startValues[i] = startValues[i];
+        anim->endValues[i] = endValues[i];
     }
 
     int animationId = nextAnimationId_++;
     animations_.insert(animationId, anim);
 
-    SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE,
                  "AnimationEngine: Started animation %d for target %d, property %d, duration %.2f",
                  animationId, targetId, propertyType, duration);
 
@@ -58,26 +63,29 @@ int AnimationEngine::startSplineAnimation(int targetId, AnimationPropertyType pr
     assert(valueCount > 0 && valueCount <= 8);
     assert(duration > 0.0f);
 
-    Animation anim;
-    anim.targetId = targetId;
-    anim.propertyType = propertyType;
-    anim.interpolationType = INTERPOLATION_CATMULL_ROM;
-    anim.elapsedTime = 0.0f;
-    anim.duration = duration;
-    anim.valueCount = valueCount;
+    Animation* anim = static_cast<Animation*>(allocator_->allocate(sizeof(Animation), "AnimationEngine::startSplineAnimation"));
+    assert(anim != nullptr);
+    new (anim) Animation();
+
+    anim->targetId = targetId;
+    anim->propertyType = propertyType;
+    anim->interpolationType = INTERPOLATION_CATMULL_ROM;
+    anim->elapsedTime = 0.0f;
+    anim->duration = duration;
+    anim->valueCount = valueCount;
 
     for (int i = 0; i < valueCount; ++i) {
-        anim.startValues[i] = p1[i];  // Actual start is p1
-        anim.endValues[i] = p2[i];    // Actual end is p2
+        anim->startValues[i] = p1[i];  // Actual start is p1
+        anim->endValues[i] = p2[i];    // Actual end is p2
         // Store all 4 control points for Catmull-Rom
-        anim.controlPoints[i * 2] = p0[i];
-        anim.controlPoints[i * 2 + 1] = p3[i];
+        anim->controlPoints[i * 2] = p0[i];
+        anim->controlPoints[i * 2 + 1] = p3[i];
     }
 
     int animationId = nextAnimationId_++;
     animations_.insert(animationId, anim);
 
-    SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE,
                  "AnimationEngine: Started spline animation %d for target %d, property %d, duration %.2f",
                  animationId, targetId, propertyType, duration);
 
@@ -86,8 +94,16 @@ int AnimationEngine::startSplineAnimation(int targetId, AnimationPropertyType pr
 
 void AnimationEngine::stopAnimation(int animationId) {
     if (animations_.contains(animationId)) {
+        Animation** animPtr = animations_.find(animationId);
+        assert(animPtr != nullptr);
+        Animation* anim = *animPtr;
+        assert(anim != nullptr);
+
+        anim->~Animation();
+        allocator_->free(anim);
+
         animations_.remove(animationId);
-        SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE,
                      "AnimationEngine: Stopped animation %d", animationId);
     }
 }
@@ -96,18 +112,28 @@ void AnimationEngine::stopAnimationsForTarget(int targetId, AnimationPropertyTyp
     Vector<int> toRemove(*allocator_, "AnimationEngine::stopAnimationsForTarget");
 
     for (auto it = animations_.begin(); it != animations_.end(); ++it) {
-        const Animation& anim = it.value();
-        if (anim.targetId == targetId && anim.propertyType == propertyType) {
+        Animation* anim = it.value();
+        assert(anim != nullptr);
+        if (anim->targetId == targetId && anim->propertyType == propertyType) {
             toRemove.push_back(it.key());
         }
     }
 
     for (size_t i = 0; i < toRemove.size(); ++i) {
-        animations_.remove(toRemove[i]);
+        int animId = toRemove[i];
+        Animation** animPtr = animations_.find(animId);
+        assert(animPtr != nullptr);
+        Animation* anim = *animPtr;
+        assert(anim != nullptr);
+
+        anim->~Animation();
+        allocator_->free(anim);
+
+        animations_.remove(animId);
     }
 
     if (toRemove.size() > 0) {
-        SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE,
                      "AnimationEngine: Stopped %zu animations for target %d, property %d",
                      toRemove.size(), targetId, propertyType);
     }
@@ -121,36 +147,56 @@ void AnimationEngine::update(float deltaTime) {
     Vector<int> completedAnimations(*allocator_, "AnimationEngine::completedAnimations");
 
     for (auto it = animations_.begin(); it != animations_.end(); ++it) {
-        Animation& anim = it.value();
-        anim.elapsedTime += deltaTime;
+        Animation* anim = it.value();
+        assert(anim != nullptr);
+        anim->elapsedTime += deltaTime;
 
-        float t = anim.elapsedTime / anim.duration;
+        float t = anim->elapsedTime / anim->duration;
 
         if (t >= 1.0f) {
             // Animation complete - apply final values
             t = 1.0f;
-            applyAnimation(anim, t);
+            applyAnimation(*anim, t);
             completedAnimations.push_back(it.key());
         } else {
             // Animation in progress
-            applyAnimation(anim, t);
+            applyAnimation(*anim, t);
         }
     }
 
     // Remove completed animations
     for (size_t i = 0; i < completedAnimations.size(); ++i) {
         int animId = completedAnimations[i];
-        SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE,
                      "AnimationEngine: Animation %d completed", animId);
+
+        Animation** animPtr = animations_.find(animId);
+        assert(animPtr != nullptr);
+        Animation* anim = *animPtr;
+        assert(anim != nullptr);
+
+        anim->~Animation();
+        allocator_->free(anim);
+
         animations_.remove(animId);
     }
 }
 
 void AnimationEngine::clear() {
     int count = animations_.size();
+
+    // Clean up all allocated animations
+    for (auto it = animations_.begin(); it != animations_.end(); ++it) {
+        Animation* anim = it.value();
+        assert(anim != nullptr);
+        anim->~Animation();
+        allocator_->free(anim);
+    }
+
     animations_.clear();
+
     if (count > 0) {
-        SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+        consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE,
                      "AnimationEngine: Cleared %d animations", count);
     }
 }
