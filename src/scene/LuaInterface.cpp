@@ -360,62 +360,68 @@ void LuaInterface::initScene(uint64_t sceneId) {
 
     // Set up default collision callback that automatically calls handleCollision on objects
     physics_->setCollisionCallback([this](int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed) {
-        // Iterate through all scene objects and call handleCollision on each
+        // Iterate through all scene objects and call handleCollision on each that owns a colliding body
         for (size_t i = 0; i < sceneObjects_.size(); ++i) {
             int objRef = sceneObjects_[i];
             lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
+            if (!lua_istable(luaState_, -1)) {
+                lua_pop(luaState_, 1);
+                continue;
+            }
+
+            // Check if this object has a handleCollision method
+            lua_getfield(luaState_, -1, "handleCollision");
+            if (!lua_isfunction(luaState_, -1)) {
+                lua_pop(luaState_, 2); // Pop non-function and object table
+                continue;
+            }
+
+            // Check if this object owns bodyIdA or bodyIdB by looking for a "bodies" array
+            bool ownsBodyA = false;
+            bool ownsBodyB = false;
+
+            lua_getfield(luaState_, -2, "bodies");
             if (lua_istable(luaState_, -1)) {
-                // Check if this object has a handleCollision method
-                lua_getfield(luaState_, -1, "handleCollision");
-                if (lua_isfunction(luaState_, -1)) {
-                    // Check if this object owns bodyIdA or bodyIdB
-                    bool ownsBodyA = false;
-                    bool ownsBodyB = false;
-                    int ownedBodyId = -1;
-                    int otherBodyId = -1;
-
-                    // Check all body fields in the object
-                    lua_pushnil(luaState_);
-                    while (lua_next(luaState_, -3) != 0) {
-                        // Key at -2, value at -1
-                        if (lua_isinteger(luaState_, -1)) {
-                            int bodyId = lua_tointeger(luaState_, -1);
-                            if (bodyId == bodyIdA) {
-                                ownsBodyA = true;
-                                ownedBodyId = bodyIdA;
-                                otherBodyId = bodyIdB;
-                            }
-                            if (bodyId == bodyIdB) {
-                                ownsBodyB = true;
-                                ownedBodyId = bodyIdB;
-                                otherBodyId = bodyIdA;
-                            }
-                        }
-                        lua_pop(luaState_, 1); // Pop value, keep key for next iteration
+                // Iterate through the bodies array
+                int len = lua_rawlen(luaState_, -1);
+                for (int j = 1; j <= len; ++j) {
+                    lua_rawgeti(luaState_, -1, j);
+                    if (lua_isinteger(luaState_, -1)) {
+                        int bodyId = lua_tointeger(luaState_, -1);
+                        if (bodyId == bodyIdA) ownsBodyA = true;
+                        if (bodyId == bodyIdB) ownsBodyB = true;
                     }
-
-                    // If this object owns one of the bodies, call its handleCollision
-                    if (ownsBodyA || ownsBodyB) {
-                        // Push arguments: otherBodyId, pointX, pointY, normalX, normalY, approachSpeed
-                        lua_pushinteger(luaState_, otherBodyId);
-                        lua_pushnumber(luaState_, pointX);
-                        lua_pushnumber(luaState_, pointY);
-                        lua_pushnumber(luaState_, normalX);
-                        lua_pushnumber(luaState_, normalY);
-                        lua_pushnumber(luaState_, approachSpeed);
-                        if (lua_pcall(luaState_, 6, 0, 0) != LUA_OK) {
-                            const char* errorMsg = lua_tostring(luaState_, -1);
-                            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Object handleCollision error: %s", errorMsg ? errorMsg : "unknown");
-                            lua_pop(luaState_, 1);
-                        }
-                        // Function already popped by pcall
-                    } else {
-                        lua_pop(luaState_, 1); // Pop function
-                    }
-                } else {
-                    lua_pop(luaState_, 1); // Pop non-function
+                    lua_pop(luaState_, 1); // Pop body ID
                 }
             }
+            lua_pop(luaState_, 1); // Pop bodies array or nil
+
+            // Determine which body this object owns and which is the other
+            int otherBodyId = -1;
+            if (ownsBodyA && !ownsBodyB) {
+                otherBodyId = bodyIdB;
+            } else if (ownsBodyB && !ownsBodyA) {
+                otherBodyId = bodyIdA;
+            } else {
+                // Object doesn't own exactly one of the bodies, skip it
+                lua_pop(luaState_, 2); // Pop function and object table
+                continue;
+            }
+
+            // Call handleCollision(otherBodyId, pointX, pointY, normalX, normalY, approachSpeed)
+            lua_pushinteger(luaState_, otherBodyId);
+            lua_pushnumber(luaState_, pointX);
+            lua_pushnumber(luaState_, pointY);
+            lua_pushnumber(luaState_, normalX);
+            lua_pushnumber(luaState_, normalY);
+            lua_pushnumber(luaState_, approachSpeed);
+            if (lua_pcall(luaState_, 6, 0, 0) != LUA_OK) {
+                const char* errorMsg = lua_tostring(luaState_, -1);
+                consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Object handleCollision error: %s", errorMsg ? errorMsg : "unknown");
+                lua_pop(luaState_, 1); // Pop error message
+            }
+            // Function already popped by pcall
+
             lua_pop(luaState_, 1); // Pop object table
         }
     });
