@@ -193,6 +193,32 @@ ResourceData PakResource::getResource(uint64_t id) {
     return ResourceData{nullptr, 0, 0};
 }
 
+bool PakResource::hasResource(uint64_t id) {
+    SDL_LockMutex(m_mutex);
+
+    if (!m_pakData.data) {
+        SDL_UnlockMutex(m_mutex);
+        return false;
+    }
+
+    PakFileHeader* header = (PakFileHeader*)m_pakData.data;
+    if (memcmp(header->sig, "PAKC", 4) != 0) {
+        SDL_UnlockMutex(m_mutex);
+        return false;
+    }
+
+    ResourcePtr* ptrs = (ResourcePtr*)(m_pakData.data + sizeof(PakFileHeader));
+    for (uint32_t i = 0; i < header->numResources; i++) {
+        if (ptrs[i].id == id) {
+            SDL_UnlockMutex(m_mutex);
+            return true;
+        }
+    }
+
+    SDL_UnlockMutex(m_mutex);
+    return false;
+}
+
 bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
     SDL_LockMutex(m_mutex);
 

@@ -32,6 +32,7 @@ public:
     bool load(const char* filename);
     bool reload(const char* filename);
     ResourceData getResource(uint64_t id);
+    bool hasResource(uint64_t id);
 
     // Get atlas UV coordinates for a texture resource
     // Returns true if the resource is an atlas reference, false if standalone

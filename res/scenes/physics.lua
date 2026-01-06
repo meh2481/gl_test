@@ -80,7 +80,7 @@ function init()
 
     -- Create test nodes to demonstrate the node system
     -- Circle node with script callback at left side
-    local circleNodeId = createNode("circle_test", {x = -1.0, y = 0.5, radius = 0.2}, "circle_node_script")
+    local circleNodeId = createNode("circle_node_script", {x = -1.0, y = 0.5, radius = 0.2})
 
     -- Polygon node without script at right side (for position query test)
     local polyNodeVertices = {

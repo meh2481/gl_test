@@ -3609,36 +3609,33 @@ int LuaInterface::createNode(lua_State* L) {
     node->updateFuncRef = LUA_NOREF;
     node->onEnterFuncRef = LUA_NOREF;
 
-    // Store optional script callbacks
-    if (numArgs >= 3) {
-        if (lua_isstring(L, 3)) {
-            // Load script directly from pak
-            const char* scriptNameCStr = lua_tostring(L, 3);
-            String scriptName(scriptNameCStr, interface->stringAllocator_);
-            String scriptPath("res/nodes/", interface->stringAllocator_);
-            scriptPath += scriptName;
-            scriptPath += ".lua";
-            uint64_t scriptId = hashCString(scriptPath.c_str());
-            ResourceData scriptData = interface->pakResource_.getResource(scriptId);
-            if (scriptData.data && scriptData.size > 0) {
-                if (luaL_loadbuffer(L, (char*)scriptData.data, scriptData.size, scriptPath.c_str()) == LUA_OK) {
-                    if (lua_pcall(L, 0, 1, 0) == LUA_OK) {
-                        // Script table is now on top
-                    } else {
-                        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to execute node script: %s", scriptPath.c_str());
-                        lua_pop(L, 1); // Pop error message
-                    }
+    // Load script directly from pak
+    String scriptPath("res/nodes/", interface->stringAllocator_);
+    scriptPath += nodeNameCStr;
+    scriptPath += ".lua";
+    uint64_t scriptId = hashCString(scriptPath.c_str());
+    if (interface->pakResource_.hasResource(scriptId)) {
+        ResourceData scriptData = interface->pakResource_.getResource(scriptId);
+        if (scriptData.data && scriptData.size > 0) {
+            if (luaL_loadbuffer(L, (char*)scriptData.data, scriptData.size, scriptPath.c_str()) == LUA_OK) {
+                if (lua_pcall(L, 0, 1, 0) == LUA_OK) {
+                    // Script table is now on top
                 } else {
-                    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load node script buffer: %s", scriptPath.c_str());
+                    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to execute node script: %s", scriptPath.c_str());
                     lua_pop(L, 1); // Pop error message
+                    assert(false);
                 }
             } else {
-                interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load node script: %s", scriptPath.c_str());
+                interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load node script buffer: %s", scriptPath.c_str());
+                lua_pop(L, 1); // Pop error message
+                assert(false);
             }
-        } else if (lua_istable(L, 3)) {
-            lua_pushvalue(L, 3);
+        } else {
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load node script: %s", scriptPath.c_str());
+            assert(false);
         }
-        // If neither string nor table, skip
+    } else {
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "No script found for node: %s", scriptPath.c_str());
     }
 
     if (lua_istable(L, -1)) {
