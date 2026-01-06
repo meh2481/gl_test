@@ -165,14 +165,6 @@ function onAction(action)
         debugDrawEnabled = not debugDrawEnabled
         b2EnableDebugDraw(debugDrawEnabled)
     end
-    if action == ACTION_TOGGLE_BLADE then
-        -- Forward to all objects that support it
-        for _, obj in ipairs(objects) do
-            if obj.onAction then
-                obj.onAction(action)
-            end
-        end
-    end
     if action == ACTION_DRAG_START then
         local cursorX, cursorY = getCursorPosition()
         local bodyId = b2QueryBodyAtPoint(cursorX, cursorY)

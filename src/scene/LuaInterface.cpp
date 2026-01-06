@@ -597,22 +597,42 @@ void LuaInterface::handleAction(uint64_t sceneId, Action action) {
 
     // Get the onAction function from the table (optional)
     lua_getfield(luaState_, -1, "onAction");
-    if (!lua_isfunction(luaState_, -1)) {
-        lua_pop(luaState_, 2); // Pop nil and table
-        return; // No onAction function, silently ignore
+    if (lua_isfunction(luaState_, -1)) {
+        // Push action parameter
+        lua_pushinteger(luaState_, action);
+
+        // Call onAction(action)
+        if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
+            // Get the error message
+            const char* errorMsg = lua_tostring(luaState_, -1);
+            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua onAction error: %s", (errorMsg ? errorMsg : "unknown error"));
+            lua_pop(luaState_, 2); // Pop error message and table
+            assert(false);
+            return;
+        }
+    } else {
+        lua_pop(luaState_, 1); // Pop non-function
     }
 
-    // Push action parameter
-    lua_pushinteger(luaState_, action);
-
-    // Call onAction(action)
-    if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
-        // Get the error message
-        const char* errorMsg = lua_tostring(luaState_, -1);
-        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua onAction error: %s", (errorMsg ? errorMsg : "unknown error"));
-        lua_pop(luaState_, 2); // Pop error message and table
-        assert(false);
-        return;
+    // Call onAction on all tracked scene objects
+    for (size_t i = 0; i < sceneObjects_.size(); ++i) {
+        int objRef = sceneObjects_[i];
+        lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
+        if (lua_istable(luaState_, -1)) {
+            lua_getfield(luaState_, -1, "onAction");
+            if (lua_isfunction(luaState_, -1)) {
+                lua_pushinteger(luaState_, action);
+                if (lua_pcall(luaState_, 1, 0, 0) != LUA_OK) {
+                    const char* errorMsg = lua_tostring(luaState_, -1);
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Object onAction error: %s", (errorMsg ? errorMsg : "unknown error"));
+                    lua_pop(luaState_, 1);
+                    assert(false);
+                }
+            } else {
+                lua_pop(luaState_, 1); // Pop non-function
+            }
+        }
+        lua_pop(luaState_, 1); // Pop object table
     }
 
     // Pop the table
