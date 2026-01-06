@@ -21,6 +21,7 @@ Lantern.lanternNormId = nil
 Lantern.chainTexId = nil
 Lantern.chainNormId = nil
 Lantern.bloomTexId = nil
+Lantern.smokeTexId = nil
 Lantern.phongShaderId = nil
 Lantern.bloomShaderId = nil
 Lantern.particlePipelineId = nil
@@ -53,6 +54,7 @@ local function loadResources()
     Lantern.chainTexId = loadTexture("res/objects/lantern/chain.png")
     Lantern.chainNormId = loadTexture("res/objects/lantern/chain.norm.png")
     Lantern.bloomTexId = loadTexture("res/fx/bloom.png")
+    Lantern.smokeTexId = loadTexture("res/fx/sponge2.png")
 
     -- Load shaders
     Lantern.phongShaderId = loadTexturedShadersEx("res/shaders/phong_multilight_vertex.spv", "res/shaders/phong_multilight_fragment.spv", 1, 2)
@@ -88,7 +90,7 @@ function Lantern.create(params)
     b2AddCircleFixture(Lantern.chainAnchor, 0.002, 1.0, 0.3, 0.0)
     table.insert(Lantern.bodies, Lantern.chainAnchor)
 
-    local prevBodyId = Lantern.chainAnchor
+    local prevBodyId = nil --Lantern.chainAnchor
 
     -- Create chain links
     for i = 1, config.chainLength do
@@ -103,15 +105,17 @@ function Lantern.create(params)
         attachLayerToBody(layerId, linkId)
         table.insert(Lantern.layers, layerId)
 
-        -- Create revolute joint to connect to previous link/anchor
-        local jointId = b2CreateRevoluteJoint(
-            prevBodyId,
-            linkId,
-            0.0, -linkHeight / 2 + config.chainOffset,
-            0.0, linkHeight / 2 - config.chainOffset,
-            false, 0.0, 0.0
-        )
-        table.insert(Lantern.joints, jointId)
+        if prevBodyId ~= nil then
+            -- Create revolute joint to connect to previous link/anchor
+            local jointId = b2CreateRevoluteJoint(
+                prevBodyId,
+                linkId,
+                0.0, -linkHeight / 2 + config.chainOffset,
+                0.0, linkHeight / 2 - config.chainOffset,
+                false, 0.0, 0.0
+            )
+            table.insert(Lantern.joints, jointId)
+        end
 
         prevBodyId = linkId
     end
@@ -175,6 +179,21 @@ end
 function Lantern.extinguish()
     if not Lantern.particleSystemId then return end
 
+    -- Get lantern position for smoke effect
+    local x, y = b2GetBodyPosition(Lantern.lightBody)
+    if x == nil or y == nil then return end
+
+    -- Create smoke puff effect
+    local smokeConfig = loadParticleConfig("res/fx/smoke_puff.lua")
+    if smokeConfig then
+        smokeConfig.textureIds = {Lantern.smokeTexId}
+        smokeConfig.textureCount = 1
+        local smokeParticleSystemId = createParticleSystem(smokeConfig, Lantern.particlePipelineId)
+        setParticleSystemPosition(smokeParticleSystemId, x, y)
+        -- Note: smoke system will auto-destroy after systemLifetime (0.02 seconds)
+    end
+
+    -- Destroy existing particle system
     if Lantern.particleSystemId then
         destroyParticleSystem(Lantern.particleSystemId)
         Lantern.particleSystemId = nil
