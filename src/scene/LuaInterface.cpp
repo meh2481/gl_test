@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 #include "SceneManager.h"
 #include "../physics/Box2DPhysics.h"
+#include "../memory/FastMemset.h"
 #include "../memory/SmallMemoryAllocator.h"
 #include "../core/hash.h"
 #include "../debug/ConsoleBuffer.h"
@@ -3164,7 +3165,7 @@ int LuaInterface::createParticleSystem(lua_State* L) {
     int pipelineId = lua_tointeger(L, 2);
 
     ParticleEmitterConfig config;
-    memset(&config, 0, sizeof(config));
+    fastZeroMem(&config, sizeof(config));
 
     // Parse config table
     lua_getfield(L, 1, "maxParticles");

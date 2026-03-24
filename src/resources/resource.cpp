@@ -2,7 +2,6 @@
 #include "../core/ResourceTypes.h"
 #include "../core/Vector.h"
 #include "../debug/ConsoleBuffer.h"
-#include <cstring>
 #include <cassert>
 #include <lz4.h>
 

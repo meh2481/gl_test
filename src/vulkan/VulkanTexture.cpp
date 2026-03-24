@@ -2,7 +2,6 @@
 #include "../core/ResourceTypes.h"
 #include "../core/HashSet.h"
 #include "../debug/ConsoleBuffer.h"
-#include <cstring>
 #include <cassert>
 #include <SDL3/SDL_log.h>
 
@@ -279,9 +278,9 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
         // This is an atlas reference
         const TextureHeader* texHeader = (const TextureHeader*)imageData.data;
         uint64_t atlasId = texHeader->atlasId;
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Texture %llu: atlas reference (atlas id: %llu, UV: %f,%f - %f,%f)", 
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Texture %llu: atlas reference (atlas id: %llu, UV: %f,%f - %f,%f)",
                              (unsigned long long)textureId, (unsigned long long)atlasId,
-                             texHeader->coordinates[0], texHeader->coordinates[1], 
+                             texHeader->coordinates[0], texHeader->coordinates[1],
                              texHeader->coordinates[4], texHeader->coordinates[5]);
         // Load the atlas if not already loaded
         const TextureData* atlasTexPtr = m_textures.find(atlasId);
@@ -322,7 +321,7 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
             return;
         }
 
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Texture %llu: uploading to GPU (%dx%d, %s, %zu bytes)", 
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Texture %llu: uploading to GPU (%dx%d, %s, %zu bytes)",
                              (unsigned long long)textureId, width, height, formatStr, compressedSize);
         createTextureImage(textureId, compressedData, width, height, vkFormat, compressedSize);
         createTextureSampler(textureId);
@@ -364,7 +363,7 @@ void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlas
         return;
     }
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Atlas %llu: uploading to GPU (%dx%d, %s, %d entries, %zu bytes)", 
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Atlas %llu: uploading to GPU (%dx%d, %s, %d entries, %zu bytes)",
                          (unsigned long long)atlasId, width, height, formatStr, numEntries, compressedSize);
     createTextureImage(atlasId, compressedData, width, height, vkFormat, compressedSize);
     createTextureSampler(atlasId);

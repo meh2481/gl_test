@@ -1,7 +1,7 @@
 #include "ParticleSystem.h"
+#include "../memory/FastMemset.h"
 #include "../core/TrigLookup.h"
 #include "../memory/SmallMemoryAllocator.h"
-#include <SDL3/SDL.h>
 
 // Simple linear congruential generator for fast random numbers
 static unsigned int s_randomSeed = 12345;
@@ -266,7 +266,7 @@ int ParticleSystemManager::createSystem(const ParticleEmitterConfig& config, int
     systemIds_[index] = id;
 
     ParticleSystem& system = systems_[index];
-    SDL_memset(&system, 0, sizeof(ParticleSystem));
+    fastZeroMem(&system, sizeof(ParticleSystem));
 
     // Copy configuration
     system.config = config;

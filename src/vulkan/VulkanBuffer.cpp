@@ -1,7 +1,6 @@
 #include "VulkanBuffer.h"
 #include "../debug/ConsoleBuffer.h"
 #include <SDL3/SDL.h>
-#include <cstring>
 #include <cassert>
 
 // Helper function to convert VkResult to readable string for error logging

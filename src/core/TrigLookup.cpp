@@ -4,7 +4,6 @@
 #include "../resources/resource.h"
 #include "../debug/ConsoleBuffer.h"
 #include "../memory/MemoryAllocator.h"
-#include <cstring>
 
 // Use a constant for 2*PI to avoid repeated calculations
 static const float TWO_PI = 6.28318530718f;

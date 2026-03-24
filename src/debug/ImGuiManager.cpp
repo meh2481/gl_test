@@ -7,12 +7,12 @@
 #include "../resources/resource.h"
 #include "../scene/SceneManager.h"
 #include "../scene/LuaInterface.h"
+#include "../memory/FastMemset.h"
 #include "../memory/SmallMemoryAllocator.h"
 #include "../core/hash.h"
 #include "../core/Vector.h"
 #include "../core/config.h"
 #include <cassert>
-#include <cstring>
 #include <cstdio>
 
 // Check Vulkan result callback for ImGui
@@ -37,7 +37,7 @@ ImGuiManager::ImGuiManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
 
 void ImGuiManager::initializeParticleEditorDefaults() {
     // Initialize particle editor state
-    memset(&editorState_, 0, sizeof(editorState_));
+    fastZeroMem(&editorState_, sizeof(editorState_));
     editorState_.isActive = false;
     editorState_.previewSystemId = -1;
     editorState_.previewPipelineId = -1;

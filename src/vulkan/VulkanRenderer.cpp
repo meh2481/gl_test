@@ -3,7 +3,6 @@
 #include "../core/ResourceTypes.h"
 #include "../scene/SceneLayer.h"
 #include "../debug/ConsoleBuffer.h"
-#include <cstring>
 #include <cassert>
 #include <SDL3/SDL_vulkan.h>
 

@@ -1,9 +1,10 @@
 #pragma once
 
+#include "../memory/FastMemset.h"
 #include "../memory/MemoryAllocator.h"
+#include <cstring>
 #include <cstdint>
 #include <cassert>
-#include <cstring>
 
 // Hash function for integral types
 template<typename K>
@@ -273,7 +274,7 @@ public:
     // Clear all entries
     void clear() {
         if (occupied_) {
-            memset(occupied_, 0, capacity_ * sizeof(bool));
+            fastZeroMem(occupied_, capacity_ * sizeof(bool));
         }
         size_ = 0;
     }
@@ -294,7 +295,7 @@ public:
         assert(newValues != nullptr);
         assert(newOccupied != nullptr);
 
-        memset(newOccupied, 0, n * sizeof(bool));
+        fastZeroMem(newOccupied, n * sizeof(bool));
 
         // Rehash existing entries into new arrays
         if (keys_ && values_ && occupied_) {

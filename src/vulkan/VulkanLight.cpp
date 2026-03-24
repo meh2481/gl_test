@@ -1,5 +1,7 @@
 #include "VulkanLight.h"
+#include "../memory/FastMemset.h"
 #include <cassert>
+#include <cstring>
 
 VulkanLight::VulkanLight(MemoryAllocator* allocator) :
     m_device(VK_NULL_HANDLE),
@@ -14,7 +16,7 @@ VulkanLight::VulkanLight(MemoryAllocator* allocator) :
     m_allocator(allocator)
 {
     assert(m_allocator != nullptr);
-    memset(&m_lightBufferData, 0, sizeof(m_lightBufferData));
+    fastZeroMem(&m_lightBufferData, sizeof(m_lightBufferData));
     m_lightBufferData.numLights = 0;
     m_lightBufferData.ambientR = 0.1f;
     m_lightBufferData.ambientG = 0.1f;

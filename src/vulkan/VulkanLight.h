@@ -4,7 +4,6 @@
 #include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
 #include <cstdint>
-#include <cstring>
 
 // Maximum number of lights supported in the scene
 static const int MAX_LIGHTS = 8;

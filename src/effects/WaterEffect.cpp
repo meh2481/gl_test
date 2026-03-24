@@ -1,12 +1,12 @@
 #include "WaterEffect.h"
-#include <cstring>
+#include "../memory/FastMemset.h"
 #include <cassert>
 #include <SDL3/SDL.h>
 
 static const float PHYSICS_TIMESTEP = 1.0f / 60.0f;
 
 WaterEffectManager::WaterEffectManager() : activeFieldCount_(0), nextFieldId_(1) {
-    memset(fields_, 0, sizeof(fields_));
+    fastZeroMem(fields_, sizeof(fields_));
     for (int i = 0; i < MAX_WATER_FORCE_FIELDS; ++i) {
         fields_[i].active = false;
         fields_[i].waterFieldId = -1;
@@ -74,7 +74,7 @@ int WaterEffectManager::createWaterForceField(int physicsForceFieldId,
     int waterFieldId = nextFieldId_++;
 
     WaterForceField& field = fields_[slot];
-    memset(&field, 0, sizeof(field));
+    fastZeroMem(&field, sizeof(field));
 
     field.waterFieldId = waterFieldId;
     field.forceFieldId = physicsForceFieldId;

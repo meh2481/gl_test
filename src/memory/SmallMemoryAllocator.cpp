@@ -1,6 +1,6 @@
 #include "SmallMemoryAllocator.h"
+#include "FastMemset.h"
 #include "../debug/ConsoleBuffer.h"
-#include <cstring>
 #include <cassert>
 #include <SDL3/SDL_log.h>
 
@@ -16,7 +16,7 @@ SmallMemoryAllocator::SmallMemoryAllocator()
     historyIndex_ = 0;
     historyCount_ = 0;
     lastSampleTime_ = 0.0f;
-    memset(usageHistory_, 0, sizeof(usageHistory_));
+    fastZeroMem(usageHistory_, sizeof(usageHistory_));
 #endif
     // Note: Cannot log here as ConsoleBuffer doesn't exist yet
     // Create initial pool

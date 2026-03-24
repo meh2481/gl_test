@@ -1,4 +1,5 @@
 #include "VulkanWaterPolygon.h"
+#include "../memory/FastMemset.h"
 #include <SDL3/SDL_log.h>
 #include <cassert>
 
@@ -14,7 +15,7 @@ VulkanWaterPolygon::VulkanWaterPolygon(MemoryAllocator* allocator, ConsoleBuffer
 {
     assert(m_allocator != nullptr);
     assert(m_consoleBuffer != nullptr);
-    memset(&m_bufferData, 0, sizeof(m_bufferData));
+    fastZeroMem(&m_bufferData, sizeof(m_bufferData));
     m_bufferData.vertexCount = 0;
 }
 

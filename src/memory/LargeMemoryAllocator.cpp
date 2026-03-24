@@ -1,6 +1,6 @@
 #include "LargeMemoryAllocator.h"
+#include "FastMemset.h"
 #include "../debug/ConsoleBuffer.h"
-#include <cstring>
 #include <cassert>
 
 static const size_t MIN_BLOCK_SIZE = 64;
@@ -20,7 +20,7 @@ LargeMemoryAllocator::LargeMemoryAllocator()
     historyIndex_ = 0;
     historyCount_ = 0;
     lastSampleTime_ = 0.0f;
-    memset(usageHistory_, 0, sizeof(usageHistory_));
+    fastZeroMem(usageHistory_, sizeof(usageHistory_));
 #endif
     m_chunkSize = alignSize(DEFAULT_CHUNK_SIZE);
     addChunk(m_chunkSize);
@@ -190,7 +190,7 @@ void LargeMemoryAllocator::free(void* ptr) {
             m_freeList = finalBlock->next;
         }
     }
-    
+
     // Now add the final block to the front of the free list
     finalBlock->next = m_freeList;
     finalBlock->prev = nullptr;
@@ -279,7 +279,7 @@ void LargeMemoryAllocator::removeEmptyChunks() {
         // Keep at least one chunk to avoid constant allocation/deallocation
         bool isEmpty = (block->isFree &&
                        block->size == chunk->size - sizeof(BlockHeader));
-        
+
         // Only remove if not the last chunk
         bool isLastChunk = (m_chunks == chunk && chunk->next == nullptr);
 

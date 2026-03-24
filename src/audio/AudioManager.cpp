@@ -3,7 +3,6 @@
 #include <SDL3/SDL.h>
 #include "../core/Vector.h"
 #include "../debug/ConsoleBuffer.h"
-#include <cstring>
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>

@@ -5,7 +5,6 @@
 #include "../memory/MemoryAllocator.h"
 #include "../debug/ConsoleBuffer.h"
 #include <cstdint>
-#include <cstring>
 
 // Water polygon uniform buffer data (must match shader layout with std140 alignment)
 struct WaterPolygonBufferData {
