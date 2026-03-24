@@ -101,6 +101,9 @@ private:
     // Box2D Lua bindings
     static int b2SetGravity(lua_State* L);
     static int b2Step(lua_State* L);
+    static int b2StepAsync(lua_State* L);
+    static int b2IsStepComplete(lua_State* L);
+    static int b2WaitForStepComplete(lua_State* L);
     static int b2CreateBody(lua_State* L);
     static int b2DestroyBody(lua_State* L);
     static int b2AddBoxFixture(lua_State* L);

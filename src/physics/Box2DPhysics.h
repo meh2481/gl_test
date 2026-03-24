@@ -137,8 +137,8 @@ public:
     void setFixedTimestep(float timestep);
     float getFixedTimestep() const { return fixedTimestep_; }
 
-    // Async physics stepping - runs physics simulation on a background thread
-    // Use stepAsync() to start stepping, isStepComplete() to check, waitForStepComplete() to block
+    // Async physics stepping - runs physics simulation on a persistent background thread
+    // Use stepAsync() to queue a step, isStepComplete() to check, waitForStepComplete() to block
     void stepAsync(float timeStep, int subStepCount = 4);
     bool isStepComplete();
     void waitForStepComplete();
@@ -352,14 +352,8 @@ private:
     void addLineVertex(float x, float y, b2HexColor color);
     void addTriangleVertex(float x, float y, b2HexColor color);
 
-    // Thread function for async physics step
+    // Worker thread function for async physics stepping
     static int physicsStepThread(void* data);
-
-    struct StepData {
-        Box2DPhysics* physics;
-        float timeStep;
-        int subStepCount;
-    };
 
     b2WorldId worldId_;
     HashTable<int, b2BodyId> bodies_;
@@ -379,6 +373,12 @@ private:
     SDL_Mutex* physicsMutex_;
     SDL_AtomicInt stepInProgress_;
     SDL_Thread* stepThread_;
+    SDL_Mutex* stepControlMutex_;
+    SDL_Condition* stepCondition_;
+    bool stepWorkerRunning_;
+    bool stepRequestPending_;
+    float queuedTimeStep_;
+    int queuedSubStepCount_;
 
     // Ground body for mouse joint (lazy initialized, protected by mutex)
     b2BodyId mouseJointGroundBody_;

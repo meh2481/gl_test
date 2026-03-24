@@ -338,7 +338,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     const char* globalFunctions[] = {"loadShaders", "loadTexturedShaders", "loadTexturedShadersEx", "loadTexturedShadersAdditive", "loadAnimTexturedShaders", "loadTexture",
                                      "setShaderParameters",
                                      "pushScene", "popScene", "print",
-                                     "b2SetGravity", "b2Step", "b2CreateBody", "b2DestroyBody",
+                                     "b2SetGravity", "b2Step", "b2StepAsync", "b2IsStepComplete", "b2WaitForStepComplete", "b2CreateBody", "b2DestroyBody",
                                      "b2AddBoxFixture", "b2AddCircleFixture", "b2AddPolygonFixture", "b2AddSegmentFixture", "b2ClearAllFixtures", "b2SetBodyPosition",
                                      "b2SetBodyAngle", "b2SetBodyLinearVelocity", "b2SetBodyAngularVelocity",
                                      "b2SetBodyAwake", "b2EnableBody", "b2DisableBody", "b2GetBodyPosition", "b2GetBodyAngle", "b2EnableDebugDraw",
@@ -484,6 +484,10 @@ void LuaInterface::initScene(uint64_t sceneId) {
 }
 
 void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
+    // Ensure any async step from the previous frame is complete before running Lua callbacks.
+    // Lua update/object callbacks can touch physics state directly.
+    physics_->waitForStepComplete();
+
     // Get the scene table from registry
     lua_pushinteger(luaState_, sceneId);
     lua_gettable(luaState_, LUA_REGISTRYINDEX);
@@ -515,6 +519,10 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
         return;
     }
 
+    // Scene update may queue an async physics step; complete it before object updates,
+    // water queries, and other engine-side physics interactions.
+    physics_->waitForStepComplete();
+
     // Update all tracked scene objects
     for (int objRef : sceneObjects_) {
         lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
@@ -528,6 +536,9 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
                     lua_pop(luaState_, 1);
                     assert(false);
                 }
+
+                // Object updates may also use async stepping; synchronize before continuing.
+                physics_->waitForStepComplete();
             } else {
                 lua_pop(luaState_, 1); // Pop non-function
             }
@@ -693,6 +704,9 @@ void LuaInterface::handleAction(uint64_t sceneId, Action action) {
 }
 
 void LuaInterface::cleanupScene(uint64_t sceneId) {
+    // Ensure no async physics work is in flight before scene teardown/reset.
+    physics_->waitForStepComplete();
+
     // First, cleanup all tracked scene objects
     for (int objRef : sceneObjects_) {
         lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
@@ -847,6 +861,9 @@ void LuaInterface::registerFunctions() {
     // Register Box2D functions
     lua_register(luaState_, "b2SetGravity", b2SetGravity);
     lua_register(luaState_, "b2Step", b2Step);
+    lua_register(luaState_, "b2StepAsync", b2StepAsync);
+    lua_register(luaState_, "b2IsStepComplete", b2IsStepComplete);
+    lua_register(luaState_, "b2WaitForStepComplete", b2WaitForStepComplete);
     lua_register(luaState_, "b2CreateBody", b2CreateBody);
     lua_register(luaState_, "b2DestroyBody", b2DestroyBody);
     lua_register(luaState_, "b2AddBoxFixture", b2AddBoxFixture);
@@ -1222,6 +1239,48 @@ int LuaInterface::b2Step(lua_State* L) {
     }
 
     interface->physics_->step(timeStep, subStepCount);
+    return 0;
+}
+
+int LuaInterface::b2StepAsync(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) >= 1);
+    assert(lua_isnumber(L, 1));
+
+    float timeStep = lua_tonumber(L, 1);
+    int subStepCount = 4;
+
+    if (lua_gettop(L) >= 2) {
+        assert(lua_isnumber(L, 2));
+        subStepCount = lua_tointeger(L, 2);
+    }
+
+    interface->physics_->stepAsync(timeStep, subStepCount);
+    return 0;
+}
+
+int LuaInterface::b2IsStepComplete(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 0);
+
+    lua_pushboolean(L, interface->physics_->isStepComplete());
+    return 1;
+}
+
+int LuaInterface::b2WaitForStepComplete(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 0);
+
+    interface->physics_->waitForStepComplete();
     return 0;
 }
 

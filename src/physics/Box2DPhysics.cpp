@@ -47,6 +47,8 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
 
 Box2DPhysics::Box2DPhysics(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup)
     : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
+    stepControlMutex_(nullptr), stepCondition_(nullptr), stepWorkerRunning_(false), stepRequestPending_(false),
+    queuedTimeStep_(0.0f), queuedSubStepCount_(4),
       timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
       nextForceFieldId_(0), stringAllocator_(smallAllocator), layerManager_(layerManager),
       consoleBuffer_(consoleBuffer), trigLookup_(trigLookup),
@@ -85,7 +87,18 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* smallAllocator, MemoryAllocator* lar
 
     physicsMutex_ = SDL_CreateMutex();
     assert(physicsMutex_ != nullptr);
+
+    stepControlMutex_ = SDL_CreateMutex();
+    assert(stepControlMutex_ != nullptr);
+
+    stepCondition_ = SDL_CreateCondition();
+    assert(stepCondition_ != nullptr);
+
     SDL_SetAtomicInt(&stepInProgress_, 0);
+
+    stepWorkerRunning_ = true;
+    stepThread_ = SDL_CreateThread(physicsStepThread, "PhysicsStepWorker", this);
+    assert(stepThread_ != nullptr);
 
     b2SetLengthUnitsPerMeter(LENGTH_UNITS_PER_METER);
 }
@@ -93,6 +106,28 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* smallAllocator, MemoryAllocator* lar
 Box2DPhysics::~Box2DPhysics() {
     // Wait for any in-progress step to complete
     waitForStepComplete();
+
+    // Stop async worker thread
+    if (stepControlMutex_ && stepCondition_) {
+        SDL_LockMutex(stepControlMutex_);
+        stepWorkerRunning_ = false;
+        SDL_SignalCondition(stepCondition_);
+        SDL_UnlockMutex(stepControlMutex_);
+    }
+    if (stepThread_) {
+        SDL_WaitThread(stepThread_, nullptr);
+        stepThread_ = nullptr;
+    }
+
+    if (stepCondition_) {
+        SDL_DestroyCondition(stepCondition_);
+        stepCondition_ = nullptr;
+    }
+
+    if (stepControlMutex_) {
+        SDL_DestroyMutex(stepControlMutex_);
+        stepControlMutex_ = nullptr;
+    }
 
     // Clean up allocated vectors in bodyTypes_ - manually destruct and free through allocator
     for (auto it = bodyTypes_.begin(); it != bodyTypes_.end(); ++it) {
@@ -256,24 +291,48 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
 }
 
 int Box2DPhysics::physicsStepThread(void* data) {
-    StepData* stepData = (StepData*)data;
-    stepData->physics->step(stepData->timeStep, stepData->subStepCount);
-    SDL_SetAtomicInt(&stepData->physics->stepInProgress_, 0);
-    delete stepData;
+    Box2DPhysics* physics = static_cast<Box2DPhysics*>(data);
+    assert(physics != nullptr);
+
+    while (true) {
+        SDL_LockMutex(physics->stepControlMutex_);
+        while (physics->stepWorkerRunning_ && !physics->stepRequestPending_) {
+            SDL_WaitCondition(physics->stepCondition_, physics->stepControlMutex_);
+        }
+
+        if (!physics->stepWorkerRunning_ && !physics->stepRequestPending_) {
+            SDL_UnlockMutex(physics->stepControlMutex_);
+            break;
+        }
+
+        float timeStep = physics->queuedTimeStep_;
+        int subStepCount = physics->queuedSubStepCount_;
+        physics->stepRequestPending_ = false;
+        SDL_UnlockMutex(physics->stepControlMutex_);
+
+        physics->step(timeStep, subStepCount);
+        SDL_SetAtomicInt(&physics->stepInProgress_, 0);
+    }
+
     return 0;
 }
 
 void Box2DPhysics::stepAsync(float timeStep, int subStepCount) {
-    // Don't start a new step if one is in progress
-    if (SDL_GetAtomicInt(&stepInProgress_) != 0) {
+    SDL_LockMutex(stepControlMutex_);
+
+    // Don't queue a new step if one is in progress or already queued
+    if (!stepWorkerRunning_ || SDL_GetAtomicInt(&stepInProgress_) != 0 || stepRequestPending_) {
+        SDL_UnlockMutex(stepControlMutex_);
         return;
     }
 
+    queuedTimeStep_ = timeStep;
+    queuedSubStepCount_ = subStepCount;
+    stepRequestPending_ = true;
     SDL_SetAtomicInt(&stepInProgress_, 1);
-    StepData* data = new StepData{this, timeStep, subStepCount};
-    stepThread_ = SDL_CreateThread(physicsStepThread, "PhysicsStep", data);
-    assert(stepThread_ != nullptr);
-    SDL_DetachThread(stepThread_);
+    SDL_SignalCondition(stepCondition_);
+
+    SDL_UnlockMutex(stepControlMutex_);
 }
 
 bool Box2DPhysics::isStepComplete() {

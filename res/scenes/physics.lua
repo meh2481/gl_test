@@ -122,8 +122,8 @@ function createBoundaries()
 end
 
 function update(deltaTime)
-    -- Step the physics simulation
-    b2Step(deltaTime, 4)
+    -- Ensure previous async step is finished before touching physics state
+    b2WaitForStepComplete()
 
     -- Update mouse joint target if dragging
     if mouseJointId then
@@ -143,6 +143,9 @@ function update(deltaTime)
     waterRotationTime = waterRotationTime + deltaTime
     local waterRotation = waterRotationTime * 0.3  -- 0.3 radians per second (~17 degrees/sec)
     setWaterRotation(waterField, waterRotation)
+
+    -- Queue the next physics step asynchronously
+    b2StepAsync(deltaTime, 4)
 end
 
 function onAction(action)
