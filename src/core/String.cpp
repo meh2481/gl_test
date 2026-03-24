@@ -1,6 +1,4 @@
 #include "String.h"
-#include <cstdlib>
-#include <cstring>
 #include <cassert>
 #include <SDL3/SDL.h>
 

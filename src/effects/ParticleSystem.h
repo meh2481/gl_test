@@ -1,11 +1,11 @@
 #pragma once
 
 #include <cstdint>
-#include <cstdlib>
 #include <cassert>
 
 // Forward declarations
 class TrigLookup;
+class SmallMemoryAllocator;
 
 // Blend modes for particle systems
 enum ParticleBlendMode {
@@ -159,7 +159,7 @@ struct ParticleSystem {
 // Particle system manager - manages all active particle systems
 class ParticleSystemManager {
 public:
-    ParticleSystemManager(TrigLookup* trigLookup);
+    ParticleSystemManager(SmallMemoryAllocator* allocator, TrigLookup* trigLookup);
     ~ParticleSystemManager();
 
     // Create a new particle system with the given configuration
@@ -202,6 +202,9 @@ private:
     // Free particle arrays
     void freeParticleArrays(ParticleSystem& system);
 
+    // Grow system arrays when capacity is reached
+    void growSystemArrays();
+
     // Spawn a single particle
     void spawnParticle(ParticleSystem& system);
 
@@ -228,5 +231,6 @@ private:
     int systemCount_;
     int systemCapacity_;
     int nextSystemId_;
+    SmallMemoryAllocator* allocator_;
     TrigLookup* trigLookup_;
 };

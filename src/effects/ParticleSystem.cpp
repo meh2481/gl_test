@@ -1,5 +1,6 @@
 #include "ParticleSystem.h"
 #include "../core/TrigLookup.h"
+#include "../memory/SmallMemoryAllocator.h"
 #include <SDL3/SDL.h>
 
 // Simple linear congruential generator for fast random numbers
@@ -14,8 +15,9 @@ static float fastRandomFloat() {
     return (float)fastRandom() / 32767.0f;
 }
 
-ParticleSystemManager::ParticleSystemManager(TrigLookup* trigLookup)
-    : systems_(nullptr), systemIds_(nullptr), systemCount_(0), systemCapacity_(0), nextSystemId_(1), trigLookup_(trigLookup) {
+ParticleSystemManager::ParticleSystemManager(SmallMemoryAllocator* allocator, TrigLookup* trigLookup)
+    : systems_(nullptr), systemIds_(nullptr), systemCount_(0), systemCapacity_(0), nextSystemId_(1), allocator_(allocator), trigLookup_(trigLookup) {
+    assert(allocator_ != nullptr);
     assert(trigLookup_ != nullptr);
 }
 
@@ -24,8 +26,8 @@ ParticleSystemManager::~ParticleSystemManager() {
     for (int i = 0; i < systemCount_; ++i) {
         freeParticleArrays(systems_[i]);
     }
-    free(systems_);
-    free(systemIds_);
+    allocator_->free(systems_);
+    allocator_->free(systemIds_);
 }
 
 float ParticleSystemManager::randomRange(float minVal, float maxVal) {
@@ -103,44 +105,44 @@ void ParticleSystemManager::allocateParticleArrays(ParticleSystem& system, int m
     system.liveParticleCount = 0;
 
     // Allocate all arrays
-    system.posX = (float*)malloc(maxParticles * sizeof(float));
-    system.posY = (float*)malloc(maxParticles * sizeof(float));
-    system.velX = (float*)malloc(maxParticles * sizeof(float));
-    system.velY = (float*)malloc(maxParticles * sizeof(float));
-    system.accelX = (float*)malloc(maxParticles * sizeof(float));
-    system.accelY = (float*)malloc(maxParticles * sizeof(float));
-    system.radialAccel = (float*)malloc(maxParticles * sizeof(float));
+    system.posX = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::posX"));
+    system.posY = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::posY"));
+    system.velX = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::velX"));
+    system.velY = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::velY"));
+    system.accelX = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::accelX"));
+    system.accelY = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::accelY"));
+    system.radialAccel = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::radialAccel"));
 
-    system.size = (float*)malloc(maxParticles * sizeof(float));
-    system.startSize = (float*)malloc(maxParticles * sizeof(float));
-    system.endSize = (float*)malloc(maxParticles * sizeof(float));
+    system.size = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::size"));
+    system.startSize = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::startSize"));
+    system.endSize = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::endSize"));
 
-    system.colorR = (float*)malloc(maxParticles * sizeof(float));
-    system.colorG = (float*)malloc(maxParticles * sizeof(float));
-    system.colorB = (float*)malloc(maxParticles * sizeof(float));
-    system.colorA = (float*)malloc(maxParticles * sizeof(float));
+    system.colorR = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::colorR"));
+    system.colorG = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::colorG"));
+    system.colorB = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::colorB"));
+    system.colorA = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::colorA"));
 
-    system.endColorR = (float*)malloc(maxParticles * sizeof(float));
-    system.endColorG = (float*)malloc(maxParticles * sizeof(float));
-    system.endColorB = (float*)malloc(maxParticles * sizeof(float));
-    system.endColorA = (float*)malloc(maxParticles * sizeof(float));
+    system.endColorR = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::endColorR"));
+    system.endColorG = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::endColorG"));
+    system.endColorB = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::endColorB"));
+    system.endColorA = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::endColorA"));
 
-    system.lifetime = (float*)malloc(maxParticles * sizeof(float));
-    system.totalLifetime = (float*)malloc(maxParticles * sizeof(float));
+    system.lifetime = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::lifetime"));
+    system.totalLifetime = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::totalLifetime"));
 
-    system.rotX = (float*)malloc(maxParticles * sizeof(float));
-    system.rotY = (float*)malloc(maxParticles * sizeof(float));
-    system.rotZ = (float*)malloc(maxParticles * sizeof(float));
+    system.rotX = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::rotX"));
+    system.rotY = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::rotY"));
+    system.rotZ = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::rotZ"));
 
-    system.rotVelX = (float*)malloc(maxParticles * sizeof(float));
-    system.rotVelY = (float*)malloc(maxParticles * sizeof(float));
-    system.rotVelZ = (float*)malloc(maxParticles * sizeof(float));
+    system.rotVelX = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::rotVelX"));
+    system.rotVelY = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::rotVelY"));
+    system.rotVelZ = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::rotVelZ"));
 
-    system.rotAccelX = (float*)malloc(maxParticles * sizeof(float));
-    system.rotAccelY = (float*)malloc(maxParticles * sizeof(float));
-    system.rotAccelZ = (float*)malloc(maxParticles * sizeof(float));
+    system.rotAccelX = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::rotAccelX"));
+    system.rotAccelY = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::rotAccelY"));
+    system.rotAccelZ = static_cast<float*>(allocator_->allocate(maxParticles * sizeof(float), "ParticleSystem::rotAccelZ"));
 
-    system.textureIndex = (int*)malloc(maxParticles * sizeof(int));
+    system.textureIndex = static_cast<int*>(allocator_->allocate(maxParticles * sizeof(int), "ParticleSystem::textureIndex"));
 
     // Verify allocations
     assert(system.posX && system.posY && system.velX && system.velY);
@@ -156,59 +158,107 @@ void ParticleSystemManager::allocateParticleArrays(ParticleSystem& system, int m
 }
 
 void ParticleSystemManager::freeParticleArrays(ParticleSystem& system) {
-    free(system.posX);
-    free(system.posY);
-    free(system.velX);
-    free(system.velY);
-    free(system.accelX);
-    free(system.accelY);
-    free(system.radialAccel);
+    allocator_->free(system.posX);
+    allocator_->free(system.posY);
+    allocator_->free(system.velX);
+    allocator_->free(system.velY);
+    allocator_->free(system.accelX);
+    allocator_->free(system.accelY);
+    allocator_->free(system.radialAccel);
 
-    free(system.size);
-    free(system.startSize);
-    free(system.endSize);
+    allocator_->free(system.size);
+    allocator_->free(system.startSize);
+    allocator_->free(system.endSize);
 
-    free(system.colorR);
-    free(system.colorG);
-    free(system.colorB);
-    free(system.colorA);
+    allocator_->free(system.colorR);
+    allocator_->free(system.colorG);
+    allocator_->free(system.colorB);
+    allocator_->free(system.colorA);
 
-    free(system.endColorR);
-    free(system.endColorG);
-    free(system.endColorB);
-    free(system.endColorA);
+    allocator_->free(system.endColorR);
+    allocator_->free(system.endColorG);
+    allocator_->free(system.endColorB);
+    allocator_->free(system.endColorA);
 
-    free(system.lifetime);
-    free(system.totalLifetime);
+    allocator_->free(system.lifetime);
+    allocator_->free(system.totalLifetime);
 
-    free(system.rotX);
-    free(system.rotY);
-    free(system.rotZ);
+    allocator_->free(system.rotX);
+    allocator_->free(system.rotY);
+    allocator_->free(system.rotZ);
 
-    free(system.rotVelX);
-    free(system.rotVelY);
-    free(system.rotVelZ);
+    allocator_->free(system.rotVelX);
+    allocator_->free(system.rotVelY);
+    allocator_->free(system.rotVelZ);
 
-    free(system.rotAccelX);
-    free(system.rotAccelY);
-    free(system.rotAccelZ);
+    allocator_->free(system.rotAccelX);
+    allocator_->free(system.rotAccelY);
+    allocator_->free(system.rotAccelZ);
 
-    free(system.textureIndex);
+    allocator_->free(system.textureIndex);
+
+    system.posX = nullptr;
+    system.posY = nullptr;
+    system.velX = nullptr;
+    system.velY = nullptr;
+    system.accelX = nullptr;
+    system.accelY = nullptr;
+    system.radialAccel = nullptr;
+    system.size = nullptr;
+    system.startSize = nullptr;
+    system.endSize = nullptr;
+    system.colorR = nullptr;
+    system.colorG = nullptr;
+    system.colorB = nullptr;
+    system.colorA = nullptr;
+    system.endColorR = nullptr;
+    system.endColorG = nullptr;
+    system.endColorB = nullptr;
+    system.endColorA = nullptr;
+    system.lifetime = nullptr;
+    system.totalLifetime = nullptr;
+    system.rotX = nullptr;
+    system.rotY = nullptr;
+    system.rotZ = nullptr;
+    system.rotVelX = nullptr;
+    system.rotVelY = nullptr;
+    system.rotVelZ = nullptr;
+    system.rotAccelX = nullptr;
+    system.rotAccelY = nullptr;
+    system.rotAccelZ = nullptr;
+    system.textureIndex = nullptr;
 
     system.maxParticles = 0;
     system.liveParticleCount = 0;
 }
 
+void ParticleSystemManager::growSystemArrays() {
+    int newCapacity = systemCapacity_ == 0 ? 8 : systemCapacity_ * 2;
+
+    ParticleSystem* newSystems = static_cast<ParticleSystem*>(
+        allocator_->allocate(newCapacity * sizeof(ParticleSystem), "ParticleSystemManager::systems_"));
+    int* newIds = static_cast<int*>(
+        allocator_->allocate(newCapacity * sizeof(int), "ParticleSystemManager::systemIds_"));
+
+    assert(newSystems != nullptr && newIds != nullptr);
+
+    if (systemCount_ > 0) {
+        SDL_memcpy(newSystems, systems_, systemCount_ * sizeof(ParticleSystem));
+        SDL_memcpy(newIds, systemIds_, systemCount_ * sizeof(int));
+    }
+
+    allocator_->free(systems_);
+    allocator_->free(systemIds_);
+
+    systems_ = newSystems;
+    systemIds_ = newIds;
+    systemCapacity_ = newCapacity;
+}
+
 int ParticleSystemManager::createSystem(const ParticleEmitterConfig& config, int pipelineId) {
     // Grow arrays if needed
     if (systemCount_ >= systemCapacity_) {
-        int newCapacity = systemCapacity_ == 0 ? 8 : systemCapacity_ * 2;
-        ParticleSystem* newSystems = (ParticleSystem*)realloc(systems_, newCapacity * sizeof(ParticleSystem));
-        int* newIds = (int*)realloc(systemIds_, newCapacity * sizeof(int));
-        assert(newSystems && newIds);
-        systems_ = newSystems;
-        systemIds_ = newIds;
-        systemCapacity_ = newCapacity;
+        growSystemArrays();
     }
 
     int id = nextSystemId_++;
@@ -216,7 +266,7 @@ int ParticleSystemManager::createSystem(const ParticleEmitterConfig& config, int
     systemIds_[index] = id;
 
     ParticleSystem& system = systems_[index];
-    memset(&system, 0, sizeof(ParticleSystem));
+    SDL_memset(&system, 0, sizeof(ParticleSystem));
 
     // Copy configuration
     system.config = config;

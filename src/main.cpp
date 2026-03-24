@@ -3,8 +3,6 @@
 #include <vulkan/vulkan.h>
 #include <fstream>
 #include <cstdint>
-#include <cstring>
-#include <cstdlib>
 #include <cassert>
 #include <lua.hpp>
 #include "vulkan/VulkanRenderer.h"
@@ -293,7 +291,7 @@ int main()
     ParticleSystemManager *particleManager = static_cast<ParticleSystemManager *>(
         smallAllocator->allocate(sizeof(ParticleSystemManager), "main::ParticleSystemManager"));
     assert(particleManager != nullptr);
-    new (particleManager) ParticleSystemManager(trigLookup);
+    new (particleManager) ParticleSystemManager(smallAllocator, trigLookup);
     *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created ParticleSystemManager" << ConsoleBuffer::endl;
 
     // Allocate WaterEffectManager using large allocator
