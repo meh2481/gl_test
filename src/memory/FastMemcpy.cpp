@@ -19,14 +19,14 @@
 
 namespace {
 
-using FastMemcpyImpl = void* (*)(void*, const void*, size_t);
+using FastMemcpyImpl = void* (*)(void*, const void*, uint64_t);
 
-constexpr size_t SCALAR_UNROLL_BYTES = sizeof(uint64_t);
-constexpr size_t SSE2_BLOCK_BYTES = 64;
-constexpr size_t AVX2_BLOCK_BYTES = 128;
-constexpr size_t STREAMING_THRESHOLD = 16 * 1024;
+constexpr uint64_t SCALAR_UNROLL_BYTES = sizeof(uint64_t);
+constexpr uint64_t SSE2_BLOCK_BYTES = 64;
+constexpr uint64_t AVX2_BLOCK_BYTES = 128;
+constexpr uint64_t STREAMING_THRESHOLD = 16 * 1024;
 
-inline void* scalarMemcpyImpl(void* destination, const void* source, size_t size) {
+inline void* scalarMemcpyImpl(void* destination, const void* source, uint64_t size) {
     uint8_t* out = static_cast<uint8_t*>(destination);
     const uint8_t* in = static_cast<const uint8_t*>(source);
 
@@ -57,7 +57,7 @@ inline void* scalarMemcpyImpl(void* destination, const void* source, size_t size
 
 #if FAST_MEMCPY_X86
 FAST_MEMCPY_TARGET_SSE2
-void* sse2MemcpyImpl(void* destination, const void* source, size_t size) {
+void* sse2MemcpyImpl(void* destination, const void* source, uint64_t size) {
     uint8_t* out = static_cast<uint8_t*>(destination);
     const uint8_t* in = static_cast<const uint8_t*>(source);
 
@@ -115,7 +115,7 @@ void* sse2MemcpyImpl(void* destination, const void* source, size_t size) {
 }
 
 FAST_MEMCPY_TARGET_AVX2
-void* avx2MemcpyImpl(void* destination, const void* source, size_t size) {
+void* avx2MemcpyImpl(void* destination, const void* source, uint64_t size) {
     uint8_t* out = static_cast<uint8_t*>(destination);
     const uint8_t* in = static_cast<const uint8_t*>(source);
 
@@ -231,7 +231,7 @@ FastMemcpyImpl resolveFastMemcpyImpl() {
 
 } // namespace
 
-void* fastMemcpy(void* destination, const void* source, size_t size) {
+void* fastMemcpy(void* destination, const void* source, uint64_t size) {
     if (!destination || !source || size == 0) {
         return destination;
     }

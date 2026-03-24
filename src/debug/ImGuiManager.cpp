@@ -13,7 +13,6 @@
 #include "../core/Vector.h"
 #include "../core/config.h"
 #include <cassert>
-#include <cstdio>
 
 // Check Vulkan result callback for ImGui
 static void check_vk_result(VkResult err) {

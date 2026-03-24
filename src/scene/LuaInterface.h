@@ -255,7 +255,7 @@ private:
 
     // Water field to shader pipeline mapping for splash ripples
     HashTable<int, int> waterFieldShaderMap_; // waterFieldId -> pipelineId
-    
+
     // Water field to layer mapping for updating visual bounds on rotation
     HashTable<int, int> waterFieldLayerMap_; // waterFieldId -> layerId
 

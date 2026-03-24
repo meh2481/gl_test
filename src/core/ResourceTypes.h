@@ -1,5 +1,6 @@
-#include <stdlib.h>
-#include <stdint.h>    //Use specific-sized ints for this
+#pragma once
+
+#include <cstdint>    //Use specific-sized ints for this
 
 #define VERSION_1_0        1
 
