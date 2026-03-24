@@ -4,6 +4,7 @@
 #include "../resources/resource.h"
 #include "../debug/ConsoleBuffer.h"
 #include "../memory/MemoryAllocator.h"
+#include "../memory/FastMemcpy.h"
 
 // Use a constant for 2*PI to avoid repeated calculations
 static const float TWO_PI = 6.28318530718f;
@@ -76,8 +77,8 @@ bool TrigLookup::load(PakResource* pakResource) {
     const float* sinData = (const float*)(resData.data + sizeof(TrigTableHeader));
     const float* cosData = sinData + m_numEntries;
 
-    memcpy(m_sinTable, sinData, tableSize);
-    memcpy(m_cosTable, cosData, tableSize);
+    fastMemcpy(m_sinTable, sinData, tableSize);
+    fastMemcpy(m_cosTable, cosData, tableSize);
 
     m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "TrigLookup: Successfully loaded trig lookup table");
     return true;

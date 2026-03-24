@@ -1,4 +1,5 @@
 #include "VulkanBuffer.h"
+#include "../memory/FastMemcpy.h"
 #include "../debug/ConsoleBuffer.h"
 #include <SDL3/SDL.h>
 #include <cassert>
@@ -81,7 +82,7 @@ void VulkanBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
 void VulkanBuffer::copyDataToBuffer(VkDeviceMemory bufferMemory, const void* data, uint64_t size) {
     void* mapped;
     vkMapMemory(m_device, bufferMemory, 0, size, 0, &mapped);
-    memcpy(mapped, data, size);
+    fastMemcpy(mapped, data, size);
     vkUnmapMemory(m_device, bufferMemory);
 }
 

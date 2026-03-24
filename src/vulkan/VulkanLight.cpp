@@ -1,7 +1,7 @@
 #include "VulkanLight.h"
 #include "../memory/FastMemset.h"
+#include "../memory/FastMemcpy.h"
 #include <cassert>
-#include <cstring>
 
 VulkanLight::VulkanLight(MemoryAllocator* allocator) :
     m_device(VK_NULL_HANDLE),
@@ -89,7 +89,7 @@ void VulkanLight::createLightUniformBuffer() {
 }
 
 void VulkanLight::updateLightUniformBuffer() {
-    memcpy(m_lightUniformBufferMapped, &m_lightBufferData, sizeof(LightBufferData));
+    fastMemcpy(m_lightUniformBufferMapped, &m_lightBufferData, sizeof(LightBufferData));
     m_lightBufferDirty = false;
 }
 

@@ -1,5 +1,6 @@
 #include "ParticleSystem.h"
 #include "../memory/FastMemset.h"
+#include "../memory/FastMemcpy.h"
 #include "../core/TrigLookup.h"
 #include "../memory/SmallMemoryAllocator.h"
 
@@ -243,8 +244,8 @@ void ParticleSystemManager::growSystemArrays() {
     assert(newSystems != nullptr && newIds != nullptr);
 
     if (systemCount_ > 0) {
-        SDL_memcpy(newSystems, systems_, systemCount_ * sizeof(ParticleSystem));
-        SDL_memcpy(newIds, systemIds_, systemCount_ * sizeof(int));
+        fastMemcpy(newSystems, systems_, systemCount_ * sizeof(ParticleSystem));
+        fastMemcpy(newIds, systemIds_, systemCount_ * sizeof(int));
     }
 
     allocator_->free(systems_);

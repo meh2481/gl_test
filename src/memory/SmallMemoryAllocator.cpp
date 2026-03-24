@@ -1,5 +1,6 @@
 #include "SmallMemoryAllocator.h"
 #include "FastMemset.h"
+#include "FastMemcpy.h"
 #include "../debug/ConsoleBuffer.h"
 #include <cassert>
 #include <SDL3/SDL_log.h>
@@ -457,7 +458,7 @@ SmallMemoryAllocator::AllocationStats* SmallMemoryAllocator::getAllocationStats(
                         // Need to grow the array
                         uint64_t newMaxStats = maxStats * 2;
                         AllocationStats* newTempStats = new AllocationStats[newMaxStats];
-                        memcpy(newTempStats, tempStats, statsCount * sizeof(AllocationStats));
+                        fastMemcpy(newTempStats, tempStats, statsCount * sizeof(AllocationStats));
                         delete[] tempStats;
                         tempStats = newTempStats;
                         maxStats = newMaxStats;
@@ -481,7 +482,7 @@ SmallMemoryAllocator::AllocationStats* SmallMemoryAllocator::getAllocationStats(
     AllocationStats* stats = nullptr;
     if (statsCount > 0) {
         stats = new AllocationStats[statsCount];
-        memcpy(stats, tempStats, statsCount * sizeof(AllocationStats));
+        fastMemcpy(stats, tempStats, statsCount * sizeof(AllocationStats));
     }
     delete[] tempStats;
 
@@ -504,13 +505,13 @@ void SmallMemoryAllocator::getUsageHistory(uint64_t* outHistory, uint64_t* outCo
         uint64_t count = historyCount_ < HISTORY_SIZE ? historyCount_ : HISTORY_SIZE;
         if (historyCount_ < HISTORY_SIZE) {
             // Haven't wrapped around yet
-            memcpy(outHistory, usageHistory_, count * sizeof(uint64_t));
+            fastMemcpy(outHistory, usageHistory_, count * sizeof(uint64_t));
         } else {
             // Wrapped around - need to copy in two parts
             uint64_t firstPart = HISTORY_SIZE - historyIndex_;
-            memcpy(outHistory, &usageHistory_[historyIndex_], firstPart * sizeof(uint64_t));
+            fastMemcpy(outHistory, &usageHistory_[historyIndex_], firstPart * sizeof(uint64_t));
             if (historyIndex_ > 0) {
-                memcpy(&outHistory[firstPart], usageHistory_, historyIndex_ * sizeof(uint64_t));
+                fastMemcpy(&outHistory[firstPart], usageHistory_, historyIndex_ * sizeof(uint64_t));
             }
         }
     }

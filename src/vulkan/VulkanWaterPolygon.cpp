@@ -1,5 +1,6 @@
 #include "VulkanWaterPolygon.h"
 #include "../memory/FastMemset.h"
+#include "../memory/FastMemcpy.h"
 #include <SDL3/SDL_log.h>
 #include <cassert>
 
@@ -117,5 +118,5 @@ void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCo
         }
     }
 
-    memcpy(m_uniformBufferMapped, &m_bufferData, sizeof(WaterPolygonBufferData));
+    fastMemcpy(m_uniformBufferMapped, &m_bufferData, sizeof(WaterPolygonBufferData));
 }

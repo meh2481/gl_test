@@ -3,6 +3,7 @@
 #include "../core/ResourceTypes.h"
 #include "../scene/SceneLayer.h"
 #include "../debug/ConsoleBuffer.h"
+#include "../memory/FastMemcpy.h"
 #include <cassert>
 #include <SDL3/SDL_vulkan.h>
 
@@ -831,7 +832,7 @@ void VulkanRenderer::createVertexBuffer() {
     vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexBufferMemory, 0);
     void* data;
     vkMapMemory(m_device, m_vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-    memcpy(data, vertices, (uint64_t)bufferInfo.size);
+    fastMemcpy(data, vertices, (uint64_t)bufferInfo.size);
     vkUnmapMemory(m_device, m_vertexBufferMemory);
 }
 

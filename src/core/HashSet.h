@@ -2,7 +2,6 @@
 
 #include "../memory/FastMemset.h"
 #include "../memory/MemoryAllocator.h"
-#include <cstring>
 #include <cstdint>
 #include <cassert>
 
