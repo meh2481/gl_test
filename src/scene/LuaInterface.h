@@ -301,4 +301,18 @@ private:
 
     void updateNodes(float deltaTime);
     void handleNodeSensorEvent(const SensorEvent& event);
+
+    // C-style callback thunks for Box2DPhysics callback API
+    static void onPhysicsSensorEvent(const SensorEvent& event, void* userData);
+    static void onPhysicsDefaultCollision(int bodyIdA, int bodyIdB, float pointX, float pointY,
+                                          float normalX, float normalY, float approachSpeed,
+                                          void* userData);
+    static void onPhysicsLuaCollision(int bodyIdA, int bodyIdB, float pointX, float pointY,
+                                      float normalX, float normalY, float approachSpeed,
+                                      void* userData);
+    void dispatchDefaultCollision(int bodyIdA, int bodyIdB, float pointX, float pointY,
+                                  float normalX, float normalY, float approachSpeed);
+
+    // Lua registry reference for b2SetCollisionCallback (or LUA_NOREF)
+    int luaCollisionCallbackRef_ = LUA_NOREF;
 };

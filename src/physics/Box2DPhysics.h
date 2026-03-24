@@ -2,7 +2,6 @@
 
 #include <box2d/box2d.h>
 #include <SDL3/SDL.h>
-#include <functional>
 #include "../core/String.h"
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
@@ -261,12 +260,18 @@ public:
                           float density, float friction, float restitution);
 
     // Fracture callback - set to receive notifications when objects fracture
-    using FractureCallback = std::function<void(const FractureEvent&)>;
-    void setFractureCallback(FractureCallback callback) { fractureCallback_ = callback; }
+    using FractureCallback = void (*)(const FractureEvent& event, void* userData);
+    void setFractureCallback(FractureCallback callback, void* userData = nullptr) {
+        fractureCallback_ = callback;
+        fractureCallbackUserData_ = userData;
+    }
 
     // Sensor callback - set to receive notifications when bodies enter/exit sensors
-    using SensorCallback = std::function<void(const SensorEvent&)>;
-    void setSensorCallback(SensorCallback callback) { sensorCallback_ = callback; }
+    using SensorCallback = void (*)(const SensorEvent& event, void* userData);
+    void setSensorCallback(SensorCallback callback, void* userData = nullptr) {
+        sensorCallback_ = callback;
+        sensorCallbackUserData_ = userData;
+    }
 
     // Force field management
     // Creates a force field sensor with a polygon shape that applies force to overlapping bodies
@@ -321,13 +326,16 @@ public:
     Vector<String> getBodyTypes(int bodyId) const;
 
     // Collision callback for type-based interactions
-    using CollisionCallback = std::function<void(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed)>;
-    void setCollisionCallback(CollisionCallback callback) { collisionCallback_ = callback; }
+    using CollisionCallback = void (*)(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed, void* userData);
+    void setCollisionCallback(CollisionCallback callback, void* userData = nullptr) {
+        collisionCallback_ = callback;
+        collisionCallbackUserData_ = userData;
+    }
 
     // Trigger the collision callback manually (e.g., for sensor events)
     void triggerCollisionCallback(int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed) {
         if (collisionCallback_) {
-            collisionCallback_(bodyIdA, bodyIdB, pointX, pointY, normalX, normalY, approachSpeed);
+            collisionCallback_(bodyIdA, bodyIdB, pointX, pointY, normalX, normalY, approachSpeed, collisionCallbackUserData_);
         }
     }
 
@@ -386,9 +394,11 @@ private:
 
     // Fracture callback
     FractureCallback fractureCallback_;
+    void* fractureCallbackUserData_ = nullptr;
 
     // Sensor callback
     SensorCallback sensorCallback_;
+    void* sensorCallbackUserData_ = nullptr;
 
     // Bodies pending destruction after fracture (processed after step)
     Vector<int> pendingDestructions_;
@@ -419,6 +429,7 @@ private:
 
     // Collision callback
     CollisionCallback collisionCallback_;
+    void* collisionCallbackUserData_ = nullptr;
 
     // Helper to convert b2BodyId to internal ID
     int findInternalBodyId(b2BodyId bodyId);

@@ -169,7 +169,7 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
                 collisionHitEvents_.push_back(event);
 
                 if (collisionCallback_ && internalIdA >= 0 && internalIdB >= 0) {
-                    collisionCallback_(internalIdA, internalIdB, event.pointX, event.pointY, event.normalX, event.normalY, event.approachSpeed);
+                    collisionCallback_(internalIdA, internalIdB, event.pointX, event.pointY, event.normalX, event.normalY, event.approachSpeed, collisionCallbackUserData_);
                 }
             }
         }
@@ -195,7 +195,7 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             event.visitorVelX = visitorVel.x;
             event.visitorVelY = visitorVel.y;
             event.isBegin = true;
-            sensorCallback_(event);
+            sensorCallback_(event, sensorCallbackUserData_);
         }
     }
     for (int i = 0; i < sensorEvents.endCount; ++i) {
@@ -216,7 +216,7 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             event.visitorVelX = visitorVel.x;
             event.visitorVelY = visitorVel.y;
             event.isBegin = false;
-            sensorCallback_(event);
+            sensorCallback_(event, sensorCallbackUserData_);
         }
     }
 
@@ -1989,7 +1989,7 @@ void Box2DPhysics::processFractures() {
 
             // Call fracture callback if set
             if (fractureCallback_) {
-                fractureCallback_(event);
+                fractureCallback_(event, fractureCallbackUserData_);
             }
         }
     };
