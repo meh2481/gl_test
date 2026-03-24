@@ -182,7 +182,7 @@ private:
     VkSemaphore m_imageAvailableSemaphores[2];
     VkSemaphore m_renderFinishedSemaphores[2];
     VkFence m_inFlightFences[2];
-    size_t m_currentFrame;
+    uint64_t m_currentFrame;
     uint32_t m_graphicsQueueFamilyIndex;
     VkFramebuffer* m_swapchainFramebuffers;
 

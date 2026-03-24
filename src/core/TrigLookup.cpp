@@ -57,7 +57,7 @@ bool TrigLookup::load(PakResource* pakResource) {
                         m_numEntries, m_angleStep);
 
     // Expected data size: header + sin table + cos table
-    size_t expectedSize = sizeof(TrigTableHeader) + (m_numEntries * sizeof(float) * 2);
+    uint64_t expectedSize = sizeof(TrigTableHeader) + (m_numEntries * sizeof(float) * 2);
     if (resData.size < expectedSize) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "TrigLookup: Invalid data size %zu, expected %zu",
                             resData.size, expectedSize);
@@ -65,7 +65,7 @@ bool TrigLookup::load(PakResource* pakResource) {
     }
 
     // Allocate memory for sin and cos tables using large allocator
-    size_t tableSize = m_numEntries * sizeof(float);
+    uint64_t tableSize = m_numEntries * sizeof(float);
     m_sinTable = (float*)m_tableAllocator->allocate(tableSize, "TrigLookup::m_sinTable");
     m_cosTable = (float*)m_tableAllocator->allocate(tableSize, "TrigLookup::m_cosTable");
 

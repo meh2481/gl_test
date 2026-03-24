@@ -3,12 +3,12 @@
 #include "../debug/ConsoleBuffer.h"
 #include <cassert>
 
-static const size_t MIN_BLOCK_SIZE = 64;
-static const size_t ALIGNMENT = 16;
+static const uint64_t MIN_BLOCK_SIZE = 64;
+static const uint64_t ALIGNMENT = 16;
 static const float SHRINK_THRESHOLD = 0.25f;
-static const size_t DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1 MB
+static const uint64_t DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1 MB
 
-static size_t alignSize(size_t size) {
+static uint64_t alignSize(uint64_t size) {
     return (size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
 }
 
@@ -62,8 +62,8 @@ LargeMemoryAllocator::~LargeMemoryAllocator() {
     }
 }
 
-void LargeMemoryAllocator::addChunk(size_t size) {
-    size_t chunkSize = size < m_chunkSize ? m_chunkSize : size;
+void LargeMemoryAllocator::addChunk(uint64_t size) {
+    uint64_t chunkSize = size < m_chunkSize ? m_chunkSize : size;
     chunkSize = alignSize(chunkSize);
 
     // If we're creating a chunk significantly larger than our current chunk size,
@@ -72,7 +72,7 @@ void LargeMemoryAllocator::addChunk(size_t size) {
     if (chunkSize > m_chunkSize) {
         // Grow chunk size more aggressively to match the new allocation pattern
         // Use the larger of: (current * 2) or (new chunk size)
-        size_t newChunkSize = chunkSize;
+        uint64_t newChunkSize = chunkSize;
         if (m_chunkSize * 2 > newChunkSize) {
             newChunkSize = m_chunkSize * 2;
         }
@@ -109,16 +109,16 @@ void LargeMemoryAllocator::addChunk(size_t size) {
     newChunk->firstBlock = block;
 }
 
-void* LargeMemoryAllocator::allocate(size_t size, const char* allocationId) {
+void* LargeMemoryAllocator::allocate(uint64_t size, const char* allocationId) {
     SDL_LockMutex(m_mutex);
 
     assert(size > 0);
     assert(allocationId != nullptr);
-    size_t alignedSize = alignSize(size);
+    uint64_t alignedSize = alignSize(size);
 
     BlockHeader* block = findFreeBlock(alignedSize);
     if (!block) {
-        size_t newChunkSize = alignedSize + sizeof(BlockHeader);
+        uint64_t newChunkSize = alignedSize + sizeof(BlockHeader);
         if (newChunkSize < m_chunkSize) {
             newChunkSize = m_chunkSize;
         } else {
@@ -206,10 +206,10 @@ void LargeMemoryAllocator::free(void* ptr) {
     SDL_UnlockMutex(m_mutex);
 }
 
-size_t LargeMemoryAllocator::defragment() {
+uint64_t LargeMemoryAllocator::defragment() {
     SDL_LockMutex(m_mutex);
 
-    size_t mergedBlocks = 0;
+    uint64_t mergedBlocks = 0;
     MemoryChunk* chunk = m_chunks;
     while (chunk) {
         BlockHeader* current = (BlockHeader*)chunk->memory;
@@ -248,23 +248,23 @@ size_t LargeMemoryAllocator::defragment() {
     return mergedBlocks;
 }
 
-size_t LargeMemoryAllocator::getTotalMemory() const {
+uint64_t LargeMemoryAllocator::getTotalMemory() const {
     SDL_LockMutex(m_mutex);
-    size_t result = m_totalPoolSize;
+    uint64_t result = m_totalPoolSize;
     SDL_UnlockMutex(m_mutex);
     return result;
 }
 
-size_t LargeMemoryAllocator::getUsedMemory() const {
+uint64_t LargeMemoryAllocator::getUsedMemory() const {
     SDL_LockMutex(m_mutex);
-    size_t result = m_usedMemory;
+    uint64_t result = m_usedMemory;
     SDL_UnlockMutex(m_mutex);
     return result;
 }
 
-size_t LargeMemoryAllocator::getFreeMemory() const {
+uint64_t LargeMemoryAllocator::getFreeMemory() const {
     SDL_LockMutex(m_mutex);
-    size_t result = m_totalPoolSize - m_usedMemory;
+    uint64_t result = m_totalPoolSize - m_usedMemory;
     SDL_UnlockMutex(m_mutex);
     return result;
 }
@@ -304,9 +304,9 @@ void LargeMemoryAllocator::removeEmptyChunks() {
     }
 }
 
-LargeMemoryAllocator::BlockHeader* LargeMemoryAllocator::findFreeBlock(size_t size) {
+LargeMemoryAllocator::BlockHeader* LargeMemoryAllocator::findFreeBlock(uint64_t size) {
     BlockHeader* bestFit = nullptr;
-    size_t bestFitSize = SIZE_MAX;
+    uint64_t bestFitSize = SIZE_MAX;
 
     BlockHeader* current = m_freeList;
     while (current) {
@@ -325,7 +325,7 @@ LargeMemoryAllocator::BlockHeader* LargeMemoryAllocator::findFreeBlock(size_t si
     return bestFit;
 }
 
-void LargeMemoryAllocator::splitBlock(BlockHeader* block, size_t size) {
+void LargeMemoryAllocator::splitBlock(BlockHeader* block, uint64_t size) {
     assert(block != nullptr);
     assert(block->isFree);
     assert(block->size >= size + sizeof(BlockHeader) + MIN_BLOCK_SIZE);
@@ -408,11 +408,11 @@ LargeMemoryAllocator::MemoryChunk* LargeMemoryAllocator::findChunkForPointer(voi
 }
 
 #ifdef DEBUG
-LargeMemoryAllocator::ChunkInfo* LargeMemoryAllocator::getChunkInfo(size_t* outChunkCount) const {
+LargeMemoryAllocator::ChunkInfo* LargeMemoryAllocator::getChunkInfo(uint64_t* outChunkCount) const {
     SDL_LockMutex(m_mutex);
 
     // Count chunks
-    size_t chunkCount = 0;
+    uint64_t chunkCount = 0;
     MemoryChunk* chunk = m_chunks;
     while (chunk) {
         chunkCount++;
@@ -430,13 +430,13 @@ LargeMemoryAllocator::ChunkInfo* LargeMemoryAllocator::getChunkInfo(size_t* outC
 
     // Fill in chunk information
     chunk = m_chunks;
-    for (size_t i = 0; i < chunkCount; i++) {
+    for (uint64_t i = 0; i < chunkCount; i++) {
         assert(chunk != nullptr);
 
         chunkInfo[i].size = chunk->size;
 
         // Count blocks in this chunk by traversing the memory
-        size_t blockCount = 0;
+        uint64_t blockCount = 0;
         BlockHeader* block = (BlockHeader*)chunk->memory;
         char* chunkEnd = chunk->memory + chunk->size;
 
@@ -454,7 +454,7 @@ LargeMemoryAllocator::ChunkInfo* LargeMemoryAllocator::getChunkInfo(size_t* outC
 
         // Fill in block information
         block = (BlockHeader*)chunk->memory;
-        for (size_t j = 0; j < blockCount; j++) {
+        for (uint64_t j = 0; j < blockCount; j++) {
             chunkInfo[i].blocks[j].offset = (char*)block - chunk->memory;
             chunkInfo[i].blocks[j].size = block->size;
             chunkInfo[i].blocks[j].isFree = block->isFree;
@@ -474,22 +474,22 @@ LargeMemoryAllocator::ChunkInfo* LargeMemoryAllocator::getChunkInfo(size_t* outC
     return chunkInfo;
 }
 
-void LargeMemoryAllocator::freeChunkInfo(ChunkInfo* chunkInfo, size_t chunkCount) const {
+void LargeMemoryAllocator::freeChunkInfo(ChunkInfo* chunkInfo, uint64_t chunkCount) const {
     if (chunkInfo) {
-        for (size_t i = 0; i < chunkCount; i++) {
+        for (uint64_t i = 0; i < chunkCount; i++) {
             delete[] chunkInfo[i].blocks;
         }
         delete[] chunkInfo;
     }
 }
 
-LargeMemoryAllocator::AllocationStats* LargeMemoryAllocator::getAllocationStats(size_t* outStatsCount) const {
+LargeMemoryAllocator::AllocationStats* LargeMemoryAllocator::getAllocationStats(uint64_t* outStatsCount) const {
     SDL_LockMutex(m_mutex);
 
     // First pass: count unique allocation IDs
-    size_t maxStats = 256; // Initial capacity
+    uint64_t maxStats = 256; // Initial capacity
     AllocationStats* tempStats = new AllocationStats[maxStats];
-    size_t statsCount = 0;
+    uint64_t statsCount = 0;
 
     // Iterate through all chunks and blocks to collect stats
     MemoryChunk* chunk = m_chunks;
@@ -500,7 +500,7 @@ LargeMemoryAllocator::AllocationStats* LargeMemoryAllocator::getAllocationStats(
         while ((char*)block < chunkEnd) {
             if (!block->isFree && block->allocationId != nullptr) {
                 // Find or create entry for this allocation ID
-                size_t idx = 0;
+                uint64_t idx = 0;
                 for (idx = 0; idx < statsCount; idx++) {
                     if (tempStats[idx].allocationId == block->allocationId) {
                         break;
@@ -511,7 +511,7 @@ LargeMemoryAllocator::AllocationStats* LargeMemoryAllocator::getAllocationStats(
                     // New allocation ID
                     if (statsCount >= maxStats) {
                         // Need to grow the array
-                        size_t newMaxStats = maxStats * 2;
+                        uint64_t newMaxStats = maxStats * 2;
                         AllocationStats* newTempStats = new AllocationStats[newMaxStats];
                         memcpy(newTempStats, tempStats, statsCount * sizeof(AllocationStats));
                         delete[] tempStats;
@@ -550,27 +550,27 @@ LargeMemoryAllocator::AllocationStats* LargeMemoryAllocator::getAllocationStats(
     return stats;
 }
 
-void LargeMemoryAllocator::freeAllocationStats(AllocationStats* stats, size_t statsCount) const {
+void LargeMemoryAllocator::freeAllocationStats(AllocationStats* stats, uint64_t statsCount) const {
     (void)statsCount; // Unused
     delete[] stats;
 }
 
-void LargeMemoryAllocator::getUsageHistory(size_t* outHistory, size_t* outCount) const {
+void LargeMemoryAllocator::getUsageHistory(uint64_t* outHistory, uint64_t* outCount) const {
     SDL_LockMutex(m_mutex);
 
     *outCount = historyCount_;
     if (historyCount_ > 0) {
         // Copy history in chronological order
-        size_t count = historyCount_ < HISTORY_SIZE ? historyCount_ : HISTORY_SIZE;
+        uint64_t count = historyCount_ < HISTORY_SIZE ? historyCount_ : HISTORY_SIZE;
         if (historyCount_ < HISTORY_SIZE) {
             // Haven't wrapped around yet
-            memcpy(outHistory, usageHistory_, count * sizeof(size_t));
+            memcpy(outHistory, usageHistory_, count * sizeof(uint64_t));
         } else {
             // Wrapped around - need to copy in two parts
-            size_t firstPart = HISTORY_SIZE - historyIndex_;
-            memcpy(outHistory, &usageHistory_[historyIndex_], firstPart * sizeof(size_t));
+            uint64_t firstPart = HISTORY_SIZE - historyIndex_;
+            memcpy(outHistory, &usageHistory_[historyIndex_], firstPart * sizeof(uint64_t));
             if (historyIndex_ > 0) {
-                memcpy(&outHistory[firstPart], usageHistory_, historyIndex_ * sizeof(size_t));
+                memcpy(&outHistory[firstPart], usageHistory_, historyIndex_ * sizeof(uint64_t));
             }
         }
     }
@@ -599,7 +599,7 @@ void LargeMemoryAllocator::updateMemoryHistory(float currentTime) {
     SDL_UnlockMutex(m_mutex);
 }
 
-size_t LargeMemoryAllocator::getBlockHeaderSize() {
+uint64_t LargeMemoryAllocator::getBlockHeaderSize() {
     return sizeof(BlockHeader);
 }
 #endif

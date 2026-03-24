@@ -307,7 +307,7 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
                    abs_float(parallaxDepth - other.parallaxDepth) < PARALLAX_EPSILON;
         }
     };
-    HashTable<BatchKey, size_t> batchMap(*allocator_, "updateLayerVertices::batchMap");
+    HashTable<BatchKey, uint64_t> batchMap(*allocator_, "updateLayerVertices::batchMap");
 
     for (auto it = layers_.begin(); it != layers_.end(); ++it) {
         const SceneLayer& layer = it.value();
@@ -332,8 +332,8 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
                            layer.colorB != 1.0f || layer.colorA != 1.0f;
 
         // Find or create batch for this key
-        size_t batchIndex;
-        size_t* batchIndexPtr = batchMap.find(batchKey);
+        uint64_t batchIndex;
+        uint64_t* batchIndexPtr = batchMap.find(batchKey);
         if (batchIndexPtr == nullptr || hasAnimation) {
             // Always create new batch for animated layers or if batch doesn't exist
             batchIndex = batches.size();

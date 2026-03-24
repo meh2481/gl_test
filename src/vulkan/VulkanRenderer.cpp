@@ -294,7 +294,7 @@ void VulkanRenderer::cleanup() {
     // Clean up reflection resources first
     destroyReflectionResources();
 
-    for (size_t i = 0; i < 2; i++) {
+    for (uint64_t i = 0; i < 2; i++) {
         if (m_renderFinishedSemaphores[i] != VK_NULL_HANDLE) {
             vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
         }
@@ -324,7 +324,7 @@ void VulkanRenderer::cleanup() {
     m_bufferManager.destroyIndexedBuffer(m_particleBuffer);
 
     if (m_swapchainFramebuffers != nullptr) {
-        for (size_t i = 0; i < m_swapchainImageCount; i++) {
+        for (uint64_t i = 0; i < m_swapchainImageCount; i++) {
             if (m_swapchainFramebuffers[i] != VK_NULL_HANDLE) {
                 vkDestroyFramebuffer(m_device, m_swapchainFramebuffers[i], nullptr);
             }
@@ -345,7 +345,7 @@ void VulkanRenderer::cleanup() {
     }
 
     if (m_swapchainImageViews != nullptr) {
-        for (size_t i = 0; i < m_swapchainImageCount; i++) {
+        for (uint64_t i = 0; i < m_swapchainImageCount; i++) {
             if (m_swapchainImageViews[i] != VK_NULL_HANDLE) {
                 vkDestroyImageView(m_device, m_swapchainImageViews[i], nullptr);
             }
@@ -692,7 +692,7 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
 
 void VulkanRenderer::createImageViews() {
     m_swapchainImageViews = new VkImageView[m_swapchainImageCount];
-    for (size_t i = 0; i < m_swapchainImageCount; i++) {
+    for (uint64_t i = 0; i < m_swapchainImageCount; i++) {
         VkImageViewCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         createInfo.image = m_swapchainImages[i];
@@ -771,7 +771,7 @@ void VulkanRenderer::createRenderPass() {
 
 void VulkanRenderer::createFramebuffers() {
     m_swapchainFramebuffers = new VkFramebuffer[m_swapchainImageCount];
-    for (size_t i = 0; i < m_swapchainImageCount; i++) {
+    for (uint64_t i = 0; i < m_swapchainImageCount; i++) {
         VkImageView attachments[2];
         uint32_t attachmentCount;
 
@@ -831,7 +831,7 @@ void VulkanRenderer::createVertexBuffer() {
     vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexBufferMemory, 0);
     void* data;
     vkMapMemory(m_device, m_vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-    memcpy(data, vertices, (size_t)bufferInfo.size);
+    memcpy(data, vertices, (uint64_t)bufferInfo.size);
     vkUnmapMemory(m_device, m_vertexBufferMemory);
 }
 
@@ -859,7 +859,7 @@ void VulkanRenderer::createSyncObjects() {
     VkFenceCreateInfo fenceInfo{};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    for (size_t i = 0; i < 2; i++) {
+    for (uint64_t i = 0; i < 2; i++) {
         assert(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) == VK_SUCCESS &&
                vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) == VK_SUCCESS &&
                vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]) == VK_SUCCESS);

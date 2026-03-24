@@ -359,7 +359,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             const Vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
             Vector<float> triangleVertexData(*luaInterface_->getStringAllocator(), "SceneManager::render::triangleVertexData");
             triangleVertexData.reserve(debugTriangleVerts.size() * 6);
-            for (size_t i = 0; i < debugTriangleVerts.size(); i += 3) {
+            for (uint64_t i = 0; i < debugTriangleVerts.size(); i += 3) {
                 // Reverse winding order: v0, v2, v1 instead of v0, v1, v2
                 const auto& v0 = debugTriangleVerts[i];
                 const auto& v1 = debugTriangleVerts[i + 1];

@@ -56,7 +56,7 @@ bool ConfigManager::load(const char* filename) {
 
     char line[MAX_CONFIG_LINE];
     char currentSection[MAX_CONFIG_KEY] = "";
-    size_t len = 0;
+    uint64_t len = 0;
     char ch;
 
     while (SDL_ReadIO(file, &ch, 1) == 1) {
@@ -253,7 +253,7 @@ void saveConfig(const Config& config) {
 }
 
 // Helper function to build a path in the config directory
-bool getPrefFilePath(char* pathBuffer, size_t bufferSize, const char* filename) {
+bool getPrefFilePath(char* pathBuffer, uint64_t bufferSize, const char* filename) {
     assert(pathBuffer != nullptr);
     assert(filename != nullptr);
 
@@ -265,5 +265,5 @@ bool getPrefFilePath(char* pathBuffer, size_t bufferSize, const char* filename) 
     int result = SDL_snprintf(pathBuffer, bufferSize, "%s%s", prefPath, filename);
     SDL_free(prefPath);
 
-    return result > 0 && (size_t)result < bufferSize;
+    return result > 0 && (uint64_t)result < bufferSize;
 }

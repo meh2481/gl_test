@@ -86,7 +86,7 @@ bool PakResource::load(const char* filename) {
         m_fd = -1;
         return false;
     }
-    size_t size = sb.st_size;
+    uint64_t size = sb.st_size;
     void* addr = mmap(NULL, size, PROT_READ, MAP_PRIVATE, m_fd, 0);
     if (addr == MAP_FAILED) {
         close(m_fd);
@@ -296,8 +296,8 @@ ResourceData PakResource::getAtlasData(uint64_t atlasId) {
 
     // The atlas data contains: AtlasHeader + AtlasEntry[] + compressed image data
     AtlasHeader* header = (AtlasHeader*)resData.data;
-    size_t entriesSize = sizeof(AtlasEntry) * header->numEntries;
-    size_t imageOffset = sizeof(AtlasHeader) + entriesSize;
+    uint64_t entriesSize = sizeof(AtlasEntry) * header->numEntries;
+    uint64_t imageOffset = sizeof(AtlasHeader) + entriesSize;
 
     // Return the image portion with header information
     // We return the entire atlas data so the renderer can parse it

@@ -48,7 +48,7 @@ uint32_t VulkanTexture::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlag
 }
 
 void VulkanTexture::createTextureImage(uint64_t textureId, const void* imageData, uint32_t width, uint32_t height,
-                                       VkFormat format, size_t dataSize) {
+                                       VkFormat format, uint64_t dataSize) {
     // Create staging buffer
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
@@ -304,7 +304,7 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
         uint16_t format = header->format;
 
         const char* compressedData = imageData.data + sizeof(ImageHeader);
-        size_t compressedSize = imageData.size - sizeof(ImageHeader);
+        uint64_t compressedSize = imageData.size - sizeof(ImageHeader);
 
         // Map our format to Vulkan format
         VkFormat vkFormat;
@@ -344,9 +344,9 @@ void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlas
     uint16_t numEntries = header->numEntries;
 
     // Skip past header and entries to get to the compressed image data
-    size_t entriesSize = sizeof(AtlasEntry) * numEntries;
+    uint64_t entriesSize = sizeof(AtlasEntry) * numEntries;
     const char* compressedData = atlasData.data + sizeof(AtlasHeader) + entriesSize;
-    size_t compressedSize = atlasData.size - sizeof(AtlasHeader) - entriesSize;
+    uint64_t compressedSize = atlasData.size - sizeof(AtlasHeader) - entriesSize;
 
     // Map our format to Vulkan format
     VkFormat vkFormat;

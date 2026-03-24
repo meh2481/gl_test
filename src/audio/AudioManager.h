@@ -5,7 +5,6 @@
 #include <AL/alc.h>
 #include <cstdint>
 #include <cassert>
-#include <cstddef>
 
 // Maximum number of simultaneous audio sources
 #define MAX_AUDIO_SOURCES 64
@@ -57,11 +56,11 @@ public:
 
     // Load audio from memory into buffer slot
     // Returns buffer ID on success, -1 on failure
-    int loadAudioBufferFromMemory(const void* data, size_t size, int sampleRate, int channels, int bitsPerSample);
+    int loadAudioBufferFromMemory(const void* data, uint64_t size, int sampleRate, int channels, int bitsPerSample);
 
     // Load OPUS audio from memory into buffer slot
     // Returns buffer ID on success, -1 on failure
-    int loadOpusAudioFromMemory(const void* data, size_t size);
+    int loadOpusAudioFromMemory(const void* data, uint64_t size);
 
     // Create an audio source
     // Returns source ID on success, -1 on failure

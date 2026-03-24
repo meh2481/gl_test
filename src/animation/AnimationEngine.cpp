@@ -122,7 +122,7 @@ void AnimationEngine::stopAnimationsForTarget(int targetId, AnimationPropertyTyp
         }
     }
 
-    for (size_t i = 0; i < toRemove.size(); ++i) {
+    for (uint64_t i = 0; i < toRemove.size(); ++i) {
         int animId = toRemove[i];
         Animation** animPtr = animations_.find(animId);
         assert(animPtr != nullptr);
@@ -168,7 +168,7 @@ void AnimationEngine::update(float deltaTime) {
     }
 
     // Remove completed animations
-    for (size_t i = 0; i < completedAnimations.size(); ++i) {
+    for (uint64_t i = 0; i < completedAnimations.size(); ++i) {
         int animId = completedAnimations[i];
         consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE,
                      "AnimationEngine: Animation %d completed", animId);

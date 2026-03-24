@@ -25,7 +25,7 @@ SmallMemoryAllocator::SmallMemoryAllocator()
 
 SmallMemoryAllocator::~SmallMemoryAllocator() {
     // Count pools
-    size_t poolCount = 0;
+    uint64_t poolCount = 0;
     MemoryPool* pool = firstPool_;
     while (pool) {
         poolCount++;
@@ -62,22 +62,22 @@ SmallMemoryAllocator::~SmallMemoryAllocator() {
     }
 }
 
-void* SmallMemoryAllocator::allocate(size_t size, const char* allocationId) {
+void* SmallMemoryAllocator::allocate(uint64_t size, const char* allocationId) {
     SDL_LockMutex(mutex_);
 
     assert(size > 0);
     assert(allocationId != nullptr);
 
     // Align size to 8 bytes for better cache performance
-    size_t alignedSize = (size + 7) & ~7;
+    uint64_t alignedSize = (size + 7) & ~7;
 
     // Try to find a free block in existing pools
     BlockHeader* block = findFreeBlock(alignedSize);
 
     if (!block) {
         // Need to create a new pool
-        size_t neededSize = sizeof(BlockHeader) + alignedSize;
-        size_t newPoolSize = MIN_POOL_SIZE;
+        uint64_t neededSize = sizeof(BlockHeader) + alignedSize;
+        uint64_t newPoolSize = MIN_POOL_SIZE;
 
         // If we need more than MIN_POOL_SIZE, round up to next power of 2
         while (newPoolSize < neededSize) {
@@ -86,7 +86,7 @@ void* SmallMemoryAllocator::allocate(size_t size, const char* allocationId) {
 
         // Make new pool at least 2x the last pool size for exponential growth
         if (lastPool_) {
-            size_t minNewSize = lastPool_->capacity * 2;
+            uint64_t minNewSize = lastPool_->capacity * 2;
             if (newPoolSize < minNewSize) {
                 newPoolSize = minNewSize;
             }
@@ -138,11 +138,11 @@ void SmallMemoryAllocator::free(void* ptr) {
     SDL_UnlockMutex(mutex_);
 }
 
-size_t SmallMemoryAllocator::defragment() {
+uint64_t SmallMemoryAllocator::defragment() {
     SDL_LockMutex(mutex_);
 
     // Coalesce free blocks in each pool
-    size_t totalCoalesced = 0;
+    uint64_t totalCoalesced = 0;
     MemoryPool* pool = firstPool_;
     while (pool) {
         BlockHeader* current = pool->firstBlock;
@@ -179,36 +179,36 @@ size_t SmallMemoryAllocator::defragment() {
     return totalCoalesced;
 }
 
-size_t SmallMemoryAllocator::getTotalMemory() const {
+uint64_t SmallMemoryAllocator::getTotalMemory() const {
     SDL_LockMutex(mutex_);
-    size_t result = totalCapacity_;
+    uint64_t result = totalCapacity_;
     SDL_UnlockMutex(mutex_);
     return result;
 }
 
-size_t SmallMemoryAllocator::getUsedMemory() const {
+uint64_t SmallMemoryAllocator::getUsedMemory() const {
     SDL_LockMutex(mutex_);
-    size_t used = calculateUsedMemoryLocked();
+    uint64_t used = calculateUsedMemoryLocked();
     SDL_UnlockMutex(mutex_);
     return used;
 }
 
-size_t SmallMemoryAllocator::getFreeMemory() const {
+uint64_t SmallMemoryAllocator::getFreeMemory() const {
     SDL_LockMutex(mutex_);
-    size_t used = calculateUsedMemoryLocked();
-    size_t result = totalCapacity_ > used ? totalCapacity_ - used : 0;
+    uint64_t used = calculateUsedMemoryLocked();
+    uint64_t result = totalCapacity_ > used ? totalCapacity_ - used : 0;
     SDL_UnlockMutex(mutex_);
     return result;
 }
 
-size_t SmallMemoryAllocator::getAllocationCount() const {
+uint64_t SmallMemoryAllocator::getAllocationCount() const {
     SDL_LockMutex(mutex_);
-    size_t result = allocationCount_;
+    uint64_t result = allocationCount_;
     SDL_UnlockMutex(mutex_);
     return result;
 }
 
-SmallMemoryAllocator::MemoryPool* SmallMemoryAllocator::createPool(size_t capacity) {
+SmallMemoryAllocator::MemoryPool* SmallMemoryAllocator::createPool(uint64_t capacity) {
     // Allocate pool structure
     MemoryPool* pool = new MemoryPool();
     pool->memory = (char*)SDL_malloc(capacity);
@@ -305,7 +305,7 @@ void SmallMemoryAllocator::coalescePool(MemoryPool* pool) {
     }
 }
 
-SmallMemoryAllocator::BlockHeader* SmallMemoryAllocator::findFreeBlock(size_t size) {
+SmallMemoryAllocator::BlockHeader* SmallMemoryAllocator::findFreeBlock(uint64_t size) {
     // Search all pools for a suitable free block
     MemoryPool* pool = firstPool_;
 
@@ -326,14 +326,14 @@ SmallMemoryAllocator::BlockHeader* SmallMemoryAllocator::findFreeBlock(size_t si
     return nullptr;
 }
 
-void SmallMemoryAllocator::splitBlock(BlockHeader* block, size_t size) {
+void SmallMemoryAllocator::splitBlock(BlockHeader* block, uint64_t size) {
     assert(block != nullptr);
     assert(!block->isFree);
     assert(block->size >= size);
     assert(block->pool != nullptr);
 
     // Only split if remaining space is worth creating a new block
-    size_t remainingSize = block->size - size;
+    uint64_t remainingSize = block->size - size;
     if (remainingSize >= sizeof(BlockHeader) + 8) {
         MemoryPool* pool = block->pool;
 
@@ -362,11 +362,11 @@ void SmallMemoryAllocator::splitBlock(BlockHeader* block, size_t size) {
 }
 
 #ifdef DEBUG
-SmallMemoryAllocator::MemoryPoolInfo* SmallMemoryAllocator::getPoolInfo(size_t* outPoolCount) const {
+SmallMemoryAllocator::MemoryPoolInfo* SmallMemoryAllocator::getPoolInfo(uint64_t* outPoolCount) const {
     SDL_LockMutex(mutex_);
 
     // Count pools
-    size_t poolCount = 0;
+    uint64_t poolCount = 0;
     MemoryPool* pool = firstPool_;
     while (pool) {
         poolCount++;
@@ -384,7 +384,7 @@ SmallMemoryAllocator::MemoryPoolInfo* SmallMemoryAllocator::getPoolInfo(size_t* 
 
     // Fill in pool information
     pool = firstPool_;
-    for (size_t i = 0; i < poolCount; i++) {
+    for (uint64_t i = 0; i < poolCount; i++) {
         assert(pool != nullptr);
 
         poolInfo[i].capacity = pool->capacity;
@@ -392,7 +392,7 @@ SmallMemoryAllocator::MemoryPoolInfo* SmallMemoryAllocator::getPoolInfo(size_t* 
         poolInfo[i].allocCount = pool->allocCount;
 
         // Count blocks in this pool
-        size_t blockCount = 0;
+        uint64_t blockCount = 0;
         BlockHeader* block = pool->firstBlock;
         while (block) {
             blockCount++;
@@ -404,7 +404,7 @@ SmallMemoryAllocator::MemoryPoolInfo* SmallMemoryAllocator::getPoolInfo(size_t* 
 
         // Fill in block information
         block = pool->firstBlock;
-        for (size_t j = 0; j < blockCount; j++) {
+        for (uint64_t j = 0; j < blockCount; j++) {
             assert(block != nullptr);
             poolInfo[i].blocks[j].offset = (char*)block - pool->memory;
             poolInfo[i].blocks[j].size = block->size;
@@ -420,22 +420,22 @@ SmallMemoryAllocator::MemoryPoolInfo* SmallMemoryAllocator::getPoolInfo(size_t* 
     return poolInfo;
 }
 
-void SmallMemoryAllocator::freePoolInfo(MemoryPoolInfo* poolInfo, size_t poolCount) const {
+void SmallMemoryAllocator::freePoolInfo(MemoryPoolInfo* poolInfo, uint64_t poolCount) const {
     if (poolInfo) {
-        for (size_t i = 0; i < poolCount; i++) {
+        for (uint64_t i = 0; i < poolCount; i++) {
             delete[] poolInfo[i].blocks;
         }
         delete[] poolInfo;
     }
 }
 
-SmallMemoryAllocator::AllocationStats* SmallMemoryAllocator::getAllocationStats(size_t* outStatsCount) const {
+SmallMemoryAllocator::AllocationStats* SmallMemoryAllocator::getAllocationStats(uint64_t* outStatsCount) const {
     SDL_LockMutex(mutex_);
 
     // First pass: count unique allocation IDs
-    size_t maxStats = 256; // Initial capacity
+    uint64_t maxStats = 256; // Initial capacity
     AllocationStats* tempStats = new AllocationStats[maxStats];
-    size_t statsCount = 0;
+    uint64_t statsCount = 0;
 
     // Iterate through all pools and blocks to collect stats
     MemoryPool* pool = firstPool_;
@@ -444,7 +444,7 @@ SmallMemoryAllocator::AllocationStats* SmallMemoryAllocator::getAllocationStats(
         while (block) {
             if (!block->isFree && block->allocationId != nullptr) {
                 // Find or create entry for this allocation ID
-                size_t idx = 0;
+                uint64_t idx = 0;
                 for (idx = 0; idx < statsCount; idx++) {
                     if (tempStats[idx].allocationId == block->allocationId) {
                         break;
@@ -455,7 +455,7 @@ SmallMemoryAllocator::AllocationStats* SmallMemoryAllocator::getAllocationStats(
                     // New allocation ID
                     if (statsCount >= maxStats) {
                         // Need to grow the array
-                        size_t newMaxStats = maxStats * 2;
+                        uint64_t newMaxStats = maxStats * 2;
                         AllocationStats* newTempStats = new AllocationStats[newMaxStats];
                         memcpy(newTempStats, tempStats, statsCount * sizeof(AllocationStats));
                         delete[] tempStats;
@@ -490,27 +490,27 @@ SmallMemoryAllocator::AllocationStats* SmallMemoryAllocator::getAllocationStats(
     return stats;
 }
 
-void SmallMemoryAllocator::freeAllocationStats(AllocationStats* stats, size_t statsCount) const {
+void SmallMemoryAllocator::freeAllocationStats(AllocationStats* stats, uint64_t statsCount) const {
     (void)statsCount; // Unused
     delete[] stats;
 }
 
-void SmallMemoryAllocator::getUsageHistory(size_t* outHistory, size_t* outCount) const {
+void SmallMemoryAllocator::getUsageHistory(uint64_t* outHistory, uint64_t* outCount) const {
     SDL_LockMutex(mutex_);
 
     *outCount = historyCount_;
     if (historyCount_ > 0) {
         // Copy history in chronological order
-        size_t count = historyCount_ < HISTORY_SIZE ? historyCount_ : HISTORY_SIZE;
+        uint64_t count = historyCount_ < HISTORY_SIZE ? historyCount_ : HISTORY_SIZE;
         if (historyCount_ < HISTORY_SIZE) {
             // Haven't wrapped around yet
-            memcpy(outHistory, usageHistory_, count * sizeof(size_t));
+            memcpy(outHistory, usageHistory_, count * sizeof(uint64_t));
         } else {
             // Wrapped around - need to copy in two parts
-            size_t firstPart = HISTORY_SIZE - historyIndex_;
-            memcpy(outHistory, &usageHistory_[historyIndex_], firstPart * sizeof(size_t));
+            uint64_t firstPart = HISTORY_SIZE - historyIndex_;
+            memcpy(outHistory, &usageHistory_[historyIndex_], firstPart * sizeof(uint64_t));
             if (historyIndex_ > 0) {
-                memcpy(&outHistory[firstPart], usageHistory_, historyIndex_ * sizeof(size_t));
+                memcpy(&outHistory[firstPart], usageHistory_, historyIndex_ * sizeof(uint64_t));
             }
         }
     }
@@ -530,7 +530,7 @@ void SmallMemoryAllocator::updateMemoryHistory(float currentTime) {
     lastSampleTime_ = currentTime;
 
     // Calculate used memory while already holding the lock
-    size_t used = calculateUsedMemoryLocked();
+    uint64_t used = calculateUsedMemoryLocked();
 
     usageHistory_[historyIndex_] = used;
     historyIndex_ = (historyIndex_ + 1) % HISTORY_SIZE;
@@ -541,8 +541,8 @@ void SmallMemoryAllocator::updateMemoryHistory(float currentTime) {
     SDL_UnlockMutex(mutex_);
 }
 
-size_t SmallMemoryAllocator::calculateUsedMemoryLocked() const {
-    size_t used = 0;
+uint64_t SmallMemoryAllocator::calculateUsedMemoryLocked() const {
+    uint64_t used = 0;
     MemoryPool* pool = firstPool_;
     while (pool) {
         // Iterate through all blocks in this pool
@@ -559,7 +559,7 @@ size_t SmallMemoryAllocator::calculateUsedMemoryLocked() const {
     return used;
 }
 
-size_t SmallMemoryAllocator::getBlockHeaderSize() {
+uint64_t SmallMemoryAllocator::getBlockHeaderSize() {
     return sizeof(BlockHeader);
 }
 #endif

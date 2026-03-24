@@ -1485,7 +1485,7 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     // Read file content using Vector for RAII
     Vector<char> content(*stringAllocator_, "ImGuiManager::renderScriptEditor::content");
     content.resize(fileSize + 1);
-    size_t bytesRead = fread(content.data(), 1, fileSize, file);
+    uint64_t bytesRead = fread(content.data(), 1, fileSize, file);
     fclose(file);
     content[bytesRead] = '\0';
 
@@ -1497,7 +1497,7 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     // Helper lambda to extract a float value with word boundary checking
     auto extractFloat = [contentPtr](const char* key, float& value) {
         const char* search = contentPtr;
-        size_t keyLen = strlen(key);
+        uint64_t keyLen = strlen(key);
         while ((search = strstr(search, key)) != nullptr) {
             // Check if this is at line start or after whitespace/comma (word boundary)
             bool validStart = (search == contentPtr) ||
@@ -1520,7 +1520,7 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     // Helper lambda to extract an int value with word boundary checking
     auto extractInt = [contentPtr](const char* key, int& value) {
         const char* search = contentPtr;
-        size_t keyLen = strlen(key);
+        uint64_t keyLen = strlen(key);
         while ((search = strstr(search, key)) != nullptr) {
             // Check if this is at line start or after whitespace/comma (word boundary)
             bool validStart = (search == contentPtr) ||
@@ -1638,7 +1638,7 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
                 if (!quoteEnd || quoteEnd >= textureNamesEnd) break;
 
                 // Copy the texture name (must have room for null terminator)
-                size_t nameLen = quoteEnd - quoteStart;
+                uint64_t nameLen = quoteEnd - quoteStart;
                 if (nameLen < EDITOR_MAX_TEXTURE_NAME_LEN) {
                     strncpy(editorState_.textureNames[editorState_.selectedTextureCount], quoteStart, nameLen);
                     editorState_.textureNames[editorState_.selectedTextureCount][nameLen] = '\0';
@@ -1678,8 +1678,8 @@ String ImGuiManager::truncateTextureName(const char* fullName, float maxWidth) {
         return ellipsis;
     }
 
-    size_t len = name.length();
-    for (size_t suffixLen = len; suffixLen >= 1; --suffixLen) {
+    uint64_t len = name.length();
+    for (uint64_t suffixLen = len; suffixLen >= 1; --suffixLen) {
         String candidate = name.substr(len - suffixLen, suffixLen);
         ImVec2 candidateSize = ImGui::CalcTextSize(candidate.c_str());
         if (candidateSize.x <= availableWidth) {
@@ -1715,10 +1715,10 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
         // Small Allocator Tab
         if (ImGui::BeginTabItem("Small Allocator")) {
             // Statistics
-            size_t totalMem = small->getTotalMemory();
-            size_t usedMem = small->getUsedMemory();
-            size_t freeMem = small->getFreeMemory();
-            size_t allocCount = small->getAllocationCount();
+            uint64_t totalMem = small->getTotalMemory();
+            uint64_t usedMem = small->getUsedMemory();
+            uint64_t freeMem = small->getFreeMemory();
+            uint64_t allocCount = small->getAllocationCount();
 
             ImGui::Text("Total Memory: %zu bytes (%.2f KB)", totalMem, totalMem / 1024.0f);
             ImGui::Text("Used Memory: %zu bytes (%.2f KB)", usedMem, usedMem / 1024.0f);
@@ -1734,20 +1734,20 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
             ImGui::Separator();
 
             // Memory usage history graph
-            size_t historyCount = 0;
-            size_t history[3000];
+            uint64_t historyCount = 0;
+            uint64_t history[3000];
             small->getUsageHistory(history, &historyCount);
 
             if (historyCount > 0) {
                 ImGui::Text("Memory Usage Over Time (last %.1f minutes)", (historyCount * 0.1f) / 60.0f);
                 float values[3000];
-                for (size_t i = 0; i < historyCount; i++) {
+                for (uint64_t i = 0; i < historyCount; i++) {
                     values[i] = (float)history[i] / (1024.0f * 1024.0f);  // Convert to MB
                 }
 
                 // Calculate max value for scaling
                 float maxValue = 0.0f;
-                for (size_t i = 0; i < historyCount; i++) {
+                for (uint64_t i = 0; i < historyCount; i++) {
                     if (values[i] > maxValue) maxValue = values[i];
                 }
 
@@ -1779,11 +1779,11 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
             // Pool visualization
             ImGui::Text("Memory Pools");
-            size_t poolCount = 0;
+            uint64_t poolCount = 0;
             SmallMemoryAllocator::MemoryPoolInfo* poolInfo = small->getPoolInfo(&poolCount);
 
             if (poolInfo && poolCount > 0) {
-                for (size_t i = 0; i < poolCount; i++) {
+                for (uint64_t i = 0; i < poolCount; i++) {
                     ImGui::PushID((int)i);
                     ImGui::Text("Pool %zu: %zu bytes (%.2f KB), %zu allocations",
                                i, poolInfo[i].capacity, poolInfo[i].capacity / 1024.0f,
@@ -1800,7 +1800,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                                            IM_COL32(40, 40, 40, 255));
 
                     // Draw blocks
-                    for (size_t j = 0; j < poolInfo[i].blockCount; j++) {
+                    for (uint64_t j = 0; j < poolInfo[i].blockCount; j++) {
                         SmallMemoryAllocator::BlockInfo& block = poolInfo[i].blocks[j];
                         float blockStart = (float)block.offset / poolInfo[i].capacity * width;
                         float blockSize = (float)(block.size + SmallMemoryAllocator::getBlockHeaderSize()) / poolInfo[i].capacity * width;
@@ -1821,7 +1821,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                         ImVec2 mousePos = ImGui::GetMousePos();
                         float relativeX = mousePos.x - pos.x;
                         if (relativeX >= 0 && relativeX <= width) {
-                            for (size_t j = 0; j < poolInfo[i].blockCount; j++) {
+                            for (uint64_t j = 0; j < poolInfo[i].blockCount; j++) {
                                 SmallMemoryAllocator::BlockInfo& block = poolInfo[i].blocks[j];
                                 float blockStart = (float)block.offset / poolInfo[i].capacity * width;
                                 float blockSize = (float)(block.size + SmallMemoryAllocator::getBlockHeaderSize()) / poolInfo[i].capacity * width;
@@ -1861,9 +1861,9 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
         // Large Allocator Tab
         if (ImGui::BeginTabItem("Large Allocator")) {
-            size_t totalMem = large->getTotalMemory();
-            size_t usedMem = large->getUsedMemory();
-            size_t freeMem = large->getFreeMemory();
+            uint64_t totalMem = large->getTotalMemory();
+            uint64_t usedMem = large->getUsedMemory();
+            uint64_t freeMem = large->getFreeMemory();
 
             ImGui::Text("Total Memory: %zu bytes (%.2f MB)", totalMem, totalMem / (1024.0f * 1024.0f));
             ImGui::Text("Used Memory: %zu bytes (%.2f MB)", usedMem, usedMem / (1024.0f * 1024.0f));
@@ -1878,20 +1878,20 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
             ImGui::Separator();
 
             // Memory usage history graph
-            size_t historyCount = 0;
-            size_t history[3000];
+            uint64_t historyCount = 0;
+            uint64_t history[3000];
             large->getUsageHistory(history, &historyCount);
 
             if (historyCount > 0) {
                 ImGui::Text("Memory Usage Over Time (last %.1f minutes)", (historyCount * 0.1f) / 60.0f);
                 float values[3000];
-                for (size_t i = 0; i < historyCount; i++) {
+                for (uint64_t i = 0; i < historyCount; i++) {
                     values[i] = (float)history[i] / (1024.0f * 1024.0f);  // Convert to MB
                 }
 
                 // Calculate max value for scaling
                 float maxValue = 0.0f;
-                for (size_t i = 0; i < historyCount; i++) {
+                for (uint64_t i = 0; i < historyCount; i++) {
                     if (values[i] > maxValue) maxValue = values[i];
                 }
 
@@ -1923,11 +1923,11 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
             // Chunk visualization
             ImGui::Text("Memory Chunks");
-            size_t chunkCount = 0;
+            uint64_t chunkCount = 0;
             LargeMemoryAllocator::ChunkInfo* chunkInfo = large->getChunkInfo(&chunkCount);
 
             if (chunkInfo && chunkCount > 0) {
-                for (size_t i = 0; i < chunkCount; i++) {
+                for (uint64_t i = 0; i < chunkCount; i++) {
                     ImGui::PushID((int)i);
                     ImGui::Text("Chunk %zu: %zu bytes (%.2f MB)",
                                i, chunkInfo[i].size, chunkInfo[i].size / (1024.0f * 1024.0f));
@@ -1943,7 +1943,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                                            IM_COL32(40, 40, 40, 255));
 
                     // Draw blocks
-                    for (size_t j = 0; j < chunkInfo[i].blockCount; j++) {
+                    for (uint64_t j = 0; j < chunkInfo[i].blockCount; j++) {
                         LargeMemoryAllocator::BlockInfo& block = chunkInfo[i].blocks[j];
                         float blockStart = (float)block.offset / chunkInfo[i].size * width;
                         float blockSize = (float)(block.size + LargeMemoryAllocator::getBlockHeaderSize()) / chunkInfo[i].size * width;
@@ -1964,7 +1964,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                         ImVec2 mousePos = ImGui::GetMousePos();
                         float relativeX = mousePos.x - pos.x;
                         if (relativeX >= 0 && relativeX <= width) {
-                            for (size_t j = 0; j < chunkInfo[i].blockCount; j++) {
+                            for (uint64_t j = 0; j < chunkInfo[i].blockCount; j++) {
                                 LargeMemoryAllocator::BlockInfo& block = chunkInfo[i].blocks[j];
                                 float blockStart = (float)block.offset / chunkInfo[i].size * width;
                                 float blockSize = (float)(block.size + LargeMemoryAllocator::getBlockHeaderSize()) / chunkInfo[i].size * width;
@@ -2005,9 +2005,9 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
         // Allocation Summary Tab
         if (ImGui::BeginTabItem("Allocation Summary")) {
             // Calculate and display total allocated memory
-            size_t smallUsed = small->getUsedMemory();
-            size_t largeUsed = large->getUsedMemory();
-            size_t totalUsed = smallUsed + largeUsed;
+            uint64_t smallUsed = small->getUsedMemory();
+            uint64_t largeUsed = large->getUsedMemory();
+            uint64_t totalUsed = smallUsed + largeUsed;
 
             // Display total memory at the top
             if (totalUsed < 1024) {
@@ -2065,26 +2065,26 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                 }
 
                 // Collect stats from both allocators
-                size_t smallStatsCount = 0;
-                size_t largeStatsCount = 0;
+                uint64_t smallStatsCount = 0;
+                uint64_t largeStatsCount = 0;
                 SmallMemoryAllocator::AllocationStats* smallStats = small->getAllocationStats(&smallStatsCount);
                 LargeMemoryAllocator::AllocationStats* largeStats = large->getAllocationStats(&largeStatsCount);
 
                 // Don't merge - keep them separate to show allocator info
                 struct MergedStats {
                     const char* allocationId;
-                    size_t smallCount;
-                    size_t smallBytes;
-                    size_t largeCount;
-                    size_t largeBytes;
+                    uint64_t smallCount;
+                    uint64_t smallBytes;
+                    uint64_t largeCount;
+                    uint64_t largeBytes;
                 };
 
-                size_t maxMergedStats = smallStatsCount + largeStatsCount;
+                uint64_t maxMergedStats = smallStatsCount + largeStatsCount;
                 MergedStats* mergedStats = new MergedStats[maxMergedStats];
-                size_t mergedCount = 0;
+                uint64_t mergedCount = 0;
 
                 // Add small allocator stats
-                for (size_t i = 0; i < smallStatsCount; i++) {
+                for (uint64_t i = 0; i < smallStatsCount; i++) {
                     mergedStats[mergedCount].allocationId = smallStats[i].allocationId;
                     mergedStats[mergedCount].smallCount = smallStats[i].count;
                     mergedStats[mergedCount].smallBytes = smallStats[i].totalBytes;
@@ -2094,9 +2094,9 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                 }
 
                 // Add large allocator stats (merge with existing if same ID)
-                for (size_t i = 0; i < largeStatsCount; i++) {
+                for (uint64_t i = 0; i < largeStatsCount; i++) {
                     bool found = false;
-                    for (size_t j = 0; j < mergedCount; j++) {
+                    for (uint64_t j = 0; j < mergedCount; j++) {
                         if (mergedStats[j].allocationId == largeStats[i].allocationId) {
                             mergedStats[j].largeCount = largeStats[i].count;
                             mergedStats[j].largeBytes = largeStats[i].totalBytes;
@@ -2115,8 +2115,8 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                 }
 
                 // Sort the merged stats
-                for (size_t i = 0; i < mergedCount; i++) {
-                    for (size_t j = i + 1; j < mergedCount; j++) {
+                for (uint64_t i = 0; i < mergedCount; i++) {
+                    for (uint64_t j = i + 1; j < mergedCount; j++) {
                         bool swap = false;
                         if (sortColumn == 0) { // Sort by ID
                             int cmp = strcmp(mergedStats[i].allocationId, mergedStats[j].allocationId);
@@ -2126,12 +2126,12 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                             bool jHasSmall = mergedStats[j].smallCount > 0;
                             swap = sortAscending ? (iHasSmall < jHasSmall) : (iHasSmall > jHasSmall);
                         } else if (sortColumn == 2) { // Sort by count
-                            size_t iTotal = mergedStats[i].smallCount + mergedStats[i].largeCount;
-                            size_t jTotal = mergedStats[j].smallCount + mergedStats[j].largeCount;
+                            uint64_t iTotal = mergedStats[i].smallCount + mergedStats[i].largeCount;
+                            uint64_t jTotal = mergedStats[j].smallCount + mergedStats[j].largeCount;
                             swap = sortAscending ? (iTotal > jTotal) : (iTotal < jTotal);
                         } else { // Sort by memory
-                            size_t iTotal = mergedStats[i].smallBytes + mergedStats[i].largeBytes;
-                            size_t jTotal = mergedStats[j].smallBytes + mergedStats[j].largeBytes;
+                            uint64_t iTotal = mergedStats[i].smallBytes + mergedStats[i].largeBytes;
+                            uint64_t jTotal = mergedStats[j].smallBytes + mergedStats[j].largeBytes;
                             swap = sortAscending ? (iTotal > jTotal) : (iTotal < jTotal);
                         }
                         if (swap) {
@@ -2143,7 +2143,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                 }
 
                 // Display the rows (with search filter)
-                for (size_t i = 0; i < mergedCount; i++) {
+                for (uint64_t i = 0; i < mergedCount; i++) {
                     // Apply search filter
                     if (searchBuffer[0] != '\0') {
                         if (strstr(mergedStats[i].allocationId, searchBuffer) == nullptr) {
@@ -2167,7 +2167,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
                     // Count column - show total count (or breakdown if both)
                     ImGui::TableNextColumn();
-                    size_t totalCount = mergedStats[i].smallCount + mergedStats[i].largeCount;
+                    uint64_t totalCount = mergedStats[i].smallCount + mergedStats[i].largeCount;
                     if (mergedStats[i].smallCount > 0 && mergedStats[i].largeCount > 0) {
                         ImGui::Text("%zu (%zu+%zu)", totalCount, mergedStats[i].smallCount, mergedStats[i].largeCount);
                     } else {
@@ -2176,7 +2176,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
 
                     // Memory column
                     ImGui::TableNextColumn();
-                    size_t totalBytes = mergedStats[i].smallBytes + mergedStats[i].largeBytes;
+                    uint64_t totalBytes = mergedStats[i].smallBytes + mergedStats[i].largeBytes;
                     if (totalBytes < 1024) {
                         ImGui::Text("%zu B", totalBytes);
                     } else if (totalBytes < 1024 * 1024) {

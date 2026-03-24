@@ -29,7 +29,7 @@ string getRelativePath(const string& fullPath) {
     }
 
     // Look for /res/ directory marker and return everything from res/
-    size_t pos = pathStr.find("/res/");
+    uint64_t pos = pathStr.find("/res/");
     if (pos != string::npos) {
         return pathStr.substr(pos + 1); // Return "res/..."
     }
@@ -67,7 +67,7 @@ struct PackRect {
     uint32_t height;
     uint32_t x;
     uint32_t y;
-    size_t imageIndex;  // Index into PNGImageData array
+    uint64_t imageIndex;  // Index into PNGImageData array
     bool packed;
 };
 
@@ -86,7 +86,7 @@ public:
         uint32_t bestShortSide = UINT32_MAX;
 
         // Find best free rect using Best Short Side Fit heuristic
-        for (size_t i = 0; i < freeRects_.size(); i++) {
+        for (uint64_t i = 0; i < freeRects_.size(); i++) {
             FreeRect& freeRect = freeRects_[i];
 
             if (rect.width <= freeRect.width && rect.height <= freeRect.height) {
@@ -120,8 +120,8 @@ private:
 
     void splitFreeRect(int index, const PackRect& usedRect) {
         // Process ALL free rectangles and split any that overlap with the used rectangle
-        size_t numRects = freeRects_.size();
-        for (size_t i = 0; i < numRects; i++) {
+        uint64_t numRects = freeRects_.size();
+        for (uint64_t i = 0; i < numRects; i++) {
             if (splitSingleFreeRectByUsedRect(i, usedRect)) {
                 freeRects_.erase(freeRects_.begin() + i);
                 i--;
@@ -132,7 +132,7 @@ private:
         pruneFreeRects();
     }
 
-    bool splitSingleFreeRectByUsedRect(size_t index, const PackRect& usedRect) {
+    bool splitSingleFreeRectByUsedRect(uint64_t index, const PackRect& usedRect) {
         FreeRect freeRect = freeRects_[index];
 
         // Check if used rectangle intersects with this free rectangle
@@ -183,8 +183,8 @@ private:
 
     void pruneFreeRects() {
         // Remove any free rects fully contained within another
-        for (size_t i = 0; i < freeRects_.size(); i++) {
-            for (size_t j = i + 1; j < freeRects_.size(); ) {
+        for (uint64_t i = 0; i < freeRects_.size(); i++) {
+            for (uint64_t j = i + 1; j < freeRects_.size(); ) {
                 if (isContainedIn(freeRects_[j], freeRects_[i])) {
                     freeRects_.erase(freeRects_.begin() + j);
                 } else if (isContainedIn(freeRects_[i], freeRects_[j])) {
@@ -213,7 +213,7 @@ struct TextureAtlas {
     bool hasAlpha;
     vector<uint8_t> imageData;  // RGBA atlas image
     vector<AtlasEntry> entries;
-    vector<size_t> packedImageIndices;  // Indices of images packed into this atlas
+    vector<uint64_t> packedImageIndices;  // Indices of images packed into this atlas
 };
 
 bool loadFile(const string& filename, vector<char>& data, time_t& mtime) {
@@ -223,7 +223,7 @@ bool loadFile(const string& filename, vector<char>& data, time_t& mtime) {
     mtime = st.st_mtime;
     ifstream file(filename, ios::binary | ios::ate);
     if (!file) return false;
-    size_t size = file.tellg();
+    uint64_t size = file.tellg();
     file.seekg(0);
     data.resize(size);
     file.read(data.data(), size);
@@ -437,16 +437,16 @@ void compressImageRaw(const vector<uint8_t>& imageData, vector<char>& compressed
 
 // Pack multiple PNG images into texture atlases
 // Returns the number of atlases created
-size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>& atlases, uint32_t maxAtlasSize) {
+uint64_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>& atlases, uint32_t maxAtlasSize) {
     if (images.empty()) return 0;
 
     // Sort all images by area (descending) for better bin packing
     // Larger images should be placed first
-    vector<size_t> sortedIndices(images.size());
-    for (size_t i = 0; i < images.size(); i++) {
+    vector<uint64_t> sortedIndices(images.size());
+    for (uint64_t i = 0; i < images.size(); i++) {
         sortedIndices[i] = i;
     }
-    sort(sortedIndices.begin(), sortedIndices.end(), [&images](size_t a, size_t b) {
+    sort(sortedIndices.begin(), sortedIndices.end(), [&images](uint64_t a, uint64_t b) {
         uint32_t areaA = images[a].width * images[a].height;
         uint32_t areaB = images[b].width * images[b].height;
         return areaA > areaB;
@@ -457,7 +457,7 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
     const uint32_t EDGE_PADDING = 1;
     vector<PackRect> rects;
     rects.reserve(images.size());
-    for (size_t idx : sortedIndices) {
+    for (uint64_t idx : sortedIndices) {
         PackRect rect;
         // Add 2 pixels for edge padding (1 on each side), then align to 4 pixels for DXT block boundaries
         rect.width = alignTo4(images[idx].width + EDGE_PADDING * 2);
@@ -489,8 +489,8 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
     // Try to pack all images into atlases
     while (true) {
         // Find unpacked rects
-        vector<size_t> unpacked;
-        for (size_t i = 0; i < rects.size(); i++) {
+        vector<uint64_t> unpacked;
+        for (uint64_t i = 0; i < rects.size(); i++) {
             if (!rects[i].packed) {
                 unpacked.push_back(i);
             }
@@ -501,14 +501,14 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
         uint32_t tryWidth = atlasWidth;
         uint32_t tryHeight = atlasHeight;
         bool success = false;
-        vector<size_t> packedInThisAtlas;
+        vector<uint64_t> packedInThisAtlas;
 
         while (!success && tryWidth <= maxAtlasSize && tryHeight <= maxAtlasSize) {
             MaxRectsBinPacker packer(tryWidth, tryHeight);
             packedInThisAtlas.clear();
 
             // Try to pack all unpacked images into this atlas
-            for (size_t i : unpacked) {
+            for (uint64_t i : unpacked) {
                 PackRect testRect = rects[i];
                 if (packer.pack(testRect)) {
                     rects[i] = testRect;  // Update with packed position
@@ -532,7 +532,7 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
 
         if (!success) {
             // Images too large for atlas - mark remaining as standalone
-            for (size_t i : unpacked) {
+            for (uint64_t i : unpacked) {
                 rects[i].packed = true;  // Mark to avoid infinite loop
             }
             continue;
@@ -540,7 +540,7 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
 
         // Determine if this atlas needs alpha (BC3) or can use BC1
         bool atlasHasAlpha = false;
-        for (size_t i : packedInThisAtlas) {
+        for (uint64_t i : packedInThisAtlas) {
             if (images[rects[i].imageIndex].hasAlpha) {
                 atlasHasAlpha = true;
                 break;
@@ -549,7 +549,7 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
 
         // Generate deterministic atlas ID based on content
         uint64_t atlasContentHash = 0;
-        for (size_t i : packedInThisAtlas) {
+        for (uint64_t i : packedInThisAtlas) {
             atlasContentHash ^= images[rects[i].imageIndex].id;
             atlasContentHash = (atlasContentHash << 7) | (atlasContentHash >> 57);
         }
@@ -564,7 +564,7 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
         atlas.hasAlpha = atlasHasAlpha;
         atlas.imageData.resize(tryWidth * tryHeight * 4);
         // Initialize to hot pink (255, 0, 255, 255)
-        for (size_t i = 0; i < atlas.imageData.size(); i += 4) {
+        for (uint64_t i = 0; i < atlas.imageData.size(); i += 4) {
             atlas.imageData[i] = 255;     // R
             atlas.imageData[i + 1] = 0;   // G
             atlas.imageData[i + 2] = 255; // B
@@ -573,7 +573,7 @@ size_t packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
 
         // Copy packed images into atlas with edge padding
         const uint32_t EDGE_PADDING = 1;
-        for (size_t i : packedInThisAtlas) {
+        for (uint64_t i : packedInThisAtlas) {
             PackRect& rect = rects[i];
             PNGImageData& img = images[rect.imageIndex];
 
@@ -680,7 +680,7 @@ bool processAtlas(TextureAtlas& atlas, vector<char>& output) {
     header.numEntries = (uint16_t)atlas.entries.size();
 
     // Calculate total size: header + entries + compressed data
-    size_t entriesSize = sizeof(AtlasEntry) * atlas.entries.size();
+    uint64_t entriesSize = sizeof(AtlasEntry) * atlas.entries.size();
     output.resize(sizeof(AtlasHeader) + entriesSize + compressedImage.size());
 
     // Write header
@@ -744,8 +744,8 @@ bool generateTrigTable(vector<char>& output) {
     header.angleStep = angleStep;
 
     // Calculate total size: header + sin table + cos table
-    size_t tableSize = numEntries * sizeof(float);
-    size_t totalSize = sizeof(TrigTableHeader) + tableSize + tableSize;
+    uint64_t tableSize = numEntries * sizeof(float);
+    uint64_t totalSize = sizeof(TrigTableHeader) + tableSize + tableSize;
     output.resize(totalSize);
 
     // Write header
@@ -899,7 +899,7 @@ int main(int argc, char* argv[]) {
         vector<ResourcePtr> ptrs(existingPtrs.size());
         pakFile.read((char*)ptrs.data(), sizeof(ResourcePtr) * ptrs.size());
 
-        for (size_t i = 0; i < existingPtrs.size(); i++) {
+        for (uint64_t i = 0; i < existingPtrs.size(); i++) {
             // Check if this is an atlas file by reading its header to check type
             pakFile.seekg(existingPtrs[i].offset);
             CompressionHeader comp;
@@ -992,11 +992,11 @@ int main(int argc, char* argv[]) {
 
         // Pack images into atlases
         vector<TextureAtlas> atlases;
-        size_t numAtlases = packImagesIntoAtlases(pngImages, atlases, DEFAULT_ATLAS_MAX_SIZE);
+        uint64_t numAtlases = packImagesIntoAtlases(pngImages, atlases, DEFAULT_ATLAS_MAX_SIZE);
         cout << "Created " << numAtlases << " texture atlas(es)" << endl;
 
         // Print atlas info
-        for (size_t i = 0; i < atlases.size(); i++) {
+        for (uint64_t i = 0; i < atlases.size(); i++) {
             cout << "  Atlas " << i << ": " << atlases[i].width << "x" << atlases[i].height
                  << " (" << atlases[i].entries.size() << " images, "
                  << (atlases[i].hasAlpha ? "RGBA/BC3" : "RGB/BC1") << ")" << endl;
@@ -1004,7 +1004,7 @@ int main(int argc, char* argv[]) {
 
         // Save atlases as PNG files if requested
         if (outputAtlases) {
-            for (size_t i = 0; i < atlases.size(); i++) {
+            for (uint64_t i = 0; i < atlases.size(); i++) {
                 string atlasFilename = "atlas_" + to_string(i) + ".png";
                 if (savePNG(atlasFilename, atlases[i].imageData, atlases[i].width, atlases[i].height)) {
                     cout << "Saved atlas " << i << " as " << atlasFilename << endl;
@@ -1017,19 +1017,19 @@ int main(int argc, char* argv[]) {
         // Process atlases and update file data for images
         // First, create a map from original image ID to atlas info
         struct AtlasInfo {
-            size_t atlasIndex;
+            uint64_t atlasIndex;
             AtlasEntry entry;
             bool isPacked;  // Whether this image was packed into an atlas
         };
         vector<AtlasInfo> imageToAtlas(pngImages.size());
-        for (size_t i = 0; i < imageToAtlas.size(); i++) {
+        for (uint64_t i = 0; i < imageToAtlas.size(); i++) {
             imageToAtlas[i].isPacked = false;
         }
 
-        for (size_t atlasIdx = 0; atlasIdx < atlases.size(); atlasIdx++) {
+        for (uint64_t atlasIdx = 0; atlasIdx < atlases.size(); atlasIdx++) {
             TextureAtlas& atlas = atlases[atlasIdx];
-            for (size_t i = 0; i < atlas.packedImageIndices.size(); i++) {
-                size_t imgIdx = atlas.packedImageIndices[i];
+            for (uint64_t i = 0; i < atlas.packedImageIndices.size(); i++) {
+                uint64_t imgIdx = atlas.packedImageIndices[i];
                 imageToAtlas[imgIdx].atlasIndex = atlasIdx;
                 imageToAtlas[imgIdx].entry = atlas.entries[i];
                 imageToAtlas[imgIdx].isPacked = true;
@@ -1037,7 +1037,7 @@ int main(int argc, char* argv[]) {
         }
 
         // For each image file, either create a TextureHeader (if packed) or ImageHeader (if standalone)
-        for (size_t i = 0; i < pngImages.size(); i++) {
+        for (uint64_t i = 0; i < pngImages.size(); i++) {
             PNGImageData& img = pngImages[i];
             AtlasInfo& atlasInfo = imageToAtlas[i];
 
@@ -1111,7 +1111,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Now add atlas files as new resources
-        for (size_t i = 0; i < atlases.size(); i++) {
+        for (uint64_t i = 0; i < atlases.size(); i++) {
             TextureAtlas& atlas = atlases[i];
             FileInfo atlasFile;
             atlasFile.filename = "_atlas_" + to_string(i);

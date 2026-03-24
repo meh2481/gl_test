@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <SDL3/SDL.h>
 #include "../core/Vector.h"
@@ -12,7 +11,7 @@ class ConsoleBuffer;
 
 struct ResourceData {
     char* data;
-    size_t size;
+    uint64_t size;
     uint32_t type;
 };
 

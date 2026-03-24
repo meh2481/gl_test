@@ -33,7 +33,7 @@ public:
         , callerId_(other.callerId_) {
         allocator_ = other.allocator_;
         reserve(other.size_);
-        for (size_t i = 0; i < other.size_; ++i) {
+        for (uint64_t i = 0; i < other.size_; ++i) {
             new (&data_[i]) T(other.data_[i]);
         }
         size_ = other.size_;
@@ -50,7 +50,7 @@ public:
             allocator_ = other.allocator_;
             callerId_ = other.callerId_;
             reserve(other.size_);
-            for (size_t i = 0; i < other.size_; ++i) {
+            for (uint64_t i = 0; i < other.size_; ++i) {
                 new (&data_[i]) T(other.data_[i]);
             }
             size_ = other.size_;
@@ -113,22 +113,22 @@ public:
         data_[size_].~T();
     }
 
-    T& operator[](size_t index) {
+    T& operator[](uint64_t index) {
         assert(index < size_);
         return data_[index];
     }
 
-    const T& operator[](size_t index) const {
+    const T& operator[](uint64_t index) const {
         assert(index < size_);
         return data_[index];
     }
 
-    T& at(size_t index) {
+    T& at(uint64_t index) {
         assert(index < size_);
         return data_[index];
     }
 
-    const T& at(size_t index) const {
+    const T& at(uint64_t index) const {
         assert(index < size_);
         return data_[index];
     }
@@ -161,11 +161,11 @@ public:
         return data_;
     }
 
-    size_t size() const {
+    uint64_t size() const {
         return size_;
     }
 
-    size_t capacity() const {
+    uint64_t capacity() const {
         return capacity_;
     }
 
@@ -174,20 +174,20 @@ public:
     }
 
     void clear() {
-        for (size_t i = 0; i < size_; ++i) {
+        for (uint64_t i = 0; i < size_; ++i) {
             data_[i].~T();
         }
         size_ = 0;
     }
 
-    void reserve(size_t newCapacity) {
+    void reserve(uint64_t newCapacity) {
         if (newCapacity <= capacity_) {
             return;
         }
 
         T* newData = static_cast<T*>(allocator_->allocate(newCapacity * sizeof(T), callerId_));
         assert(newData != nullptr || newCapacity == 0);
-        for (size_t i = 0; i < size_; ++i) {
+        for (uint64_t i = 0; i < size_; ++i) {
             new (&newData[i]) T(static_cast<T&&>(data_[i]));
             data_[i].~T();
         }
@@ -200,17 +200,17 @@ public:
         capacity_ = newCapacity;
     }
 
-    void resize(size_t newSize) {
+    void resize(uint64_t newSize) {
         if (newSize > capacity_) {
             reserve(newSize);
         }
 
         if (newSize > size_) {
-            for (size_t i = size_; i < newSize; ++i) {
+            for (uint64_t i = size_; i < newSize; ++i) {
                 new (&data_[i]) T();
             }
         } else if (newSize < size_) {
-            for (size_t i = newSize; i < size_; ++i) {
+            for (uint64_t i = newSize; i < size_; ++i) {
                 data_[i].~T();
             }
         }
@@ -218,17 +218,17 @@ public:
         size_ = newSize;
     }
 
-    void resize(size_t newSize, const T& value) {
+    void resize(uint64_t newSize, const T& value) {
         if (newSize > capacity_) {
             reserve(newSize);
         }
 
         if (newSize > size_) {
-            for (size_t i = size_; i < newSize; ++i) {
+            for (uint64_t i = size_; i < newSize; ++i) {
                 new (&data_[i]) T(value);
             }
         } else if (newSize < size_) {
-            for (size_t i = newSize; i < size_; ++i) {
+            for (uint64_t i = newSize; i < size_; ++i) {
                 data_[i].~T();
             }
         }
@@ -247,7 +247,7 @@ public:
             } else {
                 T* newData = static_cast<T*>(allocator_->allocate(size_ * sizeof(T), callerId_));
                 assert(newData != nullptr);
-                for (size_t i = 0; i < size_; ++i) {
+                for (uint64_t i = 0; i < size_; ++i) {
                     new (&newData[i]) T(static_cast<T&&>(data_[i]));
                     data_[i].~T();
                 }
@@ -262,13 +262,13 @@ public:
         }
     }
 
-    void erase(size_t index) {
+    void erase(uint64_t index) {
         assert(index < size_);
         assert(size_ > 0);
 
         data_[index].~T();
 
-        for (size_t i = index + 1; i < size_; ++i) {
+        for (uint64_t i = index + 1; i < size_; ++i) {
             new (&data_[i - 1]) T(static_cast<T&&>(data_[i]));
             data_[i].~T();
         }
@@ -276,7 +276,7 @@ public:
         --size_;
     }
 
-    void insert(size_t index, const T& value) {
+    void insert(uint64_t index, const T& value) {
         assert(index <= size_);
 
         if (size_ >= capacity_) {
@@ -286,7 +286,7 @@ public:
         if (index < size_) {
             new (&data_[size_]) T(static_cast<T&&>(data_[size_ - 1]));
             if (size_ > 1) {
-                for (size_t i = size_ - 1; i > index; --i) {
+                for (uint64_t i = size_ - 1; i > index; --i) {
                     data_[i] = static_cast<T&&>(data_[i - 1]);
                 }
             }
@@ -331,10 +331,10 @@ public:
 
 private:
     // Threshold for switching to insertion sort
-    static const size_t INSERTION_SORT_THRESHOLD = 16;
+    static const uint64_t INSERTION_SORT_THRESHOLD = 16;
 
     // Swap two elements
-    void swap(size_t i, size_t j) {
+    void swap(uint64_t i, uint64_t j) {
         assert(i < size_);
         assert(j < size_);
         if (i != j) {
@@ -346,10 +346,10 @@ private:
 
     // Insertion sort for small partitions
     template<typename Compare>
-    void insertionSort(size_t left, size_t right, Compare comp) {
-        for (size_t i = left + 1; i <= right; ++i) {
+    void insertionSort(uint64_t left, uint64_t right, Compare comp) {
+        for (uint64_t i = left + 1; i <= right; ++i) {
             T key(data_[i]);
-            size_t j = i;
+            uint64_t j = i;
             while (j > left && comp(key, data_[j - 1])) {
                 data_[j] = static_cast<T&&>(data_[j - 1]);
                 --j;
@@ -360,9 +360,9 @@ private:
 
     // Median-of-three pivot selection
     template<typename Compare>
-    size_t medianOfThree(size_t left, size_t right, Compare comp) {
+    uint64_t medianOfThree(uint64_t left, uint64_t right, Compare comp) {
         assert(right >= left + 2); // Need at least 3 elements
-        size_t mid = left + (right - left) / 2;
+        uint64_t mid = left + (right - left) / 2;
 
         // Sort left, mid, right so that data_[left] <= data_[mid] <= data_[right]
         if (comp(data_[mid], data_[left])) {
@@ -382,12 +382,12 @@ private:
 
     // Partition the array around a pivot
     template<typename Compare>
-    size_t partition(size_t left, size_t right, size_t pivotIndex, Compare comp) {
+    uint64_t partition(uint64_t left, uint64_t right, uint64_t pivotIndex, Compare comp) {
         T pivotValue(data_[pivotIndex]);
         swap(pivotIndex, right);
 
-        size_t storeIndex = left;
-        for (size_t i = left; i < right; ++i) {
+        uint64_t storeIndex = left;
+        for (uint64_t i = left; i < right; ++i) {
             if (comp(data_[i], pivotValue)) {
                 swap(i, storeIndex);
                 ++storeIndex;
@@ -400,7 +400,7 @@ private:
 
     // Quicksort implementation
     template<typename Compare>
-    void quicksort(size_t left, size_t right, Compare comp) {
+    void quicksort(uint64_t left, uint64_t right, Compare comp) {
         // Guard against underflow: if left >= right, we're done
         if (left >= right || left >= size_ || right >= size_) {
             return;
@@ -413,7 +413,7 @@ private:
         }
 
         // Use median-of-three for pivot selection (requires at least 3 elements)
-        size_t pivotIndex;
+        uint64_t pivotIndex;
         if (right - left >= 2) {
             pivotIndex = medianOfThree(left, right, comp);
         } else {
@@ -431,13 +431,13 @@ private:
         }
     }
     void grow() {
-        size_t newCapacity = capacity_ == 0 ? 8 : capacity_ * 2;
+        uint64_t newCapacity = capacity_ == 0 ? 8 : capacity_ * 2;
         reserve(newCapacity);
     }
 
     T* data_;
-    size_t size_;
-    size_t capacity_;
+    uint64_t size_;
+    uint64_t capacity_;
     MemoryAllocator* allocator_;
     const char* callerId_;
 };

@@ -56,7 +56,7 @@ uint32_t VulkanWaterPolygon::findMemoryType(uint32_t typeFilter, VkMemoryPropert
 void VulkanWaterPolygon::createUniformBuffer() {
     VkDeviceSize bufferSize = sizeof(WaterPolygonBufferData);
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "VulkanWaterPolygon::createUniformBuffer - Creating buffer of size %zu bytes", (size_t)bufferSize);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "VulkanWaterPolygon::createUniformBuffer - Creating buffer of size %zu bytes", (uint64_t)bufferSize);
 
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;

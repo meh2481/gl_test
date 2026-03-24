@@ -362,7 +362,7 @@ void LuaInterface::initScene(uint64_t sceneId) {
     // Set up default collision callback that automatically calls handleCollision on objects
     physics_->setCollisionCallback([this](int bodyIdA, int bodyIdB, float pointX, float pointY, float normalX, float normalY, float approachSpeed) {
         // Iterate through all scene objects and call handleCollision on each that owns a colliding body
-        for (size_t i = 0; i < sceneObjects_.size(); ++i) {
+        for (uint64_t i = 0; i < sceneObjects_.size(); ++i) {
             int objRef = sceneObjects_[i];
             lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
             if (!lua_istable(luaState_, -1)) {
@@ -616,7 +616,7 @@ void LuaInterface::handleAction(uint64_t sceneId, Action action) {
     }
 
     // Call onAction on all tracked scene objects
-    for (size_t i = 0; i < sceneObjects_.size(); ++i) {
+    for (uint64_t i = 0; i < sceneObjects_.size(); ++i) {
         int objRef = sceneObjects_[i];
         lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
         if (lua_istable(luaState_, -1)) {
@@ -4104,7 +4104,7 @@ int LuaInterface::b2GetBodyTypes(lua_State* L) {
     Vector<String> types = interface->physics_->getBodyTypes(bodyId);
 
     lua_newtable(L);
-    for (size_t i = 0; i < types.size(); ++i) {
+    for (uint64_t i = 0; i < types.size(); ++i) {
         lua_pushstring(L, types[i].c_str());
         lua_rawseti(L, -2, i + 1);
     }

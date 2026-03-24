@@ -20,17 +20,17 @@ public:
     // Buffer creation and management
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
                      VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-    void copyDataToBuffer(VkDeviceMemory bufferMemory, const void* data, size_t size);
+    void copyDataToBuffer(VkDeviceMemory bufferMemory, const void* data, uint64_t size);
 
     // Vertex buffer utilities
     struct DynamicBuffer {
         VkBuffer buffer;
         VkDeviceMemory memory;
-        size_t currentSize;
+        uint64_t currentSize;
         uint32_t count;
     };
 
-    void createDynamicVertexBuffer(DynamicBuffer& dynBuffer, size_t initialSize);
+    void createDynamicVertexBuffer(DynamicBuffer& dynBuffer, uint64_t initialSize);
     void updateDynamicVertexBuffer(DynamicBuffer& dynBuffer, const Vector<float>& vertexData,
                                    uint32_t floatsPerVertex);
     void destroyDynamicBuffer(DynamicBuffer& dynBuffer);
@@ -39,15 +39,15 @@ public:
     struct IndexedBuffer {
         VkBuffer vertexBuffer;
         VkDeviceMemory vertexMemory;
-        size_t vertexSize;
+        uint64_t vertexSize;
         uint32_t vertexCount;
         VkBuffer indexBuffer;
         VkDeviceMemory indexMemory;
-        size_t indexSize;
+        uint64_t indexSize;
         uint32_t indexCount;
     };
 
-    void createIndexedBuffer(IndexedBuffer& buffer, size_t initialVertexSize, size_t initialIndexSize);
+    void createIndexedBuffer(IndexedBuffer& buffer, uint64_t initialVertexSize, uint64_t initialIndexSize);
     void updateIndexedBuffer(IndexedBuffer& buffer, const Vector<float>& vertexData,
                             const Vector<uint16_t>& indices, uint32_t floatsPerVertex);
     void destroyIndexedBuffer(IndexedBuffer& buffer);

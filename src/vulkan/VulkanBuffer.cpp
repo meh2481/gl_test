@@ -78,14 +78,14 @@ void VulkanBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
     vkBindBufferMemory(m_device, buffer, bufferMemory, 0);
 }
 
-void VulkanBuffer::copyDataToBuffer(VkDeviceMemory bufferMemory, const void* data, size_t size) {
+void VulkanBuffer::copyDataToBuffer(VkDeviceMemory bufferMemory, const void* data, uint64_t size) {
     void* mapped;
     vkMapMemory(m_device, bufferMemory, 0, size, 0, &mapped);
     memcpy(mapped, data, size);
     vkUnmapMemory(m_device, bufferMemory);
 }
 
-void VulkanBuffer::createDynamicVertexBuffer(DynamicBuffer& dynBuffer, size_t initialSize) {
+void VulkanBuffer::createDynamicVertexBuffer(DynamicBuffer& dynBuffer, uint64_t initialSize) {
     dynBuffer.currentSize = initialSize;
     dynBuffer.count = 0;
 
@@ -101,7 +101,7 @@ void VulkanBuffer::updateDynamicVertexBuffer(DynamicBuffer& dynBuffer, const Vec
         return;
     }
 
-    size_t dataSize = vertexData.size() * sizeof(float);
+    uint64_t dataSize = vertexData.size() * sizeof(float);
 
     // Reallocate if needed
     if (dataSize > dynBuffer.currentSize) {
@@ -135,7 +135,7 @@ void VulkanBuffer::destroyDynamicBuffer(DynamicBuffer& dynBuffer) {
     dynBuffer.count = 0;
 }
 
-void VulkanBuffer::createIndexedBuffer(IndexedBuffer& buffer, size_t initialVertexSize, size_t initialIndexSize) {
+void VulkanBuffer::createIndexedBuffer(IndexedBuffer& buffer, uint64_t initialVertexSize, uint64_t initialIndexSize) {
     buffer.vertexSize = initialVertexSize;
     buffer.indexSize = initialIndexSize;
     buffer.vertexCount = 0;
@@ -158,8 +158,8 @@ void VulkanBuffer::updateIndexedBuffer(IndexedBuffer& buffer, const Vector<float
         return;
     }
 
-    size_t vertexDataSize = vertexData.size() * sizeof(float);
-    size_t indexDataSize = indices.size() * sizeof(uint16_t);
+    uint64_t vertexDataSize = vertexData.size() * sizeof(float);
+    uint64_t indexDataSize = indices.size() * sizeof(uint16_t);
 
     // Reallocate vertex buffer if needed
     if (vertexDataSize > buffer.vertexSize) {

@@ -31,7 +31,7 @@ public:
 
     // Texture creation and management
     void createTextureImage(uint64_t textureId, const void* imageData, uint32_t width, uint32_t height,
-                           VkFormat format, size_t dataSize);
+                           VkFormat format, uint64_t dataSize);
     void createTextureSampler(uint64_t textureId);
     bool getTexture(uint64_t textureId, TextureData* outData) const;
     bool hasTexture(uint64_t textureId) const;

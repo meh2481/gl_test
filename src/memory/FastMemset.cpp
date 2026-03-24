@@ -19,18 +19,18 @@
 
 namespace {
 
-using FastMemsetImpl = void* (*)(void*, uint8_t, size_t);
+using FastMemsetImpl = void* (*)(void*, uint8_t, uint64_t);
 
-constexpr size_t SCALAR_UNROLL_BYTES = sizeof(uint64_t);
-constexpr size_t SSE2_BLOCK_BYTES = 64;
-constexpr size_t AVX2_BLOCK_BYTES = 128;
-constexpr size_t STREAMING_THRESHOLD = 16 * 1024;
+constexpr uint64_t SCALAR_UNROLL_BYTES = sizeof(uint64_t);
+constexpr uint64_t SSE2_BLOCK_BYTES = 64;
+constexpr uint64_t AVX2_BLOCK_BYTES = 128;
+constexpr uint64_t STREAMING_THRESHOLD = 16 * 1024;
 
 inline uint64_t makeRepeatedBytePattern(uint8_t value) {
     return 0x0101010101010101ULL * static_cast<uint64_t>(value);
 }
 
-inline void* scalarMemsetImpl(void* destination, uint8_t value, size_t size) {
+inline void* scalarMemsetImpl(void* destination, uint8_t value, uint64_t size) {
     uint8_t* out = static_cast<uint8_t*>(destination);
 
     while (size > 0 && (reinterpret_cast<uintptr_t>(out) & (SCALAR_UNROLL_BYTES - 1)) != 0) {
@@ -56,7 +56,7 @@ inline void* scalarMemsetImpl(void* destination, uint8_t value, size_t size) {
 
 #if FAST_MEMSET_X86
 FAST_MEMSET_TARGET_SSE2
-void* sse2MemsetImpl(void* destination, uint8_t value, size_t size) {
+void* sse2MemsetImpl(void* destination, uint8_t value, uint64_t size) {
     uint8_t* out = static_cast<uint8_t*>(destination);
     if (size < SSE2_BLOCK_BYTES) {
         return scalarMemsetImpl(destination, value, size);
@@ -88,7 +88,7 @@ void* sse2MemsetImpl(void* destination, uint8_t value, size_t size) {
 }
 
 FAST_MEMSET_TARGET_AVX2
-void* avx2MemsetImpl(void* destination, uint8_t value, size_t size) {
+void* avx2MemsetImpl(void* destination, uint8_t value, uint64_t size) {
     uint8_t* out = static_cast<uint8_t*>(destination);
     if (size < AVX2_BLOCK_BYTES) {
         return sse2MemsetImpl(destination, value, size);
@@ -153,7 +153,7 @@ FastMemsetImpl resolveFastMemsetImpl() {
 
 } // namespace
 
-void* fastMemset(void* destination, uint8_t value, size_t size) {
+void* fastMemset(void* destination, uint8_t value, uint64_t size) {
     if (!destination || size == 0) {
         return destination;
     }

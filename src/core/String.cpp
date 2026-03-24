@@ -3,8 +3,8 @@
 #include <SDL3/SDL.h>
 
 // Default growth factor for capacity
-static const size_t GROWTH_FACTOR = 2;
-static const size_t MIN_CAPACITY = 16;
+static const uint64_t GROWTH_FACTOR = 2;
+static const uint64_t MIN_CAPACITY = 16;
 
 // Default constructor
 String::String(MemoryAllocator* allocator) : data_(nullptr), length_(0), capacity_(0), allocator_(allocator) {
@@ -22,7 +22,7 @@ String::String(const char* str, MemoryAllocator* allocator) : data_(nullptr), le
 }
 
 // Constructor from C-string with explicit length
-String::String(const char* str, size_t length, MemoryAllocator* allocator) : data_(nullptr), length_(0), capacity_(0), allocator_(allocator) {
+String::String(const char* str, uint64_t length, MemoryAllocator* allocator) : data_(nullptr), length_(0), capacity_(0), allocator_(allocator) {
     if (str && length > 0) {
         length_ = length;
         ensureCapacity(length_);
@@ -155,7 +155,7 @@ bool String::operator>=(const String& other) const {
 // Concatenation with String
 String String::operator+(const String& other) const {
     String result(allocator_);
-    size_t newLength = length_ + other.length_;
+    uint64_t newLength = length_ + other.length_;
     if (newLength > 0) {
         result.ensureCapacity(newLength);
         result.length_ = newLength;
@@ -175,11 +175,11 @@ String String::operator+(const char* str) const {
     if (!str) {
         return *this;
     }
-    size_t strLen = strlen(str);
+    uint64_t strLen = strlen(str);
     if (strLen == 0) {
         return *this;
     }
-    size_t newLength = length_ + strLen;
+    uint64_t newLength = length_ + strLen;
     result.ensureCapacity(newLength);
     result.length_ = newLength;
     if (length_ > 0) {
@@ -192,7 +192,7 @@ String String::operator+(const char* str) const {
 // Append String
 String& String::operator+=(const String& other) {
     if (other.length_ > 0) {
-        size_t newLength = length_ + other.length_;
+        uint64_t newLength = length_ + other.length_;
         ensureCapacity(newLength);
         strcpy(data_ + length_, other.data_);
         length_ = newLength;
@@ -203,9 +203,9 @@ String& String::operator+=(const String& other) {
 // Append C-string
 String& String::operator+=(const char* str) {
     if (str) {
-        size_t strLen = strlen(str);
+        uint64_t strLen = strlen(str);
         if (strLen > 0) {
-            size_t newLength = length_ + strLen;
+            uint64_t newLength = length_ + strLen;
             ensureCapacity(newLength);
             strcpy(data_ + length_, str);
             length_ = newLength;
@@ -224,22 +224,22 @@ String& String::operator+=(char c) {
 }
 
 // Access operator (const)
-char String::operator[](size_t index) const {
+char String::operator[](uint64_t index) const {
     assert(index < length_);
     return data_[index];
 }
 
 // Access operator (non-const)
-char& String::operator[](size_t index) {
+char& String::operator[](uint64_t index) {
     assert(index < length_);
     return data_[index];
 }
 
 // UTF-8 character count
-size_t String::utf8Length() const {
+uint64_t String::utf8Length() const {
     if (length_ == 0) return 0;
-    size_t count = 0;
-    size_t i = 0;
+    uint64_t count = 0;
+    uint64_t i = 0;
     while (i < length_) {
         int charLen = utf8CharLength((unsigned char)data_[i]);
         assert(charLen > 0 && i + charLen <= length_);
@@ -258,7 +258,7 @@ void String::clear() {
 }
 
 // Reserve capacity
-void String::reserve(size_t newCapacity) {
+void String::reserve(uint64_t newCapacity) {
     if (newCapacity > capacity_) {
         char* newData = (char*)allocator_->allocate(newCapacity + 1, "String.cpp:265");
         assert(newData != nullptr);
@@ -277,10 +277,10 @@ void String::reserve(size_t newCapacity) {
 }
 
 // Resize string
-void String::resize(size_t newLength) {
+void String::resize(uint64_t newLength) {
     if (newLength > length_) {
         ensureCapacity(newLength);
-        for (size_t i = length_; i < newLength; i++) {
+        for (uint64_t i = length_; i < newLength; i++) {
             data_[i] = '\0';
         }
     }
@@ -291,9 +291,9 @@ void String::resize(size_t newLength) {
 }
 
 // Substring
-String String::substr(size_t pos, size_t len) const {
+String String::substr(uint64_t pos, uint64_t len) const {
     assert(pos <= length_);
-    size_t actualLen = len;
+    uint64_t actualLen = len;
     if (pos + actualLen > length_) {
         actualLen = length_ - pos;
     }
@@ -304,17 +304,17 @@ String String::substr(size_t pos, size_t len) const {
 }
 
 // Find C-string
-size_t String::find(const char* str, size_t pos) const {
+uint64_t String::find(const char* str, uint64_t pos) const {
     if (!str || pos >= length_) {
         return npos;
     }
-    size_t strLen = strlen(str);
+    uint64_t strLen = strlen(str);
     if (strLen == 0 || strLen > length_ - pos) {
         return npos;
     }
-    for (size_t i = pos; i <= length_ - strLen; i++) {
+    for (uint64_t i = pos; i <= length_ - strLen; i++) {
         bool found = true;
-        for (size_t j = 0; j < strLen; j++) {
+        for (uint64_t j = 0; j < strLen; j++) {
             if (data_[i + j] != str[j]) {
                 found = false;
                 break;
@@ -328,11 +328,11 @@ size_t String::find(const char* str, size_t pos) const {
 }
 
 // Find character
-size_t String::find(char c, size_t pos) const {
+uint64_t String::find(char c, uint64_t pos) const {
     if (pos >= length_) {
         return npos;
     }
-    for (size_t i = pos; i < length_; i++) {
+    for (uint64_t i = pos; i < length_; i++) {
         if (data_[i] == c) {
             return i;
         }
@@ -341,9 +341,9 @@ size_t String::find(char c, size_t pos) const {
 }
 
 // Static strlen
-size_t String::strlen(const char* str) {
+uint64_t String::strlen(const char* str) {
     if (!str) return 0;
-    size_t len = 0;
+    uint64_t len = 0;
     while (str[len] != '\0') {
         len++;
     }
@@ -353,7 +353,7 @@ size_t String::strlen(const char* str) {
 // Static strcmp
 int String::strcmp(const char* s1, const char* s2) {
     assert(s1 != nullptr && s2 != nullptr);
-    size_t i = 0;
+    uint64_t i = 0;
     while (s1[i] != '\0' && s2[i] != '\0') {
         if (s1[i] < s2[i]) return -1;
         if (s1[i] > s2[i]) return 1;
@@ -367,7 +367,7 @@ int String::strcmp(const char* s1, const char* s2) {
 // Static strcpy
 char* String::strcpy(char* dest, const char* src) {
     assert(dest != nullptr && src != nullptr);
-    size_t i = 0;
+    uint64_t i = 0;
     while (src[i] != '\0') {
         dest[i] = src[i];
         i++;
@@ -377,9 +377,9 @@ char* String::strcpy(char* dest, const char* src) {
 }
 
 // Static strncpy
-char* String::strncpy(char* dest, const char* src, size_t n) {
+char* String::strncpy(char* dest, const char* src, uint64_t n) {
     assert(dest != nullptr && src != nullptr);
-    size_t i;
+    uint64_t i;
     for (i = 0; i < n && src[i] != '\0'; i++) {
         dest[i] = src[i];
     }
@@ -390,11 +390,11 @@ char* String::strncpy(char* dest, const char* src, size_t n) {
 }
 
 // Ensure capacity is sufficient
-void String::ensureCapacity(size_t minCapacity) {
+void String::ensureCapacity(uint64_t minCapacity) {
     if (minCapacity <= capacity_) {
         return;
     }
-    size_t newCapacity = capacity_;
+    uint64_t newCapacity = capacity_;
     if (newCapacity < MIN_CAPACITY) {
         newCapacity = MIN_CAPACITY;
     }

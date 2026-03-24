@@ -2220,7 +2220,7 @@ void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
         assert(*it != nullptr);
         String typeStr(type, stringAllocator_);
         Vector<String>* types = *it;
-        for (size_t i = 0; i < types->size(); ) {
+        for (uint64_t i = 0; i < types->size(); ) {
             if ((*types)[i] == typeStr) {
                 types->erase(i);
                 consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::removeBodyType: removed type %s", type);

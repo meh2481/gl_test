@@ -213,7 +213,7 @@ int AudioManager::findFreeBufferSlot() {
     return -1;
 }
 
-int AudioManager::loadAudioBufferFromMemory(const void* data, size_t size, int sampleRate, int channels, int bitsPerSample) {
+int AudioManager::loadAudioBufferFromMemory(const void* data, uint64_t size, int sampleRate, int channels, int bitsPerSample) {
     int slot = findFreeBufferSlot();
     if (slot == -1) {
 consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
@@ -262,7 +262,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
     return slot;
 }
 
-int AudioManager::loadOpusAudioFromMemory(const void* data, size_t size) {
+int AudioManager::loadOpusAudioFromMemory(const void* data, uint64_t size) {
     // Open OPUS file from memory
     int error = 0;
     OggOpusFile* opusFile = op_open_memory((const unsigned char*)data, size, &error);

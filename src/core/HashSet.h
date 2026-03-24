@@ -12,7 +12,7 @@ inline uint32_t hashSetKey(const K& key) {
     // FNV-1a hash for general types
     const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&key);
     uint32_t hash = 2166136261u;
-    for (size_t i = 0; i < sizeof(K); ++i) {
+    for (uint64_t i = 0; i < sizeof(K); ++i) {
         hash ^= bytes[i];
         hash *= 16777619u;
     }
