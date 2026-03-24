@@ -2,7 +2,6 @@
 #include "../core/TrigLookup.h"
 #include <SDL3/SDL.h>
 #include <cassert>
-#include <functional>
 
 // Epsilon for parallax depth comparisons
 static const float PARALLAX_EPSILON = 0.001f;

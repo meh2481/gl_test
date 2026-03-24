@@ -1,5 +1,4 @@
 #include "VulkanRenderer.h"
-#include <iostream>
 #include "../core/ResourceTypes.h"
 #include "../scene/SceneLayer.h"
 #include "../debug/ConsoleBuffer.h"

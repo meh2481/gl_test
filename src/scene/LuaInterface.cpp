@@ -1,5 +1,4 @@
 #include "LuaInterface.h"
-#include <iostream>
 #include <SDL3/SDL.h>
 #include "SceneManager.h"
 #include "../physics/Box2DPhysics.h"

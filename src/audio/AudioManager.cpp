@@ -1,5 +1,4 @@
 #include "AudioManager.h"
-#include <iostream>
 #include <SDL3/SDL.h>
 #include "../core/Vector.h"
 #include "../debug/ConsoleBuffer.h"

@@ -2,7 +2,6 @@
 #include "../debug/ConsoleBuffer.h"
 #include "VulkanTexture.h"
 #include <cassert>
-#include <vector>
 
 // Animation push constant size: 6 base + 7 params + 20 animation = 33 floats
 // Water polygon vertices now passed via uniform buffer instead of push constants

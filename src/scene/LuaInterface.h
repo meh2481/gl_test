@@ -1,7 +1,6 @@
 #pragma once
 
 #include <lua.hpp>
-#include <memory>
 #include "../resources/resource.h"
 #include "../vulkan/VulkanRenderer.h"
 #include "../physics/Box2DPhysics.h"

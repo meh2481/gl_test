@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
 
 // Simple hash function for C-strings (FNV-1a hash)
 static uint64_t hashCString(const char* str) {

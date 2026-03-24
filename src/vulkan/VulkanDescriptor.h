@@ -3,7 +3,6 @@
 #include <vulkan/vulkan.h>
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
-#include <vector>
 #include <cstdint>
 
 // Forward declarations
