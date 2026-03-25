@@ -3,6 +3,8 @@
 #include "../memory/FastMemcpy.h"
 #include "../core/TrigLookup.h"
 #include "../memory/SmallMemoryAllocator.h"
+#include "../debug/ThreadProfiler.h"
+#include <SDL3/SDL.h>
 
 // Simple linear congruential generator for fast random numbers
 static unsigned int s_randomSeed = 12345;
@@ -17,12 +19,45 @@ static float fastRandomFloat() {
 }
 
 ParticleSystemManager::ParticleSystemManager(SmallMemoryAllocator* allocator, TrigLookup* trigLookup)
-    : systems_(nullptr), systemIds_(nullptr), systemCount_(0), systemCapacity_(0), nextSystemId_(1), allocator_(allocator), trigLookup_(trigLookup) {
+    : systems_(nullptr), systemIds_(nullptr), systemCount_(0), systemCapacity_(0), nextSystemId_(1), allocator_(allocator), trigLookup_(trigLookup),
+      particleUpdateThread_(nullptr), particleUpdateMutex_(nullptr), particleUpdateCondition_(nullptr),
+      particleUpdateWorkerRunning_(false), particleUpdateRequestPending_(false), particleUpdateCompleted_(false),
+      queuedDeltaTime_(0.0f) {
     assert(allocator_ != nullptr);
     assert(trigLookup_ != nullptr);
+
+    particleUpdateMutex_ = SDL_CreateMutex();
+    particleUpdateCondition_ = SDL_CreateCondition();
+    particleUpdateWorkerRunning_ = true;
+    particleUpdateThread_ = SDL_CreateThread(particleUpdateWorkerThread, "ParticleUpdateWorker", this);
+    assert(particleUpdateMutex_ != nullptr);
+    assert(particleUpdateCondition_ != nullptr);
+    assert(particleUpdateThread_ != nullptr);
 }
 
 ParticleSystemManager::~ParticleSystemManager() {
+    if (particleUpdateMutex_ != nullptr) {
+        SDL_LockMutex(particleUpdateMutex_);
+        particleUpdateWorkerRunning_ = false;
+        SDL_SignalCondition(particleUpdateCondition_);
+        SDL_UnlockMutex(particleUpdateMutex_);
+    }
+
+    if (particleUpdateThread_ != nullptr) {
+        SDL_WaitThread(particleUpdateThread_, nullptr);
+        particleUpdateThread_ = nullptr;
+    }
+
+    if (particleUpdateCondition_ != nullptr) {
+        SDL_DestroyCondition(particleUpdateCondition_);
+        particleUpdateCondition_ = nullptr;
+    }
+
+    if (particleUpdateMutex_ != nullptr) {
+        SDL_DestroyMutex(particleUpdateMutex_);
+        particleUpdateMutex_ = nullptr;
+    }
+
     // Free all particle systems
     for (int i = 0; i < systemCount_; ++i) {
         freeParticleArrays(systems_[i]);
@@ -565,7 +600,76 @@ void ParticleSystemManager::removeParticle(ParticleSystem& system, int index) {
     system.liveParticleCount--;
 }
 
+int ParticleSystemManager::particleUpdateWorkerThread(void* data) {
+    ParticleSystemManager* manager = static_cast<ParticleSystemManager*>(data);
+    assert(manager != nullptr);
+
+    ThreadProfiler& profiler = ThreadProfiler::instance();
+    profiler.registerThread("ParticleUpdateWorker");
+
+    while (true) {
+        profiler.updateThreadState(THREAD_STATE_WAITING);
+
+        SDL_LockMutex(manager->particleUpdateMutex_);
+        while (manager->particleUpdateWorkerRunning_ && !manager->particleUpdateRequestPending_) {
+            SDL_WaitCondition(manager->particleUpdateCondition_, manager->particleUpdateMutex_);
+        }
+
+        if (!manager->particleUpdateWorkerRunning_ && !manager->particleUpdateRequestPending_) {
+            SDL_UnlockMutex(manager->particleUpdateMutex_);
+            break;
+        }
+
+        const float deltaTime = manager->queuedDeltaTime_;
+        manager->particleUpdateRequestPending_ = false;
+        SDL_UnlockMutex(manager->particleUpdateMutex_);
+
+        profiler.updateThreadState(THREAD_STATE_BUSY);
+
+        // Update all particle systems: particles physics and lifecycle
+        for (int s = 0; s < manager->systemCount_; ++s) {
+            ParticleSystem& system = manager->systems_[s];
+
+            // Update existing particles with physics and remove dead ones
+            for (int i = 0; i < system.liveParticleCount; ) {
+                if (!manager->updateParticle(system, i, deltaTime)) {
+                    manager->removeParticle(system, i);
+                    // Don't increment i - we need to check the swapped particle
+                } else {
+                    ++i;
+                }
+            }
+        }
+
+        SDL_LockMutex(manager->particleUpdateMutex_);
+        manager->particleUpdateCompleted_ = true;
+        SDL_SignalCondition(manager->particleUpdateCondition_);
+        SDL_UnlockMutex(manager->particleUpdateMutex_);
+    }
+
+    return 0;
+}
+
+void ParticleSystemManager::submitParticleUpdateJob(float deltaTime) {
+    SDL_LockMutex(particleUpdateMutex_);
+    queuedDeltaTime_ = deltaTime;
+    particleUpdateRequestPending_ = true;
+    particleUpdateCompleted_ = false;
+    SDL_SignalCondition(particleUpdateCondition_);
+    SDL_UnlockMutex(particleUpdateMutex_);
+}
+
+void ParticleSystemManager::waitForParticleUpdateJob() {
+    SDL_LockMutex(particleUpdateMutex_);
+    while (!particleUpdateCompleted_) {
+        SDL_WaitCondition(particleUpdateCondition_, particleUpdateMutex_);
+    }
+    particleUpdateCompleted_ = false;
+    SDL_UnlockMutex(particleUpdateMutex_);
+}
+
 void ParticleSystemManager::update(float deltaTime) {
+    // Phase 1: Emission/spawning on main thread (fast, state-coupled RNG)
     for (int s = 0; s < systemCount_; ++s) {
         ParticleSystem& system = systems_[s];
 
@@ -589,17 +693,11 @@ void ParticleSystemManager::update(float deltaTime) {
                 system.emissionAccumulator -= 1.0f;
             }
         }
-
-        // Update existing particles
-        for (int i = 0; i < system.liveParticleCount; ) {
-            if (!updateParticle(system, i, deltaTime)) {
-                removeParticle(system, i);
-                // Don't increment i - we need to check the swapped particle
-            } else {
-                ++i;
-            }
-        }
     }
+
+    // Phase 2: Particle physics update on worker thread (parallelizable)
+    submitParticleUpdateJob(deltaTime);
+    waitForParticleUpdateJob();
 }
 
 void ParticleSystemManager::getSystemsToDestroy(int* outSystemIds, int* outCount, int maxCount) {

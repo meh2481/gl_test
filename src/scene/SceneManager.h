@@ -4,6 +4,7 @@
 #include "../core/HashSet.h"
 #include "../resources/resource.h"
 #include "../vulkan/VulkanRenderer.h"
+#include "SceneLayer.h"
 #include "../input/InputActions.h"
 #include "../input/VibrationManager.h"
 
@@ -74,6 +75,21 @@ private:
     void updateTransition(float deltaTime);
     void ensureFadePipelineReady();
 
+    // Render-prep worker thread
+    struct RenderPrepOutput {
+        Vector<SpriteBatch> spriteBatches;
+        Vector<ParticleBatch> particleBatches;
+
+        explicit RenderPrepOutput(MemoryAllocator& allocator)
+            : spriteBatches(allocator, "SceneManager::RenderPrepOutput::spriteBatches"),
+              particleBatches(allocator, "SceneManager::RenderPrepOutput::particleBatches") {}
+    };
+
+    static int renderPrepWorkerThread(void* data);
+    void submitRenderPrepJob(float cameraX, float cameraY, float cameraZoom);
+    int waitForRenderPrepJob();
+    void buildParticleBatches(Vector<ParticleBatch>& particleBatches);
+
     TransitionState transitionState_;
     float transitionTimer_;
     float fadeOutTime_;
@@ -111,4 +127,18 @@ private:
 
     // Trig lookup table for fast sin/cos calculations
     TrigLookup* trigLookup_;
+
+    // Render-prep worker state
+    SDL_Thread* renderPrepThread_;
+    SDL_Mutex* renderPrepMutex_;
+    SDL_Condition* renderPrepCondition_;
+    bool renderPrepWorkerRunning_;
+    bool renderPrepRequestPending_;
+    bool renderPrepCompleted_;
+    int renderPrepWriteIndex_;
+    int renderPrepReadyIndex_;
+    float queuedCameraX_;
+    float queuedCameraY_;
+    float queuedCameraZoom_;
+    RenderPrepOutput* renderPrepBuffers_[2];
 };

@@ -9,6 +9,7 @@
 #include "../effects/WaterEffect.h"
 #include "../animation/AnimationEngine.h"
 #include "../debug/ConsoleBuffer.h"
+#include "../debug/ThreadProfiler.h"
 #include <SDL3/SDL.h>
 #include <cassert>
 
@@ -31,7 +32,11 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
     fadePipelineReady_(false), fadeVertShaderId_(hashCString("res/shaders/fade_vertex.spv")), fadeFragShaderId_(hashCString("res/shaders/fade_fragment.spv")),
       pendingSceneId_(0), pendingScenePush_(false),
       particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1),
-      consoleBuffer_(consoleBuffer), trigLookup_(trigLookup)
+            consoleBuffer_(consoleBuffer), trigLookup_(trigLookup),
+            renderPrepThread_(nullptr), renderPrepMutex_(nullptr), renderPrepCondition_(nullptr),
+            renderPrepWorkerRunning_(false), renderPrepRequestPending_(false), renderPrepCompleted_(false),
+            renderPrepWriteIndex_(0), renderPrepReadyIndex_(-1),
+            queuedCameraX_(0.0f), queuedCameraY_(0.0f), queuedCameraZoom_(1.0f)
 {
     assert(allocator_ != nullptr);
     assert(physics_ != nullptr);
@@ -46,12 +51,247 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Received all managers and LuaInterface from main.cpp");
     consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "SceneManager: Default transition times: fadeOut=%.3fs, fadeIn=%.3fs", fadeOutTime_, fadeInTime_);
 
+    renderPrepBuffers_[0] = (RenderPrepOutput*)allocator_->allocate(sizeof(RenderPrepOutput), "SceneManager::renderPrepBuffer0");
+    new (renderPrepBuffers_[0]) RenderPrepOutput(*allocator_);
+    renderPrepBuffers_[1] = (RenderPrepOutput*)allocator_->allocate(sizeof(RenderPrepOutput), "SceneManager::renderPrepBuffer1");
+    new (renderPrepBuffers_[1]) RenderPrepOutput(*allocator_);
+
+    renderPrepMutex_ = SDL_CreateMutex();
+    renderPrepCondition_ = SDL_CreateCondition();
+    renderPrepWorkerRunning_ = true;
+    renderPrepThread_ = SDL_CreateThread(renderPrepWorkerThread, "RenderPrepWorker", this);
+    assert(renderPrepMutex_ != nullptr);
+    assert(renderPrepCondition_ != nullptr);
+    assert(renderPrepThread_ != nullptr);
+
     // Load and create fade overlay pipeline
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Loading fade overlay shaders");
     ensureFadePipelineReady();
 }
 
-SceneManager::~SceneManager() {}
+SceneManager::~SceneManager() {
+    if (renderPrepMutex_ != nullptr) {
+        SDL_LockMutex(renderPrepMutex_);
+        renderPrepWorkerRunning_ = false;
+        SDL_SignalCondition(renderPrepCondition_);
+        SDL_UnlockMutex(renderPrepMutex_);
+    }
+
+    if (renderPrepThread_ != nullptr) {
+        SDL_WaitThread(renderPrepThread_, nullptr);
+        renderPrepThread_ = nullptr;
+    }
+
+    if (renderPrepCondition_ != nullptr) {
+        SDL_DestroyCondition(renderPrepCondition_);
+        renderPrepCondition_ = nullptr;
+    }
+
+    if (renderPrepMutex_ != nullptr) {
+        SDL_DestroyMutex(renderPrepMutex_);
+        renderPrepMutex_ = nullptr;
+    }
+
+    if (renderPrepBuffers_[0] != nullptr) {
+        renderPrepBuffers_[0]->~RenderPrepOutput();
+        allocator_->free(renderPrepBuffers_[0]);
+        renderPrepBuffers_[0] = nullptr;
+    }
+    if (renderPrepBuffers_[1] != nullptr) {
+        renderPrepBuffers_[1]->~RenderPrepOutput();
+        allocator_->free(renderPrepBuffers_[1]);
+        renderPrepBuffers_[1] = nullptr;
+    }
+}
+
+int SceneManager::renderPrepWorkerThread(void* data) {
+    SceneManager* sceneManager = static_cast<SceneManager*>(data);
+    assert(sceneManager != nullptr);
+
+    ThreadProfiler& profiler = ThreadProfiler::instance();
+    profiler.registerThread("RenderPrepWorker");
+
+    while (true) {
+        profiler.updateThreadState(THREAD_STATE_WAITING);
+
+        SDL_LockMutex(sceneManager->renderPrepMutex_);
+        while (sceneManager->renderPrepWorkerRunning_ && !sceneManager->renderPrepRequestPending_) {
+            SDL_WaitCondition(sceneManager->renderPrepCondition_, sceneManager->renderPrepMutex_);
+        }
+
+        if (!sceneManager->renderPrepWorkerRunning_ && !sceneManager->renderPrepRequestPending_) {
+            SDL_UnlockMutex(sceneManager->renderPrepMutex_);
+            break;
+        }
+
+        const float cameraX = sceneManager->queuedCameraX_;
+        const float cameraY = sceneManager->queuedCameraY_;
+        const float cameraZoom = sceneManager->queuedCameraZoom_;
+        const int writeIndex = sceneManager->renderPrepWriteIndex_;
+        sceneManager->renderPrepRequestPending_ = false;
+        SDL_UnlockMutex(sceneManager->renderPrepMutex_);
+
+        profiler.updateThreadState(THREAD_STATE_BUSY);
+
+        RenderPrepOutput* output = sceneManager->renderPrepBuffers_[writeIndex];
+        output->spriteBatches.clear();
+        output->particleBatches.clear();
+
+        SceneLayerManager& layerManager = sceneManager->luaInterface_->getSceneLayerManager();
+        layerManager.updateLayerVertices(output->spriteBatches, cameraX, cameraY, cameraZoom);
+        sceneManager->buildParticleBatches(output->particleBatches);
+
+        SDL_LockMutex(sceneManager->renderPrepMutex_);
+        sceneManager->renderPrepReadyIndex_ = writeIndex;
+        sceneManager->renderPrepWriteIndex_ = 1 - writeIndex;
+        sceneManager->renderPrepCompleted_ = true;
+        SDL_SignalCondition(sceneManager->renderPrepCondition_);
+        SDL_UnlockMutex(sceneManager->renderPrepMutex_);
+    }
+
+    return 0;
+}
+
+void SceneManager::submitRenderPrepJob(float cameraX, float cameraY, float cameraZoom) {
+    SDL_LockMutex(renderPrepMutex_);
+    queuedCameraX_ = cameraX;
+    queuedCameraY_ = cameraY;
+    queuedCameraZoom_ = cameraZoom;
+    renderPrepRequestPending_ = true;
+    renderPrepCompleted_ = false;
+    SDL_SignalCondition(renderPrepCondition_);
+    SDL_UnlockMutex(renderPrepMutex_);
+}
+
+int SceneManager::waitForRenderPrepJob() {
+    SDL_LockMutex(renderPrepMutex_);
+    while (!renderPrepCompleted_) {
+        SDL_WaitCondition(renderPrepCondition_, renderPrepMutex_);
+    }
+    int readyIndex = renderPrepReadyIndex_;
+    renderPrepCompleted_ = false;
+    SDL_UnlockMutex(renderPrepMutex_);
+    return readyIndex;
+}
+
+void SceneManager::buildParticleBatches(Vector<ParticleBatch>& particleBatches) {
+    particleBatches.clear();
+
+    ParticleSystemManager& particleManager = luaInterface_->getParticleSystemManager();
+    for (int i = 0; i < particleManager.getSystemCount(); ++i) {
+        ParticleSystem* system = &particleManager.getSystems()[i];
+        if (!system || system->liveParticleCount == 0) continue;
+
+        uint64_t textureId = 0;
+        if (system->config.textureCount > 0) {
+            AtlasUV atlasUV;
+            if (pakResource_.tryGetAtlasUV(system->config.textureIds[0], atlasUV)) {
+                textureId = atlasUV.atlasId;
+            } else {
+                textureId = system->config.textureIds[0];
+            }
+        }
+
+        ParticleBatch batch(particleBatches.getAllocator());
+        batch.textureId = textureId;
+        batch.pipelineId = system->pipelineId;
+        batch.parallaxDepth = system->parallaxDepth;
+
+        for (int p = 0; p < system->liveParticleCount; ++p) {
+            float x = system->posX[p];
+            float y = system->posY[p];
+            float size = system->size[p];
+            float halfSize = size * 0.5f;
+
+            float texU0 = 0.0f, texV0 = 0.0f, texU1 = 1.0f, texV1 = 1.0f;
+            if (system->config.textureCount > 0) {
+                int texIdx = system->textureIndex[p];
+                if (texIdx >= 0 && texIdx < system->config.textureCount) {
+                    AtlasUV atlasUV;
+                    if (pakResource_.tryGetAtlasUV(system->config.textureIds[texIdx], atlasUV)) {
+                        texU0 = atlasUV.u0;
+                        texV0 = atlasUV.v0;
+                        texU1 = atlasUV.u1;
+                        texV1 = atlasUV.v1;
+                    }
+                }
+            }
+
+            float lifeRatio = 1.0f - (system->lifetime[p] / system->totalLifetime[p]);
+            float r = system->colorR[p] + (system->endColorR[p] - system->colorR[p]) * lifeRatio;
+            float g = system->colorG[p] + (system->endColorG[p] - system->colorG[p]) * lifeRatio;
+            float b = system->colorB[p] + (system->endColorB[p] - system->colorB[p]) * lifeRatio;
+            float a = system->colorA[p] + (system->endColorA[p] - system->colorA[p]) * lifeRatio;
+
+            float rotX = system->rotX[p];
+            float rotY = system->rotY[p];
+            float rotZ = system->rotZ[p];
+
+            float cosX, sinX, cosY, sinY, cosZ, sinZ;
+            trigLookup_->sincos(rotX, sinX, cosX);
+            trigLookup_->sincos(rotY, sinY, cosY);
+            trigLookup_->sincos(rotZ, sinZ, cosZ);
+
+            float m00 = cosY * cosZ;
+            float m01 = cosX * sinZ + sinX * sinY * cosZ;
+            float m10 = -cosY * sinZ;
+            float m11 = cosX * cosZ - sinX * sinY * sinZ;
+            float m20 = sinY;
+            float m21 = -sinX * cosY;
+
+            float corners[4][2] = {
+                {-halfSize, -halfSize},
+                { halfSize, -halfSize},
+                { halfSize,  halfSize},
+                {-halfSize,  halfSize}
+            };
+
+            float uvs[4][2] = {
+                {texU0, texV1},
+                {texU1, texV1},
+                {texU1, texV0},
+                {texU0, texV0}
+            };
+
+            uint16_t vertexBase = static_cast<uint16_t>(batch.vertices.size());
+
+            for (int v = 0; v < 4; ++v) {
+                float cx = corners[v][0];
+                float cy = corners[v][1];
+                float cz = 0.0f;
+
+                float rx = m00 * cx + m10 * cy + m20 * cz;
+                float ry = m01 * cx + m11 * cy + m21 * cz;
+
+                ParticleVertex vert;
+                vert.x = x + rx;
+                vert.y = y + ry;
+                vert.u = uvs[v][0];
+                vert.v = uvs[v][1];
+                vert.r = r;
+                vert.g = g;
+                vert.b = b;
+                vert.a = a;
+                vert.uvMinX = texU0;
+                vert.uvMinY = texV0;
+                vert.uvMaxX = texU1;
+                vert.uvMaxY = texV1;
+                batch.vertices.push_back(vert);
+            }
+
+            batch.indices.push_back(vertexBase + 0);
+            batch.indices.push_back(vertexBase + 1);
+            batch.indices.push_back(vertexBase + 2);
+            batch.indices.push_back(vertexBase + 2);
+            batch.indices.push_back(vertexBase + 3);
+            batch.indices.push_back(vertexBase + 0);
+        }
+
+        if (!batch.vertices.empty()) {
+            particleBatches.push_back(batch);
+        }
+    }
+}
 
 void SceneManager::pushScene(uint64_t sceneId) {
     // If we're not currently in a transition and there's an active scene, start fade-out
@@ -185,15 +425,10 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             }
         }
 
-        // Generate sprite batches grouped by texture
-        Vector<SpriteBatch> spriteBatches(*luaInterface_->getStringAllocator(), "SceneManager::render::spriteBatches");
+        // Capture camera transform for render-prep job
         float cameraX = luaInterface_->getCameraOffsetX();
         float cameraY = luaInterface_->getCameraOffsetY();
         float cameraZoom = luaInterface_->getCameraZoom();
-        layerManager.updateLayerVertices(spriteBatches, cameraX, cameraY, cameraZoom);
-
-        // Send batches to renderer
-        renderer_.setSpriteBatches(spriteBatches);
 
         // Update and render particle systems
         ParticleSystemManager& particleManager = luaInterface_->getParticleSystemManager();
@@ -212,142 +447,8 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             particleManager.destroySystem(systemsToDestroy[i]);
         }
 
-        // Generate particle batches - one per particle system for proper parallax sorting
-        Vector<ParticleBatch> particleBatches(*luaInterface_->getStringAllocator(), "SceneManager::render::particleBatches");
-
-        for (int i = 0; i < particleManager.getSystemCount(); ++i) {
-            ParticleSystem* system = &particleManager.getSystems()[i];
-            if (!system || system->liveParticleCount == 0) continue;
-
-            // Determine the texture ID for this system
-            uint64_t textureId = 0;
-            if (system->config.textureCount > 0) {
-                AtlasUV atlasUV;
-                if (pakResource_.tryGetAtlasUV(system->config.textureIds[0], atlasUV)) {
-                    textureId = atlasUV.atlasId;
-                } else {
-                    textureId = system->config.textureIds[0];
-                }
-            }
-
-            ParticleBatch batch(particleBatches.getAllocator());
-            batch.textureId = textureId;
-            batch.pipelineId = system->pipelineId;
-            batch.parallaxDepth = system->parallaxDepth;
-
-            for (int p = 0; p < system->liveParticleCount; ++p) {
-                float x = system->posX[p];
-                float y = system->posY[p];
-                float size = system->size[p];
-                float halfSize = size * 0.5f;
-
-                // Get texture UV coordinates for this particle's texture
-                float texU0 = 0.0f, texV0 = 0.0f, texU1 = 1.0f, texV1 = 1.0f;
-                if (system->config.textureCount > 0) {
-                    int texIdx = system->textureIndex[p];
-                    if (texIdx >= 0 && texIdx < system->config.textureCount) {
-                        AtlasUV atlasUV;
-                        if (pakResource_.tryGetAtlasUV(system->config.textureIds[texIdx], atlasUV)) {
-                            texU0 = atlasUV.u0;
-                            texV0 = atlasUV.v0;
-                            texU1 = atlasUV.u1;
-                            texV1 = atlasUV.v1;
-                        }
-                    }
-                }
-
-                // Calculate life ratio for color interpolation
-                float lifeRatio = 1.0f - (system->lifetime[p] / system->totalLifetime[p]);
-
-                // Interpolate color
-                float r = system->colorR[p] + (system->endColorR[p] - system->colorR[p]) * lifeRatio;
-                float g = system->colorG[p] + (system->endColorG[p] - system->colorG[p]) * lifeRatio;
-                float b = system->colorB[p] + (system->endColorB[p] - system->colorB[p]) * lifeRatio;
-                float a = system->colorA[p] + (system->endColorA[p] - system->colorA[p]) * lifeRatio;
-
-                // Get all three rotation angles for full 3D rotation
-                float rotX = system->rotX[p];
-                float rotY = system->rotY[p];
-                float rotZ = system->rotZ[p];
-
-                // Build 3D rotation matrix (ZYX Euler order)
-                float cosX, sinX, cosY, sinY, cosZ, sinZ;
-                trigLookup_->sincos(rotX, sinX, cosX);
-                trigLookup_->sincos(rotY, sinY, cosY);
-                trigLookup_->sincos(rotZ, sinZ, cosZ);
-
-                // Rotation matrix: Rz * Ry * Rx
-                // Column-major matrix elements for transforming a 3D point
-                float m00 = cosY * cosZ;
-                float m01 = cosX * sinZ + sinX * sinY * cosZ;
-                float m02 = sinX * sinZ - cosX * sinY * cosZ;
-                float m10 = -cosY * sinZ;
-                float m11 = cosX * cosZ - sinX * sinY * sinZ;
-                float m12 = sinX * cosZ + cosX * sinY * sinZ;
-                float m20 = sinY;
-                float m21 = -sinX * cosY;
-                float m22 = cosX * cosY;
-
-                // Quad corners in local space
-                float corners[4][2] = {
-                    {-halfSize, -halfSize},  // Bottom-left
-                    { halfSize, -halfSize},  // Bottom-right
-                    { halfSize,  halfSize},  // Top-right
-                    {-halfSize,  halfSize}   // Top-left
-                };
-
-                // UV coordinates using atlas UVs if available
-                float uvs[4][2] = {
-                    {texU0, texV1},  // Bottom-left
-                    {texU1, texV1},  // Bottom-right
-                    {texU1, texV0},  // Top-right
-                    {texU0, texV0}   // Top-left
-                };
-
-                uint16_t vertexBase = static_cast<uint16_t>(batch.vertices.size());
-
-                for (int v = 0; v < 4; ++v) {
-                    // Apply 3D rotation to corner (treating it as 3D point with z=0)
-                    float cx = corners[v][0];
-                    float cy = corners[v][1];
-                    float cz = 0.0f;
-
-                    // Transform by rotation matrix
-                    float rx = m00 * cx + m10 * cy + m20 * cz;
-                    float ry = m01 * cx + m11 * cy + m21 * cz;
-                    // rz = m02 * cx + m12 * cy + m22 * cz;  // Not needed for 2D projection
-
-                    ParticleVertex vert;
-                    vert.x = x + rx;
-                    vert.y = y + ry;
-                    vert.u = uvs[v][0];
-                    vert.v = uvs[v][1];
-                    vert.r = r;
-                    vert.g = g;
-                    vert.b = b;
-                    vert.a = a;
-                    vert.uvMinX = texU0;
-                    vert.uvMinY = texV0;
-                    vert.uvMaxX = texU1;
-                    vert.uvMaxY = texV1;
-                    batch.vertices.push_back(vert);
-                }
-
-                // Add indices for two triangles (quad)
-                batch.indices.push_back(vertexBase + 0);
-                batch.indices.push_back(vertexBase + 1);
-                batch.indices.push_back(vertexBase + 2);
-                batch.indices.push_back(vertexBase + 2);
-                batch.indices.push_back(vertexBase + 3);
-                batch.indices.push_back(vertexBase + 0);
-            }
-
-            if (!batch.vertices.empty()) {
-                particleBatches.push_back(batch);
-            }
-        }
-
-        renderer_.setParticleBatches(particleBatches);
+        // Kick render-prep worker (sprite + particle batches)
+        submitRenderPrepJob(cameraX, cameraY, cameraZoom);
 
         // Update debug draw data if physics debug drawing is enabled
         if (physics.isDebugDrawEnabled()) {
@@ -404,6 +505,13 @@ bool SceneManager::updateActiveScene(float deltaTime) {
 
         // Start async physics step (requested by Lua via b2StepAsync) after frame physics reads.
         luaInterface_->submitPendingAsyncPhysicsStep();
+
+        // Wait for render-prep output and submit to renderer
+        int readyBuffer = waitForRenderPrepJob();
+        if (readyBuffer >= 0 && readyBuffer < 2) {
+            renderer_.setSpriteBatches(renderPrepBuffers_[readyBuffer]->spriteBatches);
+            renderer_.setParticleBatches(renderPrepBuffers_[readyBuffer]->particleBatches);
+        }
     }
 
     return !sceneStack_.empty();

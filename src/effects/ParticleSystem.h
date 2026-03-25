@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cassert>
+#include <SDL3/SDL.h>
 
 // Forward declarations
 class TrigLookup;
@@ -195,6 +196,11 @@ public:
     // Clear all particle systems (for scene cleanup)
     void clearAllSystems();
 
+    // Particle update worker thread support
+    static int particleUpdateWorkerThread(void* data);
+    void submitParticleUpdateJob(float deltaTime);
+    void waitForParticleUpdateJob();
+
 private:
     // Allocate particle arrays for a system
     void allocateParticleArrays(ParticleSystem& system, int maxParticles);
@@ -233,4 +239,13 @@ private:
     int nextSystemId_;
     SmallMemoryAllocator* allocator_;
     TrigLookup* trigLookup_;
+
+    // Particle update worker state
+    SDL_Thread* particleUpdateThread_;
+    SDL_Mutex* particleUpdateMutex_;
+    SDL_Condition* particleUpdateCondition_;
+    bool particleUpdateWorkerRunning_;
+    bool particleUpdateRequestPending_;
+    bool particleUpdateCompleted_;
+    float queuedDeltaTime_;
 };
