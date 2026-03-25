@@ -1598,6 +1598,7 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     // Lifetime
     extractFloat("lifetimeMin", cfg.lifetimeMin);
     extractFloat("lifetimeMax", cfg.lifetimeMax);
+    cfg.systemLifetime = 0.0f; // default to infinite if key is omitted
     extractFloat("systemLifetime", cfg.systemLifetime);
 
     // Rotation (Z axis is most commonly used for 2D)

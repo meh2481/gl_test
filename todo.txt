@@ -1,12 +1,4 @@
 * Add a node script that, when an object of type "player" enters it, loads a specified scene.
 * Implement a function to save the current game state to a file.
 * Box2DPhysics: debugDrawEnabled_ should be compiled out in release builds
-* System max particle lifetime is not set to infinite when loading a particle system with infinite lifetime in the particle editor.
-
-
-
-Remove render-thread stalls in batch upload path: VulkanRenderer.cpp:1051-1159 waits on both in-flight fences before rebuilding buffers, which can serialize frame time; a dedicated render-prep thread plus per-frame buffer rings would help.
-Particle simulation thread(s): ParticleSystem.cpp:459-604 does per-particle physics/rotation/update in tight loops and scales with particle count, making it a good worker-thread candidate.
-Water/body interaction pass: LuaInterface.cpp:563-643 has nested loops over water fields, bodies, and ripples each frame; move this to a worker over a physics snapshot and apply results on main.
-Audio decode/loading jobs: AudioManager.cpp:266-315 decodes Opus fully in one synchronous call; run decode and buffer-prep on an audio worker, then enqueue OpenAL upload on the owning audio thread.
-Resource decompression parallelization: resource.cpp:255-283 holds one mutex while decompressing, and only uses one worker; split index/state lock from decompression work and use a small worker pool.
+* Lantern sometimes does not extinguish when dropping into water.
