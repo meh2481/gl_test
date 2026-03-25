@@ -1,4 +1,3 @@
 * Add a node script that, when an object of type "player" enters it, loads a specified scene.
 * Implement a function to save the current game state to a file.
 * Box2DPhysics: debugDrawEnabled_ should be compiled out in release builds
-* Lantern sometimes does not extinguish when dropping into water.

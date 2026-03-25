@@ -12,6 +12,7 @@ Lantern.lightBody = nil
 Lantern.chainAnchor = nil
 Lantern.lightId = nil
 Lantern.particleSystemId = nil
+Lantern.isLit = true
 Lantern.config = nil
 Lantern.bloomLayerId = nil
 
@@ -174,12 +175,13 @@ function Lantern.create(params)
         end
     end
 
+    Lantern.isLit = true
+
     return Lantern
 end
 
 function Lantern.extinguish()
-    -- Use particle system ID to check if already extinguished
-    if not Lantern.particleSystemId then return end
+    if not Lantern.isLit then return end
 
     -- Get lantern position for smoke effect
     local x, y = b2GetBodyPosition(Lantern.lightBody)
@@ -209,10 +211,11 @@ function Lantern.extinguish()
 
     -- Unset fire
     b2RemoveBodyType(Lantern.lightBody, "fire")
+    Lantern.isLit = false
 end
 
 function Lantern.relight()
-    if Lantern.particleSystemId then return end
+    if Lantern.isLit then return end
 
     local x, y = b2GetBodyPosition(Lantern.lightBody)
     if x == nil or y == nil then return end
@@ -237,6 +240,7 @@ function Lantern.relight()
 
     -- Set fire
     b2AddBodyType(Lantern.lightBody, "fire")
+    Lantern.isLit = true
 end
 
 function Lantern.handleCollision(otherBodyId, pointX, pointY, normalX, normalY, approachSpeed)
@@ -303,7 +307,7 @@ function Lantern.toggleAttach()
 end
 
 function Lantern.update(deltaTime)
-    if Lantern.lightBody and Lantern.particleSystemId then
+    if Lantern.lightBody then
         local x, y = b2GetBodyPosition(Lantern.lightBody)
         if x ~= nil and y ~= nil then
             updateLightPosition(Lantern.lightId, x, y, config.lightZ)
