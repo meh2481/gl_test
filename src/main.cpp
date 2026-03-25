@@ -19,6 +19,7 @@
 #include "effects/ParticleSystem.h"
 #include "effects/WaterEffect.h"
 #include "animation/AnimationEngine.h"
+#include "debug/ThreadProfiler.h"
 
 #ifdef DEBUG
 #include "debug/ImGuiManager.h"
@@ -194,6 +195,9 @@ int main()
     ConsoleBuffer *consoleBuffer = static_cast<ConsoleBuffer *>(
         smallAllocator->allocate(sizeof(ConsoleBuffer), "main::ConsoleBuffer"));
     new (consoleBuffer) ConsoleBuffer(smallAllocator, largeAllocator);
+
+    // Initialize ThreadProfiler
+    ThreadProfiler::instance().initialize(smallAllocator);
 
     // Log machine info at startup
     consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "SDL version: %d", SDL_GetVersion());
@@ -424,6 +428,11 @@ int main()
     bool running = true;
     SDL_Event event;
     float lastTime = SDL_GetTicks() / 1000.0f;
+    
+    // Register main thread with profiler
+    ThreadProfiler::instance().registerThread("MainThread");
+    ThreadProfiler::instance().updateThreadState(THREAD_STATE_BUSY);
+    
     while (running)
     {
         float currentTime = SDL_GetTicks() / 1000.0f;
@@ -479,6 +488,12 @@ int main()
                         SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
                         SDL_SetAtomicInt(&reloadData.reloadRequested, 1);
                     }
+                }
+                // Handle special case: F6 for thread profiler toggle
+                if (event.key.key == SDLK_F6)
+                {
+                    imguiManager->toggleThreadProfiler();
+                    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Thread profiler toggled" << ConsoleBuffer::endl;
                 }
 #endif
             }
@@ -675,6 +690,9 @@ int main()
         // Show memory allocator window
         imguiManager->showMemoryAllocatorWindow(smallAllocator, largeAllocator, currentTime);
 
+        // Show thread profiler window
+        imguiManager->showThreadProfilerWindow();
+
         // Show particle editor if scene wants it active
         bool sceneWantsEditor = sceneManager->isParticleEditorActive();
         bool editorWasActive = imguiManager->isParticleEditorActive();
@@ -709,6 +727,9 @@ int main()
 #endif
 
         renderer->render(currentTime);
+        
+        // End profiler frame (finalize statistics)
+        ThreadProfiler::instance().endFrame();
     }
 
     // Save current fullscreen state and display to config
@@ -798,6 +819,10 @@ int main()
     physics->~Box2DPhysics();
     smallAllocator->free(physics);
     *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed Box2DPhysics" << ConsoleBuffer::endl;
+
+    // Shutdown ThreadProfiler after worker threads are torn down and before allocator destruction
+    ThreadProfiler::instance().shutdown();
+    *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Destroyed ThreadProfiler" << ConsoleBuffer::endl;
 
     // Destroy SceneLayerManager
     layerManager->~SceneLayerManager();

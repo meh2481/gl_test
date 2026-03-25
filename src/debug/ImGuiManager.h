@@ -13,6 +13,7 @@
 #include "../memory/MemoryAllocator.h"
 #include "../memory/SmallMemoryAllocator.h"
 #include "../memory/LargeMemoryAllocator.h"
+#include "ThreadProfilerUI.h"
 #include <cstdint>
 
 // Forward declarations
@@ -127,6 +128,10 @@ public:
     // Show memory allocator window
     void showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, float currentTime);
 
+    // Show thread profiler window
+    void showThreadProfilerWindow();
+    void toggleThreadProfiler();
+
     // Check if ImGui wants to capture mouse input
     bool wantCaptureMouse() const;
 
@@ -151,6 +156,9 @@ private:
 
     // Particle editor state
     ParticleEditorState editorState_;
+
+    // Thread profiler UI
+    ThreadProfilerUI profilerUI_;
 
     // Memory allocator for string operations
     MemoryAllocator* stringAllocator_;

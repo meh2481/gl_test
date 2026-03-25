@@ -2202,4 +2202,12 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
     ImGui::End();
 }
 
+void ImGuiManager::showThreadProfilerWindow() {
+    profilerUI_.draw();
+}
+
+void ImGuiManager::toggleThreadProfiler() {
+    profilerUI_.toggleVisibility();
+}
+
 #endif // DEBUG
