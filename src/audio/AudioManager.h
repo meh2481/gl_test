@@ -5,6 +5,10 @@
 #include <AL/alc.h>
 #include <cstdint>
 #include <cassert>
+#include <memory>
+#include <vector>
+#include <SDL3/SDL.h>
+#include <opusfile.h>
 
 // Maximum number of simultaneous audio sources
 #define MAX_AUDIO_SOURCES 64
@@ -117,6 +121,17 @@ public:
     // Release all active audio sources (for scene cleanup)
     void clearAllSources();
 
+    // Async Opus decode: queue a decode job and return immediately
+    // Returns job ID for tracking
+    // Call getOpusDecodeResult() to retrieve decoded PCM
+    int decodeOpusAudioAsync(const void* data, size_t size);
+
+    // Wait for a decode job to complete and get result
+    // Fills outBuffer with decoded PCM samples (int16)
+    // Returns channels and sample rate via output parameters
+    // Returns true on success, false on error
+    bool getOpusDecodeResult(int jobId, std::vector<opus_int16>& outBuffer, int& outChannels, int& outSampleRate);
+
 private:
     ALCdevice* device;
     ALCcontext* context;
@@ -150,6 +165,29 @@ private:
 
     // Console buffer for logging (optional, may be nullptr)
     ConsoleBuffer* consoleBuffer_;
+
+    // Audio decode worker thread infrastructure
+    struct AudioDecodeJob {
+        int jobId;
+        const void* compressedData;  // Pointer to compressed Opus data
+        size_t compressedSize;
+        std::vector<opus_int16> decodedPcm;  // Output: decoded PCM samples
+        int channels;  // Output: channel count
+        int sampleRate;  // Output: sample rate
+        bool completed;
+        bool failed;
+    };
+
+    static int audioDecodeWorkerThread(void* data);
+    void submitDecodeJob(std::shared_ptr<AudioDecodeJob> job);
+
+    SDL_Thread* decodeWorkerThread_;
+    SDL_Mutex* decodeMutex_;
+    SDL_Condition* decodeCondition_;
+    bool decodeWorkerRunning_;
+    int nextDecodeJobId_;
+    std::shared_ptr<AudioDecodeJob> pendingDecodeJob_;  // Single job queue
+    std::shared_ptr<AudioDecodeJob> completedDecodeJob_;  // Result holder
 };
 
 #endif // AUDIOMANAGER_H
