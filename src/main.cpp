@@ -8,6 +8,7 @@
 #include "scene/SceneManager.h"
 #include "core/config.h"
 #include "core/TrigLookup.h"
+#include "core/hash.h"
 #include "input/InputActions.h"
 #include "input/VibrationManager.h"
 #include "scene/LuaInterface.h"
@@ -257,6 +258,17 @@ int main()
         assert(false);
     }
 
+    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Preloading all pak resources asynchronously...");
+    pakResource->preloadAllResourcesAsync();
+
+    // Ensure trig table is available for engine bootstrap while remaining resources keep streaming
+    uint64_t trigTableId = hashCString("res/trig_table.bin");
+    pakResource->requestResourceAsync(trigTableId);
+    while (!pakResource->isResourceReady(trigTableId))
+    {
+        SDL_Delay(1);
+    }
+
     // Load trig lookup table
     TrigLookup *trigLookup = static_cast<TrigLookup *>(
         smallAllocator->allocate(sizeof(TrigLookup), "main::TrigLookup"));
@@ -393,10 +405,12 @@ int main()
         SDL_free(joysticks);
     }
 
-    // Load initial scene
-    sceneManager->pushScene(LUA_SCRIPT_ID);
+    // Initial scene is deferred until all resources finish async preload
+    bool initialScenePending = true;
+    bool preloadCompleteLogged = false;
 
 #ifdef DEBUG
+    bool pendingHotReloadSceneApply = false;
     // Allocate ImGuiManager using large allocator
     ImGuiManager *imguiManager = static_cast<ImGuiManager *>(
         largeAllocator->allocate(sizeof(ImGuiManager), "main::ImGuiManager"));
@@ -428,11 +442,11 @@ int main()
     bool running = true;
     SDL_Event event;
     float lastTime = SDL_GetTicks() / 1000.0f;
-    
+
     // Register main thread with profiler
     ThreadProfiler::instance().registerThread("MainThread");
     ThreadProfiler::instance().updateThreadState(THREAD_STATE_BUSY);
-    
+
     while (running)
     {
         float currentTime = SDL_GetTicks() / 1000.0f;
@@ -615,6 +629,27 @@ int main()
             }
         }
 
+        if (!preloadCompleteLogged && pakResource->areAllResourcesReady())
+        {
+            consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Pak resource preload complete");
+            preloadCompleteLogged = true;
+        }
+
+        if (initialScenePending && pakResource->isResourceReady(LUA_SCRIPT_ID))
+        {
+            sceneManager->pushScene(LUA_SCRIPT_ID);
+            initialScenePending = false;
+        }
+
+#ifdef DEBUG
+        if (pendingHotReloadSceneApply && pakResource->areAllResourcesReady())
+        {
+            sceneManager->reloadCurrentScene();
+            imguiManager->onSceneReload();
+            pendingHotReloadSceneApply = false;
+        }
+#endif
+
 #ifdef DEBUG
         // Sync particle editor preview controls with camera
         if (sceneManager->isParticleEditorActive())
@@ -650,7 +685,12 @@ int main()
                                         sceneManager->getCameraOffsetY(),
                                         sceneManager->getCameraZoom());
 
-        if (!sceneManager->updateActiveScene(deltaTime))
+        bool waitingForResources = initialScenePending;
+    #ifdef DEBUG
+        waitingForResources = waitingForResources || pendingHotReloadSceneApply;
+    #endif
+
+        if (!sceneManager->updateActiveScene(deltaTime) && !waitingForResources)
         {
             running = false;
         }
@@ -664,10 +704,8 @@ int main()
                 *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Hot-reload complete, applying changes..." << ConsoleBuffer::endl;
                 // Reload pak
                 pakResource->reload(PAK_FILE);
-                // Reload current scene with new resources
-                sceneManager->reloadCurrentScene();
-                // Notify ImGui particle editor to reset preview system
-                imguiManager->onSceneReload();
+                pakResource->preloadAllResourcesAsync();
+                pendingHotReloadSceneApply = true;
             }
             else
             {
@@ -727,7 +765,7 @@ int main()
 #endif
 
         renderer->render(currentTime);
-        
+
         // End profiler frame (finalize statistics)
         ThreadProfiler::instance().endFrame();
     }

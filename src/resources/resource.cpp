@@ -2,6 +2,7 @@
 #include "../core/ResourceTypes.h"
 #include "../core/Vector.h"
 #include "../debug/ConsoleBuffer.h"
+#include "../debug/ThreadProfiler.h"
 #include <cassert>
 #include <lz4.h>
 
@@ -17,7 +18,14 @@
 PakResource::PakResource(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
     : m_pakData{nullptr, 0}
     , m_decompressedData(*allocator, "PakResource::m_decompressedData")
+    , m_resourceIndex(*allocator, "PakResource::m_resourceIndex")
+    , m_loadedResourceData(*allocator, "PakResource::m_loadedResourceData")
+    , m_resourceStates(*allocator, "PakResource::m_resourceStates")
+    , m_requestQueue(*allocator, "PakResource::m_requestQueue")
     , m_atlasUVCache(*allocator, "PakResource::m_atlasUVCache")
+    , m_requestCondition(nullptr)
+    , m_workerThread(nullptr)
+    , m_workerRunning(true)
     , m_allocator(allocator)
     , m_consoleBuffer(consoleBuffer)
 #ifdef _WIN32
@@ -31,9 +39,30 @@ PakResource::PakResource(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffe
     assert(m_consoleBuffer != nullptr);
     m_mutex = SDL_CreateMutex();
     assert(m_mutex != nullptr);
+    m_requestCondition = SDL_CreateCondition();
+    assert(m_requestCondition != nullptr);
+    m_workerThread = SDL_CreateThread(resourceWorkerThread, "ResourceWorker", this);
+    assert(m_workerThread != nullptr);
 }
 
 PakResource::~PakResource() {
+    if (m_mutex && m_requestCondition) {
+        SDL_LockMutex(m_mutex);
+        m_workerRunning = false;
+        SDL_SignalCondition(m_requestCondition);
+        SDL_UnlockMutex(m_mutex);
+    }
+
+    if (m_workerThread) {
+        SDL_WaitThread(m_workerThread, nullptr);
+        m_workerThread = nullptr;
+    }
+
+    if (m_requestCondition) {
+        SDL_DestroyCondition(m_requestCondition);
+        m_requestCondition = nullptr;
+    }
+
     // Clean up decompressed data
     for (auto it = m_decompressedData.begin(); it != m_decompressedData.end(); ++it) {
         Vector<char>* vec = it.value();
@@ -41,6 +70,10 @@ PakResource::~PakResource() {
         m_allocator->free(vec);
     }
     m_decompressedData.clear();
+    m_resourceIndex.clear();
+    m_loadedResourceData.clear();
+    m_resourceStates.clear();
+    m_requestQueue.clear();
     if (m_pakData.data) {
 #ifdef _WIN32
         if (m_pakData.data) UnmapViewOfFile(m_pakData.data);
@@ -95,11 +128,19 @@ bool PakResource::load(const char* filename) {
     }
     m_pakData = ResourceData{(char*)addr, size};
 #endif
+
+    SDL_LockMutex(m_mutex);
+    buildResourceIndexLocked();
+    SDL_UnlockMutex(m_mutex);
+
     return true;
 }
 
 bool PakResource::reload(const char* filename) {
-    // Unmap current
+    SDL_LockMutex(m_mutex);
+
+    clearResourceCacheLocked();
+
     if (m_pakData.data) {
 #ifdef _WIN32
         UnmapViewOfFile(m_pakData.data);
@@ -114,111 +155,235 @@ bool PakResource::reload(const char* filename) {
 #endif
         m_pakData = {nullptr, 0};
     }
-    // Clear caches - first free allocated Vector objects
+
+    SDL_UnlockMutex(m_mutex);
+
+    return load(filename);
+}
+
+void PakResource::clearResourceCacheLocked() {
     for (auto it = m_decompressedData.begin(); it != m_decompressedData.end(); ++it) {
         Vector<char>* vec = it.value();
         vec->~Vector<char>();
         m_allocator->free(vec);
     }
     m_decompressedData.clear();
+    m_loadedResourceData.clear();
+    m_resourceStates.clear();
+    m_resourceIndex.clear();
+    m_requestQueue.clear();
     m_atlasUVCache.clear();
-    // Load again
-    return load(filename);
 }
 
-ResourceData PakResource::getResource(uint64_t id) {
-    SDL_LockMutex(m_mutex);
+void PakResource::buildResourceIndexLocked() {
+    m_resourceIndex.clear();
+    m_loadedResourceData.clear();
+    m_resourceStates.clear();
+    m_requestQueue.clear();
 
     if (!m_pakData.data) {
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Resource pak not loaded, cannot get resource id %llu", (unsigned long long)id);
-        SDL_UnlockMutex(m_mutex);
-        assert(false);
-        return ResourceData{nullptr, 0, 0};
+        return;
     }
 
     PakFileHeader* header = (PakFileHeader*)m_pakData.data;
     if (memcmp(header->sig, "PAKC", 4) != 0) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Invalid pak file signature");
-        SDL_UnlockMutex(m_mutex);
-        assert(false);
-        return ResourceData{nullptr, 0, 0};
+        return;
     }
 
     ResourcePtr* ptrs = (ResourcePtr*)(m_pakData.data + sizeof(PakFileHeader));
     for (uint32_t i = 0; i < header->numResources; i++) {
-        if (ptrs[i].id == id) {
-            CompressionHeader* comp = (CompressionHeader*)(m_pakData.data + ptrs[i].offset);
-            char* compressedData = (char*)(comp + 1);
-            if (comp->compressionType == COMPRESSION_FLAGS_UNCOMPRESSED) {
-                ResourceData result = ResourceData{compressedData, comp->decompressedSize, comp->type};
-                SDL_UnlockMutex(m_mutex);
-                return result;
-            } else if (comp->compressionType == COMPRESSION_FLAGS_LZ4) {
-                // Check if already decompressed (cache hit)
-                Vector<char>** cachedDataPtr = m_decompressedData.find(id);
-                if (cachedDataPtr != nullptr) {
-                    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Resource %llu: cache hit (%u bytes)", (unsigned long long)id, comp->decompressedSize);
-                    ResourceData result = ResourceData{(char*)(*cachedDataPtr)->data(), comp->decompressedSize, comp->type};
-                    SDL_UnlockMutex(m_mutex);
-                    return result;
-                }
-                // Cache miss - decompress
-                m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Resource %llu: cache miss, decompressing %u -> %u bytes", (unsigned long long)id, comp->compressedSize, comp->decompressedSize);
-                // Allocate Vector using memory allocator
-                void* vecMem = m_allocator->allocate(sizeof(Vector<char>), "PakResource::getResource::Vector");
-                Vector<char>* decompressed = new (vecMem) Vector<char>(*m_allocator, "PakResource::getResource::decompressed");
-                decompressed->resize(comp->decompressedSize);
-
-                int result = LZ4_decompress_safe(compressedData, decompressed->data(), comp->compressedSize, comp->decompressedSize);
-                if (result != (int)comp->decompressedSize) {
-                    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "LZ4 decompression failed for resource %llu", (unsigned long long)id);
-                    decompressed->~Vector<char>();
-                    m_allocator->free(vecMem);
-                    SDL_UnlockMutex(m_mutex);
-                    assert(false);
-                    return ResourceData{nullptr, 0, 0};
-                }
-                m_decompressedData.insertNew(id, decompressed);
-                ResourceData resData = ResourceData{(char*)decompressed->data(), comp->decompressedSize, comp->type};
-                SDL_UnlockMutex(m_mutex);
-                return resData;
-            }
-        }
+        m_resourceIndex.insert(ptrs[i].id, ptrs[i]);
+        m_resourceStates.insert(ptrs[i].id, RESOURCE_NOT_REQUESTED);
     }
-
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Resource %llu not found in pak", (unsigned long long)id);
-    SDL_UnlockMutex(m_mutex);
-    assert(false);
-    return ResourceData{nullptr, 0, 0};
 }
 
-bool PakResource::hasResource(uint64_t id) {
+bool PakResource::loadResourceDataLocked(uint64_t id, ResourceData& outData) {
+    ResourceData* loaded = m_loadedResourceData.find(id);
+    if (loaded != nullptr) {
+        outData = *loaded;
+        return true;
+    }
+
+    if (!m_pakData.data) {
+        return false;
+    }
+
+    ResourcePtr* ptr = m_resourceIndex.find(id);
+    if (ptr == nullptr) {
+        return false;
+    }
+
+    CompressionHeader* comp = (CompressionHeader*)(m_pakData.data + ptr->offset);
+    char* compressedData = (char*)(comp + 1);
+
+    if (comp->compressionType == COMPRESSION_FLAGS_UNCOMPRESSED) {
+        outData = ResourceData{compressedData, comp->decompressedSize, comp->type};
+        m_loadedResourceData.insert(id, outData);
+        return true;
+    }
+
+    if (comp->compressionType != COMPRESSION_FLAGS_LZ4) {
+        return false;
+    }
+
+    Vector<char>** cachedDataPtr = m_decompressedData.find(id);
+    if (cachedDataPtr != nullptr) {
+        outData = ResourceData{(char*)(*cachedDataPtr)->data(), comp->decompressedSize, comp->type};
+        m_loadedResourceData.insert(id, outData);
+        return true;
+    }
+
+    void* vecMem = m_allocator->allocate(sizeof(Vector<char>), "PakResource::loadResourceDataLocked::Vector");
+    Vector<char>* decompressed = new (vecMem) Vector<char>(*m_allocator, "PakResource::loadResourceDataLocked::decompressed");
+    decompressed->resize(comp->decompressedSize);
+
+    int result = LZ4_decompress_safe(compressedData, decompressed->data(), comp->compressedSize, comp->decompressedSize);
+    if (result != (int)comp->decompressedSize) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "LZ4 decompression failed for resource %llu", (unsigned long long)id);
+        decompressed->~Vector<char>();
+        m_allocator->free(vecMem);
+        return false;
+    }
+
+    m_decompressedData.insertNew(id, decompressed);
+    outData = ResourceData{(char*)decompressed->data(), comp->decompressedSize, comp->type};
+    m_loadedResourceData.insert(id, outData);
+    return true;
+}
+
+int PakResource::resourceWorkerThread(void* data) {
+    PakResource* resource = (PakResource*)data;
+    assert(resource != nullptr);
+
+    ThreadProfiler& profiler = ThreadProfiler::instance();
+    profiler.registerThread("ResourceWorker");
+
+    while (true) {
+        profiler.updateThreadState(THREAD_STATE_WAITING);
+        SDL_LockMutex(resource->m_mutex);
+
+        while (resource->m_workerRunning && resource->m_requestQueue.empty()) {
+            SDL_WaitCondition(resource->m_requestCondition, resource->m_mutex);
+        }
+
+        if (!resource->m_workerRunning && resource->m_requestQueue.empty()) {
+            SDL_UnlockMutex(resource->m_mutex);
+            break;
+        }
+
+        uint64_t id = resource->m_requestQueue[0];
+        resource->m_requestQueue.erase(0);
+        resource->m_resourceStates.insert(id, RESOURCE_LOADING);
+
+        profiler.updateThreadState(THREAD_STATE_BUSY);
+        ResourceData outData{nullptr, 0, 0};
+        bool loaded = resource->loadResourceDataLocked(id, outData);
+        resource->m_resourceStates.insert(id, loaded ? RESOURCE_READY : RESOURCE_FAILED);
+        SDL_UnlockMutex(resource->m_mutex);
+    }
+
+    return 0;
+}
+
+void PakResource::requestResourceAsync(uint64_t id) {
     SDL_LockMutex(m_mutex);
 
     if (!m_pakData.data) {
         SDL_UnlockMutex(m_mutex);
-        return false;
+        return;
     }
 
-    PakFileHeader* header = (PakFileHeader*)m_pakData.data;
-    if (memcmp(header->sig, "PAKC", 4) != 0) {
+    if (!m_resourceIndex.contains(id)) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Resource %llu not found in pak", (unsigned long long)id);
+        SDL_UnlockMutex(m_mutex);
+        return;
+    }
+
+    uint8_t* state = m_resourceStates.find(id);
+    uint8_t currentState = (state != nullptr) ? *state : RESOURCE_NOT_REQUESTED;
+    if (currentState == RESOURCE_READY || currentState == RESOURCE_LOADING || currentState == RESOURCE_QUEUED) {
+        SDL_UnlockMutex(m_mutex);
+        return;
+    }
+
+    m_resourceStates.insert(id, RESOURCE_QUEUED);
+    m_requestQueue.push_back(id);
+    SDL_SignalCondition(m_requestCondition);
+
+    SDL_UnlockMutex(m_mutex);
+}
+
+void PakResource::preloadAllResourcesAsync() {
+    SDL_LockMutex(m_mutex);
+
+    for (auto it = m_resourceIndex.begin(); it != m_resourceIndex.end(); ++it) {
+        uint64_t id = it.key();
+        uint8_t* state = m_resourceStates.find(id);
+        uint8_t currentState = (state != nullptr) ? *state : RESOURCE_NOT_REQUESTED;
+        if (currentState == RESOURCE_READY || currentState == RESOURCE_LOADING || currentState == RESOURCE_QUEUED) {
+            continue;
+        }
+        m_resourceStates.insert(id, RESOURCE_QUEUED);
+        m_requestQueue.push_back(id);
+    }
+
+    SDL_SignalCondition(m_requestCondition);
+    SDL_UnlockMutex(m_mutex);
+}
+
+bool PakResource::tryGetResource(uint64_t id, ResourceData& outData) {
+    outData = ResourceData{nullptr, 0, 0};
+
+    SDL_LockMutex(m_mutex);
+
+    ResourceData* loaded = m_loadedResourceData.find(id);
+    if (loaded != nullptr) {
+        outData = *loaded;
+        SDL_UnlockMutex(m_mutex);
+        return true;
+    }
+
+    if (!m_resourceIndex.contains(id)) {
         SDL_UnlockMutex(m_mutex);
         return false;
     }
 
-    ResourcePtr* ptrs = (ResourcePtr*)(m_pakData.data + sizeof(PakFileHeader));
-    for (uint32_t i = 0; i < header->numResources; i++) {
-        if (ptrs[i].id == id) {
-            SDL_UnlockMutex(m_mutex);
-            return true;
-        }
+    uint8_t* state = m_resourceStates.find(id);
+    uint8_t currentState = (state != nullptr) ? *state : RESOURCE_NOT_REQUESTED;
+
+    if (currentState == RESOURCE_NOT_REQUESTED || currentState == RESOURCE_FAILED) {
+        m_resourceStates.insert(id, RESOURCE_QUEUED);
+        m_requestQueue.push_back(id);
+        SDL_SignalCondition(m_requestCondition);
     }
 
     SDL_UnlockMutex(m_mutex);
     return false;
 }
 
-bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
+bool PakResource::areAllResourcesReady() {
+    SDL_LockMutex(m_mutex);
+    for (auto it = m_resourceIndex.begin(); it != m_resourceIndex.end(); ++it) {
+        uint8_t* state = m_resourceStates.find(it.key());
+        if (state == nullptr || *state != RESOURCE_READY) {
+            SDL_UnlockMutex(m_mutex);
+            return false;
+        }
+    }
+    SDL_UnlockMutex(m_mutex);
+    return true;
+}
+
+bool PakResource::hasResource(uint64_t id) {
+    SDL_LockMutex(m_mutex);
+
+    bool exists = m_resourceIndex.contains(id);
+    SDL_UnlockMutex(m_mutex);
+    return exists;
+}
+
+bool PakResource::tryGetAtlasUV(uint64_t textureId, AtlasUV& uv) {
     SDL_LockMutex(m_mutex);
 
     // Check cache first
@@ -231,8 +396,11 @@ bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
 
     SDL_UnlockMutex(m_mutex);
 
-    // Get the resource data
-    ResourceData resData = getResource(textureId);
+    ResourceData resData;
+    if (!tryGetResource(textureId, resData)) {
+        return false;
+    }
+
     if (!resData.data || resData.size < sizeof(TextureHeader)) {
         return false;  // Not a texture or not found
     }
@@ -261,7 +429,8 @@ bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
         uv.height = 0;
 
         // Get atlas to determine original dimensions
-        ResourceData atlasData = getResource(texHeader->atlasId);
+        ResourceData atlasData;
+        if (tryGetResource(texHeader->atlasId, atlasData)) {
         if (atlasData.data && atlasData.size >= sizeof(AtlasHeader)) {
             AtlasHeader* atlasHeader = (AtlasHeader*)atlasData.data;
             AtlasEntry* entries = (AtlasEntry*)(atlasData.data + sizeof(AtlasHeader));
@@ -275,6 +444,7 @@ bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
                 }
             }
         }
+        }
 
         // Cache the result
         SDL_LockMutex(m_mutex);
@@ -287,51 +457,26 @@ bool PakResource::getAtlasUV(uint64_t textureId, AtlasUV& uv) {
     return false;  // Not an atlas reference (standalone image)
 }
 
-ResourceData PakResource::getAtlasData(uint64_t atlasId) {
-    // Get the atlas resource
-    ResourceData resData = getResource(atlasId);
+bool PakResource::tryGetAtlasData(uint64_t atlasId, ResourceData& outData) {
+    outData = ResourceData{nullptr, 0, 0};
+
+    ResourceData resData;
+    if (!tryGetResource(atlasId, resData)) {
+        return false;
+    }
+
     if (!resData.data || resData.size < sizeof(AtlasHeader)) {
-        return ResourceData{nullptr, 0, 0};
+        return false;
     }
 
-    // The atlas data contains: AtlasHeader + AtlasEntry[] + compressed image data
-    AtlasHeader* header = (AtlasHeader*)resData.data;
-    uint64_t entriesSize = sizeof(AtlasEntry) * header->numEntries;
-    uint64_t imageOffset = sizeof(AtlasHeader) + entriesSize;
-
-    // Return the image portion with header information
-    // We return the entire atlas data so the renderer can parse it
-    return resData;
-}
-
-// Structure for async preload thread
-struct PreloadData {
-    PakResource* resource;
-    uint64_t id;
-};
-
-static int preloadThread(void* data) {
-    PreloadData* preloadData = (PreloadData*)data;
-    // Just call getResource which will decompress if needed
-    preloadData->resource->getResource(preloadData->id);
-    delete preloadData;
-    return 0;
-}
-
-void PakResource::preloadResourceAsync(uint64_t id) {
-    PreloadData* data = new PreloadData{this, id};
-    SDL_Thread* thread = SDL_CreateThread(preloadThread, "ResourcePreload", data);
-    if (thread) {
-        SDL_DetachThread(thread);
-    } else {
-        delete data;
-    }
+    outData = resData;
+    return true;
 }
 
 bool PakResource::isResourceReady(uint64_t id) {
     SDL_LockMutex(m_mutex);
-    Vector<char>** vecPtr = m_decompressedData.find(id);
-    bool ready = (vecPtr != nullptr);
+    uint8_t* state = m_resourceStates.find(id);
+    bool ready = (state != nullptr && *state == RESOURCE_READY);
     SDL_UnlockMutex(m_mutex);
     return ready;
 }

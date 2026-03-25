@@ -38,7 +38,13 @@ bool TrigLookup::load(PakResource* pakResource) {
 
     // Get the trig table resource using the well-known name
     uint64_t trigTableId = hashCString("res/trig_table.bin");
-    ResourceData resData = pakResource->getResource(trigTableId);
+    pakResource->requestResourceAsync(trigTableId);
+    ResourceData resData{nullptr, 0, 0};
+    bool ready = pakResource->tryGetResource(trigTableId, resData);
+    if (!ready) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "TrigLookup: trig table not ready yet");
+        return false;
+    }
 
     if (!resData.data || resData.size < sizeof(TrigTableHeader)) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "TrigLookup: Failed to load trig table resource");

@@ -299,13 +299,13 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
 int Box2DPhysics::physicsStepThread(void* data) {
     Box2DPhysics* physics = static_cast<Box2DPhysics*>(data);
     assert(physics != nullptr);
-    
+
     ThreadProfiler& profiler = ThreadProfiler::instance();
     profiler.registerThread("PhysicsWorker");
 
     while (true) {
         profiler.updateThreadState(THREAD_STATE_WAITING);
-        
+
         SDL_LockMutex(physics->stepControlMutex_);
         while (physics->stepWorkerRunning_ && !physics->stepRequestPending_) {
             SDL_WaitCondition(physics->stepCondition_, physics->stepControlMutex_);
@@ -320,7 +320,7 @@ int Box2DPhysics::physicsStepThread(void* data) {
         int subStepCount = physics->queuedSubStepCount_;
         physics->stepRequestPending_ = false;
         SDL_UnlockMutex(physics->stepControlMutex_);
-        
+
         profiler.updateThreadState(THREAD_STATE_BUSY);
         physics->step(timeStep, subStepCount);
         SDL_SetAtomicInt(&physics->stepInProgress_, 0);

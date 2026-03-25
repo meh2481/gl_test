@@ -72,6 +72,7 @@ private:
     };
 
     void updateTransition(float deltaTime);
+    void ensureFadePipelineReady();
 
     TransitionState transitionState_;
     float transitionTimer_;
@@ -80,6 +81,9 @@ private:
     float fadeColorR_;
     float fadeColorG_;
     float fadeColorB_;
+    bool fadePipelineReady_;
+    uint64_t fadeVertShaderId_;
+    uint64_t fadeFragShaderId_;
     uint64_t pendingSceneId_;
     bool pendingScenePush_;
     MemoryAllocator* allocator_;

@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
+#include "../core/ResourceTypes.h"
 
 // Forward declarations
 class MemoryAllocator;
@@ -30,26 +31,48 @@ public:
     ~PakResource();
     bool load(const char* filename);
     bool reload(const char* filename);
-    ResourceData getResource(uint64_t id);
+
+    // Async-only resource API
+    void requestResourceAsync(uint64_t id);
+    void preloadAllResourcesAsync();
+    bool tryGetResource(uint64_t id, ResourceData& outData);
+    bool areAllResourcesReady();
+
     bool hasResource(uint64_t id);
 
-    // Get atlas UV coordinates for a texture resource
-    // Returns true if the resource is an atlas reference, false if standalone
-    bool getAtlasUV(uint64_t textureId, AtlasUV& uv);
+    // Non-blocking atlas helpers (return false when still loading/not atlas)
+    bool tryGetAtlasUV(uint64_t textureId, AtlasUV& uv);
 
-    // Get the actual atlas image data for rendering
-    ResourceData getAtlasData(uint64_t atlasId);
+    // Non-blocking atlas data access
+    bool tryGetAtlasData(uint64_t atlasId, ResourceData& outData);
 
-    // Async resource loading - preloads and decompresses resources in background threads
-    // Use preloadResourceAsync() to start loading, then isResourceReady() to check completion
-    void preloadResourceAsync(uint64_t id);
     bool isResourceReady(uint64_t id);
 
 private:
+    enum ResourceLoadState : uint8_t {
+        RESOURCE_NOT_REQUESTED = 0,
+        RESOURCE_QUEUED = 1,
+        RESOURCE_LOADING = 2,
+        RESOURCE_READY = 3,
+        RESOURCE_FAILED = 4
+    };
+
+    static int resourceWorkerThread(void* data);
+    bool loadResourceDataLocked(uint64_t id, ResourceData& outData);
+    void clearResourceCacheLocked();
+    void buildResourceIndexLocked();
+
     ResourceData m_pakData;
     HashTable<uint64_t, Vector<char>*> m_decompressedData;
+    HashTable<uint64_t, ResourcePtr> m_resourceIndex;
+    HashTable<uint64_t, ResourceData> m_loadedResourceData;
+    HashTable<uint64_t, uint8_t> m_resourceStates;
+    Vector<uint64_t> m_requestQueue;
     HashTable<uint64_t, AtlasUV> m_atlasUVCache;  // Cache of atlas UV lookups
     SDL_Mutex* m_mutex;
+    SDL_Condition* m_requestCondition;
+    SDL_Thread* m_workerThread;
+    bool m_workerRunning;
     MemoryAllocator* m_allocator;
     ConsoleBuffer* m_consoleBuffer;
 

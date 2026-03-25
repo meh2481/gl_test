@@ -28,6 +28,7 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
       initializedScenes_(*allocator, "SceneManager::initializedScenes_"), pendingPop_(false),
       transitionState_(TRANSITION_NONE), transitionTimer_(0.0f), fadeOutTime_(DEFAULT_FADE_OUT_TIME), fadeInTime_(DEFAULT_FADE_IN_TIME),
       fadeColorR_(0.0f), fadeColorG_(0.0f), fadeColorB_(0.0f),
+    fadePipelineReady_(false), fadeVertShaderId_(hashCString("res/shaders/fade_vertex.spv")), fadeFragShaderId_(hashCString("res/shaders/fade_fragment.spv")),
       pendingSceneId_(0), pendingScenePush_(false),
       particleEditorActive_(false), particleEditorPipelineId_(-1), editorPreviewSystemId_(-1),
       consoleBuffer_(consoleBuffer), trigLookup_(trigLookup)
@@ -47,9 +48,7 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
 
     // Load and create fade overlay pipeline
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Loading fade overlay shaders");
-    ResourceData fadeVertShader = pakResource_.getResource(hashCString("res/shaders/fade_vertex.spv"));
-    ResourceData fadeFragShader = pakResource_.getResource(hashCString("res/shaders/fade_fragment.spv"));
-    renderer_.createFadePipeline(fadeVertShader, fadeFragShader);
+    ensureFadePipelineReady();
 }
 
 SceneManager::~SceneManager() {}
@@ -71,7 +70,10 @@ void SceneManager::pushScene(uint64_t sceneId) {
     // Load the scene if not already loaded
     if (!loadedScenes_.contains(sceneId)) {
         consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading scene %llu", (unsigned long long)sceneId);
-        ResourceData sceneScript = pakResource_.getResource(sceneId);
+        pakResource_.requestResourceAsync(sceneId);
+        ResourceData sceneScript{nullptr, 0, 0};
+        bool ready = pakResource_.tryGetResource(sceneId, sceneScript);
+        assert(ready);
         luaInterface_->loadScene(sceneId, sceneScript);
         loadedScenes_.insert(sceneId);
     } else {
@@ -136,7 +138,11 @@ void SceneManager::reloadCurrentScene() {
         // Mark as not initialized so it will reinitialize
         initializedScenes_.erase(currentSceneId);
         // Reinitialize the scene
-        luaInterface_->loadScene(currentSceneId, pakResource_.getResource(currentSceneId));
+        pakResource_.requestResourceAsync(currentSceneId);
+        ResourceData sceneScript{nullptr, 0, 0};
+        bool ready = pakResource_.tryGetResource(currentSceneId, sceneScript);
+        assert(ready);
+        luaInterface_->loadScene(currentSceneId, sceneScript);
         luaInterface_->initScene(currentSceneId);
         luaInterface_->switchToScenePipeline(currentSceneId);
     }
@@ -151,6 +157,8 @@ void SceneManager::initActiveScene() {
 }
 
 bool SceneManager::updateActiveScene(float deltaTime) {
+    ensureFadePipelineReady();
+
     // Update transition state first
     updateTransition(deltaTime);
 
@@ -215,7 +223,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             uint64_t textureId = 0;
             if (system->config.textureCount > 0) {
                 AtlasUV atlasUV;
-                if (pakResource_.getAtlasUV(system->config.textureIds[0], atlasUV)) {
+                if (pakResource_.tryGetAtlasUV(system->config.textureIds[0], atlasUV)) {
                     textureId = atlasUV.atlasId;
                 } else {
                     textureId = system->config.textureIds[0];
@@ -239,7 +247,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
                     int texIdx = system->textureIndex[p];
                     if (texIdx >= 0 && texIdx < system->config.textureCount) {
                         AtlasUV atlasUV;
-                        if (pakResource_.getAtlasUV(system->config.textureIds[texIdx], atlasUV)) {
+                        if (pakResource_.tryGetAtlasUV(system->config.textureIds[texIdx], atlasUV)) {
                             texU0 = atlasUV.u0;
                             texV0 = atlasUV.v0;
                             texU1 = atlasUV.u1;
@@ -401,6 +409,28 @@ bool SceneManager::updateActiveScene(float deltaTime) {
     return !sceneStack_.empty();
 }
 
+void SceneManager::ensureFadePipelineReady() {
+    if (fadePipelineReady_) {
+        return;
+    }
+
+    pakResource_.requestResourceAsync(fadeVertShaderId_);
+    pakResource_.requestResourceAsync(fadeFragShaderId_);
+
+    ResourceData fadeVertShader{nullptr, 0, 0};
+    ResourceData fadeFragShader{nullptr, 0, 0};
+    bool haveFadeVert = pakResource_.tryGetResource(fadeVertShaderId_, fadeVertShader);
+    bool haveFadeFrag = pakResource_.tryGetResource(fadeFragShaderId_, fadeFragShader);
+
+    if (!haveFadeVert || !haveFadeFrag) {
+        return;
+    }
+
+    renderer_.createFadePipeline(fadeVertShader, fadeFragShader);
+    fadePipelineReady_ = true;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Fade overlay pipeline ready");
+}
+
 void SceneManager::handleAction(Action action) {
     if (!sceneStack_.empty()) {
         uint64_t activeSceneId = sceneStack_.top();
@@ -500,7 +530,10 @@ void SceneManager::updateTransition(float deltaTime) {
                 // Load the scene if not already loaded
                 if (!loadedScenes_.contains(sceneId)) {
                     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading scene %llu", (unsigned long long)sceneId);
-                    ResourceData sceneScript = pakResource_.getResource(sceneId);
+                    pakResource_.requestResourceAsync(sceneId);
+                    ResourceData sceneScript{nullptr, 0, 0};
+                    bool ready = pakResource_.tryGetResource(sceneId, sceneScript);
+                    assert(ready);
                     luaInterface_->loadScene(sceneId, sceneScript);
                     loadedScenes_.insert(sceneId);
                 } else {

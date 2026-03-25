@@ -912,7 +912,7 @@ void ImGuiManager::showTextureSelector(PakResource* pakResource, VulkanRenderer*
         if (renderer && pakResource) {
             AtlasUV atlasUV;
             uint64_t lookupTexId = texId;
-            bool isAtlasTexture = pakResource->getAtlasUV(texId, atlasUV);
+            bool isAtlasTexture = pakResource->tryGetAtlasUV(texId, atlasUV);
             if (isAtlasTexture) {
                 // Texture is in atlas, use the atlas ID
                 lookupTexId = atlasUV.atlasId;

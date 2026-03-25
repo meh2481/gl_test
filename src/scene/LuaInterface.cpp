@@ -14,6 +14,11 @@
 
 // MAX_WATER_POLYGON_VERTICES defined in WaterEffect.h
 
+static bool requestAndTryResource(PakResource& pakResource, uint64_t resourceId, ResourceData& outData) {
+    pakResource.requestResourceAsync(resourceId);
+    return pakResource.tryGetResource(resourceId, outData);
+}
+
 LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, MemoryAllocator* allocator,
                            Box2DPhysics* physics, SceneLayerManager* layerManager, AudioManager* audioManager,
                            ParticleSystemManager* particleManager, WaterEffectManager* waterEffectManager,
@@ -1123,10 +1128,12 @@ int LuaInterface::loadShaders(lua_State* L) {
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading shaders: %s, %s (z-index: %d)", vertFile, fragFile, zIndex);
 
     // Get shader data from pak file
-    ResourceData vertShader = interface->pakResource_.getResource(vertId);
-    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+    ResourceData vertShader{nullptr, 0, 0};
+    ResourceData fragShader{nullptr, 0, 0};
+    bool haveVert = requestAndTryResource(interface->pakResource_, vertId, vertShader);
+    bool haveFrag = requestAndTryResource(interface->pakResource_, fragId, fragShader);
 
-    if (vertShader.size == 0 || fragShader.size == 0) {
+    if (!haveVert || !haveFrag || vertShader.size == 0 || fragShader.size == 0) {
         interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load shader: %s or %s", vertFile, fragFile);
         assert(false);
     }
@@ -1843,7 +1850,7 @@ int LuaInterface::b2SetBodyDestructible(lua_State* L) {
 
     // Check if texture uses atlas and set atlas UV info if so
     AtlasUV atlasUV;
-    if (interface->pakResource_.getAtlasUV(textureId, atlasUV)) {
+    if (interface->pakResource_.tryGetAtlasUV(textureId, atlasUV)) {
         interface->physics_->setBodyDestructibleAtlasUV(
             bodyId,
             atlasUV.atlasId,
@@ -1854,7 +1861,7 @@ int LuaInterface::b2SetBodyDestructible(lua_State* L) {
     // Check if normal map uses atlas and set atlas UV info if so
     if (normalMapId > 0) {
         AtlasUV normalAtlasUV;
-        if (interface->pakResource_.getAtlasUV(normalMapId, normalAtlasUV)) {
+        if (interface->pakResource_.tryGetAtlasUV(normalMapId, normalAtlasUV)) {
             interface->physics_->setBodyDestructibleNormalMapAtlasUV(
                 bodyId,
                 normalAtlasUV.atlasId,
@@ -2227,7 +2234,7 @@ int LuaInterface::createLayer(lua_State* L) {
 
     // Check if this texture uses atlas
     AtlasUV atlasUV;
-    bool usesAtlas = interface->pakResource_.getAtlasUV(textureId, atlasUV);
+    bool usesAtlas = interface->pakResource_.tryGetAtlasUV(textureId, atlasUV);
 
     // Get texture dimensions and calculate width/height based on aspect ratio
     uint32_t texWidth, texHeight;
@@ -2280,7 +2287,7 @@ int LuaInterface::createLayer(lua_State* L) {
     // Check if normal map uses atlas
     if (normalMapId != 0) {
         AtlasUV normalAtlasUV;
-        if (interface->pakResource_.getAtlasUV(normalMapId, normalAtlasUV)) {
+        if (interface->pakResource_.tryGetAtlasUV(normalMapId, normalAtlasUV)) {
             interface->layerManager_->setLayerNormalMapAtlasUV(layerId, normalAtlasUV.atlasId,
                 normalAtlasUV.u0, normalAtlasUV.v0, normalAtlasUV.u1, normalAtlasUV.v1);
         }
@@ -2554,19 +2561,21 @@ int LuaInterface::loadTexture(lua_State* L) {
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Loading texture: %s (id: %d)", filename, textureId);
 
     // Load the texture from the pak file
-    ResourceData imageData = interface->pakResource_.getResource(textureId);
-    if (imageData.data == nullptr) {
+    ResourceData imageData{nullptr, 0, 0};
+    bool haveImage = requestAndTryResource(interface->pakResource_, textureId, imageData);
+    if (!haveImage || imageData.data == nullptr) {
         interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Texture not found in pak file: %s", filename);
         assert(false);
     }
 
     // Check if this is an atlas reference (TextureHeader) or a standalone image (ImageHeader)
     AtlasUV atlasUV;
-    if (interface->pakResource_.getAtlasUV(textureId, atlasUV)) {
+    if (interface->pakResource_.tryGetAtlasUV(textureId, atlasUV)) {
         // This is an atlas reference - load the atlas texture instead
         interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "  -> Atlas reference (atlas id: %d, UV: %f,%f - %f,%f)", atlasUV.atlasId, atlasUV.u0, atlasUV.v0, atlasUV.u1, atlasUV.v1);
-        ResourceData atlasData = interface->pakResource_.getResource(atlasUV.atlasId);
-        if (atlasData.data == nullptr) {
+        ResourceData atlasData{nullptr, 0, 0};
+        bool haveAtlas = requestAndTryResource(interface->pakResource_, atlasUV.atlasId, atlasData);
+        if (!haveAtlas || atlasData.data == nullptr) {
             interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Atlas not found in pak file for texture: %s", filename);
             assert(false);
         }
@@ -2607,9 +2616,12 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
     uint64_t vertId = hashCString(vertShaderName);
     uint64_t fragId = hashCString(fragShaderName);
 
-    ResourceData vertShader = interface->pakResource_.getResource(vertId);
-    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+    ResourceData vertShader{nullptr, 0, 0};
+    ResourceData fragShader{nullptr, 0, 0};
+    bool haveVert = requestAndTryResource(interface->pakResource_, vertId, vertShader);
+    bool haveFrag = requestAndTryResource(interface->pakResource_, fragId, fragShader);
 
+    assert(haveVert && haveFrag);
     assert(vertShader.data != nullptr);
     assert(fragShader.data != nullptr);
 
@@ -2656,9 +2668,12 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     uint64_t vertId = hashCString(vertShaderName);
     uint64_t fragId = hashCString(fragShaderName);
 
-    ResourceData vertShader = interface->pakResource_.getResource(vertId);
-    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+    ResourceData vertShader{nullptr, 0, 0};
+    ResourceData fragShader{nullptr, 0, 0};
+    bool haveVert = requestAndTryResource(interface->pakResource_, vertId, vertShader);
+    bool haveFrag = requestAndTryResource(interface->pakResource_, fragId, fragShader);
 
+    assert(haveVert && haveFrag);
     assert(vertShader.data != nullptr);
     assert(fragShader.data != nullptr);
 
@@ -2705,9 +2720,12 @@ int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
     uint64_t vertId = hashCString(vertShaderName);
     uint64_t fragId = hashCString(fragShaderName);
 
-    ResourceData vertShader = interface->pakResource_.getResource(vertId);
-    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+    ResourceData vertShader{nullptr, 0, 0};
+    ResourceData fragShader{nullptr, 0, 0};
+    bool haveVert = requestAndTryResource(interface->pakResource_, vertId, vertShader);
+    bool haveFrag = requestAndTryResource(interface->pakResource_, fragId, fragShader);
 
+    assert(haveVert && haveFrag);
     assert(vertShader.data != nullptr);
     assert(fragShader.data != nullptr);
 
@@ -2754,9 +2772,12 @@ int LuaInterface::loadAnimTexturedShaders(lua_State* L) {
     uint64_t vertId = hashCString(vertShaderName);
     uint64_t fragId = hashCString(fragShaderName);
 
-    ResourceData vertShader = interface->pakResource_.getResource(vertId);
-    ResourceData fragShader = interface->pakResource_.getResource(fragId);
+    ResourceData vertShader{nullptr, 0, 0};
+    ResourceData fragShader{nullptr, 0, 0};
+    bool haveVert = requestAndTryResource(interface->pakResource_, vertId, vertShader);
+    bool haveFrag = requestAndTryResource(interface->pakResource_, fragId, fragShader);
 
+    assert(haveVert && haveFrag);
     assert(vertShader.data != nullptr);
     assert(fragShader.data != nullptr);
 
@@ -2828,8 +2849,9 @@ int LuaInterface::audioLoadOpus(lua_State* L) {
     uint64_t resourceId = hashCString(resourceName);
 
     // Load resource from pak
-    ResourceData resourceData = interface->pakResource_.getResource(resourceId);
-    if (!resourceData.data || resourceData.size == 0) {
+    ResourceData resourceData{nullptr, 0, 0};
+    bool haveResource = requestAndTryResource(interface->pakResource_, resourceId, resourceData);
+    if (!haveResource || !resourceData.data || resourceData.size == 0) {
         interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load OPUS resource: %s", resourceName);
         lua_pushinteger(L, -1);
         assert(false);
@@ -3244,9 +3266,12 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
         interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::loadParticleShaders: Reusing existing particle pipeline %d", pipelineId);
     } else {
         // Create new pipeline
-        ResourceData vertShader = interface->pakResource_.getResource(vertId);
-        ResourceData fragShader = interface->pakResource_.getResource(fragId);
+        ResourceData vertShader{nullptr, 0, 0};
+        ResourceData fragShader{nullptr, 0, 0};
+        bool haveVert = requestAndTryResource(interface->pakResource_, vertId, vertShader);
+        bool haveFrag = requestAndTryResource(interface->pakResource_, fragId, fragShader);
 
+        assert(haveVert && haveFrag);
         assert(vertShader.data != nullptr);
         assert(fragShader.data != nullptr);
 
@@ -3610,8 +3635,9 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
     uint64_t resourceId = hashCString(filename);
 
     // Load the Lua file from the pak
-    ResourceData scriptData = interface->pakResource_.getResource(resourceId);
-    if (!scriptData.data || scriptData.size == 0) {
+    ResourceData scriptData{nullptr, 0, 0};
+    bool haveScript = requestAndTryResource(interface->pakResource_, resourceId, scriptData);
+    if (!haveScript || !scriptData.data || scriptData.size == 0) {
         interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load particle config: %s", filename);
         lua_pushnil(L);
         assert(false);
@@ -3661,8 +3687,9 @@ int LuaInterface::loadObject(lua_State* L) {
     uint64_t resourceId = hashCString(filename);
 
     // Load the Lua file from the pak
-    ResourceData scriptData = interface->pakResource_.getResource(resourceId);
-    if (!scriptData.data || scriptData.size == 0) {
+    ResourceData scriptData{nullptr, 0, 0};
+    bool haveScript = requestAndTryResource(interface->pakResource_, resourceId, scriptData);
+    if (!haveScript || !scriptData.data || scriptData.size == 0) {
         interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load object: %s", filename);
         lua_pushnil(L);
         assert(false);
@@ -3830,8 +3857,9 @@ int LuaInterface::createNode(lua_State* L) {
     scriptPath += ".lua";
     uint64_t scriptId = hashCString(scriptPath.c_str());
     if (interface->pakResource_.hasResource(scriptId)) {
-        ResourceData scriptData = interface->pakResource_.getResource(scriptId);
-        if (scriptData.data && scriptData.size > 0) {
+        ResourceData scriptData{nullptr, 0, 0};
+        bool haveScript = requestAndTryResource(interface->pakResource_, scriptId, scriptData);
+        if (haveScript && scriptData.data && scriptData.size > 0) {
             if (luaL_loadbuffer(L, (char*)scriptData.data, scriptData.size, scriptPath.c_str()) == LUA_OK) {
                 if (lua_pcall(L, 0, 1, 0) == LUA_OK) {
                     // Script table is now on top
@@ -4022,10 +4050,12 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     uint64_t vertId = hashCString(waterVertShaderName);
     uint64_t fragId = hashCString(waterFragShaderName);
 
-    ResourceData vertShader = pakResource_.getResource(vertId);
-    ResourceData fragShader = pakResource_.getResource(fragId);
+    ResourceData vertShader{nullptr, 0, 0};
+    ResourceData fragShader{nullptr, 0, 0};
+    bool haveVert = requestAndTryResource(pakResource_, vertId, vertShader);
+    bool haveFrag = requestAndTryResource(pakResource_, fragId, fragShader);
 
-    if (vertShader.data == nullptr || fragShader.data == nullptr) {
+    if (!haveVert || !haveFrag || vertShader.data == nullptr || fragShader.data == nullptr) {
 consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
         assert(false);
         return;
@@ -4050,8 +4080,9 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
     const char* placeholderTextureName = "res/textures/rock1.png";
     uint64_t placeholderTexId = hashCString(placeholderTextureName);
 
-    ResourceData texData = pakResource_.getResource(placeholderTexId);
-    if (texData.data != nullptr && texData.size > 0) {
+    ResourceData texData{nullptr, 0, 0};
+    bool haveTexture = requestAndTryResource(pakResource_, placeholderTexId, texData);
+    if (haveTexture && texData.data != nullptr && texData.size > 0) {
         renderer_.loadTexture(placeholderTexId, texData);
     }
 
@@ -4108,7 +4139,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
 
     // Check if placeholder texture uses atlas
     AtlasUV atlasUV;
-    bool usesAtlas = pakResource_.getAtlasUV(placeholderTexId, atlasUV);
+    bool usesAtlas = pakResource_.tryGetAtlasUV(placeholderTexId, atlasUV);
     if (usesAtlas) {
         layerManager_->setLayerAtlasUV(waterLayerId, atlasUV.atlasId,
                                         atlasUV.u0, atlasUV.v0, atlasUV.u1, atlasUV.v1);
