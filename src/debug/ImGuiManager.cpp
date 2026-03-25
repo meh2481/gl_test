@@ -1549,6 +1549,52 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
 
     extractInt("emissionVertexCount", cfg.emissionVertexCount);
 
+    // Emission polygon vertices
+    fastZeroMem(cfg.emissionVertices, sizeof(cfg.emissionVertices));
+    const char* emissionVertsStart = strstr(contentPtr, "emissionVertices = {");
+    if (emissionVertsStart) {
+        emissionVertsStart += strlen("emissionVertices = {");
+        const char* emissionVertsEnd = strchr(emissionVertsStart, '}');
+        if (emissionVertsEnd) {
+            int coordCount = 0;
+            const char* parsePos = emissionVertsStart;
+            const int maxCoords = EDITOR_MAX_VERTICES * 2;
+
+            while (parsePos < emissionVertsEnd && coordCount < maxCoords) {
+                while (parsePos < emissionVertsEnd &&
+                       (*parsePos == ' ' || *parsePos == '\t' || *parsePos == '\n' || *parsePos == '\r' || *parsePos == ',')) {
+                    parsePos++;
+                }
+
+                if (parsePos >= emissionVertsEnd) {
+                    break;
+                }
+
+                char* parseEnd = nullptr;
+                float value = strtof(parsePos, &parseEnd);
+                if (parseEnd == parsePos || parseEnd > emissionVertsEnd) {
+                    break;
+                }
+
+                cfg.emissionVertices[coordCount++] = value;
+                parsePos = parseEnd;
+            }
+
+            int availableVertexCount = coordCount / 2;
+            if (cfg.emissionVertexCount < 0) {
+                cfg.emissionVertexCount = 0;
+            }
+            if (cfg.emissionVertexCount > availableVertexCount) {
+                cfg.emissionVertexCount = availableVertexCount;
+            }
+            if (cfg.emissionVertexCount > EDITOR_MAX_VERTICES) {
+                cfg.emissionVertexCount = EDITOR_MAX_VERTICES;
+            }
+        }
+    } else {
+        cfg.emissionVertexCount = 0;
+    }
+
     // Velocity
     extractFloat("velocityMinX", cfg.velocityMinX);
     extractFloat("velocityMaxX", cfg.velocityMaxX);
