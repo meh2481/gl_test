@@ -197,6 +197,14 @@ void SceneManager::buildParticleBatches(Vector<ParticleBatch>& particleBatches) 
         batch.pipelineId = system->pipelineId;
         batch.parallaxDepth = system->parallaxDepth;
 
+        AtlasUV cachedAtlasUVs[8];
+        bool cachedAtlasUVValid[8] = {false, false, false, false, false, false, false, false};
+        if (system->config.textureCount > 0) {
+            for (int t = 0; t < system->config.textureCount && t < 8; ++t) {
+                cachedAtlasUVValid[t] = pakResource_.tryGetAtlasUV(system->config.textureIds[t], cachedAtlasUVs[t]);
+            }
+        }
+
         for (int p = 0; p < system->liveParticleCount; ++p) {
             float x = system->posX[p];
             float y = system->posY[p];
@@ -207,8 +215,8 @@ void SceneManager::buildParticleBatches(Vector<ParticleBatch>& particleBatches) 
             if (system->config.textureCount > 0) {
                 int texIdx = system->textureIndex[p];
                 if (texIdx >= 0 && texIdx < system->config.textureCount) {
-                    AtlasUV atlasUV;
-                    if (pakResource_.tryGetAtlasUV(system->config.textureIds[texIdx], atlasUV)) {
+                    if (cachedAtlasUVValid[texIdx]) {
+                        const AtlasUV& atlasUV = cachedAtlasUVs[texIdx];
                         texU0 = atlasUV.u0;
                         texV0 = atlasUV.v0;
                         texU1 = atlasUV.u1;
@@ -218,76 +226,30 @@ void SceneManager::buildParticleBatches(Vector<ParticleBatch>& particleBatches) 
             }
 
             float lifeRatio = 1.0f - (system->lifetime[p] / system->totalLifetime[p]);
-            float r = system->colorR[p] + (system->endColorR[p] - system->colorR[p]) * lifeRatio;
-            float g = system->colorG[p] + (system->endColorG[p] - system->colorG[p]) * lifeRatio;
-            float b = system->colorB[p] + (system->endColorB[p] - system->colorB[p]) * lifeRatio;
-            float a = system->colorA[p] + (system->endColorA[p] - system->colorA[p]) * lifeRatio;
-
-            float rotX = system->rotX[p];
-            float rotY = system->rotY[p];
             float rotZ = system->rotZ[p];
 
-            float cosX, sinX, cosY, sinY, cosZ, sinZ;
-            trigLookup_->sincos(rotX, sinX, cosX);
-            trigLookup_->sincos(rotY, sinY, cosY);
-            trigLookup_->sincos(rotZ, sinZ, cosZ);
-
-            float m00 = cosY * cosZ;
-            float m01 = cosX * sinZ + sinX * sinY * cosZ;
-            float m10 = -cosY * sinZ;
-            float m11 = cosX * cosZ - sinX * sinY * sinZ;
-            float m20 = sinY;
-            float m21 = -sinX * cosY;
-
-            float corners[4][2] = {
-                {-halfSize, -halfSize},
-                { halfSize, -halfSize},
-                { halfSize,  halfSize},
-                {-halfSize,  halfSize}
-            };
-
-            float uvs[4][2] = {
-                {texU0, texV1},
-                {texU1, texV1},
-                {texU1, texV0},
-                {texU0, texV0}
-            };
-
-            uint16_t vertexBase = static_cast<uint16_t>(batch.vertices.size());
-
-            for (int v = 0; v < 4; ++v) {
-                float cx = corners[v][0];
-                float cy = corners[v][1];
-                float cz = 0.0f;
-
-                float rx = m00 * cx + m10 * cy + m20 * cz;
-                float ry = m01 * cx + m11 * cy + m21 * cz;
-
-                ParticleVertex vert;
-                vert.x = x + rx;
-                vert.y = y + ry;
-                vert.u = uvs[v][0];
-                vert.v = uvs[v][1];
-                vert.r = r;
-                vert.g = g;
-                vert.b = b;
-                vert.a = a;
-                vert.uvMinX = texU0;
-                vert.uvMinY = texV0;
-                vert.uvMaxX = texU1;
-                vert.uvMaxY = texV1;
-                batch.vertices.push_back(vert);
-            }
-
-            batch.indices.push_back(vertexBase + 0);
-            batch.indices.push_back(vertexBase + 1);
-            batch.indices.push_back(vertexBase + 2);
-            batch.indices.push_back(vertexBase + 2);
-            batch.indices.push_back(vertexBase + 3);
-            batch.indices.push_back(vertexBase + 0);
+            ParticleInstance instance;
+            instance.x = x;
+            instance.y = y;
+            instance.halfSize = halfSize;
+            instance.rotZ = rotZ;
+            instance.startR = system->colorR[p];
+            instance.startG = system->colorG[p];
+            instance.startB = system->colorB[p];
+            instance.startA = system->colorA[p];
+            instance.endR = system->endColorR[p];
+            instance.endG = system->endColorG[p];
+            instance.endB = system->endColorB[p];
+            instance.endA = system->endColorA[p];
+            instance.lifeRatio = lifeRatio;
+            instance.uvMinX = texU0;
+            instance.uvMinY = texV0;
+            instance.uvMaxX = texU1;
+            instance.uvMaxY = texV1;
+            batch.instances.push_back(instance);
         }
 
-        if (!batch.vertices.empty()) {
+        if (!batch.instances.empty()) {
             particleBatches.push_back(batch);
         }
     }

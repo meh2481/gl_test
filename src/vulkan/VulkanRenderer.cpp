@@ -121,8 +121,10 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     // Initialize dynamic buffers to zero state
     m_debugLineBuffer = {VK_NULL_HANDLE, VK_NULL_HANDLE, 0, 0};
     m_debugTriangleBuffer = {VK_NULL_HANDLE, VK_NULL_HANDLE, 0, 0};
-    m_spriteBuffer = {VK_NULL_HANDLE, VK_NULL_HANDLE, 0, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, 0};
-    m_particleBuffer = {VK_NULL_HANDLE, VK_NULL_HANDLE, 0, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, 0};
+    for (int i = 0; i < 2; ++i) {
+        m_spriteBuffers[i] = {VK_NULL_HANDLE, VK_NULL_HANDLE, 0, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, 0};
+        m_particleBuffers[i] = {VK_NULL_HANDLE, VK_NULL_HANDLE, 0, 0, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, 0};
+    }
 }
 
 VulkanRenderer::~VulkanRenderer() {
@@ -188,8 +190,10 @@ void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
     m_bufferManager.createDynamicVertexBuffer(m_debugLineBuffer, 65536);
     m_bufferManager.createDynamicVertexBuffer(m_debugTriangleBuffer, 65536);
     m_bufferManager.createDynamicVertexBuffer(m_fadeOverlayBuffer, 256); // Small buffer for fade overlay
-    m_bufferManager.createIndexedBuffer(m_spriteBuffer, 4096, 2048);
-    m_bufferManager.createIndexedBuffer(m_particleBuffer, 8192, 4096);
+    for (int i = 0; i < 2; ++i) {
+        m_bufferManager.createIndexedBuffer(m_spriteBuffers[i], 4096, 2048);
+        m_bufferManager.createIndexedBuffer(m_particleBuffers[i], 8192, 4096);
+    }
 
     createCommandBuffers();
     createSyncObjects();
@@ -320,8 +324,10 @@ void VulkanRenderer::cleanup() {
     // Cleanup dynamic buffers
     m_bufferManager.destroyDynamicBuffer(m_debugLineBuffer);
     m_bufferManager.destroyDynamicBuffer(m_debugTriangleBuffer);
-    m_bufferManager.destroyIndexedBuffer(m_spriteBuffer);
-    m_bufferManager.destroyIndexedBuffer(m_particleBuffer);
+    for (int i = 0; i < 2; ++i) {
+        m_bufferManager.destroyIndexedBuffer(m_spriteBuffers[i]);
+        m_bufferManager.destroyIndexedBuffer(m_particleBuffers[i]);
+    }
 
     if (m_swapchainFramebuffers != nullptr) {
         for (uint64_t i = 0; i < m_swapchainImageCount; i++) {
@@ -1040,18 +1046,19 @@ void VulkanRenderer::setDebugTriangleDrawData(const Vector<float>& vertexData) {
 }
 
 void VulkanRenderer::setSpriteDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices) {
-    m_bufferManager.updateIndexedBuffer(m_spriteBuffer, vertexData, indices, 6);
+    vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    m_bufferManager.updateIndexedBuffer(m_spriteBuffers[m_currentFrame], vertexData, indices, 6);
 }
 
 void VulkanRenderer::setParticleDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices, uint64_t textureId) {
-    m_bufferManager.updateIndexedBuffer(m_particleBuffer, vertexData, indices, 8);
+    vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    m_bufferManager.updateIndexedBuffer(m_particleBuffers[m_currentFrame], vertexData, indices, 18);
     m_particleTextureId = textureId;
 }
 
 void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
-    // Wait for all in-flight frames to complete before modifying shared buffers
-    VkFence fences[] = {m_inFlightFences[0], m_inFlightFences[1]};
-    vkWaitForFences(m_device, 2, fences, VK_TRUE, UINT64_MAX);
+    // Wait only for the frame buffer we'll write this frame.
+    vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     m_spriteBatches.clear();
 
@@ -1073,6 +1080,8 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
         drawData.parallaxDepth = batch.parallaxDepth;
         drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
         drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        drawData.instanceCount = 1;
+        drawData.firstInstance = 0;
         drawData.orderIndex = orderIndex++;
         drawData.isParticle = false;
 
@@ -1119,25 +1128,24 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
         m_spriteBatches.push_back(drawData);
     }
 
-    m_bufferManager.updateIndexedBuffer(m_spriteBuffer, allVertexData, allIndices, 10);
+    m_bufferManager.updateIndexedBuffer(m_spriteBuffers[m_currentFrame], allVertexData, allIndices, 10);
     rebuildAllBatches();
 }
 
 void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
-    // Wait for all in-flight frames to complete before modifying shared buffers
-    VkFence fences[] = {m_inFlightFences[0], m_inFlightFences[1]};
-    vkWaitForFences(m_device, 2, fences, VK_TRUE, UINT64_MAX);
+    // Wait only for the frame buffer we'll write this frame.
+    vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     m_particleBatches.clear();
 
     Vector<float> allVertexData(*m_allocator, "VulkanRenderer::generateParticleBatches::allVertexData");
     Vector<uint16_t> allIndices(*m_allocator, "VulkanRenderer::generateParticleBatches::allIndices");
-    uint32_t baseVertex = 0;
+    uint32_t baseInstance = 0;
     // Start order index after sprite batches to preserve creation order
     uint32_t orderIndex = static_cast<uint32_t>(m_spriteBatches.size());
 
     for (const auto& batch : batches) {
-        if (batch.vertices.empty() || batch.indices.empty()) {
+        if (batch.instances.empty()) {
             continue;
         }
 
@@ -1147,8 +1155,10 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
         drawData.descriptorId = batch.textureId;  // Use texture ID as descriptor ID
         drawData.pipelineId = batch.pipelineId;
         drawData.parallaxDepth = batch.parallaxDepth;
-        drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
-        drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        drawData.firstIndex = 0;
+        drawData.indexCount = 6;
+        drawData.instanceCount = static_cast<uint32_t>(batch.instances.size());
+        drawData.firstInstance = baseInstance;
         drawData.orderIndex = orderIndex++;
         drawData.isParticle = true;
 
@@ -1174,30 +1184,39 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
         drawData.colorEndA = 1.0f;
         drawData.colorCycleTime = 0.0f;
 
-        for (const auto& v : batch.vertices) {
-            allVertexData.push_back(v.x);
-            allVertexData.push_back(v.y);
-            allVertexData.push_back(v.u);
-            allVertexData.push_back(v.v);
-            allVertexData.push_back(v.r);
-            allVertexData.push_back(v.g);
-            allVertexData.push_back(v.b);
-            allVertexData.push_back(v.a);
-            allVertexData.push_back(v.uvMinX);
-            allVertexData.push_back(v.uvMinY);
-            allVertexData.push_back(v.uvMaxX);
-            allVertexData.push_back(v.uvMaxY);
+        for (const auto& instance : batch.instances) {
+            allVertexData.push_back(instance.x);
+            allVertexData.push_back(instance.y);
+            allVertexData.push_back(instance.halfSize);
+            allVertexData.push_back(instance.rotZ);
+            allVertexData.push_back(instance.lifeRatio);
+            allVertexData.push_back(0.0f);
+            allVertexData.push_back(instance.startR);
+            allVertexData.push_back(instance.startG);
+            allVertexData.push_back(instance.startB);
+            allVertexData.push_back(instance.startA);
+            allVertexData.push_back(instance.endR);
+            allVertexData.push_back(instance.endG);
+            allVertexData.push_back(instance.endB);
+            allVertexData.push_back(instance.endA);
+            allVertexData.push_back(instance.uvMinX);
+            allVertexData.push_back(instance.uvMinY);
+            allVertexData.push_back(instance.uvMaxX);
+            allVertexData.push_back(instance.uvMaxY);
         }
 
-        for (uint16_t idx : batch.indices) {
-            allIndices.push_back(idx + baseVertex);
-        }
-
-        baseVertex += static_cast<uint32_t>(batch.vertices.size());
+        baseInstance += drawData.instanceCount;
         m_particleBatches.push_back(drawData);
     }
 
-    m_bufferManager.updateIndexedBuffer(m_particleBuffer, allVertexData, allIndices, 8);
+    allIndices.push_back(0);
+    allIndices.push_back(1);
+    allIndices.push_back(2);
+    allIndices.push_back(2);
+    allIndices.push_back(3);
+    allIndices.push_back(0);
+
+    m_bufferManager.updateIndexedBuffer(m_particleBuffers[m_currentFrame], allVertexData, allIndices, 18);
     rebuildAllBatches();
 }
 
@@ -1340,17 +1359,17 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                 currentPipelineId = -1;  // Force pipeline rebind
 
                 if (batch.isParticle) {
-                    VkBuffer vertexBuffers[] = {m_particleBuffer.vertexBuffer};
+                    VkBuffer vertexBuffers[] = {m_particleBuffers[m_currentFrame].vertexBuffer};
                     VkDeviceSize offsets[] = {0};
                     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                    vkCmdBindIndexBuffer(commandBuffer, m_particleBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                    vkCmdBindIndexBuffer(commandBuffer, m_particleBuffers[m_currentFrame].indexBuffer, 0, VK_INDEX_TYPE_UINT16);
                     particleBound = true;
                     spriteBound = false;
                 } else {
-                    VkBuffer vertexBuffers[] = {m_spriteBuffer.vertexBuffer};
+                    VkBuffer vertexBuffers[] = {m_spriteBuffers[m_currentFrame].vertexBuffer};
                     VkDeviceSize offsets[] = {0};
                     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                    vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                    vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffers[m_currentFrame].indexBuffer, 0, VK_INDEX_TYPE_UINT16);
                     spriteBound = true;
                     particleBound = false;
                 }
@@ -1358,16 +1377,16 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 
             // Ensure buffers are bound on first batch
             if (!batch.isParticle && !spriteBound) {
-                VkBuffer vertexBuffers[] = {m_spriteBuffer.vertexBuffer};
+                VkBuffer vertexBuffers[] = {m_spriteBuffers[m_currentFrame].vertexBuffer};
                 VkDeviceSize offsets[] = {0};
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffers[m_currentFrame].indexBuffer, 0, VK_INDEX_TYPE_UINT16);
                 spriteBound = true;
             } else if (batch.isParticle && !particleBound) {
-                VkBuffer vertexBuffers[] = {m_particleBuffer.vertexBuffer};
+                VkBuffer vertexBuffers[] = {m_particleBuffers[m_currentFrame].vertexBuffer};
                 VkDeviceSize offsets[] = {0};
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                vkCmdBindIndexBuffer(commandBuffer, m_particleBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+                vkCmdBindIndexBuffer(commandBuffer, m_particleBuffers[m_currentFrame].indexBuffer, 0, VK_INDEX_TYPE_UINT16);
                 particleBound = true;
             }
 
@@ -1495,7 +1514,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                     }
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                           info->layout, 0, 1, &descriptorSet, 0, nullptr);
-                    vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+                    vkCmdDrawIndexed(commandBuffer, batch.indexCount, batch.instanceCount, batch.firstIndex, 0, batch.firstInstance);
                 }
             } else {
                 // Sprite batch
@@ -1530,7 +1549,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                               info->layout, 0, 1, &descriptorSet, 0, nullptr);
                     }
-                    vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
+                    vkCmdDrawIndexed(commandBuffer, batch.indexCount, batch.instanceCount, batch.firstIndex, 0, batch.firstInstance);
                 }
             }
         }
@@ -1760,11 +1779,11 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
     };
 
     // Bind sprite vertex/index buffers
-    if (m_spriteBuffer.vertexBuffer != VK_NULL_HANDLE && m_spriteBuffer.indexBuffer != VK_NULL_HANDLE) {
-        VkBuffer vertexBuffers[] = {m_spriteBuffer.vertexBuffer};
+    if (m_spriteBuffers[m_currentFrame].vertexBuffer != VK_NULL_HANDLE && m_spriteBuffers[m_currentFrame].indexBuffer != VK_NULL_HANDLE) {
+        VkBuffer vertexBuffers[] = {m_spriteBuffers[m_currentFrame].vertexBuffer};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(commandBuffer, m_spriteBuffers[m_currentFrame].indexBuffer, 0, VK_INDEX_TYPE_UINT16);
     }
 
     // Draw only batches that are above the water surface (parallaxDepth check)

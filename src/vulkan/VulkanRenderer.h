@@ -127,8 +127,8 @@ private:
     VulkanBuffer::DynamicBuffer m_debugLineBuffer;
     VulkanBuffer::DynamicBuffer m_debugTriangleBuffer;
     VulkanBuffer::DynamicBuffer m_fadeOverlayBuffer;
-    VulkanBuffer::IndexedBuffer m_spriteBuffer;
-    VulkanBuffer::IndexedBuffer m_particleBuffer;
+    VulkanBuffer::IndexedBuffer m_spriteBuffers[2];
+    VulkanBuffer::IndexedBuffer m_particleBuffers[2];
 
     // Sprite batch data
     struct BatchDrawData {
@@ -139,6 +139,8 @@ private:
         float parallaxDepth;
         uint32_t indexCount;
         uint32_t firstIndex;
+        uint32_t instanceCount;
+        uint32_t firstInstance;
         uint32_t orderIndex;  // Stable ordering index to preserve creation order
         bool isParticle;  // true = particle batch, false = sprite batch
 

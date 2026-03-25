@@ -58,11 +58,14 @@ struct SpriteBatch {
           colorCycleTime(0.0f), colorPhase(0.0f), centerX(0.0f), centerY(0.0f) {}
 };
 
-// Particle vertex structure with position, texture coordinates, and color
-struct ParticleVertex {
-    float x, y;        // Position
-    float u, v;        // Texture coordinates
-    float r, g, b, a;  // Vertex color
+// Particle instance structure (expanded to quad in vertex shader)
+struct ParticleInstance {
+    float x, y;                    // Center position
+    float halfSize;                // Half-size of quad
+    float rotZ;                    // Rotation around Z axis (radians)
+    float startR, startG, startB, startA;  // Start color
+    float endR, endG, endB, endA;          // End color
+    float lifeRatio;               // 0 = just born, 1 = about to die
     float uvMinX, uvMinY, uvMaxX, uvMaxY;  // UV bounds for atlas clamping
 };
 
@@ -71,13 +74,12 @@ struct ParticleBatch {
     uint64_t textureId;      // Atlas texture ID
     int pipelineId;          // Pipeline ID to use for this batch
     float parallaxDepth;     // Parallax depth for sorting
-    Vector<ParticleVertex> vertices;
-    Vector<uint16_t> indices;
+    Vector<ParticleInstance> instances;
 
     // Constructor
     ParticleBatch(MemoryAllocator& allocator)
         : textureId(0), pipelineId(0), parallaxDepth(0.0f),
-          vertices(allocator, "ParticleBatch::vertices"), indices(allocator, "ParticleBatch::indices") {}
+          instances(allocator, "ParticleBatch::instances") {}
 };
 
 // Atlas UV coordinates for texture
