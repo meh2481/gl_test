@@ -413,6 +413,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
         submitRenderPrepJob(cameraX, cameraY, cameraZoom);
 
         // Update debug draw data if physics debug drawing is enabled
+#ifdef DEBUG
         if (physics.isDebugDrawEnabled()) {
             const Vector<DebugVertex>& debugLineVerts = physics.getDebugLineVertices();
             Vector<float> lineVertexData(*luaInterface_->getStringAllocator(), "SceneManager::render::lineVertexData");
@@ -464,6 +465,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             renderer_.setDebugLineDrawData(emptyData);
             renderer_.setDebugTriangleDrawData(emptyData);
         }
+#endif // DEBUG
 
         // Start async physics step (requested by Lua via b2StepAsync) after frame physics reads.
         luaInterface_->submitPendingAsyncPhysicsStep();

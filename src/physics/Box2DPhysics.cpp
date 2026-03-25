@@ -48,7 +48,11 @@ static void hexColorToRGBA(b2HexColor hexColor, float& r, float& g, float& b, fl
 }
 
 Box2DPhysics::Box2DPhysics(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, SceneLayerManager* layerManager, ConsoleBuffer* consoleBuffer, TrigLookup* trigLookup)
-    : nextBodyId_(0), nextJointId_(0), debugDrawEnabled_(false), stepThread_(nullptr),
+    : nextBodyId_(0), nextJointId_(0),
+#ifdef DEBUG
+      debugDrawEnabled_(false),
+#endif
+      stepThread_(nullptr),
     stepControlMutex_(nullptr), stepCondition_(nullptr), stepWorkerRunning_(false), stepRequestPending_(false),
     queuedTimeStep_(0.0f), queuedSubStepCount_(4),
       timeAccumulator_(0.0f), fixedTimestep_(DEFAULT_FIXED_TIMESTEP), mouseJointGroundBody_(b2_nullBodyId),
@@ -266,6 +270,7 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
     processFractures();
     SDL_LockMutex(physicsMutex_);
 
+#ifdef DEBUG
     if (debugDrawEnabled_) {
         debugLineVertices_.clear();
         debugTriangleVertices_.clear();
@@ -292,6 +297,7 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
 
         b2World_Draw(worldId_, &debugDraw);
     }
+#endif
 
     SDL_UnlockMutex(physicsMutex_);
 }
@@ -877,6 +883,7 @@ void Box2DPhysics::destroyMouseJoint(int jointId) {
     destroyJoint(jointId);
 }
 
+#ifdef DEBUG
 void Box2DPhysics::enableDebugDraw(bool enable) {
     debugDrawEnabled_ = enable;
 }
@@ -888,7 +895,9 @@ const Vector<DebugVertex>& Box2DPhysics::getDebugLineVertices() {
 const Vector<DebugVertex>& Box2DPhysics::getDebugTriangleVertices() {
     return debugTriangleVertices_;
 }
+#endif
 
+#ifdef DEBUG
 void Box2DPhysics::addLineVertex(float x, float y, b2HexColor hexColor) {
     DebugVertex v;
     v.x = x;
@@ -1039,6 +1048,7 @@ void Box2DPhysics::DrawPoint(b2Vec2 p, float size, b2HexColor color, void* conte
     physics->addLineVertex(p.x, p.y - halfSize, color);
     physics->addLineVertex(p.x, p.y + halfSize, color);
 }
+#endif // DEBUG
 
 int Box2DPhysics::findInternalBodyId(b2BodyId bodyId) {
     for (auto it = bodies_.begin(); it != bodies_.end(); ++it) {

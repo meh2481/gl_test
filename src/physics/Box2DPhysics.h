@@ -190,10 +190,12 @@ public:
     void destroyMouseJoint(int jointId);
 
     // Debug drawing
+#ifdef DEBUG
     void enableDebugDraw(bool enable);
     bool isDebugDrawEnabled() const { return debugDrawEnabled_; }
     const Vector<DebugVertex>& getDebugLineVertices();
     const Vector<DebugVertex>& getDebugTriangleVertices();
+#endif
 
     // Collision events - returns hit events from last physics step
     const Vector<CollisionHitEvent>& getCollisionHitEvents() const { return collisionHitEvents_; }
@@ -343,6 +345,7 @@ public:
     }
 
 private:
+#ifdef DEBUG
     // Debug draw callbacks
     static void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context);
     static void DrawSolidPolygon(b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color, void* context);
@@ -354,6 +357,7 @@ private:
 
     void addLineVertex(float x, float y, b2HexColor color);
     void addTriangleVertex(float x, float y, b2HexColor color);
+#endif
 
     // Worker thread function for async physics stepping
     static int physicsStepThread(void* data);
@@ -364,9 +368,11 @@ private:
     HashTable<int, DestructibleProperties> destructibles_;  // Destructible properties per body
     int nextBodyId_;
     int nextJointId_;
+#ifdef DEBUG
     bool debugDrawEnabled_;
     Vector<DebugVertex> debugLineVertices_;
     Vector<DebugVertex> debugTriangleVertices_;
+#endif
 
     // Fixed timestep accumulator for framerate-independent physics
     float timeAccumulator_;

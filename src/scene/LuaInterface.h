@@ -123,7 +123,7 @@ private:
     static int b2DisableBody(lua_State* L);
     static int b2GetBodyPosition(lua_State* L);
     static int b2GetBodyAngle(lua_State* L);
-    static int b2EnableDebugDraw(lua_State* L);
+    static int b2EnableDebugDraw(lua_State* L); // no-op in release builds
     static int b2CreateRevoluteJoint(lua_State* L);
     static int b2DestroyJoint(lua_State* L);
     static int b2QueryBodyAtPoint(lua_State* L);

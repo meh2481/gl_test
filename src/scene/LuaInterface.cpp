@@ -1037,8 +1037,10 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_APPLY_FORCE");
     lua_pushinteger(luaState_, ACTION_RESET_PHYSICS);
     lua_setglobal(luaState_, "ACTION_RESET_PHYSICS");
+#ifdef DEBUG
     lua_pushinteger(luaState_, ACTION_TOGGLE_DEBUG_DRAW);
     lua_setglobal(luaState_, "ACTION_TOGGLE_DEBUG_DRAW");
+#endif
     lua_pushinteger(luaState_, ACTION_DRAG_START);
     lua_setglobal(luaState_, "ACTION_DRAG_START");
     lua_pushinteger(luaState_, ACTION_DRAG_END);
@@ -1665,6 +1667,7 @@ int LuaInterface::b2GetBodyAngle(lua_State* L) {
 }
 
 int LuaInterface::b2EnableDebugDraw(lua_State* L) {
+#ifdef DEBUG
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
@@ -1674,6 +1677,9 @@ int LuaInterface::b2EnableDebugDraw(lua_State* L) {
 
     bool enable = lua_toboolean(L, 1);
     interface->physics_->enableDebugDraw(enable);
+#else
+    (void)L;
+#endif
     return 0;
 }
 
