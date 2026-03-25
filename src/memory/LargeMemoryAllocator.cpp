@@ -249,27 +249,6 @@ uint64_t LargeMemoryAllocator::defragment() {
     return mergedBlocks;
 }
 
-uint64_t LargeMemoryAllocator::getTotalMemory() const {
-    SDL_LockMutex(m_mutex);
-    uint64_t result = m_totalPoolSize;
-    SDL_UnlockMutex(m_mutex);
-    return result;
-}
-
-uint64_t LargeMemoryAllocator::getUsedMemory() const {
-    SDL_LockMutex(m_mutex);
-    uint64_t result = m_usedMemory;
-    SDL_UnlockMutex(m_mutex);
-    return result;
-}
-
-uint64_t LargeMemoryAllocator::getFreeMemory() const {
-    SDL_LockMutex(m_mutex);
-    uint64_t result = m_totalPoolSize - m_usedMemory;
-    SDL_UnlockMutex(m_mutex);
-    return result;
-}
-
 void LargeMemoryAllocator::removeEmptyChunks() {
     MemoryChunk** chunkPtr = &m_chunks;
     while (*chunkPtr) {
@@ -409,6 +388,27 @@ LargeMemoryAllocator::MemoryChunk* LargeMemoryAllocator::findChunkForPointer(voi
 }
 
 #ifdef DEBUG
+uint64_t LargeMemoryAllocator::getTotalMemory() const {
+    SDL_LockMutex(m_mutex);
+    uint64_t result = m_totalPoolSize;
+    SDL_UnlockMutex(m_mutex);
+    return result;
+}
+
+uint64_t LargeMemoryAllocator::getUsedMemory() const {
+    SDL_LockMutex(m_mutex);
+    uint64_t result = m_usedMemory;
+    SDL_UnlockMutex(m_mutex);
+    return result;
+}
+
+uint64_t LargeMemoryAllocator::getFreeMemory() const {
+    SDL_LockMutex(m_mutex);
+    uint64_t result = m_totalPoolSize - m_usedMemory;
+    SDL_UnlockMutex(m_mutex);
+    return result;
+}
+
 LargeMemoryAllocator::ChunkInfo* LargeMemoryAllocator::getChunkInfo(uint64_t* outChunkCount) const {
     SDL_LockMutex(m_mutex);
 

@@ -65,8 +65,10 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* smallAllocator, MemoryAllocator* lar
       forceFields_(*smallAllocator, "Box2DPhysics::forceFields_"),
       radialForceFields_(*smallAllocator, "Box2DPhysics::radialForceFields_"),
       bodyTypes_(*smallAllocator, "Box2DPhysics::bodyTypes_"),
+#ifdef DEBUG
       debugLineVertices_(*largeAllocator, "Box2DPhysics::debugLineVertices_"),
       debugTriangleVertices_(*largeAllocator, "Box2DPhysics::debugTriangleVertices_"),
+#endif
       collisionHitEvents_(*smallAllocator, "Box2DPhysics::collisionHitEvents_"),
       deferredCollisionCallbacks_(*smallAllocator, "Box2DPhysics::deferredCollisionCallbacks_"),
       deferredSensorCallbacks_(*smallAllocator, "Box2DPhysics::deferredSensorCallbacks_"),

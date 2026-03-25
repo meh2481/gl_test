@@ -26,13 +26,13 @@ public:
     // Returns number of blocks coalesced
     uint64_t defragment() override;
 
+#ifdef DEBUG
     // Get statistics
     uint64_t getTotalMemory() const override;
     uint64_t getUsedMemory() const override;
     uint64_t getFreeMemory() const override;
     uint64_t getAllocationCount() const;
 
-#ifdef DEBUG
     // Debug visualization helpers
     struct MemoryPoolInfo;
     struct BlockInfo {

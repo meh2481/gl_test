@@ -13,11 +13,11 @@ public:
     void free(void* ptr) override;
     uint64_t defragment() override;
 
+#ifdef DEBUG
     uint64_t getTotalMemory() const override;
     uint64_t getUsedMemory() const override;
     uint64_t getFreeMemory() const override;
 
-#ifdef DEBUG
     // Debug visualization helpers
     struct ChunkInfo;
     struct BlockInfo {

@@ -60,7 +60,10 @@ void VulkanTexture::createTextureImage(uint64_t textureId, const void* imageData
     bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    assert(vkCreateBuffer(m_device, &bufferInfo, nullptr, &stagingBuffer) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateBuffer(m_device, &bufferInfo, nullptr, &stagingBuffer);
+        assert(result == VK_SUCCESS);
+    }
 
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(m_device, stagingBuffer, &memRequirements);
@@ -71,7 +74,10 @@ void VulkanTexture::createTextureImage(uint64_t textureId, const void* imageData
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    assert(vkAllocateMemory(m_device, &allocInfo, nullptr, &stagingBufferMemory) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateMemory(m_device, &allocInfo, nullptr, &stagingBufferMemory);
+        assert(result == VK_SUCCESS);
+    }
     vkBindBufferMemory(m_device, stagingBuffer, stagingBufferMemory, 0);
 
     // Copy image data to staging buffer
@@ -101,7 +107,10 @@ void VulkanTexture::createTextureImage(uint64_t textureId, const void* imageData
     tex.width = width;
     tex.height = height;
     tex.isRenderTarget = false;
-    assert(vkCreateImage(m_device, &imageInfo, nullptr, &tex.image) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateImage(m_device, &imageInfo, nullptr, &tex.image);
+        assert(result == VK_SUCCESS);
+    }
 
     VkMemoryRequirements imgMemRequirements;
     vkGetImageMemoryRequirements(m_device, tex.image, &imgMemRequirements);
@@ -111,7 +120,10 @@ void VulkanTexture::createTextureImage(uint64_t textureId, const void* imageData
     imgAllocInfo.allocationSize = imgMemRequirements.size;
     imgAllocInfo.memoryTypeIndex = findMemoryType(imgMemRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    assert(vkAllocateMemory(m_device, &imgAllocInfo, nullptr, &tex.memory) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateMemory(m_device, &imgAllocInfo, nullptr, &tex.memory);
+        assert(result == VK_SUCCESS);
+    }
     vkBindImageMemory(m_device, tex.image, tex.memory, 0);
 
     // Transition image layout and copy from staging buffer
@@ -206,7 +218,10 @@ void VulkanTexture::createTextureImage(uint64_t textureId, const void* imageData
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-    assert(vkCreateImageView(m_device, &viewInfo, nullptr, &tex.imageView) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateImageView(m_device, &viewInfo, nullptr, &tex.imageView);
+        assert(result == VK_SUCCESS);
+    }
 
     tex.sampler = VK_NULL_HANDLE; // Will be created by createTextureSampler
     m_textures.insert(textureId, tex);
@@ -234,7 +249,10 @@ void VulkanTexture::createTextureSampler(uint64_t textureId) {
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 0.0f;
 
-    assert(vkCreateSampler(m_device, &samplerInfo, nullptr, &texPtr->sampler) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateSampler(m_device, &samplerInfo, nullptr, &texPtr->sampler);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 bool VulkanTexture::getTexture(uint64_t textureId, TextureData* outData) const {
@@ -447,7 +465,10 @@ void VulkanTexture::createRenderTargetTexture(uint64_t textureId, uint32_t width
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.flags = 0;
 
-    assert(vkCreateImage(m_device, &imageInfo, nullptr, &tex.image) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateImage(m_device, &imageInfo, nullptr, &tex.image);
+        assert(result == VK_SUCCESS);
+    }
 
     VkMemoryRequirements memRequirements;
     vkGetImageMemoryRequirements(m_device, tex.image, &memRequirements);
@@ -457,7 +478,10 @@ void VulkanTexture::createRenderTargetTexture(uint64_t textureId, uint32_t width
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    assert(vkAllocateMemory(m_device, &allocInfo, nullptr, &tex.memory) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateMemory(m_device, &allocInfo, nullptr, &tex.memory);
+        assert(result == VK_SUCCESS);
+    }
     vkBindImageMemory(m_device, tex.image, tex.memory, 0);
 
     // Transition to shader read layout initially
@@ -522,7 +546,10 @@ void VulkanTexture::createRenderTargetTexture(uint64_t textureId, uint32_t width
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-    assert(vkCreateImageView(m_device, &viewInfo, nullptr, &tex.imageView) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateImageView(m_device, &viewInfo, nullptr, &tex.imageView);
+        assert(result == VK_SUCCESS);
+    }
 
     // Create sampler
     VkSamplerCreateInfo samplerInfo{};
@@ -543,7 +570,10 @@ void VulkanTexture::createRenderTargetTexture(uint64_t textureId, uint32_t width
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 0.0f;
 
-    assert(vkCreateSampler(m_device, &samplerInfo, nullptr, &tex.sampler) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateSampler(m_device, &samplerInfo, nullptr, &tex.sampler);
+        assert(result == VK_SUCCESS);
+    }
 
     m_textures.insert(textureId, tex);
 

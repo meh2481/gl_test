@@ -98,6 +98,26 @@ else()
     target_link_libraries(shader_triangle ${SDL3_LIBRARIES} Vulkan::Vulkan ${LZ4_LIBRARIES} ${LUA_LIBRARIES} box2d::box2d ${OPENAL_LIBRARIES} ${OPUSFILE_LIBRARIES})
 endif()
 
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_compile_options(shader_triangle PRIVATE
+        -O3
+        -fno-exceptions
+        -fno-asynchronous-unwind-tables
+        -fno-unwind-tables
+        -ffunction-sections
+        -fdata-sections
+    )
+    target_link_options(shader_triangle PRIVATE
+        -s
+        -Wl,--gc-sections
+        -Wl,--strip-all
+    )
+    add_custom_command(TARGET shader_triangle POST_BUILD
+        COMMAND strip --strip-all $<TARGET_FILE:shader_triangle>
+        COMMENT "Stripping debug symbols from release binary"
+    )
+endif()
+
 add_custom_target(clean-all
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}

@@ -576,20 +576,27 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
 void VulkanRenderer::createLogicalDevice() {
     uint32_t queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, nullptr);
+    assert(queueFamilyCount > 0);
+
     VkQueueFamilyProperties* queueFamilies = new VkQueueFamilyProperties[queueFamilyCount];
     vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, queueFamilies);
+
     int graphicsFamily = -1;
     int presentFamily = -1;
     for (uint32_t i = 0; i < queueFamilyCount; i++) {
-        if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+        if (graphicsFamily < 0 && (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
             graphicsFamily = i;
         }
         VkBool32 presentSupport = false;
         vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, i, m_surface, &presentSupport);
-        if (presentSupport) {
+        if (presentFamily < 0 && presentSupport) {
             presentFamily = i;
         }
     }
+
+    assert(graphicsFamily >= 0);
+    assert(presentFamily >= 0);
+
     VkDeviceQueueCreateInfo queueCreateInfos[2];
     uint32_t uniqueQueueFamilies[2];
     int numUnique = 0;
@@ -613,8 +620,11 @@ void VulkanRenderer::createLogicalDevice() {
     const char* deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     createInfo.enabledExtensionCount = 1;
     createInfo.ppEnabledExtensionNames = deviceExtensions;
-    assert(vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device) == VK_SUCCESS);
-    vkGetDeviceQueue(m_device, graphicsFamily, 0, &m_graphicsQueue);
+
+    VkResult deviceResult = vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device);
+    assert(deviceResult == VK_SUCCESS);
+
+    vkGetDeviceQueue(m_device, static_cast<uint32_t>(graphicsFamily), 0, &m_graphicsQueue);
     m_graphicsQueueFamilyIndex = graphicsFamily;
     delete[] queueFamilies;
 }
@@ -685,7 +695,10 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
-    assert(vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain);
+        assert(result == VK_SUCCESS);
+    }
     vkGetSwapchainImagesKHR(m_device, m_swapchain, &imageCount, nullptr);
     m_swapchainImageCount = imageCount;
     m_swapchainImages = new VkImage[imageCount];
@@ -713,7 +726,10 @@ void VulkanRenderer::createImageViews() {
         createInfo.subresourceRange.levelCount = 1;
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;
-        assert(vkCreateImageView(m_device, &createInfo, nullptr, &m_swapchainImageViews[i]) == VK_SUCCESS);
+        {
+            VkResult result = vkCreateImageView(m_device, &createInfo, nullptr, &m_swapchainImageViews[i]);
+            assert(result == VK_SUCCESS);
+        }
     }
 }
 
@@ -772,7 +788,10 @@ void VulkanRenderer::createRenderPass() {
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
-    assert(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_renderPass) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_renderPass);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 void VulkanRenderer::createFramebuffers() {
@@ -798,7 +817,10 @@ void VulkanRenderer::createFramebuffers() {
         framebufferInfo.width = m_swapchainExtent.width;
         framebufferInfo.height = m_swapchainExtent.height;
         framebufferInfo.layers = 1;
-        assert(vkCreateFramebuffer(m_device, &framebufferInfo, nullptr, &m_swapchainFramebuffers[i]) == VK_SUCCESS);
+        {
+            VkResult result = vkCreateFramebuffer(m_device, &framebufferInfo, nullptr, &m_swapchainFramebuffers[i]);
+            assert(result == VK_SUCCESS);
+        }
     }
 }
 
@@ -826,14 +848,20 @@ void VulkanRenderer::createVertexBuffer() {
     bufferInfo.size = sizeof(vertices);
     bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    assert(vkCreateBuffer(m_device, &bufferInfo, nullptr, &m_vertexBuffer) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateBuffer(m_device, &bufferInfo, nullptr, &m_vertexBuffer);
+        assert(result == VK_SUCCESS);
+    }
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(m_device, m_vertexBuffer, &memRequirements);
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    assert(vkAllocateMemory(m_device, &allocInfo, nullptr, &m_vertexBufferMemory) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateMemory(m_device, &allocInfo, nullptr, &m_vertexBufferMemory);
+        assert(result == VK_SUCCESS);
+    }
     vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexBufferMemory, 0);
     void* data;
     vkMapMemory(m_device, m_vertexBufferMemory, 0, bufferInfo.size, 0, &data);
@@ -846,7 +874,10 @@ void VulkanRenderer::createCommandPool() {
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    assert(vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_commandPool) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_commandPool);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 void VulkanRenderer::createCommandBuffers() {
@@ -856,7 +887,10 @@ void VulkanRenderer::createCommandBuffers() {
     allocInfo.commandPool = m_commandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = (uint32_t)m_swapchainImageCount;
-    assert(vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 void VulkanRenderer::createSyncObjects() {
@@ -866,9 +900,18 @@ void VulkanRenderer::createSyncObjects() {
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     for (uint64_t i = 0; i < 2; i++) {
-        assert(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) == VK_SUCCESS &&
-               vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) == VK_SUCCESS &&
-               vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]) == VK_SUCCESS);
+        {
+            VkResult result = vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]);
+            assert(result == VK_SUCCESS);
+        }
+        {
+            VkResult result = vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]);
+            assert(result == VK_SUCCESS);
+        }
+        {
+            VkResult result = vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]);
+            assert(result == VK_SUCCESS);
+        }
     }
 }
 
@@ -905,7 +948,10 @@ void VulkanRenderer::createMsaaColorResources() {
     imageInfo.samples = m_msaaSamples;
     imageInfo.flags = 0;
 
-    assert(vkCreateImage(m_device, &imageInfo, nullptr, &m_msaaColorImage) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateImage(m_device, &imageInfo, nullptr, &m_msaaColorImage);
+        assert(result == VK_SUCCESS);
+    }
 
     VkMemoryRequirements memRequirements;
     vkGetImageMemoryRequirements(m_device, m_msaaColorImage, &memRequirements);
@@ -915,7 +961,10 @@ void VulkanRenderer::createMsaaColorResources() {
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    assert(vkAllocateMemory(m_device, &allocInfo, nullptr, &m_msaaColorImageMemory) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateMemory(m_device, &allocInfo, nullptr, &m_msaaColorImageMemory);
+        assert(result == VK_SUCCESS);
+    }
     vkBindImageMemory(m_device, m_msaaColorImage, m_msaaColorImageMemory, 0);
 
     VkImageViewCreateInfo viewInfo{};
@@ -929,7 +978,10 @@ void VulkanRenderer::createMsaaColorResources() {
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-    assert(vkCreateImageView(m_device, &viewInfo, nullptr, &m_msaaColorImageView) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateImageView(m_device, &viewInfo, nullptr, &m_msaaColorImageView);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 // Texture and pipeline delegation methods
@@ -1274,7 +1326,10 @@ void VulkanRenderer::setAmbientLight(float r, float g, float b) {
 void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, float time) {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    assert(vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS);
+    {
+        VkResult result = vkBeginCommandBuffer(commandBuffer, &beginInfo);
+        assert(result == VK_SUCCESS);
+    }
 
     // Render reflection pass first (if enabled)
     if (m_reflectionEnabled) {
@@ -1627,7 +1682,10 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
 #endif
 
     vkCmdEndRenderPass(commandBuffer);
-    assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
+    {
+        VkResult result = vkEndCommandBuffer(commandBuffer);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 // Reflection/render-to-texture implementation

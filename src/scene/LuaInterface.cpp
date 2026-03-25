@@ -336,8 +336,26 @@ void LuaInterface::createSplashParticles(float x, float y) {
 }
 
 void LuaInterface::executeScript(const ResourceData& scriptData) {
-    assert(luaL_loadbuffer(luaState_, (char*)scriptData.data, scriptData.size, NULL) == LUA_OK);
-    assert(lua_pcall(luaState_, 0, 0, 0) == LUA_OK);
+    int loadResult = luaL_loadbuffer(luaState_, (char*)scriptData.data, scriptData.size, NULL);
+    assert(loadResult == LUA_OK);
+    if (loadResult != LUA_OK) {
+        const char* errorMsg = lua_tostring(luaState_, -1);
+        if (consoleBuffer_ != nullptr) {
+            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "luaL_loadbuffer failed: %s", (errorMsg ? errorMsg : "unknown"));
+        }
+        lua_pop(luaState_, 1);
+        return;
+    }
+
+    int pcallResult = lua_pcall(luaState_, 0, 0, 0);
+    assert(pcallResult == LUA_OK);
+    if (pcallResult != LUA_OK) {
+        const char* errorMsg = lua_tostring(luaState_, -1);
+        if (consoleBuffer_ != nullptr) {
+            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "lua_pcall failed: %s", (errorMsg ? errorMsg : "unknown"));
+        }
+        lua_pop(luaState_, 1);
+    }
 }
 
 void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {

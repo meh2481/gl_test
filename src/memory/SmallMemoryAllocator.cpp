@@ -180,35 +180,6 @@ uint64_t SmallMemoryAllocator::defragment() {
     return totalCoalesced;
 }
 
-uint64_t SmallMemoryAllocator::getTotalMemory() const {
-    SDL_LockMutex(mutex_);
-    uint64_t result = totalCapacity_;
-    SDL_UnlockMutex(mutex_);
-    return result;
-}
-
-uint64_t SmallMemoryAllocator::getUsedMemory() const {
-    SDL_LockMutex(mutex_);
-    uint64_t used = calculateUsedMemoryLocked();
-    SDL_UnlockMutex(mutex_);
-    return used;
-}
-
-uint64_t SmallMemoryAllocator::getFreeMemory() const {
-    SDL_LockMutex(mutex_);
-    uint64_t used = calculateUsedMemoryLocked();
-    uint64_t result = totalCapacity_ > used ? totalCapacity_ - used : 0;
-    SDL_UnlockMutex(mutex_);
-    return result;
-}
-
-uint64_t SmallMemoryAllocator::getAllocationCount() const {
-    SDL_LockMutex(mutex_);
-    uint64_t result = allocationCount_;
-    SDL_UnlockMutex(mutex_);
-    return result;
-}
-
 SmallMemoryAllocator::MemoryPool* SmallMemoryAllocator::createPool(uint64_t capacity) {
     // Allocate pool structure
     MemoryPool* pool = new MemoryPool();
@@ -363,6 +334,35 @@ void SmallMemoryAllocator::splitBlock(BlockHeader* block, uint64_t size) {
 }
 
 #ifdef DEBUG
+uint64_t SmallMemoryAllocator::getTotalMemory() const {
+    SDL_LockMutex(mutex_);
+    uint64_t result = totalCapacity_;
+    SDL_UnlockMutex(mutex_);
+    return result;
+}
+
+uint64_t SmallMemoryAllocator::getUsedMemory() const {
+    SDL_LockMutex(mutex_);
+    uint64_t used = calculateUsedMemoryLocked();
+    SDL_UnlockMutex(mutex_);
+    return used;
+}
+
+uint64_t SmallMemoryAllocator::getFreeMemory() const {
+    SDL_LockMutex(mutex_);
+    uint64_t used = calculateUsedMemoryLocked();
+    uint64_t result = totalCapacity_ > used ? totalCapacity_ - used : 0;
+    SDL_UnlockMutex(mutex_);
+    return result;
+}
+
+uint64_t SmallMemoryAllocator::getAllocationCount() const {
+    SDL_LockMutex(mutex_);
+    uint64_t result = allocationCount_;
+    SDL_UnlockMutex(mutex_);
+    return result;
+}
+
 SmallMemoryAllocator::MemoryPoolInfo* SmallMemoryAllocator::getPoolInfo(uint64_t* outPoolCount) const {
     SDL_LockMutex(mutex_);
 

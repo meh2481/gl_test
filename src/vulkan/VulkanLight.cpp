@@ -67,7 +67,10 @@ void VulkanLight::createLightUniformBuffer() {
     bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    assert(vkCreateBuffer(m_device, &bufferInfo, nullptr, &m_lightUniformBuffer) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateBuffer(m_device, &bufferInfo, nullptr, &m_lightUniformBuffer);
+        assert(result == VK_SUCCESS);
+    }
 
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(m_device, m_lightUniformBuffer, &memRequirements);
@@ -78,7 +81,10 @@ void VulkanLight::createLightUniformBuffer() {
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    assert(vkAllocateMemory(m_device, &allocInfo, nullptr, &m_lightUniformBufferMemory) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateMemory(m_device, &allocInfo, nullptr, &m_lightUniformBufferMemory);
+        assert(result == VK_SUCCESS);
+    }
     vkBindBufferMemory(m_device, m_lightUniformBuffer, m_lightUniformBufferMemory, 0);
 
     // Map the buffer memory for persistent updating

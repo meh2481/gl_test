@@ -202,7 +202,10 @@ void VulkanDescriptor::createDualTextureDescriptorSetLayout() {
     layoutInfo.bindingCount = 2;
     layoutInfo.pBindings = bindings;
 
-    assert(vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_dualTextureDescriptorSetLayout) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_dualTextureDescriptorSetLayout);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 void VulkanDescriptor::createDualTexturePipelineLayout() {
@@ -220,7 +223,10 @@ void VulkanDescriptor::createDualTexturePipelineLayout() {
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    assert(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_dualTexturePipelineLayout) == VK_SUCCESS);
+    {
+        VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_dualTexturePipelineLayout);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 void VulkanDescriptor::createDualTextureDescriptorPool() {
@@ -234,7 +240,10 @@ void VulkanDescriptor::createDualTextureDescriptorPool() {
     poolInfo.pPoolSizes = &poolSize;
     poolInfo.maxSets = 100;
 
-    assert(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_dualTextureDescriptorPool) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_dualTextureDescriptorPool);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 void VulkanDescriptor::createLightDescriptorSetLayout() {
@@ -250,7 +259,10 @@ void VulkanDescriptor::createLightDescriptorSetLayout() {
     layoutInfo.bindingCount = 1;
     layoutInfo.pBindings = &uboLayoutBinding;
 
-    assert(vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_lightDescriptorSetLayout) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_lightDescriptorSetLayout);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 void VulkanDescriptor::createLightDescriptorPool() {
@@ -264,7 +276,10 @@ void VulkanDescriptor::createLightDescriptorPool() {
     poolInfo.pPoolSizes = &poolSize;
     poolInfo.maxSets = 1;
 
-    assert(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_lightDescriptorPool) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_lightDescriptorPool);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 void VulkanDescriptor::createSingleTextureDescriptorSet(uint64_t textureId, VkImageView imageView, VkSampler sampler) {
@@ -279,7 +294,10 @@ void VulkanDescriptor::createSingleTextureDescriptorSet(uint64_t textureId, VkIm
     allocInfo.pSetLayouts = &m_singleTextureDescriptorSetLayout;
 
     VkDescriptorSet descriptorSet;
-    assert(vkAllocateDescriptorSets(m_device, &allocInfo, &descriptorSet) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, &descriptorSet);
+        assert(result == VK_SUCCESS);
+    }
 
     VkDescriptorImageInfo imageInfo{};
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -308,8 +326,20 @@ void VulkanDescriptor::createDualTextureDescriptorSet(uint64_t descriptorId, uin
     assert(m_textureManager != nullptr);
 
     VulkanTexture::TextureData tex1, tex2;
-    assert(m_textureManager->getTexture(texture1Id, &tex1));
-    assert(m_textureManager->getTexture(texture2Id, &tex2));
+    bool hasTex1 = m_textureManager->getTexture(texture1Id, &tex1);
+    bool hasTex2 = m_textureManager->getTexture(texture2Id, &tex2);
+    assert(hasTex1);
+    assert(hasTex2);
+    if (!hasTex1 || !hasTex2) {
+        if (m_consoleBuffer != nullptr) {
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+                                "createDualTextureDescriptorSet: missing texture(s) for descriptorId=%llu (tex1=%llu found=%d, tex2=%llu found=%d)",
+                                (unsigned long long)descriptorId,
+                                (unsigned long long)texture1Id, hasTex1 ? 1 : 0,
+                                (unsigned long long)texture2Id, hasTex2 ? 1 : 0);
+        }
+        return;
+    }
 
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -318,7 +348,10 @@ void VulkanDescriptor::createDualTextureDescriptorSet(uint64_t descriptorId, uin
     allocInfo.pSetLayouts = &m_dualTextureDescriptorSetLayout;
 
     VkDescriptorSet descriptorSet;
-    assert(vkAllocateDescriptorSets(m_device, &allocInfo, &descriptorSet) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, &descriptorSet);
+        assert(result == VK_SUCCESS);
+    }
 
     VkDescriptorImageInfo imageInfos[2];
 
@@ -377,7 +410,10 @@ void VulkanDescriptor::createLightDescriptorSet(VkBuffer lightUniformBuffer, VkD
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &m_lightDescriptorSetLayout;
 
-    assert(vkAllocateDescriptorSets(m_device, &allocInfo, &m_lightDescriptorSet) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, &m_lightDescriptorSet);
+        assert(result == VK_SUCCESS);
+    }
 
     VkDescriptorBufferInfo bufferInfo{};
     bufferInfo.buffer = lightUniformBuffer;
@@ -505,7 +541,10 @@ void VulkanDescriptor::createWaterPolygonDescriptorSetLayout() {
     layoutInfo.bindingCount = 1;
     layoutInfo.pBindings = &uboLayoutBinding;
 
-    assert(vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_waterPolygonDescriptorSetLayout) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_waterPolygonDescriptorSetLayout);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 void VulkanDescriptor::createWaterPolygonDescriptorPool() {
@@ -519,7 +558,10 @@ void VulkanDescriptor::createWaterPolygonDescriptorPool() {
     poolInfo.pPoolSizes = &poolSize;
     poolInfo.maxSets = 1;
 
-    assert(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_waterPolygonDescriptorPool) == VK_SUCCESS);
+    {
+        VkResult result = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_waterPolygonDescriptorPool);
+        assert(result == VK_SUCCESS);
+    }
 }
 
 void VulkanDescriptor::createWaterPolygonDescriptorSet(VkBuffer waterPolygonUniformBuffer, VkDeviceSize bufferSize) {
@@ -529,7 +571,10 @@ void VulkanDescriptor::createWaterPolygonDescriptorSet(VkBuffer waterPolygonUnif
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &m_waterPolygonDescriptorSetLayout;
 
-    assert(vkAllocateDescriptorSets(m_device, &allocInfo, &m_waterPolygonDescriptorSet) == VK_SUCCESS);
+    {
+        VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, &m_waterPolygonDescriptorSet);
+        assert(result == VK_SUCCESS);
+    }
 
     VkDescriptorBufferInfo bufferInfo{};
     bufferInfo.buffer = waterPolygonUniformBuffer;
@@ -638,8 +683,19 @@ void VulkanDescriptor::createWaterDescriptorSet(uint64_t texture1Id, uint64_t te
     assert(m_textureManager != nullptr);
 
     VulkanTexture::TextureData tex1, tex2;
-    assert(m_textureManager->getTexture(texture1Id, &tex1));
-    assert(m_textureManager->getTexture(texture2Id, &tex2));
+    bool hasTex1 = m_textureManager->getTexture(texture1Id, &tex1);
+    bool hasTex2 = m_textureManager->getTexture(texture2Id, &tex2);
+    assert(hasTex1);
+    assert(hasTex2);
+    if (!hasTex1 || !hasTex2) {
+        if (m_consoleBuffer != nullptr) {
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+                                "createWaterDescriptorSet: missing texture(s) (tex1=%llu found=%d, tex2=%llu found=%d)",
+                                (unsigned long long)texture1Id, hasTex1 ? 1 : 0,
+                                (unsigned long long)texture2Id, hasTex2 ? 1 : 0);
+        }
+        return;
+    }
 
     // Reset the descriptor pool to free any previously allocated descriptor sets
     // This is necessary when reloading scenes to avoid VK_ERROR_OUT_OF_POOL_MEMORY
