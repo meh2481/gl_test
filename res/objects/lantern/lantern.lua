@@ -243,7 +243,7 @@ function Lantern.relight()
     Lantern.isLit = true
 end
 
-function Lantern.handleCollision(otherBodyId, pointX, pointY, normalX, normalY, approachSpeed)
+function Lantern.handleCollision(ownBodyId, otherBodyId, pointX, pointY, normalX, normalY, approachSpeed)
     -- Get the types of the other body
     local otherTypes = b2GetBodyTypes(otherBodyId)
     if not otherTypes then return end
@@ -261,7 +261,8 @@ function Lantern.handleCollision(otherBodyId, pointX, pointY, normalX, normalY, 
     end
 
     -- Check if the other body is a fire (relight the lantern)
-    if hasType(otherTypes, "fire") then
+    -- Only relight if the actual lantern body was hit, not a chain link
+    if hasType(otherTypes, "fire") and ownBodyId == Lantern.lightBody then
         Lantern.relight()
     end
 end

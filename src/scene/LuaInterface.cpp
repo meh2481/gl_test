@@ -174,24 +174,28 @@ void LuaInterface::dispatchDefaultCollision(int bodyIdA, int bodyIdB, float poin
 
         // Determine which body this object owns and which is the other
         int otherBodyId = -1;
+        int ownBodyId = -1;
         if (ownsBodyA && !ownsBodyB) {
             otherBodyId = bodyIdB;
+            ownBodyId = bodyIdA;
         } else if (ownsBodyB && !ownsBodyA) {
             otherBodyId = bodyIdA;
+            ownBodyId = bodyIdB;
         } else {
             // Object doesn't own exactly one of the bodies, skip it
             lua_pop(luaState_, 2); // Pop function and object table
             continue;
         }
 
-        // Call handleCollision(otherBodyId, pointX, pointY, normalX, normalY, approachSpeed)
+        // Call handleCollision(ownBodyId, otherBodyId, pointX, pointY, normalX, normalY, approachSpeed)
+        lua_pushinteger(luaState_, ownBodyId);
         lua_pushinteger(luaState_, otherBodyId);
         lua_pushnumber(luaState_, pointX);
         lua_pushnumber(luaState_, pointY);
         lua_pushnumber(luaState_, normalX);
         lua_pushnumber(luaState_, normalY);
         lua_pushnumber(luaState_, approachSpeed);
-        if (lua_pcall(luaState_, 6, 0, 0) != LUA_OK) {
+        if (lua_pcall(luaState_, 7, 0, 0) != LUA_OK) {
             const char* errorMsg = lua_tostring(luaState_, -1);
             consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Object handleCollision error: %s", errorMsg ? errorMsg : "unknown");
             lua_pop(luaState_, 1); // Pop error message
