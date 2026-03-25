@@ -1,7 +1,5 @@
 #include "AudioManager.h"
 #include <SDL3/SDL.h>
-#include <memory>
-#include <vector>
 #include "../core/Vector.h"
 #include "../debug/ConsoleBuffer.h"
 #include "../debug/ThreadProfiler.h"
@@ -52,7 +50,8 @@ AudioManager::AudioManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
     : device(nullptr), context(nullptr), bufferCount(0),
       efxSupported(false), effectSlot(0), effect(0), filter(0),
       currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f), allocator_(allocator),
-      consoleBuffer_(consoleBuffer), nextDecodeJobId_(1), decodeWorkerRunning_(true)
+    consoleBuffer_(consoleBuffer), nextDecodeJobId_(1), decodeWorkerRunning_(true),
+    pendingDecodeJob_(nullptr), completedDecodeJob_(nullptr)
 {
     assert(allocator_ != nullptr);
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: Using shared memory allocator");
@@ -111,6 +110,15 @@ AudioManager::~AudioManager() {
             SDL_LockMutex(decodeMutex_);
         }
         SDL_UnlockMutex(decodeMutex_);
+    }
+
+    if (pendingDecodeJob_) {
+        destroyDecodeJob(pendingDecodeJob_);
+        pendingDecodeJob_ = nullptr;
+    }
+    if (completedDecodeJob_) {
+        destroyDecodeJob(completedDecodeJob_);
+        completedDecodeJob_ = nullptr;
     }
 
     cleanup();
@@ -676,7 +684,7 @@ int AudioManager::audioDecodeWorkerThread(void* arg) {
     while (true) {
         profiler.updateThreadState(THREAD_STATE_WAITING);
 
-        std::shared_ptr<AudioDecodeJob> job;
+        AudioDecodeJob* job = nullptr;
 
         // Wait for a job
         {
@@ -711,6 +719,13 @@ int AudioManager::audioDecodeWorkerThread(void* arg) {
         if (!opusFile) {
             job->failed = true;
             job->completed = true;
+            SDL_LockMutex(self->decodeMutex_);
+            if (self->completedDecodeJob_) {
+                self->destroyDecodeJob(self->completedDecodeJob_);
+            }
+            self->completedDecodeJob_ = job;
+            self->pendingDecodeJob_ = nullptr;
+            SDL_UnlockMutex(self->decodeMutex_);
             continue;
         }
 
@@ -720,6 +735,13 @@ int AudioManager::audioDecodeWorkerThread(void* arg) {
             op_free(opusFile);
             job->failed = true;
             job->completed = true;
+            SDL_LockMutex(self->decodeMutex_);
+            if (self->completedDecodeJob_) {
+                self->destroyDecodeJob(self->completedDecodeJob_);
+            }
+            self->completedDecodeJob_ = job;
+            self->pendingDecodeJob_ = nullptr;
+            SDL_UnlockMutex(self->decodeMutex_);
             continue;
         }
 
@@ -732,15 +754,37 @@ int AudioManager::audioDecodeWorkerThread(void* arg) {
             op_free(opusFile);
             job->failed = true;
             job->completed = true;
+            SDL_LockMutex(self->decodeMutex_);
+            if (self->completedDecodeJob_) {
+                self->destroyDecodeJob(self->completedDecodeJob_);
+            }
+            self->completedDecodeJob_ = job;
+            self->pendingDecodeJob_ = nullptr;
+            SDL_UnlockMutex(self->decodeMutex_);
             continue;
         }
 
         // Allocate PCM buffer (interleaved samples)
-        job->decodedPcm.resize(samplesPerChannel * job->channels);
-        opus_int16* pcmBuffer = job->decodedPcm.data();
+        job->decodedSampleCount = static_cast<uint64_t>(samplesPerChannel) * static_cast<uint64_t>(job->channels);
+        job->decodedPcm = static_cast<opus_int16*>(self->allocator_->allocate(job->decodedSampleCount * sizeof(opus_int16), "AudioManager::decodedPcm"));
+        if (!job->decodedPcm) {
+            op_free(opusFile);
+            job->failed = true;
+            job->completed = true;
+            SDL_LockMutex(self->decodeMutex_);
+            if (self->completedDecodeJob_) {
+                self->destroyDecodeJob(self->completedDecodeJob_);
+            }
+            self->completedDecodeJob_ = job;
+            self->pendingDecodeJob_ = nullptr;
+            SDL_UnlockMutex(self->decodeMutex_);
+            continue;
+        }
+        opus_int16* pcmBuffer = job->decodedPcm;
 
         // Decode all samples
         int totalSamplesDecoded = 0;
+        bool decodeError = false;
         while (totalSamplesDecoded < samplesPerChannel) {
             int samplesRead = op_read(
                 opusFile,
@@ -752,10 +796,9 @@ int AudioManager::audioDecodeWorkerThread(void* arg) {
             if (samplesRead <= 0) {
                 if (samplesRead < 0) {
                     // Decode error
-                    op_free(opusFile);
                     job->failed = true;
-                    job->completed = true;
-                    continue;
+                    decodeError = true;
+                    break;
                 }
                 break;  // EOF
             }
@@ -765,9 +808,24 @@ int AudioManager::audioDecodeWorkerThread(void* arg) {
 
         op_free(opusFile);
 
+        if (decodeError) {
+            job->completed = true;
+            SDL_LockMutex(self->decodeMutex_);
+            if (self->completedDecodeJob_) {
+                self->destroyDecodeJob(self->completedDecodeJob_);
+            }
+            self->completedDecodeJob_ = job;
+            self->pendingDecodeJob_ = nullptr;
+            SDL_UnlockMutex(self->decodeMutex_);
+            continue;
+        }
+
         // Mark as complete
         {
             SDL_LockMutex(self->decodeMutex_);
+            if (self->completedDecodeJob_) {
+                self->destroyDecodeJob(self->completedDecodeJob_);
+            }
             self->completedDecodeJob_ = job;
             self->pendingDecodeJob_ = nullptr;
             job->completed = true;
@@ -778,18 +836,28 @@ int AudioManager::audioDecodeWorkerThread(void* arg) {
     return 0;
 }
 
-void AudioManager::submitDecodeJob(std::shared_ptr<AudioDecodeJob> job) {
+void AudioManager::submitDecodeJob(AudioDecodeJob* job) {
     SDL_LockMutex(decodeMutex_);
+    if (pendingDecodeJob_) {
+        destroyDecodeJob(pendingDecodeJob_);
+    }
     pendingDecodeJob_ = job;
     SDL_UnlockMutex(decodeMutex_);
     SDL_SignalCondition(decodeCondition_);
 }
 
 int AudioManager::decodeOpusAudioAsync(const void* data, size_t size) {
-    auto job = std::make_shared<AudioDecodeJob>();
+    AudioDecodeJob* job = static_cast<AudioDecodeJob*>(allocator_->allocate(sizeof(AudioDecodeJob), "AudioManager::AudioDecodeJob"));
+    if (!job) {
+        return -1;
+    }
     job->compressedData = data;
     job->compressedSize = size;
     job->jobId = nextDecodeJobId_++;
+    job->decodedPcm = nullptr;
+    job->decodedSampleCount = 0;
+    job->channels = 0;
+    job->sampleRate = 0;
     job->completed = false;
     job->failed = false;
 
@@ -799,11 +867,12 @@ int AudioManager::decodeOpusAudioAsync(const void* data, size_t size) {
 
 bool AudioManager::getOpusDecodeResult(
     int jobId,
-    std::vector<opus_int16>& outBuffer,
+    opus_int16*& outBuffer,
+    uint64_t& outSampleCount,
     int& outChannels,
     int& outSampleRate
 ) {
-    std::shared_ptr<AudioDecodeJob> job = nullptr;
+    AudioDecodeJob* job = nullptr;
 
     // Wait for job to complete
     while (true) {
@@ -826,11 +895,35 @@ bool AudioManager::getOpusDecodeResult(
     }
 
     if (!job || job->failed) {
+        if (job) {
+            destroyDecodeJob(job);
+        }
         return false;
     }
 
     outBuffer = job->decodedPcm;
+    outSampleCount = job->decodedSampleCount;
     outChannels = job->channels;
     outSampleRate = job->sampleRate;
+    job->decodedPcm = nullptr;
+    job->decodedSampleCount = 0;
+    destroyDecodeJob(job);
     return true;
+}
+
+void AudioManager::freeDecodedBuffer(opus_int16* buffer) {
+    if (buffer) {
+        allocator_->free(buffer);
+    }
+}
+
+void AudioManager::destroyDecodeJob(AudioDecodeJob* job) {
+    if (!job) {
+        return;
+    }
+    if (job->decodedPcm) {
+        allocator_->free(job->decodedPcm);
+        job->decodedPcm = nullptr;
+    }
+    allocator_->free(job);
 }

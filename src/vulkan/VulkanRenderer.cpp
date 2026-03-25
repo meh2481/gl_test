@@ -295,6 +295,14 @@ bool VulkanRenderer::getTextureForImGui(uint64_t textureId, VkImageView* imageVi
 #endif
 
 void VulkanRenderer::cleanup() {
+    // Wait for all GPU work (including any in-flight MangoHud/layer frames) to complete
+    // before destroying any Vulkan objects. Without this, Vulkan layers such as MangoHud
+    // can still be executing on the GPU when vkDestroyDevice is called, causing random
+    // segfaults on exit.
+    if (m_device != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(m_device);
+    }
+
     // Clean up reflection resources first
     destroyReflectionResources();
 

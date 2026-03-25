@@ -4,7 +4,7 @@
 #include <SDL3/SDL.h>
 #include "../memory/SmallMemoryAllocator.h"
 #include "../core/Vector.h"
-#include <unordered_map>
+#include "../core/HashTable.h"
 
 enum ThreadState {
     THREAD_STATE_BUSY = 0,
@@ -67,6 +67,7 @@ public:
             return;
         }
         allocator_ = allocator;
+        threads_ = new HashTable<SDL_ThreadID, ThreadStats*>(*allocator_, "ThreadProfiler::threads");
         globalMutex_ = SDL_CreateMutex();
         frameNumber_ = 0;
     }
@@ -80,8 +81,8 @@ public:
             SDL_DestroyMutex(globalMutex_);
             globalMutex_ = nullptr;
         }
-        for (auto it = threads_.begin(); it != threads_.end(); ++it) {
-            ThreadStats* stats = it->second;
+        for (auto it = threads_->begin(); it != threads_->end(); ++it) {
+            ThreadStats* stats = it.value();
             if (stats && stats->statsMutex) {
                 SDL_DestroyMutex(stats->statsMutex);
             }
@@ -89,7 +90,8 @@ public:
                 allocator_->free(stats);
             }
         }
-        threads_.clear();
+        delete threads_;
+        threads_ = nullptr;
         allocator_ = nullptr;
         frameNumber_ = 0;
     }
@@ -100,7 +102,7 @@ public:
 
         SDL_LockMutex(globalMutex_);
 
-        if (threads_.find(threadId) == threads_.end()) {
+        if (!threads_->contains(threadId)) {
             ThreadStats* stats = (ThreadStats*)allocator_->allocate(sizeof(ThreadStats), "ThreadProfiler::ThreadStats");
             new (stats) ThreadStats();
             stats->threadId = threadId;
@@ -115,7 +117,7 @@ public:
                 SDL_snprintf(stats->threadName, sizeof(stats->threadName), "Thread-%llu", (unsigned long long)threadId);
             }
 
-            threads_[threadId] = stats;
+            threads_->insert(threadId, stats);
         }
 
         SDL_UnlockMutex(globalMutex_);
@@ -127,14 +129,14 @@ public:
         uint64_t currentTime = SDL_GetTicksNS();
 
         SDL_LockMutex(globalMutex_);
-        auto it = threads_.find(threadId);
+        ThreadStats** statsPtr = threads_->find(threadId);
         SDL_UnlockMutex(globalMutex_);
 
-        if (it == threads_.end() || it->second == nullptr) {
+        if (statsPtr == nullptr || *statsPtr == nullptr) {
             return; // Thread not registered
         }
 
-        ThreadStats* stats = it->second;
+        ThreadStats* stats = *statsPtr;
         SDL_LockMutex(stats->statsMutex);
 
         // Accumulate time in previous state
@@ -155,8 +157,8 @@ public:
         SDL_LockMutex(globalMutex_);
         ++frameNumber_;
 
-        for (auto it = threads_.begin(); it != threads_.end(); ++it) {
-            ThreadStats* stats = it->second;
+        for (auto it = threads_->begin(); it != threads_->end(); ++it) {
+            ThreadStats* stats = it.value();
             SDL_LockMutex(stats->statsMutex);
 
             // Finalize current frame
@@ -187,13 +189,13 @@ public:
     // Query thread statistics (thread-safe)
     bool getThreadStats(SDL_ThreadID threadId, ThreadStats* outStats) {
         SDL_LockMutex(globalMutex_);
-        auto it = threads_.find(threadId);
-        if (it == threads_.end() || it->second == nullptr) {
+        ThreadStats** statsPtr = threads_->find(threadId);
+        if (statsPtr == nullptr || *statsPtr == nullptr) {
             SDL_UnlockMutex(globalMutex_);
             return false;
         }
 
-        ThreadStats* stats = it->second;
+        ThreadStats* stats = *statsPtr;
         SDL_LockMutex(stats->statsMutex);
 
         *outStats = *stats; // Copy entire stats
@@ -209,8 +211,8 @@ public:
         Vector<SDL_ThreadID> ids(*allocator_, "ThreadProfiler::getAllThreadIds");
 
         SDL_LockMutex(globalMutex_);
-        for (auto it = threads_.begin(); it != threads_.end(); ++it) {
-            ids.push_back(it->first);
+        for (auto it = threads_->begin(); it != threads_->end(); ++it) {
+            ids.push_back(it.key());
         }
         SDL_UnlockMutex(globalMutex_);
 
@@ -222,11 +224,11 @@ public:
     }
 
 private:
-    ThreadProfiler() : allocator_(nullptr), globalMutex_(nullptr), frameNumber_(0) {}
+    ThreadProfiler() : allocator_(nullptr), threads_(nullptr), globalMutex_(nullptr), frameNumber_(0) {}
     ~ThreadProfiler() {}
 
     MemoryAllocator* allocator_;
-    std::unordered_map<SDL_ThreadID, ThreadStats*> threads_;
+    HashTable<SDL_ThreadID, ThreadStats*>* threads_;
     SDL_Mutex* globalMutex_;
     uint64_t frameNumber_;
 };

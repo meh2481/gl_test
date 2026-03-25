@@ -5,8 +5,6 @@
 #include <AL/alc.h>
 #include <cstdint>
 #include <cassert>
-#include <memory>
-#include <vector>
 #include <SDL3/SDL.h>
 #include <opusfile.h>
 
@@ -127,10 +125,13 @@ public:
     int decodeOpusAudioAsync(const void* data, size_t size);
 
     // Wait for a decode job to complete and get result
-    // Fills outBuffer with decoded PCM samples (int16)
+    // Returns ownership of decoded PCM samples in outBuffer (int16)
+    // Caller must release the returned buffer via freeDecodedBuffer()
     // Returns channels and sample rate via output parameters
     // Returns true on success, false on error
-    bool getOpusDecodeResult(int jobId, std::vector<opus_int16>& outBuffer, int& outChannels, int& outSampleRate);
+    bool getOpusDecodeResult(int jobId, opus_int16*& outBuffer, uint64_t& outSampleCount, int& outChannels, int& outSampleRate);
+
+    void freeDecodedBuffer(opus_int16* buffer);
 
 private:
     ALCdevice* device;
@@ -171,7 +172,8 @@ private:
         int jobId;
         const void* compressedData;  // Pointer to compressed Opus data
         size_t compressedSize;
-        std::vector<opus_int16> decodedPcm;  // Output: decoded PCM samples
+        opus_int16* decodedPcm;  // Output: decoded PCM samples
+        uint64_t decodedSampleCount;
         int channels;  // Output: channel count
         int sampleRate;  // Output: sample rate
         bool completed;
@@ -179,15 +181,16 @@ private:
     };
 
     static int audioDecodeWorkerThread(void* data);
-    void submitDecodeJob(std::shared_ptr<AudioDecodeJob> job);
+    void submitDecodeJob(AudioDecodeJob* job);
+    void destroyDecodeJob(AudioDecodeJob* job);
 
     SDL_Thread* decodeWorkerThread_;
     SDL_Mutex* decodeMutex_;
     SDL_Condition* decodeCondition_;
     bool decodeWorkerRunning_;
     int nextDecodeJobId_;
-    std::shared_ptr<AudioDecodeJob> pendingDecodeJob_;  // Single job queue
-    std::shared_ptr<AudioDecodeJob> completedDecodeJob_;  // Result holder
+    AudioDecodeJob* pendingDecodeJob_;  // Single job queue
+    AudioDecodeJob* completedDecodeJob_;  // Result holder
 };
 
 #endif // AUDIOMANAGER_H

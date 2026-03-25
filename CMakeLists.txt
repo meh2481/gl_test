@@ -98,6 +98,12 @@ else()
     target_link_libraries(shader_triangle ${SDL3_LIBRARIES} Vulkan::Vulkan ${LZ4_LIBRARIES} ${LUA_LIBRARIES} box2d::box2d ${OPENAL_LIBRARIES} ${OPUSFILE_LIBRARIES})
 endif()
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_link_options(shader_triangle PRIVATE -nostdlib++)
+    target_compile_options(shader_triangle PRIVATE -fno-rtti -fno-exceptions)
+    target_sources(shader_triangle PRIVATE src/core/no_stl_shims.cpp)
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_options(shader_triangle PRIVATE
         -O3

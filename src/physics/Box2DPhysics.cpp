@@ -8,7 +8,6 @@
 #include "../debug/ConsoleBuffer.h"
 #include "../debug/ThreadProfiler.h"
 #include <cassert>
-#include <vector>
 
 // Default fixed timestep for physics simulation (Box2D recommended value)
 static constexpr float DEFAULT_FIXED_TIMESTEP = 1.0f / 250.0f;
@@ -366,8 +365,8 @@ void Box2DPhysics::waitForStepComplete() {
 }
 
 void Box2DPhysics::dispatchDeferredCallbacks() {
-    std::vector<CollisionHitEvent> collisionEvents;
-    std::vector<SensorEvent> sensorEvents;
+    Vector<CollisionHitEvent> collisionEvents(*stringAllocator_, "Box2DPhysics::dispatchDeferredCallbacks::collisionEvents");
+    Vector<SensorEvent> sensorEvents(*stringAllocator_, "Box2DPhysics::dispatchDeferredCallbacks::sensorEvents");
     CollisionCallback collisionCallback = nullptr;
     void* collisionUserData = nullptr;
     SensorCallback sensorCallback = nullptr;
