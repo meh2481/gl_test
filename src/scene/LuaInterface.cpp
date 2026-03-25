@@ -28,6 +28,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       nodes_(*allocator, "LuaInterface::nodes"),
       bodyToNodeMap_(*allocator, "LuaInterface::bodyToNodeMap"),
       cursorX_(0.0f), cursorY_(0.0f), cameraOffsetX_(0.0f), cameraOffsetY_(0.0f), cameraZoom_(1.0f),
+      asyncStepRequested_(false), asyncStepTimeStep_(0.0f), asyncStepSubStepCount_(4),
       nextNodeId_(1), stringAllocator_(allocator), sceneObjects_(*allocator, "LuaInterface::sceneObjects_"),
       physics_(physics), layerManager_(layerManager), audioManager_(audioManager),
       particleManager_(particleManager), waterEffectManager_(waterEffectManager), consoleBuffer_(consoleBuffer),
@@ -484,9 +485,9 @@ void LuaInterface::initScene(uint64_t sceneId) {
 }
 
 void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
-    // Ensure any async step from the previous frame is complete before running Lua callbacks.
-    // Lua update/object callbacks can touch physics state directly.
+    // Synchronize with previous async step before running Lua callbacks.
     physics_->waitForStepComplete();
+    physics_->dispatchDeferredCallbacks();
 
     // Get the scene table from registry
     lua_pushinteger(luaState_, sceneId);
@@ -519,10 +520,6 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
         return;
     }
 
-    // Scene update may queue an async physics step; complete it before object updates,
-    // water queries, and other engine-side physics interactions.
-    physics_->waitForStepComplete();
-
     // Update all tracked scene objects
     for (int objRef : sceneObjects_) {
         lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
@@ -537,8 +534,6 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
                     assert(false);
                 }
 
-                // Object updates may also use async stepping; synchronize before continuing.
-                physics_->waitForStepComplete();
             } else {
                 lua_pop(luaState_, 1); // Pop non-function
             }
@@ -649,6 +644,19 @@ void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
     lua_pop(luaState_, 1);
 }
 
+void LuaInterface::submitPendingAsyncPhysicsStep() {
+    if (!asyncStepRequested_) {
+        return;
+    }
+
+    if (!physics_->isStepComplete()) {
+        return;
+    }
+
+    physics_->stepAsync(asyncStepTimeStep_, asyncStepSubStepCount_);
+    asyncStepRequested_ = false;
+}
+
 void LuaInterface::handleAction(uint64_t sceneId, Action action) {
     // Get the scene table from registry
     lua_pushinteger(luaState_, sceneId);
@@ -706,6 +714,8 @@ void LuaInterface::handleAction(uint64_t sceneId, Action action) {
 void LuaInterface::cleanupScene(uint64_t sceneId) {
     // Ensure no async physics work is in flight before scene teardown/reset.
     physics_->waitForStepComplete();
+    physics_->dispatchDeferredCallbacks();
+    asyncStepRequested_ = false;
 
     // First, cleanup all tracked scene objects
     for (int objRef : sceneObjects_) {
@@ -1239,6 +1249,7 @@ int LuaInterface::b2Step(lua_State* L) {
     }
 
     interface->physics_->step(timeStep, subStepCount);
+    interface->physics_->dispatchDeferredCallbacks();
     return 0;
 }
 
@@ -1258,7 +1269,10 @@ int LuaInterface::b2StepAsync(lua_State* L) {
         subStepCount = lua_tointeger(L, 2);
     }
 
-    interface->physics_->stepAsync(timeStep, subStepCount);
+    // Defer submission to SceneManager so physics starts after Lua update callbacks finish.
+    interface->asyncStepRequested_ = true;
+    interface->asyncStepTimeStep_ = timeStep;
+    interface->asyncStepSubStepCount_ = subStepCount;
     return 0;
 }
 
@@ -1269,7 +1283,8 @@ int LuaInterface::b2IsStepComplete(lua_State* L) {
 
     assert(lua_gettop(L) == 0);
 
-    lua_pushboolean(L, interface->physics_->isStepComplete());
+    bool isComplete = interface->physics_->isStepComplete() && !interface->asyncStepRequested_;
+    lua_pushboolean(L, isComplete);
     return 1;
 }
 

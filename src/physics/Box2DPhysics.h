@@ -143,6 +143,9 @@ public:
     bool isStepComplete();
     void waitForStepComplete();
 
+    // Dispatch deferred collision/sensor callbacks on the calling thread (main thread)
+    void dispatchDeferredCallbacks();
+
     // Body management
     int createBody(int bodyType, float x, float y, float angle = 0.0f);
     void destroyBody(int bodyId);
@@ -386,6 +389,10 @@ private:
     // Collision events from last physics step
     Vector<CollisionHitEvent> collisionHitEvents_;
 
+    // Deferred callback event queues (produced by physics thread, consumed by main thread)
+    Vector<CollisionHitEvent> deferredCollisionCallbacks_;
+    Vector<SensorEvent> deferredSensorCallbacks_;
+
     // Fracture events from last physics step
     Vector<FractureEvent> fractureEvents_;
 
@@ -393,11 +400,11 @@ private:
     SceneLayerManager* layerManager_ = nullptr;
 
     // Fracture callback
-    FractureCallback fractureCallback_;
+    FractureCallback fractureCallback_ = nullptr;
     void* fractureCallbackUserData_ = nullptr;
 
     // Sensor callback
-    SensorCallback sensorCallback_;
+    SensorCallback sensorCallback_ = nullptr;
     void* sensorCallbackUserData_ = nullptr;
 
     // Bodies pending destruction after fracture (processed after step)
@@ -428,7 +435,7 @@ private:
     TrigLookup* trigLookup_;
 
     // Collision callback
-    CollisionCallback collisionCallback_;
+    CollisionCallback collisionCallback_ = nullptr;
     void* collisionCallbackUserData_ = nullptr;
 
     // Helper to convert b2BodyId to internal ID

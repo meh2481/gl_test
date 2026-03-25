@@ -7,6 +7,7 @@
 #include "../core/TrigLookup.h"
 #include "../debug/ConsoleBuffer.h"
 #include <cassert>
+#include <vector>
 
 // Default fixed timestep for physics simulation (Box2D recommended value)
 static constexpr float DEFAULT_FIXED_TIMESTEP = 1.0f / 250.0f;
@@ -62,6 +63,8 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* smallAllocator, MemoryAllocator* lar
       debugLineVertices_(*largeAllocator, "Box2DPhysics::debugLineVertices_"),
       debugTriangleVertices_(*largeAllocator, "Box2DPhysics::debugTriangleVertices_"),
       collisionHitEvents_(*smallAllocator, "Box2DPhysics::collisionHitEvents_"),
+      deferredCollisionCallbacks_(*smallAllocator, "Box2DPhysics::deferredCollisionCallbacks_"),
+      deferredSensorCallbacks_(*smallAllocator, "Box2DPhysics::deferredSensorCallbacks_"),
       fractureEvents_(*largeAllocator, "Box2DPhysics::fractureEvents_"),
       pendingDestructions_(*smallAllocator, "Box2DPhysics::pendingDestructions_"),
       fragmentBodyIds_(*smallAllocator, "Box2DPhysics::fragmentBodyIds_"),
@@ -203,8 +206,8 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
                 event.approachSpeed = approachSpeed;
                 collisionHitEvents_.push_back(event);
 
-                if (collisionCallback_ && internalIdA >= 0 && internalIdB >= 0) {
-                    collisionCallback_(internalIdA, internalIdB, event.pointX, event.pointY, event.normalX, event.normalY, event.approachSpeed, collisionCallbackUserData_);
+                if (internalIdA >= 0 && internalIdB >= 0) {
+                    deferredCollisionCallbacks_.push_back(event);
                 }
             }
         }
@@ -221,7 +224,7 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
         b2Vec2 visitorVel = b2Body_GetLinearVelocity(visitorBody);
         int sensorInternalId = findInternalBodyId(sensorBody);
         int visitorInternalId = findInternalBodyId(visitorBody);
-        if (sensorInternalId >= 0 && visitorInternalId >= 0 && sensorCallback_) {
+        if (sensorInternalId >= 0 && visitorInternalId >= 0) {
             SensorEvent event;
             event.sensorBodyId = sensorInternalId;
             event.visitorBodyId = visitorInternalId;
@@ -229,8 +232,9 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             event.visitorY = visitorPos.y;
             event.visitorVelX = visitorVel.x;
             event.visitorVelY = visitorVel.y;
+            event.surfaceY = 0.0f;
             event.isBegin = true;
-            sensorCallback_(event, sensorCallbackUserData_);
+            deferredSensorCallbacks_.push_back(event);
         }
     }
     for (int i = 0; i < sensorEvents.endCount; ++i) {
@@ -242,7 +246,7 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
         b2Vec2 visitorVel = b2Body_GetLinearVelocity(visitorBody);
         int sensorInternalId = findInternalBodyId(sensorBody);
         int visitorInternalId = findInternalBodyId(visitorBody);
-        if (sensorInternalId >= 0 && visitorInternalId >= 0 && sensorCallback_) {
+        if (sensorInternalId >= 0 && visitorInternalId >= 0) {
             SensorEvent event;
             event.sensorBodyId = sensorInternalId;
             event.visitorBodyId = visitorInternalId;
@@ -250,8 +254,9 @@ void Box2DPhysics::step(float timeStep, int subStepCount) {
             event.visitorY = visitorPos.y;
             event.visitorVelX = visitorVel.x;
             event.visitorVelY = visitorVel.y;
+            event.surfaceY = 0.0f;
             event.isBegin = false;
-            sensorCallback_(event, sensorCallbackUserData_);
+            deferredSensorCallbacks_.push_back(event);
         }
     }
 
@@ -342,6 +347,52 @@ bool Box2DPhysics::isStepComplete() {
 void Box2DPhysics::waitForStepComplete() {
     while (SDL_GetAtomicInt(&stepInProgress_) != 0) {
         SDL_Delay(1);
+    }
+}
+
+void Box2DPhysics::dispatchDeferredCallbacks() {
+    std::vector<CollisionHitEvent> collisionEvents;
+    std::vector<SensorEvent> sensorEvents;
+    CollisionCallback collisionCallback = nullptr;
+    void* collisionUserData = nullptr;
+    SensorCallback sensorCallback = nullptr;
+    void* sensorUserData = nullptr;
+
+    SDL_LockMutex(physicsMutex_);
+
+    collisionEvents.reserve(deferredCollisionCallbacks_.size());
+    for (const auto& event : deferredCollisionCallbacks_) {
+        collisionEvents.push_back(event);
+    }
+    deferredCollisionCallbacks_.clear();
+
+    sensorEvents.reserve(deferredSensorCallbacks_.size());
+    for (const auto& event : deferredSensorCallbacks_) {
+        sensorEvents.push_back(event);
+    }
+    deferredSensorCallbacks_.clear();
+
+    collisionCallback = collisionCallback_;
+    collisionUserData = collisionCallbackUserData_;
+    sensorCallback = sensorCallback_;
+    sensorUserData = sensorCallbackUserData_;
+
+    SDL_UnlockMutex(physicsMutex_);
+
+    if (collisionCallback) {
+        for (const auto& event : collisionEvents) {
+            collisionCallback(event.bodyIdA, event.bodyIdB,
+                              event.pointX, event.pointY,
+                              event.normalX, event.normalY,
+                              event.approachSpeed,
+                              collisionUserData);
+        }
+    }
+
+    if (sensorCallback) {
+        for (const auto& event : sensorEvents) {
+            sensorCallback(event, sensorUserData);
+        }
     }
 }
 
@@ -2195,8 +2246,10 @@ void Box2DPhysics::reset() {
     }
     bodyTypes_.clear();
 
-    // Clear collision events
+    // Clear collision events and deferred callback queues
     collisionHitEvents_.clear();
+    deferredCollisionCallbacks_.clear();
+    deferredSensorCallbacks_.clear();
     fractureEvents_.clear();
     pendingDestructions_.clear();
 

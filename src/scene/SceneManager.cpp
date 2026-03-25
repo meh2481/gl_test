@@ -393,6 +393,9 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             renderer_.setDebugLineDrawData(emptyData);
             renderer_.setDebugTriangleDrawData(emptyData);
         }
+
+        // Start async physics step (requested by Lua via b2StepAsync) after frame physics reads.
+        luaInterface_->submitPendingAsyncPhysicsStep();
     }
 
     return !sceneStack_.empty();

@@ -91,6 +91,9 @@ public:
     float getCameraZoom() const { return cameraZoom_; }
     void applyScrollZoom(float scrollDelta);
 
+    // Submit any deferred async physics step request captured from Lua b2StepAsync()
+    void submitPendingAsyncPhysicsStep();
+
 private:
     // Lua-callable functions
     static int loadShaders(lua_State* L);
@@ -254,6 +257,11 @@ private:
     float cameraOffsetX_;
     float cameraOffsetY_;
     float cameraZoom_;
+
+    // Deferred async step request captured from Lua; submitted later by SceneManager
+    bool asyncStepRequested_;
+    float asyncStepTimeStep_;
+    int asyncStepSubStepCount_;
 
     // Water field to shader pipeline mapping for splash ripples
     HashTable<int, int> waterFieldShaderMap_; // waterFieldId -> pipelineId
