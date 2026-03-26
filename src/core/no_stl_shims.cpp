@@ -1,3 +1,4 @@
+#include <SDL3/SDL.h>
 #include <cstdlib>
 #include <cstddef>
 
@@ -80,7 +81,7 @@ void* operator new(std::size_t size) {
     if (size == 0) {
         size = 1;
     }
-    void* ptr = std::malloc(size);
+    void* ptr = SDL_malloc(size);
     if (!ptr) {
         std::abort();
     }
@@ -91,7 +92,7 @@ void* operator new[](std::size_t size) {
     if (size == 0) {
         size = 1;
     }
-    void* ptr = std::malloc(size);
+    void* ptr = SDL_malloc(size);
     if (!ptr) {
         std::abort();
     }
@@ -99,17 +100,17 @@ void* operator new[](std::size_t size) {
 }
 
 void operator delete(void* ptr) noexcept {
-    std::free(ptr);
+    SDL_free(ptr);
 }
 
 void operator delete[](void* ptr) noexcept {
-    std::free(ptr);
+    SDL_free(ptr);
 }
 
 void operator delete(void* ptr, std::size_t) noexcept {
-    std::free(ptr);
+    SDL_free(ptr);
 }
 
 void operator delete[](void* ptr, std::size_t) noexcept {
-    std::free(ptr);
+    SDL_free(ptr);
 }

@@ -679,7 +679,7 @@ void ImGuiManager::showEmissionPolygonEditor() {
         for (int i = 0; i < cfg.emissionVertexCount; ++i) {
             ImGui::PushID(i);
             char label[32];
-            snprintf(label, sizeof(label), "Vertex %d", i);
+            SDL_snprintf(label, sizeof(label), "Vertex %d", i);
             float vertex[2] = { cfg.emissionVertices[i * 2], cfg.emissionVertices[i * 2 + 1] };
             if (ImGui::DragFloat2(label, vertex, 0.01f, -5.0f, 5.0f, "%.3f")) {
                 cfg.emissionVertices[i * 2] = vertex[0];
@@ -996,83 +996,83 @@ void ImGuiManager::generateLuaExport() {
     int pos = 0;
     int bufSize = sizeof(editorState_.exportBuffer);
 
-    pos += snprintf(buf + pos, bufSize - pos, "local particleConfig = {\n");
-    pos += snprintf(buf + pos, bufSize - pos, "    maxParticles = %d,\n", cfg.maxParticles);
-    pos += snprintf(buf + pos, bufSize - pos, "    emissionRate = %.1f,\n", cfg.emissionRate);
-    pos += snprintf(buf + pos, bufSize - pos, "    blendMode = %d,  -- %s\n", cfg.blendMode,
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "local particleConfig = {\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    maxParticles = %d,\n", cfg.maxParticles);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    emissionRate = %.1f,\n", cfg.emissionRate);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    blendMode = %d,  -- %s\n", cfg.blendMode,
                     cfg.blendMode == PARTICLE_BLEND_ADDITIVE ? "Additive" :
                     cfg.blendMode == PARTICLE_BLEND_ALPHA ? "Alpha" : "Subtractive");
 
     // Emission polygon
     if (cfg.emissionVertexCount > 0) {
-        pos += snprintf(buf + pos, bufSize - pos, "\n    -- Emission polygon (%d vertices)\n", cfg.emissionVertexCount);
-        pos += snprintf(buf + pos, bufSize - pos, "    emissionVertices = {");
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "\n    -- Emission polygon (%d vertices)\n", cfg.emissionVertexCount);
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "    emissionVertices = {");
         for (int i = 0; i < cfg.emissionVertexCount * 2; ++i) {
-            if (i > 0) pos += snprintf(buf + pos, bufSize - pos, ", ");
-            pos += snprintf(buf + pos, bufSize - pos, "%.3f", cfg.emissionVertices[i]);
+            if (i > 0) pos += SDL_snprintf(buf + pos, bufSize - pos, ", ");
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "%.3f", cfg.emissionVertices[i]);
         }
-        pos += snprintf(buf + pos, bufSize - pos, "},\n");
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "},\n");
     }
 
     // Textures
     if (editorState_.selectedTextureCount > 0) {
-        pos += snprintf(buf + pos, bufSize - pos, "\n    -- Textures (load with loadTexture() first)\n");
-        pos += snprintf(buf + pos, bufSize - pos, "    textureIds = {");
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "\n    -- Textures (load with loadTexture() first)\n");
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "    textureIds = {");
         for (int i = 0; i < editorState_.selectedTextureCount; ++i) {
-            if (i > 0) pos += snprintf(buf + pos, bufSize - pos, ", ");
-            pos += snprintf(buf + pos, bufSize - pos, "%.63sTexId", editorState_.textureNames[i]);
+            if (i > 0) pos += SDL_snprintf(buf + pos, bufSize - pos, ", ");
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "%.63sTexId", editorState_.textureNames[i]);
         }
-        pos += snprintf(buf + pos, bufSize - pos, "},\n");
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "},\n");
     }
 
-    pos += snprintf(buf + pos, bufSize - pos, "\n    -- Position variance\n");
-    pos += snprintf(buf + pos, bufSize - pos, "    positionVariance = %.3f,\n", cfg.positionVariance);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "\n    -- Position variance\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    positionVariance = %.3f,\n", cfg.positionVariance);
 
-    pos += snprintf(buf + pos, bufSize - pos, "\n    -- Velocity\n");
-    pos += snprintf(buf + pos, bufSize - pos, "    velocityMinX = %.2f,\n", cfg.velocityMinX);
-    pos += snprintf(buf + pos, bufSize - pos, "    velocityMaxX = %.2f,\n", cfg.velocityMaxX);
-    pos += snprintf(buf + pos, bufSize - pos, "    velocityMinY = %.2f,\n", cfg.velocityMinY);
-    pos += snprintf(buf + pos, bufSize - pos, "    velocityMaxY = %.2f,\n", cfg.velocityMaxY);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "\n    -- Velocity\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    velocityMinX = %.2f,\n", cfg.velocityMinX);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    velocityMaxX = %.2f,\n", cfg.velocityMaxX);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    velocityMinY = %.2f,\n", cfg.velocityMinY);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    velocityMaxY = %.2f,\n", cfg.velocityMaxY);
 
     if (cfg.radialVelocityMin != 0.0f || cfg.radialVelocityMax != 0.0f) {
-        pos += snprintf(buf + pos, bufSize - pos, "    radialVelocityMin = %.2f,\n", cfg.radialVelocityMin);
-        pos += snprintf(buf + pos, bufSize - pos, "    radialVelocityMax = %.2f,\n", cfg.radialVelocityMax);
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "    radialVelocityMin = %.2f,\n", cfg.radialVelocityMin);
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "    radialVelocityMax = %.2f,\n", cfg.radialVelocityMax);
     }
 
-    pos += snprintf(buf + pos, bufSize - pos, "\n    -- Acceleration\n");
-    pos += snprintf(buf + pos, bufSize - pos, "    accelerationMinX = %.2f,\n", cfg.accelerationMinX);
-    pos += snprintf(buf + pos, bufSize - pos, "    accelerationMaxX = %.2f,\n", cfg.accelerationMaxX);
-    pos += snprintf(buf + pos, bufSize - pos, "    accelerationMinY = %.2f,\n", cfg.accelerationMinY);
-    pos += snprintf(buf + pos, bufSize - pos, "    accelerationMaxY = %.2f,\n", cfg.accelerationMaxY);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "\n    -- Acceleration\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    accelerationMinX = %.2f,\n", cfg.accelerationMinX);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    accelerationMaxX = %.2f,\n", cfg.accelerationMaxX);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    accelerationMinY = %.2f,\n", cfg.accelerationMinY);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    accelerationMaxY = %.2f,\n", cfg.accelerationMaxY);
 
     if (cfg.radialAccelerationMin != 0.0f || cfg.radialAccelerationMax != 0.0f) {
-        pos += snprintf(buf + pos, bufSize - pos, "    radialAccelerationMin = %.2f,\n", cfg.radialAccelerationMin);
-        pos += snprintf(buf + pos, bufSize - pos, "    radialAccelerationMax = %.2f,\n", cfg.radialAccelerationMax);
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "    radialAccelerationMin = %.2f,\n", cfg.radialAccelerationMin);
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "    radialAccelerationMax = %.2f,\n", cfg.radialAccelerationMax);
     }
 
-    pos += snprintf(buf + pos, bufSize - pos, "\n    -- Size\n");
-    pos += snprintf(buf + pos, bufSize - pos, "    startSizeMin = %.3f,\n", cfg.startSizeMin);
-    pos += snprintf(buf + pos, bufSize - pos, "    startSizeMax = %.3f,\n", cfg.startSizeMax);
-    pos += snprintf(buf + pos, bufSize - pos, "    endSizeMin = %.3f,\n", cfg.endSizeMin);
-    pos += snprintf(buf + pos, bufSize - pos, "    endSizeMax = %.3f,\n", cfg.endSizeMax);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "\n    -- Size\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    startSizeMin = %.3f,\n", cfg.startSizeMin);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    startSizeMax = %.3f,\n", cfg.startSizeMax);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    endSizeMin = %.3f,\n", cfg.endSizeMin);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    endSizeMax = %.3f,\n", cfg.endSizeMax);
 
-    pos += snprintf(buf + pos, bufSize - pos, "\n    -- Start color\n");
-    pos += snprintf(buf + pos, bufSize - pos, "    colorMinR = %.3f, colorMaxR = %.3f,\n", cfg.colorMinR, cfg.colorMaxR);
-    pos += snprintf(buf + pos, bufSize - pos, "    colorMinG = %.3f, colorMaxG = %.3f,\n", cfg.colorMinG, cfg.colorMaxG);
-    pos += snprintf(buf + pos, bufSize - pos, "    colorMinB = %.3f, colorMaxB = %.3f,\n", cfg.colorMinB, cfg.colorMaxB);
-    pos += snprintf(buf + pos, bufSize - pos, "    colorMinA = %.3f, colorMaxA = %.3f,\n", cfg.colorMinA, cfg.colorMaxA);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "\n    -- Start color\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    colorMinR = %.3f, colorMaxR = %.3f,\n", cfg.colorMinR, cfg.colorMaxR);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    colorMinG = %.3f, colorMaxG = %.3f,\n", cfg.colorMinG, cfg.colorMaxG);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    colorMinB = %.3f, colorMaxB = %.3f,\n", cfg.colorMinB, cfg.colorMaxB);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    colorMinA = %.3f, colorMaxA = %.3f,\n", cfg.colorMinA, cfg.colorMaxA);
 
-    pos += snprintf(buf + pos, bufSize - pos, "\n    -- End color\n");
-    pos += snprintf(buf + pos, bufSize - pos, "    endColorMinR = %.3f, endColorMaxR = %.3f,\n", cfg.endColorMinR, cfg.endColorMaxR);
-    pos += snprintf(buf + pos, bufSize - pos, "    endColorMinG = %.3f, endColorMaxG = %.3f,\n", cfg.endColorMinG, cfg.endColorMaxG);
-    pos += snprintf(buf + pos, bufSize - pos, "    endColorMinB = %.3f, endColorMaxB = %.3f,\n", cfg.endColorMinB, cfg.endColorMaxB);
-    pos += snprintf(buf + pos, bufSize - pos, "    endColorMinA = %.3f, endColorMaxA = %.3f,\n", cfg.endColorMinA, cfg.endColorMaxA);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "\n    -- End color\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    endColorMinR = %.3f, endColorMaxR = %.3f,\n", cfg.endColorMinR, cfg.endColorMaxR);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    endColorMinG = %.3f, endColorMaxG = %.3f,\n", cfg.endColorMinG, cfg.endColorMaxG);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    endColorMinB = %.3f, endColorMaxB = %.3f,\n", cfg.endColorMinB, cfg.endColorMaxB);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    endColorMinA = %.3f, endColorMaxA = %.3f,\n", cfg.endColorMinA, cfg.endColorMaxA);
 
-    pos += snprintf(buf + pos, bufSize - pos, "\n    -- Lifetime\n");
-    pos += snprintf(buf + pos, bufSize - pos, "    lifetimeMin = %.2f,\n", cfg.lifetimeMin);
-    pos += snprintf(buf + pos, bufSize - pos, "    lifetimeMax = %.2f,\n", cfg.lifetimeMax);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "\n    -- Lifetime\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    lifetimeMin = %.2f,\n", cfg.lifetimeMin);
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "    lifetimeMax = %.2f,\n", cfg.lifetimeMax);
     if (cfg.systemLifetime > 0.0f) {
-        pos += snprintf(buf + pos, bufSize - pos, "    systemLifetime = %.2f,\n", cfg.systemLifetime);
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "    systemLifetime = %.2f,\n", cfg.systemLifetime);
     }
 
     // Rotation (only if non-zero OR if rotateWithVelocity is enabled)
@@ -1087,32 +1087,32 @@ void ImGuiManager::generateLuaExport() {
                        cfg.rotAccelerationMinZ != 0.0f || cfg.rotAccelerationMaxZ != 0.0f;
 
     if (cfg.rotateWithVelocity || hasRotation || hasRotVel || hasRotAccel) {
-        pos += snprintf(buf + pos, bufSize - pos, "\n    -- Rotation\n");
+        pos += SDL_snprintf(buf + pos, bufSize - pos, "\n    -- Rotation\n");
         if (cfg.rotateWithVelocity) {
-            pos += snprintf(buf + pos, bufSize - pos, "    rotateWithVelocity = true,\n");
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "    rotateWithVelocity = true,\n");
         }
         if (hasRotation) {
-            pos += snprintf(buf + pos, bufSize - pos, "    rotationMinX = %.2f, rotationMaxX = %.2f,\n", cfg.rotationMinX, cfg.rotationMaxX);
-            pos += snprintf(buf + pos, bufSize - pos, "    rotationMinY = %.2f, rotationMaxY = %.2f,\n", cfg.rotationMinY, cfg.rotationMaxY);
-            pos += snprintf(buf + pos, bufSize - pos, "    rotationMinZ = %.2f, rotationMaxZ = %.2f,\n", cfg.rotationMinZ, cfg.rotationMaxZ);
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "    rotationMinX = %.2f, rotationMaxX = %.2f,\n", cfg.rotationMinX, cfg.rotationMaxX);
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "    rotationMinY = %.2f, rotationMaxY = %.2f,\n", cfg.rotationMinY, cfg.rotationMaxY);
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "    rotationMinZ = %.2f, rotationMaxZ = %.2f,\n", cfg.rotationMinZ, cfg.rotationMaxZ);
         }
         if (hasRotVel) {
-            pos += snprintf(buf + pos, bufSize - pos, "    rotVelocityMinX = %.2f, rotVelocityMaxX = %.2f,\n", cfg.rotVelocityMinX, cfg.rotVelocityMaxX);
-            pos += snprintf(buf + pos, bufSize - pos, "    rotVelocityMinY = %.2f, rotVelocityMaxY = %.2f,\n", cfg.rotVelocityMinY, cfg.rotVelocityMaxY);
-            pos += snprintf(buf + pos, bufSize - pos, "    rotVelocityMinZ = %.2f, rotVelocityMaxZ = %.2f,\n", cfg.rotVelocityMinZ, cfg.rotVelocityMaxZ);
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "    rotVelocityMinX = %.2f, rotVelocityMaxX = %.2f,\n", cfg.rotVelocityMinX, cfg.rotVelocityMaxX);
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "    rotVelocityMinY = %.2f, rotVelocityMaxY = %.2f,\n", cfg.rotVelocityMinY, cfg.rotVelocityMaxY);
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "    rotVelocityMinZ = %.2f, rotVelocityMaxZ = %.2f,\n", cfg.rotVelocityMinZ, cfg.rotVelocityMaxZ);
         }
         if (hasRotAccel) {
-            pos += snprintf(buf + pos, bufSize - pos, "    rotAccelerationMinX = %.2f, rotAccelerationMaxX = %.2f,\n", cfg.rotAccelerationMinX, cfg.rotAccelerationMaxX);
-            pos += snprintf(buf + pos, bufSize - pos, "    rotAccelerationMinY = %.2f, rotAccelerationMaxY = %.2f,\n", cfg.rotAccelerationMinY, cfg.rotAccelerationMaxY);
-            pos += snprintf(buf + pos, bufSize - pos, "    rotAccelerationMinZ = %.2f, rotAccelerationMaxZ = %.2f,\n", cfg.rotAccelerationMinZ, cfg.rotAccelerationMaxZ);
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "    rotAccelerationMinX = %.2f, rotAccelerationMaxX = %.2f,\n", cfg.rotAccelerationMinX, cfg.rotAccelerationMaxX);
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "    rotAccelerationMinY = %.2f, rotAccelerationMaxY = %.2f,\n", cfg.rotAccelerationMinY, cfg.rotAccelerationMaxY);
+            pos += SDL_snprintf(buf + pos, bufSize - pos, "    rotAccelerationMinZ = %.2f, rotAccelerationMaxZ = %.2f,\n", cfg.rotAccelerationMinZ, cfg.rotAccelerationMaxZ);
         }
     }
 
-    pos += snprintf(buf + pos, bufSize - pos, "}\n\n");
-    pos += snprintf(buf + pos, bufSize - pos, "-- Create the particle system:\n");
-    pos += snprintf(buf + pos, bufSize - pos, "-- particlePipelineId = loadParticleShaders(\"res/shaders/particle_vertex.spv\", \"res/shaders/particle_fragment.spv\", 1, true)\n");
-    pos += snprintf(buf + pos, bufSize - pos, "-- particleSystemId = createParticleSystem(particleConfig, particlePipelineId)\n");
-    pos += snprintf(buf + pos, bufSize - pos, "-- setParticleSystemPosition(particleSystemId, x, y)\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "}\n\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "-- Create the particle system:\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "-- particlePipelineId = loadParticleShaders(\"res/shaders/particle_vertex.spv\", \"res/shaders/particle_fragment.spv\", 1, true)\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "-- particleSystemId = createParticleSystem(particleConfig, particlePipelineId)\n");
+    pos += SDL_snprintf(buf + pos, bufSize - pos, "-- setParticleSystemPosition(particleSystemId, x, y)\n");
 }
 
 void ImGuiManager::updatePreviewSystem(ParticleSystemManager* particleManager, int pipelineId) {
@@ -1218,13 +1218,13 @@ void ImGuiManager::showSaveLoadSection() {
             if (hasSelection) {
                 const char* selectedFile = editorState_.fxFileList[editorState_.selectedFxFileIndex];
                 if (loadParticleConfigFromFile(selectedFile)) {
-                    snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
+                    SDL_snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
                              "Loaded: %s", selectedFile);
                     // Copy filename to save field for easy re-save
                     strncpy(editorState_.saveFilename, selectedFile, EDITOR_MAX_FILENAME_LEN - 1);
                     editorState_.saveFilename[EDITOR_MAX_FILENAME_LEN - 1] = '\0';
                 } else {
-                    snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
+                    SDL_snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
                              "Error loading: %s", selectedFile);
                 }
             }
@@ -1243,12 +1243,12 @@ void ImGuiManager::showSaveLoadSection() {
 
     if (ImGui::Button("Save to File")) {
         if (saveParticleConfig(editorState_.saveFilename)) {
-            snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
+            SDL_snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
                      "Saved: res/fx/%s", editorState_.saveFilename);
             // Refresh file list to show the newly saved file
             refreshFxFileList();
         } else {
-            snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
+            SDL_snprintf(editorState_.statusMessage, sizeof(editorState_.statusMessage),
                      "Error saving file!");
         }
     }
@@ -1273,74 +1273,74 @@ void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
 
     int pos = 0;
 
-    pos += snprintf(buffer + pos, bufferSize - pos, "-- Particle System Configuration\n");
-    pos += snprintf(buffer + pos, bufferSize - pos, "-- Generated by Particle System Editor\n\n");
-    pos += snprintf(buffer + pos, bufferSize - pos, "local particleConfig = {\n");
-    pos += snprintf(buffer + pos, bufferSize - pos, "    maxParticles = %d,\n", cfg.maxParticles);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    emissionRate = %.1f,\n", cfg.emissionRate);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    blendMode = %d,  -- %s\n\n", cfg.blendMode,
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "-- Particle System Configuration\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "-- Generated by Particle System Editor\n\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "local particleConfig = {\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    maxParticles = %d,\n", cfg.maxParticles);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    emissionRate = %.1f,\n", cfg.emissionRate);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    blendMode = %d,  -- %s\n\n", cfg.blendMode,
                     cfg.blendMode == PARTICLE_BLEND_ADDITIVE ? "Additive" :
                     cfg.blendMode == PARTICLE_BLEND_ALPHA ? "Alpha" : "Subtractive");
 
     // Emission polygon
     if (cfg.emissionVertexCount > 0) {
-        pos += snprintf(buffer + pos, bufferSize - pos, "    -- Emission polygon (%d vertices)\n", cfg.emissionVertexCount);
-        pos += snprintf(buffer + pos, bufferSize - pos, "    emissionVertices = {");
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    -- Emission polygon (%d vertices)\n", cfg.emissionVertexCount);
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    emissionVertices = {");
         for (int i = 0; i < cfg.emissionVertexCount * 2; ++i) {
-            if (i > 0) pos += snprintf(buffer + pos, bufferSize - pos, ", ");
-            pos += snprintf(buffer + pos, bufferSize - pos, "%.3f", cfg.emissionVertices[i]);
+            if (i > 0) pos += SDL_snprintf(buffer + pos, bufferSize - pos, ", ");
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "%.3f", cfg.emissionVertices[i]);
         }
-        pos += snprintf(buffer + pos, bufferSize - pos, "},\n");
-        pos += snprintf(buffer + pos, bufferSize - pos, "    emissionVertexCount = %d,\n\n", cfg.emissionVertexCount);
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "},\n");
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    emissionVertexCount = %d,\n\n", cfg.emissionVertexCount);
     } else {
-        pos += snprintf(buffer + pos, bufferSize - pos, "    -- Point emitter (no polygon)\n");
-        pos += snprintf(buffer + pos, bufferSize - pos, "    emissionVertices = {0.0, 0.0},\n");
-        pos += snprintf(buffer + pos, bufferSize - pos, "    emissionVertexCount = 0,\n\n");
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    -- Point emitter (no polygon)\n");
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    emissionVertices = {0.0, 0.0},\n");
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    emissionVertexCount = 0,\n\n");
     }
 
-    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Velocity\n");
-    pos += snprintf(buffer + pos, bufferSize - pos, "    velocityMinX = %.2f,\n", cfg.velocityMinX);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    velocityMaxX = %.2f,\n", cfg.velocityMaxX);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    velocityMinY = %.2f,\n", cfg.velocityMinY);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    velocityMaxY = %.2f,\n\n", cfg.velocityMaxY);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    -- Velocity\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    velocityMinX = %.2f,\n", cfg.velocityMinX);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    velocityMaxX = %.2f,\n", cfg.velocityMaxX);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    velocityMinY = %.2f,\n", cfg.velocityMinY);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    velocityMaxY = %.2f,\n\n", cfg.velocityMaxY);
 
-    pos += snprintf(buffer + pos, bufferSize - pos, "    radialVelocityMin = %.2f,\n", cfg.radialVelocityMin);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    radialVelocityMax = %.2f,\n\n", cfg.radialVelocityMax);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    radialVelocityMin = %.2f,\n", cfg.radialVelocityMin);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    radialVelocityMax = %.2f,\n\n", cfg.radialVelocityMax);
 
-    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Acceleration\n");
-    pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMinX = %.2f,\n", cfg.accelerationMinX);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMaxX = %.2f,\n", cfg.accelerationMaxX);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMinY = %.2f,\n", cfg.accelerationMinY);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    accelerationMaxY = %.2f,\n\n", cfg.accelerationMaxY);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    -- Acceleration\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    accelerationMinX = %.2f,\n", cfg.accelerationMinX);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    accelerationMaxX = %.2f,\n", cfg.accelerationMaxX);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    accelerationMinY = %.2f,\n", cfg.accelerationMinY);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    accelerationMaxY = %.2f,\n\n", cfg.accelerationMaxY);
 
-    pos += snprintf(buffer + pos, bufferSize - pos, "    radialAccelerationMin = %.2f,\n", cfg.radialAccelerationMin);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    radialAccelerationMax = %.2f,\n\n", cfg.radialAccelerationMax);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    radialAccelerationMin = %.2f,\n", cfg.radialAccelerationMin);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    radialAccelerationMax = %.2f,\n\n", cfg.radialAccelerationMax);
 
-    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Size\n");
-    pos += snprintf(buffer + pos, bufferSize - pos, "    startSizeMin = %.3f,\n", cfg.startSizeMin);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    startSizeMax = %.3f,\n", cfg.startSizeMax);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    endSizeMin = %.3f,\n", cfg.endSizeMin);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    endSizeMax = %.3f,\n\n", cfg.endSizeMax);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    -- Size\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    startSizeMin = %.3f,\n", cfg.startSizeMin);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    startSizeMax = %.3f,\n", cfg.startSizeMax);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    endSizeMin = %.3f,\n", cfg.endSizeMin);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    endSizeMax = %.3f,\n\n", cfg.endSizeMax);
 
-    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Start color\n");
-    pos += snprintf(buffer + pos, bufferSize - pos, "    colorMinR = %.3f, colorMaxR = %.3f,\n", cfg.colorMinR, cfg.colorMaxR);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    colorMinG = %.3f, colorMaxG = %.3f,\n", cfg.colorMinG, cfg.colorMaxG);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    colorMinB = %.3f, colorMaxB = %.3f,\n", cfg.colorMinB, cfg.colorMaxB);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    colorMinA = %.3f, colorMaxA = %.3f,\n\n", cfg.colorMinA, cfg.colorMaxA);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    -- Start color\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    colorMinR = %.3f, colorMaxR = %.3f,\n", cfg.colorMinR, cfg.colorMaxR);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    colorMinG = %.3f, colorMaxG = %.3f,\n", cfg.colorMinG, cfg.colorMaxG);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    colorMinB = %.3f, colorMaxB = %.3f,\n", cfg.colorMinB, cfg.colorMaxB);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    colorMinA = %.3f, colorMaxA = %.3f,\n\n", cfg.colorMinA, cfg.colorMaxA);
 
-    pos += snprintf(buffer + pos, bufferSize - pos, "    -- End color\n");
-    pos += snprintf(buffer + pos, bufferSize - pos, "    endColorMinR = %.3f, endColorMaxR = %.3f,\n", cfg.endColorMinR, cfg.endColorMaxR);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    endColorMinG = %.3f, endColorMaxG = %.3f,\n", cfg.endColorMinG, cfg.endColorMaxG);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    endColorMinB = %.3f, endColorMaxB = %.3f,\n", cfg.endColorMinB, cfg.endColorMaxB);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    endColorMinA = %.3f, endColorMaxA = %.3f,\n\n", cfg.endColorMinA, cfg.endColorMaxA);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    -- End color\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    endColorMinR = %.3f, endColorMaxR = %.3f,\n", cfg.endColorMinR, cfg.endColorMaxR);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    endColorMinG = %.3f, endColorMaxG = %.3f,\n", cfg.endColorMinG, cfg.endColorMaxG);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    endColorMinB = %.3f, endColorMaxB = %.3f,\n", cfg.endColorMinB, cfg.endColorMaxB);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    endColorMinA = %.3f, endColorMaxA = %.3f,\n\n", cfg.endColorMinA, cfg.endColorMaxA);
 
-    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Lifetime\n");
-    pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMin = %.2f,\n", cfg.lifetimeMin);
-    pos += snprintf(buffer + pos, bufferSize - pos, "    lifetimeMax = %.2f,\n", cfg.lifetimeMax);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    -- Lifetime\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    lifetimeMin = %.2f,\n", cfg.lifetimeMin);
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    lifetimeMax = %.2f,\n", cfg.lifetimeMax);
     if (cfg.systemLifetime > 0.0f) {
-        pos += snprintf(buffer + pos, bufferSize - pos, "    systemLifetime = %.2f,\n", cfg.systemLifetime);
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    systemLifetime = %.2f,\n", cfg.systemLifetime);
     }
-    pos += snprintf(buffer + pos, bufferSize - pos, "\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "\n");
 
     // Rotation
     bool hasRotation = cfg.rotationMinX != 0.0f || cfg.rotationMaxX != 0.0f ||
@@ -1354,49 +1354,49 @@ void ImGuiManager::generateSaveableExport(char* buffer, int bufferSize) {
                        cfg.rotAccelerationMinZ != 0.0f || cfg.rotAccelerationMaxZ != 0.0f;
 
     if (cfg.rotateWithVelocity || hasRotation || hasRotVel || hasRotAccel) {
-        pos += snprintf(buffer + pos, bufferSize - pos, "    -- Rotation\n");
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    -- Rotation\n");
         if (cfg.rotateWithVelocity) {
-            pos += snprintf(buffer + pos, bufferSize - pos, "    rotateWithVelocity = true,\n");
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    rotateWithVelocity = true,\n");
         }
         if (hasRotation) {
-            pos += snprintf(buffer + pos, bufferSize - pos, "    rotationMinX = %.2f, rotationMaxX = %.2f,\n", cfg.rotationMinX, cfg.rotationMaxX);
-            pos += snprintf(buffer + pos, bufferSize - pos, "    rotationMinY = %.2f, rotationMaxY = %.2f,\n", cfg.rotationMinY, cfg.rotationMaxY);
-            pos += snprintf(buffer + pos, bufferSize - pos, "    rotationMinZ = %.2f, rotationMaxZ = %.2f,\n", cfg.rotationMinZ, cfg.rotationMaxZ);
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    rotationMinX = %.2f, rotationMaxX = %.2f,\n", cfg.rotationMinX, cfg.rotationMaxX);
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    rotationMinY = %.2f, rotationMaxY = %.2f,\n", cfg.rotationMinY, cfg.rotationMaxY);
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    rotationMinZ = %.2f, rotationMaxZ = %.2f,\n", cfg.rotationMinZ, cfg.rotationMaxZ);
         }
         if (hasRotVel) {
-            pos += snprintf(buffer + pos, bufferSize - pos, "    rotVelocityMinX = %.2f, rotVelocityMaxX = %.2f,\n", cfg.rotVelocityMinX, cfg.rotVelocityMaxX);
-            pos += snprintf(buffer + pos, bufferSize - pos, "    rotVelocityMinY = %.2f, rotVelocityMaxY = %.2f,\n", cfg.rotVelocityMinY, cfg.rotVelocityMaxY);
-            pos += snprintf(buffer + pos, bufferSize - pos, "    rotVelocityMinZ = %.2f, rotVelocityMaxZ = %.2f,\n", cfg.rotVelocityMinZ, cfg.rotVelocityMaxZ);
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    rotVelocityMinX = %.2f, rotVelocityMaxX = %.2f,\n", cfg.rotVelocityMinX, cfg.rotVelocityMaxX);
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    rotVelocityMinY = %.2f, rotVelocityMaxY = %.2f,\n", cfg.rotVelocityMinY, cfg.rotVelocityMaxY);
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    rotVelocityMinZ = %.2f, rotVelocityMaxZ = %.2f,\n", cfg.rotVelocityMinZ, cfg.rotVelocityMaxZ);
         }
         if (hasRotAccel) {
-            pos += snprintf(buffer + pos, bufferSize - pos, "    rotAccelerationMinX = %.2f, rotAccelerationMaxX = %.2f,\n", cfg.rotAccelerationMinX, cfg.rotAccelerationMaxX);
-            pos += snprintf(buffer + pos, bufferSize - pos, "    rotAccelerationMinY = %.2f, rotAccelerationMaxY = %.2f,\n", cfg.rotAccelerationMinY, cfg.rotAccelerationMaxY);
-            pos += snprintf(buffer + pos, bufferSize - pos, "    rotAccelerationMinZ = %.2f, rotAccelerationMaxZ = %.2f,\n", cfg.rotAccelerationMinZ, cfg.rotAccelerationMaxZ);
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    rotAccelerationMinX = %.2f, rotAccelerationMaxX = %.2f,\n", cfg.rotAccelerationMinX, cfg.rotAccelerationMaxX);
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    rotAccelerationMinY = %.2f, rotAccelerationMaxY = %.2f,\n", cfg.rotAccelerationMinY, cfg.rotAccelerationMaxY);
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    rotAccelerationMinZ = %.2f, rotAccelerationMaxZ = %.2f,\n", cfg.rotAccelerationMinZ, cfg.rotAccelerationMaxZ);
         }
-        pos += snprintf(buffer + pos, bufferSize - pos, "\n");
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "\n");
     }
 
     // Textures - store names as strings for editor loading
-    pos += snprintf(buffer + pos, bufferSize - pos, "    -- Textures (stored as names for editor)\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    -- Textures (stored as names for editor)\n");
     if (editorState_.selectedTextureCount > 0) {
-        pos += snprintf(buffer + pos, bufferSize - pos, "    textureNames = {");
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    textureNames = {");
         for (int i = 0; i < editorState_.selectedTextureCount; ++i) {
-            if (i > 0) pos += snprintf(buffer + pos, bufferSize - pos, ", ");
-            pos += snprintf(buffer + pos, bufferSize - pos, "\"%s\"", editorState_.textureNames[i]);
+            if (i > 0) pos += SDL_snprintf(buffer + pos, bufferSize - pos, ", ");
+            pos += SDL_snprintf(buffer + pos, bufferSize - pos, "\"%s\"", editorState_.textureNames[i]);
         }
-        pos += snprintf(buffer + pos, bufferSize - pos, "}\n");
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "}\n");
     } else {
-        pos += snprintf(buffer + pos, bufferSize - pos, "    textureNames = {}\n");
+        pos += SDL_snprintf(buffer + pos, bufferSize - pos, "    textureNames = {}\n");
     }
 
-    pos += snprintf(buffer + pos, bufferSize - pos, "}\n\n");
-    pos += snprintf(buffer + pos, bufferSize - pos, "return particleConfig\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "}\n\n");
+    pos += SDL_snprintf(buffer + pos, bufferSize - pos, "return particleConfig\n");
 }
 
 bool ImGuiManager::saveParticleConfig(const char* filename) {
     // Build the full path to ../res/fx/
     char fullPath[512];
-    snprintf(fullPath, sizeof(fullPath), "../res/fx/%s", filename);
+    SDL_snprintf(fullPath, sizeof(fullPath), "../res/fx/%s", filename);
 
     // Generate the Lua config content
     char buffer[8192];
@@ -1449,7 +1449,7 @@ void ImGuiManager::refreshTextureFileList() {
             if (state->textureFileCount < EDITOR_MAX_TEXTURE_FILES) {
                 // Store the full path as "res/fx/filename.png"
                 char fullPath[EDITOR_MAX_FILENAME_LEN];
-                snprintf(fullPath, sizeof(fullPath), "res/fx/%s", fname);
+                SDL_snprintf(fullPath, sizeof(fullPath), "res/fx/%s", fname);
                 strncpy(state->textureFileList[state->textureFileCount], fullPath, EDITOR_MAX_FILENAME_LEN - 1);
                 state->textureFileList[state->textureFileCount][EDITOR_MAX_FILENAME_LEN - 1] = '\0';
                 state->textureFileCount++;
@@ -1463,7 +1463,7 @@ void ImGuiManager::refreshTextureFileList() {
 bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     // Build the full path to ../res/fx/
     char fullPath[512];
-    snprintf(fullPath, sizeof(fullPath), "../res/fx/%s", filename);
+    SDL_snprintf(fullPath, sizeof(fullPath), "../res/fx/%s", filename);
 
     // Read the file
     FILE* file = fopen(fullPath, "r");
