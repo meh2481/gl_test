@@ -1291,7 +1291,7 @@ float Box2DPhysics::calculatePolygonArea(const float* vertices, int vertexCount)
 // Calculate break force based on Mohs hardness scale
 float Box2DPhysics::calculateBreakForce(float strength, float impactSpeed) const {
     // Mohs scale is roughly logarithmic - each level is ~1.3x harder than the previous
-    float scaleFactor = powf(MOHS_SCALE_MULTIPLIER, strength - MOHS_REFERENCE_LEVEL);
+    float scaleFactor = SDL_powf(MOHS_SCALE_MULTIPLIER, strength - MOHS_REFERENCE_LEVEL);
     return MOHS_BASE_BREAK_SPEED * scaleFactor;
 }
 
