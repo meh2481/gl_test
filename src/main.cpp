@@ -180,18 +180,23 @@ static void customLogOutput(void* userdata, int category, SDL_LogPriority priori
     }
 }
 
-int app_main()
+extern "C" int app_main()
 {
-    // Set custom log output function to write to stdout before any SDL_Log calls
+    // Set custom log output function before SDL_Init so init-time messages are captured.
+    // SDL_SetLogOutputFunction only stores a pointer and does not touch the properties
+    // system, so it is safe to call before SDL_Init.
     SDL_LogOutputFunction defaultLogFunc = SDL_GetDefaultLogOutputFunction();
     SDL_SetLogOutputFunction(customLogOutput, &defaultLogFunc);
-    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     {
         SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s", SDL_GetError());
         assert(false);
     }
+
+    // SDL_SetLogPriority internally calls SDL_InitLog → SDL_CreateProperties, which
+    // requires the global SDL_properties hash table to be initialized by SDL_Init first.
+    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
 
     // Open log file in the same directory as config files
     char logFilePath[MAX_PREF_PATH];

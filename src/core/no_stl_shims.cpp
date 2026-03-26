@@ -4,7 +4,10 @@ extern "C" void* SDL_malloc(size_t);
 extern "C" void SDL_free(void*);
 
 extern "C" [[noreturn]] void my_exit(int status) {
-    register long rax __asm__("rax") = 60;
+    // SYS_exit (60) only terminates the calling thread; background threads keep
+    // the process alive.  SYS_exit_group (231) terminates every thread in the
+    // process, equivalent to the C library's exit().
+    register long rax __asm__("rax") = 231; // SYS_exit_group
     register long rdi __asm__("rdi") = status;
     __asm__ volatile ("syscall" : : "r"(rax), "r"(rdi) : "rcx", "r11");
     __builtin_unreachable();
@@ -183,9 +186,31 @@ extern "C" __attribute__((visibility("hidden"))) void* memmove(void* dest, const
     return dest;
 }
 
-int app_main();
+extern "C" int app_main();
 
-extern "C" void _start(void)
-{
-    app_main();
-}
+// _start must not be a normal C/C++ function: the kernel jumps here with %rsp
+// 16-byte aligned and NO return address pushed.  A C function prologue would
+// emit "push %rbp" which shifts %rsp to 8-mod-16, and the subsequent
+// "call app_main" would then push another 8 bytes making it 0-mod-16 at
+// app_main entry — which sounds right but the compiler's local-variable
+// save-area allocation and any sub-calls inside app_main still end up
+// misaligned because the C compiler assumed the usual "8-mod-16 on entry"
+// calling convention when it emitted app_main's prologue.
+//
+// The assembly version below:
+//  1. Zeroes %rbp to mark the bottom of the call-frame chain.
+//  2. Explicitly forces 16-byte alignment so the "call app_main" leaves
+//     %rsp exactly 0-mod-16 inside app_main (after the call push).
+//  3. Passes the return value of app_main to my_exit so the process exits
+//     cleanly instead of executing whatever follows.
+__asm__(
+    ".text\n"
+    ".globl _start\n"
+    ".type _start, @function\n"
+    "_start:\n"
+    "  xorq  %rbp, %rbp\n"        /* mark end of stack-frame chain          */
+    "  andq  $-16, %rsp\n"        /* force 16-byte alignment before call     */
+    "  call  app_main\n"          /* rsp is 8-mod-16 inside app_main (ABI ✓) */
+    "  movq  %rax, %rdi\n"        /* pass return value as exit status        */
+    "  call  my_exit\n"
+);

@@ -35,7 +35,7 @@ ImGuiManager::ImGuiManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
 
 void ImGuiManager::initializeParticleEditorDefaults() {
     // Initialize particle editor state
-    SDL_memcpy(&editorState_, 0, sizeof(editorState_));
+    SDL_memset(&editorState_, 0, sizeof(editorState_));
     editorState_.isActive = false;
     editorState_.previewSystemId = -1;
     editorState_.previewPipelineId = -1;
