@@ -1557,7 +1557,7 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     extractInt("emissionVertexCount", cfg.emissionVertexCount);
 
     // Emission polygon vertices
-    SDL_memcpy(cfg.emissionVertices, 0, sizeof(cfg.emissionVertices));
+    SDL_memset(cfg.emissionVertices, 0, sizeof(cfg.emissionVertices));
     const char* emissionVertsStart = SDL_strstr(contentPtr, "emissionVertices = {");
     if (emissionVertsStart) {
         emissionVertsStart += SDL_strlen("emissionVertices = {");
