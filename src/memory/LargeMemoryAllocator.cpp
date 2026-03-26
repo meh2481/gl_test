@@ -1,6 +1,4 @@
 #include "LargeMemoryAllocator.h"
-#include "FastMemset.h"
-#include "FastMemcpy.h"
 #include "../debug/ConsoleBuffer.h"
 #include <cassert>
 
@@ -21,7 +19,7 @@ LargeMemoryAllocator::LargeMemoryAllocator()
     historyIndex_ = 0;
     historyCount_ = 0;
     lastSampleTime_ = 0.0f;
-    fastZeroMem(usageHistory_, sizeof(usageHistory_));
+    SDL_memset(usageHistory_, 0, sizeof(usageHistory_));
 #endif
     m_chunkSize = alignSize(DEFAULT_CHUNK_SIZE);
     addChunk(m_chunkSize);
@@ -514,7 +512,7 @@ LargeMemoryAllocator::AllocationStats* LargeMemoryAllocator::getAllocationStats(
                         // Need to grow the array
                         uint64_t newMaxStats = maxStats * 2;
                         AllocationStats* newTempStats = new AllocationStats[newMaxStats];
-                        fastMemcpy(newTempStats, tempStats, statsCount * sizeof(AllocationStats));
+                        SDL_memcpy(newTempStats, tempStats, statsCount * sizeof(AllocationStats));
                         delete[] tempStats;
                         tempStats = newTempStats;
                         maxStats = newMaxStats;
@@ -542,7 +540,7 @@ LargeMemoryAllocator::AllocationStats* LargeMemoryAllocator::getAllocationStats(
     AllocationStats* stats = nullptr;
     if (statsCount > 0) {
         stats = new AllocationStats[statsCount];
-        fastMemcpy(stats, tempStats, statsCount * sizeof(AllocationStats));
+        SDL_memcpy(stats, tempStats, statsCount * sizeof(AllocationStats));
     }
     delete[] tempStats;
 
@@ -565,13 +563,13 @@ void LargeMemoryAllocator::getUsageHistory(uint64_t* outHistory, uint64_t* outCo
         uint64_t count = historyCount_ < HISTORY_SIZE ? historyCount_ : HISTORY_SIZE;
         if (historyCount_ < HISTORY_SIZE) {
             // Haven't wrapped around yet
-            fastMemcpy(outHistory, usageHistory_, count * sizeof(uint64_t));
+            SDL_memcpy(outHistory, usageHistory_, count * sizeof(uint64_t));
         } else {
             // Wrapped around - need to copy in two parts
             uint64_t firstPart = HISTORY_SIZE - historyIndex_;
-            fastMemcpy(outHistory, &usageHistory_[historyIndex_], firstPart * sizeof(uint64_t));
+            SDL_memcpy(outHistory, &usageHistory_[historyIndex_], firstPart * sizeof(uint64_t));
             if (historyIndex_ > 0) {
-                fastMemcpy(&outHistory[firstPart], usageHistory_, historyIndex_ * sizeof(uint64_t));
+                SDL_memcpy(&outHistory[firstPart], usageHistory_, historyIndex_ * sizeof(uint64_t));
             }
         }
     }

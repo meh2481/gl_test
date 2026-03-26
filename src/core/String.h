@@ -77,8 +77,8 @@ public:
     uint64_t find(char c, uint64_t pos = 0) const;
 
     // Static utility functions
-    static uint64_t strlen(const char* str);
-    static int strcmp(const char* s1, const char* s2);
+    static uint64_t SDL_strlen(const char* str);
+    static int SDL_strcmp(const char* s1, const char* s2);
     static char* strcpy(char* dest, const char* src);
     static char* strncpy(char* dest, const char* src, uint64_t n);
 

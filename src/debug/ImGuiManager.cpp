@@ -7,7 +7,6 @@
 #include "../resources/resource.h"
 #include "../scene/SceneManager.h"
 #include "../scene/LuaInterface.h"
-#include "../memory/FastMemset.h"
 #include "../memory/SmallMemoryAllocator.h"
 #include "../core/hash.h"
 #include "../core/Vector.h"
@@ -36,7 +35,7 @@ ImGuiManager::ImGuiManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
 
 void ImGuiManager::initializeParticleEditorDefaults() {
     // Initialize particle editor state
-    fastZeroMem(&editorState_, sizeof(editorState_));
+    SDL_memcpy(&editorState_, 0, sizeof(editorState_));
     editorState_.isActive = false;
     editorState_.previewSystemId = -1;
     editorState_.previewPipelineId = -1;
@@ -747,8 +746,8 @@ void ImGuiManager::showEmissionPolygonEditor() {
             float vy = centerY - cfg.emissionVertices[i * 2 + 1] * scale;
 
             bool vertexHovered = isHovered &&
-                fabsf(io.MousePos.x - vx) < 10.0f &&
-                fabsf(io.MousePos.y - vy) < 10.0f;
+                SDL_fabsf(io.MousePos.x - vx) < 10.0f &&
+                SDL_fabsf(io.MousePos.y - vy) < 10.0f;
 
             // Highlight selected or hovered vertex
             ImU32 vertexColor = IM_COL32(255, 255, 255, 255);
@@ -1403,13 +1402,18 @@ bool ImGuiManager::saveParticleConfig(const char* filename) {
     generateSaveableExport(buffer, sizeof(buffer));
 
     // Write to file
-    FILE* file = fopen(fullPath, "w");
+    SDL_IOStream* file = SDL_IOFromFile(fullPath, "w");
     if (!file) {
         return false;
     }
 
-    fputs(buffer, file);
-    fclose(file);
+    uint64_t expectedBytes = SDL_strlen(buffer);
+    uint64_t writtenBytes = SDL_WriteIO(file, buffer, expectedBytes);
+    SDL_CloseIO(file);
+
+    if (writtenBytes != expectedBytes) {
+        return false;
+    }
 
     return true;
 }
@@ -1424,7 +1428,7 @@ void ImGuiManager::refreshFxFileList() {
 
         // Check if it's a .lua file
         const char* ext = strrchr(fname, '.');
-        if (ext && strcmp(ext, ".lua") == 0) {
+        if (ext && SDL_strcmp(ext, ".lua") == 0) {
             if (state->fxFileCount < EDITOR_MAX_FX_FILES) {
                 strncpy(state->fxFileList[state->fxFileCount], fname, EDITOR_MAX_FILENAME_LEN - 1);
                 state->fxFileList[state->fxFileCount][EDITOR_MAX_FILENAME_LEN - 1] = '\0';
@@ -1445,7 +1449,7 @@ void ImGuiManager::refreshTextureFileList() {
 
         // Check if it's a .png file
         const char* ext = strrchr(fname, '.');
-        if (ext && strcmp(ext, ".png") == 0) {
+        if (ext && SDL_strcmp(ext, ".png") == 0) {
             if (state->textureFileCount < EDITOR_MAX_TEXTURE_FILES) {
                 // Store the full path as "res/fx/filename.png"
                 char fullPath[EDITOR_MAX_FILENAME_LEN];
@@ -1466,26 +1470,29 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     SDL_snprintf(fullPath, sizeof(fullPath), "../res/fx/%s", filename);
 
     // Read the file
-    FILE* file = fopen(fullPath, "r");
+    SDL_IOStream* file = SDL_IOFromFile(fullPath, "r");
     if (!file) {
         return false;
     }
 
     // Get file size
-    fseek(file, 0, SEEK_END);
-    long fileSize = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    Sint64 fileSize = SDL_GetIOSize(file);
 
     if (fileSize <= 0 || fileSize > 65536) {
-        fclose(file);
+        SDL_CloseIO(file);
         return false;
     }
 
     // Read file content using Vector for RAII
     Vector<char> content(*stringAllocator_, "ImGuiManager::renderScriptEditor::content");
-    content.resize(fileSize + 1);
-    uint64_t bytesRead = fread(content.data(), 1, fileSize, file);
-    fclose(file);
+    content.resize((uint64_t)fileSize + 1);
+    uint64_t bytesRead = SDL_ReadIO(file, content.data(), (uint64_t)fileSize);
+    SDL_CloseIO(file);
+
+    if (bytesRead != (uint64_t)fileSize) {
+        return false;
+    }
+
     content[bytesRead] = '\0';
 
     // Parse the Lua config file to extract values
@@ -1496,8 +1503,8 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     // Helper lambda to extract a float value with word boundary checking
     auto extractFloat = [contentPtr](const char* key, float& value) {
         const char* search = contentPtr;
-        uint64_t keyLen = strlen(key);
-        while ((search = strstr(search, key)) != nullptr) {
+        uint64_t keyLen = SDL_strlen(key);
+        while ((search = SDL_strstr(search, key)) != nullptr) {
             // Check if this is at line start or after whitespace/comma (word boundary)
             bool validStart = (search == contentPtr) ||
                              (search[-1] == ' ') ||
@@ -1506,10 +1513,10 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
                              (search[-1] == ',');
             // Check if followed by " = " (not a partial match)
             const char* after = search + keyLen;
-            bool validEnd = (strncmp(after, " = ", 3) == 0);
+            bool validEnd = (SDL_strncmp(after, " = ", 3) == 0);
 
             if (validStart && validEnd) {
-                value = (float)atof(after + 3);
+                value = (float)SDL_atof(after + 3);
                 return;
             }
             search++;
@@ -1519,8 +1526,8 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     // Helper lambda to extract an int value with word boundary checking
     auto extractInt = [contentPtr](const char* key, int& value) {
         const char* search = contentPtr;
-        uint64_t keyLen = strlen(key);
-        while ((search = strstr(search, key)) != nullptr) {
+        uint64_t keyLen = SDL_strlen(key);
+        while ((search = SDL_strstr(search, key)) != nullptr) {
             // Check if this is at line start or after whitespace/comma (word boundary)
             bool validStart = (search == contentPtr) ||
                              (search[-1] == ' ') ||
@@ -1529,10 +1536,10 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
                              (search[-1] == ',');
             // Check if followed by " = " (not a partial match)
             const char* after = search + keyLen;
-            bool validEnd = (strncmp(after, " = ", 3) == 0);
+            bool validEnd = (SDL_strncmp(after, " = ", 3) == 0);
 
             if (validStart && validEnd) {
-                value = atoi(after + 3);
+                value = SDL_atoi(after + 3);
                 return;
             }
             search++;
@@ -1550,11 +1557,11 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     extractInt("emissionVertexCount", cfg.emissionVertexCount);
 
     // Emission polygon vertices
-    fastZeroMem(cfg.emissionVertices, sizeof(cfg.emissionVertices));
-    const char* emissionVertsStart = strstr(contentPtr, "emissionVertices = {");
+    SDL_memcpy(cfg.emissionVertices, 0, sizeof(cfg.emissionVertices));
+    const char* emissionVertsStart = SDL_strstr(contentPtr, "emissionVertices = {");
     if (emissionVertsStart) {
-        emissionVertsStart += strlen("emissionVertices = {");
-        const char* emissionVertsEnd = strchr(emissionVertsStart, '}');
+        emissionVertsStart += SDL_strlen("emissionVertices = {");
+        const char* emissionVertsEnd = SDL_strchr(emissionVertsStart, '}');
         if (emissionVertsEnd) {
             int coordCount = 0;
             const char* parsePos = emissionVertsStart;
@@ -1571,7 +1578,7 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
                 }
 
                 char* parseEnd = nullptr;
-                float value = strtof(parsePos, &parseEnd);
+                float value = (float)SDL_strtod(parsePos, &parseEnd);
                 if (parseEnd == parsePos || parseEnd > emissionVertsEnd) {
                     break;
                 }
@@ -1656,31 +1663,31 @@ bool ImGuiManager::loadParticleConfigFromFile(const char* filename) {
     extractFloat("rotAccelerationMaxZ", cfg.rotAccelerationMaxZ);
 
     // Parse rotateWithVelocity boolean
-    const char* rotateWithVelSearch = strstr(contentPtr, "rotateWithVelocity");
+    const char* rotateWithVelSearch = SDL_strstr(contentPtr, "rotateWithVelocity");
     if (rotateWithVelSearch) {
-        const char* after = rotateWithVelSearch + strlen("rotateWithVelocity");
-        if (strncmp(after, " = ", 3) == 0) {
+        const char* after = rotateWithVelSearch + SDL_strlen("rotateWithVelocity");
+        if (SDL_strncmp(after, " = ", 3) == 0) {
             const char* valueStart = after + 3;
-            cfg.rotateWithVelocity = (strncmp(valueStart, "true", 4) == 0);
+            cfg.rotateWithVelocity = (SDL_strncmp(valueStart, "true", 4) == 0);
         }
     }
 
     // Parse texture names array: textureNames = {"name1.png", "name2.png"}
     editorState_.selectedTextureCount = 0;
-    const char* textureNamesStart = strstr(contentPtr, "textureNames = {");
+    const char* textureNamesStart = SDL_strstr(contentPtr, "textureNames = {");
     if (textureNamesStart) {
-        textureNamesStart += strlen("textureNames = {");
-        const char* textureNamesEnd = strchr(textureNamesStart, '}');
+        textureNamesStart += SDL_strlen("textureNames = {");
+        const char* textureNamesEnd = SDL_strchr(textureNamesStart, '}');
         if (textureNamesEnd) {
             // Parse each quoted string between the braces
             const char* pos = textureNamesStart;
             while (pos < textureNamesEnd && editorState_.selectedTextureCount < EDITOR_MAX_TEXTURES) {
                 // Find the next quoted string
-                const char* quoteStart = strchr(pos, '"');
+                const char* quoteStart = SDL_strchr(pos, '"');
                 if (!quoteStart || quoteStart >= textureNamesEnd) break;
                 quoteStart++; // Skip opening quote
 
-                const char* quoteEnd = strchr(quoteStart, '"');
+                const char* quoteEnd = SDL_strchr(quoteStart, '"');
                 if (!quoteEnd || quoteEnd >= textureNamesEnd) break;
 
                 // Copy the texture name (must have room for null terminator)
@@ -2165,7 +2172,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                     for (uint64_t j = i + 1; j < mergedCount; j++) {
                         bool swap = false;
                         if (sortColumn == 0) { // Sort by ID
-                            int cmp = strcmp(mergedStats[i].allocationId, mergedStats[j].allocationId);
+                            int cmp = SDL_strcmp(mergedStats[i].allocationId, mergedStats[j].allocationId);
                             swap = sortAscending ? (cmp > 0) : (cmp < 0);
                         } else if (sortColumn == 1) { // Sort by allocator (arbitrary - small first)
                             bool iHasSmall = mergedStats[i].smallCount > 0;
@@ -2192,7 +2199,7 @@ void ImGuiManager::showMemoryAllocatorWindow(MemoryAllocator* smallAllocator, Me
                 for (uint64_t i = 0; i < mergedCount; i++) {
                     // Apply search filter
                     if (searchBuffer[0] != '\0') {
-                        if (strstr(mergedStats[i].allocationId, searchBuffer) == nullptr) {
+                        if (SDL_strstr(mergedStats[i].allocationId, searchBuffer) == nullptr) {
                             continue;
                         }
                     }

@@ -1,47 +1,59 @@
-#include <SDL3/SDL.h>
-#include <cstdlib>
 #include <cstddef>
+
+extern "C" void* SDL_malloc(size_t);
+extern "C" void SDL_free(void*);
+
+extern "C" [[noreturn]] void my_exit(int status) {
+    register long rax __asm__("rax") = 60;
+    register long rdi __asm__("rdi") = status;
+    __asm__ volatile ("syscall" : : "r"(rax), "r"(rdi) : "rcx", "r11");
+    __builtin_unreachable();
+}
 
 namespace std {
 [[noreturn]] void __throw_bad_alloc() {
-    std::abort();
+    my_exit(1);
 }
 
 [[noreturn]] void __throw_bad_array_new_length() {
-    std::abort();
+    my_exit(1);
 }
 
 [[noreturn]] void __throw_length_error(const char*) {
-    std::abort();
+    my_exit(1);
 }
 
 [[noreturn]] void __throw_logic_error(const char*) {
-    std::abort();
+    my_exit(1);
 }
 
 [[noreturn]] void __throw_out_of_range(const char*) {
-    std::abort();
+    my_exit(1);
 }
 
 [[noreturn]] void __throw_out_of_range_fmt(const char*, ...) {
-    std::abort();
+    my_exit(1);
 }
 
 [[noreturn]] void __throw_runtime_error(const char*) {
-    std::abort();
+    my_exit(1);
 }
 
 [[noreturn]] void __throw_bad_function_call() {
-    std::abort();
+    my_exit(1);
 }
 
 [[noreturn]] void __throw_invalid_argument(const char*) {
-    std::abort();
+    my_exit(1);
 }
 }
 
 extern "C" [[noreturn]] void __cxa_throw_bad_array_new_length() {
-    std::abort();
+    my_exit(1);
+}
+
+extern "C" {
+__attribute__((visibility("hidden"))) void* __dso_handle = nullptr;
 }
 
 // These functions are given hidden visibility so they only apply to the application's
@@ -70,11 +82,11 @@ extern "C" __attribute__((visibility("hidden"))) int __cxa_atexit(void (*)(void*
 }
 
 extern "C" [[noreturn]] void __cxa_pure_virtual() {
-    std::abort();
+    my_exit(1);
 }
 
 extern "C" [[noreturn]] void __cxa_deleted_virtual() {
-    std::abort();
+    my_exit(1);
 }
 
 void* operator new(std::size_t size) {
@@ -83,7 +95,7 @@ void* operator new(std::size_t size) {
     }
     void* ptr = SDL_malloc(size);
     if (!ptr) {
-        std::abort();
+        my_exit(1);
     }
     return ptr;
 }
@@ -94,7 +106,7 @@ void* operator new[](std::size_t size) {
     }
     void* ptr = SDL_malloc(size);
     if (!ptr) {
-        std::abort();
+        my_exit(1);
     }
     return ptr;
 }
@@ -113,4 +125,67 @@ void operator delete(void* ptr, std::size_t) noexcept {
 
 void operator delete[](void* ptr, std::size_t) noexcept {
     SDL_free(ptr);
+}
+
+extern "C" __attribute__((visibility("hidden"))) char* strncpy(char* dest, const char* src, size_t n) {
+    char* d = dest;
+    while (n-- && (*d++ = *src++));
+    return dest;
+}
+
+extern "C" __attribute__((visibility("hidden"))) void __assert_fail(const char* assertion, const char* file, unsigned int line, const char* function) {
+    my_exit(1);
+}
+
+extern "C" __attribute__((visibility("hidden"))) const char* strrchr(const char* s, int c) {
+    const char* last = NULL;
+    while (*s) {
+        if (*s == c) last = s;
+        s++;
+    }
+    return last;
+}
+
+extern "C" __attribute__((visibility("hidden"))) int munmap(void* addr, size_t length) {
+    register long rax __asm__("rax") = 11;
+    register long rdi __asm__("rdi") = (long)addr;
+    register long rsi __asm__("rsi") = length;
+    __asm__ volatile ("syscall" : : "r"(rax), "r"(rdi), "r"(rsi) : "rcx", "r11");
+    return 0; // dummy
+}
+
+extern "C" __attribute__((visibility("hidden"))) void* memcpy(void* dest, const void* src, size_t n) {
+    unsigned char* d = static_cast<unsigned char*>(dest);
+    const unsigned char* s = static_cast<const unsigned char*>(src);
+    for (size_t i = 0; i < n; ++i) {
+        d[i] = s[i];
+    }
+    return dest;
+}
+
+extern "C" __attribute__((visibility("hidden"))) void* memset(void* dest, int value, size_t n) {
+    unsigned char* d = static_cast<unsigned char*>(dest);
+    const unsigned char byteValue = static_cast<unsigned char>(value);
+    for (size_t i = 0; i < n; ++i) {
+        d[i] = byteValue;
+    }
+    return dest;
+}
+
+extern "C" __attribute__((visibility("hidden"))) void* memmove(void* dest, const void* src, size_t n) {
+    char* d = (char*)dest;
+    const char* s = (const char*)src;
+    if (d < s) {
+        for (size_t i = 0; i < n; i++) d[i] = s[i];
+    } else {
+        for (size_t i = n; i > 0; i--) d[i-1] = s[i-1];
+    }
+    return dest;
+}
+
+int app_main();
+
+extern "C" void _start(void)
+{
+    app_main();
 }

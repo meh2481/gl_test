@@ -2,7 +2,6 @@
 #include "../core/ResourceTypes.h"
 #include "../scene/SceneLayer.h"
 #include "../debug/ConsoleBuffer.h"
-#include "../memory/FastMemcpy.h"
 #include <cassert>
 #include <SDL3/SDL_vulkan.h>
 
@@ -436,7 +435,7 @@ bool VulkanRenderer::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     const char* requiredExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     bool found = false;
     for (uint32_t i = 0; i < extensionCount; i++) {
-        if (strcmp(availableExtensions[i].extensionName, requiredExtensions[0]) == 0) {
+        if (SDL_strcmp(availableExtensions[i].extensionName, requiredExtensions[0]) == 0) {
             found = true;
             break;
         }
@@ -873,7 +872,7 @@ void VulkanRenderer::createVertexBuffer() {
     vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexBufferMemory, 0);
     void* data;
     vkMapMemory(m_device, m_vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-    fastMemcpy(data, vertices, (uint64_t)bufferInfo.size);
+    SDL_memcpy(data, vertices, (uint64_t)bufferInfo.size);
     vkUnmapMemory(m_device, m_vertexBufferMemory);
 }
 

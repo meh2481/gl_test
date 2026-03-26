@@ -63,6 +63,7 @@ private:
     void buildResourceIndexLocked();
 
     ResourceData m_pakData;
+    Vector<char> m_pakFileBuffer;
     HashTable<uint64_t, Vector<char>*> m_decompressedData;
     HashTable<uint64_t, ResourcePtr> m_resourceIndex;
     HashTable<uint64_t, ResourceData> m_loadedResourceData;
@@ -76,10 +77,4 @@ private:
     MemoryAllocator* m_allocator;
     ConsoleBuffer* m_consoleBuffer;
 
-#ifdef _WIN32
-    HANDLE m_hFile;
-    HANDLE m_hMapping;
-#else
-    int m_fd;
-#endif
 };

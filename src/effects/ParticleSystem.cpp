@@ -1,6 +1,4 @@
 #include "ParticleSystem.h"
-#include "../memory/FastMemset.h"
-#include "../memory/FastMemcpy.h"
 #include "../core/TrigLookup.h"
 #include "../memory/SmallMemoryAllocator.h"
 #include "../debug/ThreadProfiler.h"
@@ -279,8 +277,8 @@ void ParticleSystemManager::growSystemArrays() {
     assert(newSystems != nullptr && newIds != nullptr);
 
     if (systemCount_ > 0) {
-        fastMemcpy(newSystems, systems_, systemCount_ * sizeof(ParticleSystem));
-        fastMemcpy(newIds, systemIds_, systemCount_ * sizeof(int));
+        SDL_memcpy(newSystems, systems_, systemCount_ * sizeof(ParticleSystem));
+        SDL_memcpy(newIds, systemIds_, systemCount_ * sizeof(int));
     }
 
     allocator_->free(systems_);
@@ -302,7 +300,7 @@ int ParticleSystemManager::createSystem(const ParticleEmitterConfig& config, int
     systemIds_[index] = id;
 
     ParticleSystem& system = systems_[index];
-    fastZeroMem(&system, sizeof(ParticleSystem));
+    SDL_memset(&system, 0, sizeof(ParticleSystem));
 
     // Copy configuration
     system.config = config;

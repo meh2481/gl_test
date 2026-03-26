@@ -2,7 +2,6 @@
 #include "../core/ResourceTypes.h"
 #include "../core/HashSet.h"
 #include "../debug/ConsoleBuffer.h"
-#include "../memory/FastMemcpy.h"
 #include <cassert>
 #include <SDL3/SDL_log.h>
 
@@ -83,7 +82,7 @@ void VulkanTexture::createTextureImage(uint64_t textureId, const void* imageData
     // Copy image data to staging buffer
     void* data;
     vkMapMemory(m_device, stagingBufferMemory, 0, dataSize, 0, &data);
-    fastMemcpy(data, imageData, dataSize);
+    SDL_memcpy(data, imageData, dataSize);
     vkUnmapMemory(m_device, stagingBufferMemory);
 
     // Create image

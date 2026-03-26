@@ -1,6 +1,5 @@
 #include "VulkanLight.h"
-#include "../memory/FastMemset.h"
-#include "../memory/FastMemcpy.h"
+#include <SDL3/SDL_stdinc.h>
 #include <cassert>
 
 VulkanLight::VulkanLight(MemoryAllocator* allocator) :
@@ -16,7 +15,7 @@ VulkanLight::VulkanLight(MemoryAllocator* allocator) :
     m_allocator(allocator)
 {
     assert(m_allocator != nullptr);
-    fastZeroMem(&m_lightBufferData, sizeof(m_lightBufferData));
+    SDL_memset(&m_lightBufferData, 0, sizeof(m_lightBufferData));
     m_lightBufferData.numLights = 0;
     m_lightBufferData.ambientR = 0.1f;
     m_lightBufferData.ambientG = 0.1f;
@@ -95,7 +94,7 @@ void VulkanLight::createLightUniformBuffer() {
 }
 
 void VulkanLight::updateLightUniformBuffer() {
-    fastMemcpy(m_lightUniformBufferMapped, &m_lightBufferData, sizeof(LightBufferData));
+    SDL_memcpy(m_lightUniformBufferMapped, &m_lightBufferData, sizeof(LightBufferData));
     m_lightBufferDirty = false;
 }
 

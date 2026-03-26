@@ -6,17 +6,9 @@
 #include <cassert>
 #include <lz4.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
-
 PakResource::PakResource(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
     : m_pakData{nullptr, 0}
+    , m_pakFileBuffer(*allocator, "PakResource::m_pakFileBuffer")
     , m_decompressedData(*allocator, "PakResource::m_decompressedData")
     , m_resourceIndex(*allocator, "PakResource::m_resourceIndex")
     , m_loadedResourceData(*allocator, "PakResource::m_loadedResourceData")
@@ -28,12 +20,6 @@ PakResource::PakResource(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffe
     , m_workerRunning(true)
     , m_allocator(allocator)
     , m_consoleBuffer(consoleBuffer)
-#ifdef _WIN32
-    , m_hFile(INVALID_HANDLE_VALUE)
-    , m_hMapping(NULL)
-#else
-    , m_fd(-1)
-#endif
 {
     assert(m_allocator != nullptr);
     assert(m_consoleBuffer != nullptr);
@@ -74,16 +60,8 @@ PakResource::~PakResource() {
     m_loadedResourceData.clear();
     m_resourceStates.clear();
     m_requestQueue.clear();
-    if (m_pakData.data) {
-#ifdef _WIN32
-        if (m_pakData.data) UnmapViewOfFile(m_pakData.data);
-        if (m_hMapping) CloseHandle(m_hMapping);
-        if (m_hFile != INVALID_HANDLE_VALUE) CloseHandle(m_hFile);
-#else
-        munmap(m_pakData.data, m_pakData.size);
-        if (m_fd != -1) close(m_fd);
-#endif
-    }
+    m_pakFileBuffer.clear();
+    m_pakData = {nullptr, 0};
     if (m_mutex) {
         SDL_DestroyMutex(m_mutex);
     }
@@ -91,43 +69,28 @@ PakResource::~PakResource() {
 
 bool PakResource::load(const char* filename) {
     if (m_pakData.data) return true; // already loaded
-#ifdef _WIN32
-    m_hFile = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (m_hFile == INVALID_HANDLE_VALUE) return false;
-    DWORD size = GetFileSize(m_hFile, NULL);
-    m_hMapping = CreateFileMapping(m_hFile, NULL, PAGE_READONLY, 0, 0, NULL);
-    if (!m_hMapping) {
-        CloseHandle(m_hFile);
-        m_hFile = INVALID_HANDLE_VALUE;
+
+    SDL_IOStream* file = SDL_IOFromFile(filename, "rb");
+    if (!file) {
         return false;
     }
-    void* addr = MapViewOfFile(m_hMapping, FILE_MAP_READ, 0, 0, 0);
-    if (!addr) {
-        CloseHandle(m_hMapping);
-        m_hMapping = NULL;
-        CloseHandle(m_hFile);
-        m_hFile = INVALID_HANDLE_VALUE;
+
+    Sint64 fileSize = SDL_GetIOSize(file);
+    if (fileSize <= 0) {
+        SDL_CloseIO(file);
         return false;
     }
-    m_pakData = ResourceData{(char*)addr, size};
-#else
-    m_fd = open(filename, O_RDONLY);
-    if (m_fd == -1) return false;
-    struct stat sb;
-    if (fstat(m_fd, &sb) == -1) {
-        close(m_fd);
-        m_fd = -1;
+
+    m_pakFileBuffer.resize((uint64_t)fileSize);
+    uint64_t bytesRead = SDL_ReadIO(file, m_pakFileBuffer.data(), (uint64_t)fileSize);
+    SDL_CloseIO(file);
+
+    if (bytesRead != (uint64_t)fileSize) {
+        m_pakFileBuffer.clear();
         return false;
     }
-    uint64_t size = sb.st_size;
-    void* addr = mmap(NULL, size, PROT_READ, MAP_PRIVATE, m_fd, 0);
-    if (addr == MAP_FAILED) {
-        close(m_fd);
-        m_fd = -1;
-        return false;
-    }
-    m_pakData = ResourceData{(char*)addr, size};
-#endif
+
+    m_pakData = ResourceData{m_pakFileBuffer.data(), (uint64_t)fileSize, 0};
 
     SDL_LockMutex(m_mutex);
     buildResourceIndexLocked();
@@ -142,17 +105,7 @@ bool PakResource::reload(const char* filename) {
     clearResourceCacheLocked();
 
     if (m_pakData.data) {
-#ifdef _WIN32
-        UnmapViewOfFile(m_pakData.data);
-        if (m_hMapping) CloseHandle(m_hMapping);
-        if (m_hFile != INVALID_HANDLE_VALUE) CloseHandle(m_hFile);
-        m_hFile = INVALID_HANDLE_VALUE;
-        m_hMapping = NULL;
-#else
-        munmap(m_pakData.data, m_pakData.size);
-        if (m_fd != -1) close(m_fd);
-        m_fd = -1;
-#endif
+        m_pakFileBuffer.clear();
         m_pakData = {nullptr, 0};
     }
 
@@ -186,7 +139,7 @@ void PakResource::buildResourceIndexLocked() {
     }
 
     PakFileHeader* header = (PakFileHeader*)m_pakData.data;
-    if (memcmp(header->sig, "PAKC", 4) != 0) {
+    if (SDL_memcmp(header->sig, "PAKC", 4) != 0) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Invalid pak file signature");
         return;
     }

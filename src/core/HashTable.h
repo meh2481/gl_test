@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../memory/FastMemset.h"
+#include <SDL3/SDL_stdinc.h>
 #include "../memory/MemoryAllocator.h"
 #include <cstdint>
 #include <cassert>
@@ -273,7 +273,7 @@ public:
     // Clear all entries
     void clear() {
         if (occupied_) {
-            fastZeroMem(occupied_, capacity_ * sizeof(bool));
+            SDL_memset(occupied_, 0, capacity_ * sizeof(bool));
         }
         size_ = 0;
     }
@@ -294,7 +294,7 @@ public:
         assert(newValues != nullptr);
         assert(newOccupied != nullptr);
 
-        fastZeroMem(newOccupied, n * sizeof(bool));
+        SDL_memset(newOccupied, 0, n * sizeof(bool));
 
         // Rehash existing entries into new arrays
         if (keys_ && values_ && occupied_) {

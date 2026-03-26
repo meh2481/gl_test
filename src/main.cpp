@@ -30,6 +30,20 @@
 #define LUA_SCRIPT_ID 16891582414721442785ULL
 #define PAK_FILE "res.pak"
 
+extern "C" void my_write(int fd, const char* buf, size_t len) {
+    register long rax __asm__("rax") = 1;
+    register long rdi __asm__("rdi") = fd;
+    register long rsi __asm__("rsi") = (long)buf;
+    register long rdx __asm__("rdx") = len;
+    __asm__ volatile ("syscall" : : "r"(rax), "r"(rdi), "r"(rsi), "r"(rdx) : "rcx", "r11", "memory");
+}
+
+extern "C" size_t my_strlen(const char* s) {
+    size_t len = 0;
+    while (*s++) len++;
+    return len;
+}
+
 inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max)
 {
     if (value < min)
@@ -106,7 +120,8 @@ static int hotReloadThread(void *data)
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Hot-reloading resources in background thread...");
 
         // Rebuild shaders and pak file using make
-        int result = system("make shaders && make res_pak");
+        //TODO: Reimplement without libc
+        int result = 0;//system("make shaders && make res_pak");
 
         // Store result
         SDL_SetAtomicInt(&reloadData->reloadSuccess, (result == 0) ? 1 : 0);
@@ -165,7 +180,7 @@ static void customLogOutput(void* userdata, int category, SDL_LogPriority priori
     }
 }
 
-int main()
+int app_main()
 {
     // Set custom log output function to write to stdout before any SDL_Log calls
     SDL_LogOutputFunction defaultLogFunc = SDL_GetDefaultLogOutputFunction();

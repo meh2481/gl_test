@@ -1,6 +1,4 @@
 #include "VulkanWaterPolygon.h"
-#include "../memory/FastMemset.h"
-#include "../memory/FastMemcpy.h"
 #include <SDL3/SDL_log.h>
 #include <cassert>
 
@@ -16,7 +14,7 @@ VulkanWaterPolygon::VulkanWaterPolygon(MemoryAllocator* allocator, ConsoleBuffer
 {
     assert(m_allocator != nullptr);
     assert(m_consoleBuffer != nullptr);
-    fastZeroMem(&m_bufferData, sizeof(m_bufferData));
+    SDL_memset(&m_bufferData, 0, sizeof(m_bufferData));
     m_bufferData.vertexCount = 0;
 }
 
@@ -124,5 +122,5 @@ void VulkanWaterPolygon::updateUniformBuffer(const float* vertices, int vertexCo
         }
     }
 
-    fastMemcpy(m_uniformBufferMapped, &m_bufferData, sizeof(WaterPolygonBufferData));
+    SDL_memcpy(m_uniformBufferMapped, &m_bufferData, sizeof(WaterPolygonBufferData));
 }

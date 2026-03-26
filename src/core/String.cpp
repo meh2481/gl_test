@@ -13,7 +13,7 @@ String::String(MemoryAllocator* allocator) : data_(nullptr), length_(0), capacit
 // Constructor from C-string
 String::String(const char* str, MemoryAllocator* allocator) : data_(nullptr), length_(0), capacity_(0), allocator_(allocator) {
     if (str) {
-        length_ = strlen(str);
+        length_ = SDL_strlen(str);
         if (length_ > 0) {
             ensureCapacity(length_);
             strcpy(data_, str);
@@ -96,7 +96,7 @@ String& String::operator=(String&& other) noexcept {
 String& String::operator=(const char* str) {
     clear();
     if (str) {
-        length_ = strlen(str);
+        length_ = SDL_strlen(str);
         if (length_ > 0) {
             ensureCapacity(length_);
             strcpy(data_, str);
@@ -109,14 +109,14 @@ String& String::operator=(const char* str) {
 bool String::operator==(const String& other) const {
     if (length_ != other.length_) return false;
     if (length_ == 0) return true;
-    return strcmp(data_, other.data_) == 0;
+    return SDL_strcmp(data_, other.data_) == 0;
 }
 
 // Equality comparison with C-string
 bool String::operator==(const char* str) const {
     if (!str) return length_ == 0;
-    if (length_ == 0) return strlen(str) == 0;
-    return strcmp(data_, str) == 0;
+    if (length_ == 0) return SDL_strlen(str) == 0;
+    return SDL_strcmp(data_, str) == 0;
 }
 
 // Inequality comparison with String
@@ -134,7 +134,7 @@ bool String::operator<(const String& other) const {
     if (length_ == 0 && other.length_ == 0) return false;
     if (length_ == 0) return true;
     if (other.length_ == 0) return false;
-    return strcmp(data_, other.data_) < 0;
+    return SDL_strcmp(data_, other.data_) < 0;
 }
 
 // Greater than comparison
@@ -175,7 +175,7 @@ String String::operator+(const char* str) const {
     if (!str) {
         return *this;
     }
-    uint64_t strLen = strlen(str);
+    uint64_t strLen = SDL_strlen(str);
     if (strLen == 0) {
         return *this;
     }
@@ -203,7 +203,7 @@ String& String::operator+=(const String& other) {
 // Append C-string
 String& String::operator+=(const char* str) {
     if (str) {
-        uint64_t strLen = strlen(str);
+        uint64_t strLen = SDL_strlen(str);
         if (strLen > 0) {
             uint64_t newLength = length_ + strLen;
             ensureCapacity(newLength);
@@ -308,7 +308,7 @@ uint64_t String::find(const char* str, uint64_t pos) const {
     if (!str || pos >= length_) {
         return npos;
     }
-    uint64_t strLen = strlen(str);
+    uint64_t strLen = SDL_strlen(str);
     if (strLen == 0 || strLen > length_ - pos) {
         return npos;
     }
@@ -340,8 +340,8 @@ uint64_t String::find(char c, uint64_t pos) const {
     return npos;
 }
 
-// Static strlen
-uint64_t String::strlen(const char* str) {
+// Static SDL_strlen
+uint64_t String::SDL_strlen(const char* str) {
     if (!str) return 0;
     uint64_t len = 0;
     while (str[len] != '\0') {
@@ -350,8 +350,8 @@ uint64_t String::strlen(const char* str) {
     return len;
 }
 
-// Static strcmp
-int String::strcmp(const char* s1, const char* s2) {
+// Static SDL_strcmp
+int String::SDL_strcmp(const char* s1, const char* s2) {
     assert(s1 != nullptr && s2 != nullptr);
     uint64_t i = 0;
     while (s1[i] != '\0' && s2[i] != '\0') {
