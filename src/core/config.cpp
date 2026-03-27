@@ -4,12 +4,15 @@
 
 // ConfigManager implementation
 
-ConfigManager::ConfigManager() : entryCount(0) {
+ConfigManager::ConfigManager() : entryCount(0), commentCount(0) {
     configFilePath[0] = '\0';
     for (int i = 0; i < MAX_CONFIG_ENTRIES; i++) {
         entries[i].section[0] = '\0';
         entries[i].key[0] = '\0';
         entries[i].value[0] = '\0';
+        comments[i].section[0] = '\0';
+        comments[i].key[0] = '\0';
+        comments[i].comment[0] = '\0';
     }
 }
 
@@ -39,6 +42,16 @@ int ConfigManager::findEntry(const char* section, const char* key) {
     for (int i = 0; i < entryCount; i++) {
         if (SDL_strcmp(entries[i].section, section) == 0 &&
             SDL_strcmp(entries[i].key, key) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int ConfigManager::findComment(const char* section, const char* key) {
+    for (int i = 0; i < commentCount; i++) {
+        if (SDL_strcmp(comments[i].section, section) == 0 &&
+            SDL_strcmp(comments[i].key, key) == 0) {
             return i;
         }
     }
@@ -172,10 +185,16 @@ bool ConfigManager::save() {
             }
         }
 
-        // Write helpful comments before certain keys
-        if (SDL_strcmp(entries[i].key, "present_mode") == 0) {
-            const char* comment = "; Vulkan present mode: fifo (vsync), mailbox (triple-buffered uncapped fps), immediate (no buffering), fifo_relaxed (good for low spec)\n";
-            SDL_WriteIO(file, comment, SDL_strlen(comment));
+        // Write comment for key if registered
+        int commentIndex = findComment(entries[i].section, entries[i].key);
+        if (commentIndex >= 0 && comments[commentIndex].comment[0] != '\0') {
+            SDL_WriteIO(file, comments[commentIndex].comment, SDL_strlen(comments[commentIndex].comment));
+
+            Uint64 commentLength = SDL_strlen(comments[commentIndex].comment);
+            if (commentLength > 0 && comments[commentIndex].comment[commentLength - 1] != '\n') {
+                const char* newline = "\n";
+                SDL_WriteIO(file, newline, SDL_strlen(newline));
+            }
         }
 
         // Write key=value
@@ -223,6 +242,24 @@ void ConfigManager::setInt(const char* section, const char* key, int value) {
     char valueStr[32];
     SDL_snprintf(valueStr, sizeof(valueStr), "%d", value);
     setString(section, key, valueStr);
+}
+
+void ConfigManager::setKeyComment(const char* section, const char* key, const char* comment) {
+    if (!section || section[0] == '\0' || !key || key[0] == '\0') {
+        return;
+    }
+
+    int index = findComment(section, key);
+    if (index >= 0) {
+        SDL_strlcpy(comments[index].comment, comment ? comment : "", MAX_CONFIG_LINE);
+        return;
+    }
+
+    assert(commentCount < MAX_CONFIG_ENTRIES);
+    SDL_strlcpy(comments[commentCount].section, section, MAX_CONFIG_KEY);
+    SDL_strlcpy(comments[commentCount].key, key, MAX_CONFIG_KEY);
+    SDL_strlcpy(comments[commentCount].comment, comment ? comment : "", MAX_CONFIG_LINE);
+    commentCount++;
 }
 
 const char* parsePresentModeString(const char* modeString) {
@@ -288,6 +325,7 @@ void saveConfig(const Config& config) {
         }
         manager.setInt("Graphics", "gpu_index", config.gpuIndex);
         manager.setString("Graphics", "present_mode", getActivePresentModeString(config.presentMode));
+        manager.setKeyComment("Graphics", "present_mode", "; Vulkan present mode: fifo (vsync), mailbox (triple-buffered uncapped fps), immediate (no buffering), fifo_relaxed (good for low spec)");
         manager.save();
     }
 }

@@ -34,12 +34,21 @@ private:
         char value[MAX_CONFIG_VALUE];
     };
 
+    struct ConfigComment {
+        char section[MAX_CONFIG_KEY];
+        char key[MAX_CONFIG_KEY];
+        char comment[MAX_CONFIG_LINE];
+    };
+
     ConfigEntry entries[MAX_CONFIG_ENTRIES];
     int entryCount;
+    ConfigComment comments[MAX_CONFIG_ENTRIES];
+    int commentCount;
     char configFilePath[1024];
 
     void trimWhitespace(char* str);
     int findEntry(const char* section, const char* key);
+    int findComment(const char* section, const char* key);
 
 public:
     ConfigManager();
@@ -61,6 +70,9 @@ public:
 
     // Write an integer value to a section
     void setInt(const char* section, const char* key, int value);
+
+    // Register a comment to be written before a specific section/key entry
+    void setKeyComment(const char* section, const char* key, const char* comment);
 };
 
 // Legacy functions for backward compatibility
