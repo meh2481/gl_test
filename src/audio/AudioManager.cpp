@@ -54,7 +54,7 @@ AudioManager::AudioManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
     pendingDecodeJob_(nullptr), completedDecodeJob_(nullptr)
 {
     assert(allocator_ != nullptr);
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: Using shared memory allocator");
+    consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "AudioManager: Using shared memory allocator");
 
     // Initialize arrays
     for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
@@ -149,10 +149,10 @@ void AudioManager::initialize() {
 
     // Check for EFX support
     if (alcIsExtensionPresent(device, "ALC_EXT_EFX")) {
-consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "OpenAL EFX extension supported");
+        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "OpenAL EFX extension supported");
         initializeEFX();
     } else {
-consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "OpenAL EFX extension not supported - effects disabled");
+        consoleBuffer_->log(SDL_LOG_PRIORITY_WARN, "OpenAL EFX extension not supported - effects disabled");
         efxSupported = false;
     }
 
@@ -242,10 +242,10 @@ void AudioManager::initializeEFX() {
             (alIsEffect == nullptr || alIsEffect(effect)) &&
             (alIsFilter == nullptr || alIsFilter(filter))) {
             efxSupported = true;
-consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "EFX initialized successfully");
+            consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "EFX initialized successfully");
         } else {
             efxSupported = false;
-consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "EFX initialization failed");
+            consoleBuffer_->log(SDL_LOG_PRIORITY_WARN, "EFX initialization failed");
         }
     } else {
         efxSupported = false;

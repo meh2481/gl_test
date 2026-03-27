@@ -77,7 +77,7 @@ Box2DPhysics::Box2DPhysics(MemoryAllocator* smallAllocator, MemoryAllocator* lar
     assert(stringAllocator_ != nullptr);
     assert(layerManager_ != nullptr);
     assert(trigLookup_ != nullptr);
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Box2DPhysics: Using shared memory allocator and layer manager");
+    consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "Box2DPhysics: Using shared memory allocator and layer manager");
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){0.0f, -10.0f};
     worldDef.hitEventThreshold = 0.0f;

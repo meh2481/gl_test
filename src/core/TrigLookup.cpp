@@ -59,7 +59,7 @@ bool TrigLookup::load(PakResource* pakResource) {
     assert(m_numEntries > 0);
     assert(m_angleStep > 0.0f);
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "TrigLookup: Loading table with %u entries, step=%f rad",
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "TrigLookup: Loading table with %u entries, step=%f rad",
                         m_numEntries, m_angleStep);
 
     // Expected data size: header + sin table + cos table
@@ -85,7 +85,7 @@ bool TrigLookup::load(PakResource* pakResource) {
     SDL_memcpy(m_sinTable, sinData, tableSize);
     SDL_memcpy(m_cosTable, cosData, tableSize);
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "TrigLookup: Successfully loaded trig lookup table");
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "TrigLookup: Successfully loaded trig lookup table");
     return true;
 }
 

@@ -91,7 +91,6 @@ function init()
     }
     local polyNodeId = createNode("poly_test", {vertices = polyNodeVertices})
     local polyX, polyY = getNodePosition(polyNodeId)
-    print("Polygon node created at position: (" .. polyX .. ", " .. polyY .. ")")
 
     -- Load objects
     table.insert(objects, loadObject("res/objects/lantern/lantern.lua", { x = -0.605, y = 0.7 }))

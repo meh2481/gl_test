@@ -468,7 +468,7 @@ void VulkanPipeline::createFadePipeline(const ResourceData& vertShader, const Re
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Created fade overlay pipeline");
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Created fade overlay pipeline");
 }
 
 void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {

@@ -339,7 +339,7 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
             return;
         }
 
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Texture %llu: uploading to GPU (%dx%d, %s, %zu bytes)",
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Texture %llu: uploading to GPU (%dx%d, %s, %zu bytes)",
                              (unsigned long long)textureId, width, height, formatStr, compressedSize);
         createTextureImage(textureId, compressedData, width, height, vkFormat, compressedSize);
         createTextureSampler(textureId);
@@ -381,7 +381,7 @@ void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlas
         return;
     }
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Atlas %llu: uploading to GPU (%dx%d, %s, %d entries, %zu bytes)",
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Atlas %llu: uploading to GPU (%dx%d, %s, %d entries, %zu bytes)",
                          (unsigned long long)atlasId, width, height, formatStr, numEntries, compressedSize);
     createTextureImage(atlasId, compressedData, width, height, vkFormat, compressedSize);
     createTextureSampler(atlasId);
@@ -576,5 +576,5 @@ void VulkanTexture::createRenderTargetTexture(uint64_t textureId, uint32_t width
 
     m_textures.insert(textureId, tex);
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Created render target texture %llu (%dx%d)", (unsigned long long)textureId, width, height);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Created render target texture %llu (%dx%d)", (unsigned long long)textureId, width, height);
 }

@@ -774,5 +774,5 @@ void VulkanDescriptor::createWaterDescriptorSet(uint64_t texture1Id, uint64_t te
 
     vkUpdateDescriptorSets(m_device, 3, descriptorWrites, 0, nullptr);
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Created water descriptor set with 3 bindings (2 textures + polygon uniform buffer)");
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_TRACE, "Created water descriptor set with 3 bindings (2 textures + polygon uniform buffer)");
 }

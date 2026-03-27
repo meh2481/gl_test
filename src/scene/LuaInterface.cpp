@@ -45,7 +45,7 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
     assert(particleManager_ != nullptr);
     assert(waterEffectManager_ != nullptr);
     assert(animationEngine_ != nullptr);
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "LuaInterface: Using shared memory allocator and pre-created managers");
+    consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "LuaInterface: Using shared memory allocator and pre-created managers");
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;
@@ -1148,7 +1148,7 @@ int LuaInterface::loadShaders(lua_State* L) {
     uint64_t vertId = hashCString(vertFile);
     uint64_t fragId = hashCString(fragFile);
 
-    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading shaders: %s, %s (z-index: %d)", vertFile, fragFile, zIndex);
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "Loading shaders: %s, %s (z-index: %d)", vertFile, fragFile, zIndex);
 
     // Get shader data from pak file
     ResourceData vertShader{nullptr, 0, 0};
@@ -2615,7 +2615,7 @@ int LuaInterface::loadTexture(lua_State* L) {
     } else {
         // Standalone image - load directly
         if (interface->consoleBuffer_) {
-            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "  -> Standalone texture");
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "  -> Standalone texture");
         }
         interface->renderer_.loadTexture(textureId, imageData);
     }
@@ -3708,7 +3708,7 @@ int LuaInterface::loadObject(lua_State* L) {
 
     const char* filename = lua_tostring(L, 1);
 
-    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading object: %s", filename);
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Loading object: %s", filename);
 
     // Hash the filename to get resource ID
     uint64_t resourceId = hashCString(filename);
@@ -4223,16 +4223,16 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to create water layer");
         // Set the layer to render as a polygon with the rotated vertices
         layerManager_->setLayerPolygon(waterLayerId, rotatedVertices, uvs, nullptr, config.vertexCount);
 
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water polygon layer setup: %d vertices", config.vertexCount);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "Water polygon layer setup: %d vertices", config.vertexCount);
     }
 
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
 
     // 10. Associate the water shader and layer with the water force field
     waterFieldShaderMap_.insert(waterFieldId, waterShaderId);
     waterFieldLayerMap_.insert(waterFieldId, waterLayerId);
 
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "Water visual setup complete: layer=%d shader=%d field=%d", waterLayerId, waterShaderId, waterFieldId);
 }
 
 int LuaInterface::b2AddBodyType(lua_State* L) {

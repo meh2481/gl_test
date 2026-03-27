@@ -552,7 +552,7 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
             selectedIndex = preferredGpuIndex;
             m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Using user-specified GPU at index %d", preferredGpuIndex);
         } else {
-            m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Warning: User-specified GPU at index %d is not suitable, falling back to auto-selection", preferredGpuIndex);
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_WARN, "Warning: User-specified GPU at index %d is not suitable, falling back to auto-selection", preferredGpuIndex);
         }
     }
 
@@ -1063,7 +1063,7 @@ void VulkanRenderer::updateWaterPolygonVertices(const float* vertices, int verte
 }
 
 void VulkanRenderer::createWaterDescriptorSet(uint64_t primaryTextureId, uint64_t reflectionTextureId) {
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Creating water descriptor set with primary texture %llu and reflection texture %llu",
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_TRACE, "Creating water descriptor set with primary texture %llu and reflection texture %llu",
                         (unsigned long long)primaryTextureId, (unsigned long long)reflectionTextureId);
     m_descriptorManager.createWaterDescriptorSet(primaryTextureId, reflectionTextureId,
                                                  m_waterPolygonManager.getUniformBuffer(),
@@ -1708,7 +1708,7 @@ void VulkanRenderer::enableReflection(float surfaceY) {
     createReflectionResources();
     m_reflectionEnabled = true;
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Reflection enabled at surface Y=%f", surfaceY);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_TRACE, "Reflection enabled at surface Y=%f", surfaceY);
 }
 
 void VulkanRenderer::disableReflection() {
@@ -1719,7 +1719,7 @@ void VulkanRenderer::disableReflection() {
     destroyReflectionResources();
     m_reflectionEnabled = false;
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Reflection disabled");
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_TRACE, "Reflection disabled");
 }
 
 void VulkanRenderer::createReflectionResources() {
@@ -1791,7 +1791,7 @@ void VulkanRenderer::createReflectionResources() {
         assert(result == VK_SUCCESS);
     }
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Created reflection resources: %dx%d", m_swapchainExtent.width, m_swapchainExtent.height);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_TRACE, "Created reflection resources: %dx%d", m_swapchainExtent.width, m_swapchainExtent.height);
 }
 
 void VulkanRenderer::destroyReflectionResources() {

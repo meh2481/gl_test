@@ -48,7 +48,7 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
     assert(trigLookup_ != nullptr);
     assert(animationEngine_ != nullptr);
 
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Received all managers and LuaInterface from main.cpp");
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "SceneManager: Received all managers and LuaInterface from main.cpp");
     consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "SceneManager: Default transition times: fadeOut=%.3fs, fadeIn=%.3fs", fadeOutTime_, fadeInTime_);
 
     renderPrepBuffers_[0] = (RenderPrepOutput*)allocator_->allocate(sizeof(RenderPrepOutput), "SceneManager::renderPrepBuffer0");
@@ -65,7 +65,7 @@ SceneManager::SceneManager(MemoryAllocator* allocator, PakResource& pakResource,
     assert(renderPrepThread_ != nullptr);
 
     // Load and create fade overlay pipeline
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Loading fade overlay shaders");
+    consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "SceneManager: Loading fade overlay shaders");
     ensureFadePipelineReady();
 }
 
@@ -258,7 +258,7 @@ void SceneManager::buildParticleBatches(Vector<ParticleBatch>& particleBatches) 
 void SceneManager::pushScene(uint64_t sceneId) {
     // If we're not currently in a transition and there's an active scene, start fade-out
     if (transitionState_ == TRANSITION_NONE && !sceneStack_.empty()) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Starting fade-out transition for scene push");
+        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "SceneManager: Starting fade-out transition for scene push");
         transitionState_ = TRANSITION_FADE_OUT;
         transitionTimer_ = 0.0f;
         pendingSceneId_ = sceneId;
@@ -271,7 +271,7 @@ void SceneManager::pushScene(uint64_t sceneId) {
 
     // Load the scene if not already loaded
     if (!loadedScenes_.contains(sceneId)) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading scene %llu", (unsigned long long)sceneId);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Loading scene %llu", (unsigned long long)sceneId);
         pakResource_.requestResourceAsync(sceneId);
         ResourceData sceneScript{nullptr, 0, 0};
         bool ready = pakResource_.tryGetResource(sceneId, sceneScript);
@@ -287,7 +287,7 @@ void SceneManager::pushScene(uint64_t sceneId) {
 
     // Initialize the scene if not already initialized
     if (!initializedScenes_.contains(sceneId)) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Initializing scene %llu", (unsigned long long)sceneId);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Initializing scene %llu", (unsigned long long)sceneId);
         luaInterface_->initScene(sceneId);
         initializedScenes_.insert(sceneId);
     }
@@ -296,7 +296,7 @@ void SceneManager::pushScene(uint64_t sceneId) {
     luaInterface_->switchToScenePipeline(sceneId);
 
     // Start fade-in transition
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Starting fade-in transition");
+    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "SceneManager: Starting fade-in transition");
     transitionState_ = TRANSITION_FADE_IN;
     transitionTimer_ = 0.0f;
     pendingScenePush_ = false;
@@ -306,7 +306,7 @@ void SceneManager::popScene() {
     if (!sceneStack_.empty()) {
         // If we're not in a transition, start fade-out
         if (transitionState_ == TRANSITION_NONE) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Starting fade-out transition for scene pop");
+            consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "SceneManager: Starting fade-out transition for scene pop");
             transitionState_ = TRANSITION_FADE_OUT;
             transitionTimer_ = 0.0f;
             pendingPop_ = true;
@@ -500,7 +500,7 @@ void SceneManager::ensureFadePipelineReady() {
 
     renderer_.createFadePipeline(fadeVertShader, fadeFragShader);
     fadePipelineReady_ = true;
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Fade overlay pipeline ready");
+    consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "SceneManager: Fade overlay pipeline ready");
 }
 
 void SceneManager::handleAction(Action action) {
@@ -560,7 +560,7 @@ void SceneManager::setTransitionFadeTime(float fadeOutTime, float fadeInTime) {
     assert(fadeInTime >= 0.0f);
     fadeOutTime_ = fadeOutTime;
     fadeInTime_ = fadeInTime;
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Transition times set: fadeOut=%.3fs, fadeIn=%.3fs", fadeOutTime_, fadeInTime_);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "SceneManager: Transition times set: fadeOut=%.3fs, fadeIn=%.3fs", fadeOutTime_, fadeInTime_);
 }
 
 void SceneManager::setTransitionColor(float r, float g, float b) {
@@ -570,7 +570,7 @@ void SceneManager::setTransitionColor(float r, float g, float b) {
     fadeColorR_ = r;
     fadeColorG_ = g;
     fadeColorB_ = b;
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Transition color set: RGB(%.3f, %.3f, %.3f)", r, g, b);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "SceneManager: Transition color set: RGB(%.3f, %.3f, %.3f)", r, g, b);
 }
 
 void SceneManager::updateTransition(float deltaTime) {
@@ -591,17 +591,17 @@ void SceneManager::updateTransition(float deltaTime) {
 
         if (fadeProgress >= 1.0f) {
             // Fade-out complete
-            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Fade-out complete");
+            consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "SceneManager: Fade-out complete");
 
             // Handle pending scene change
             if (pendingScenePush_) {
                 // Complete the push operation
                 uint64_t sceneId = pendingSceneId_;
-                consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Pushing scene %llu after fade-out", (unsigned long long)sceneId);
+                consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "SceneManager: Pushing scene %llu after fade-out", (unsigned long long)sceneId);
 
                 // Load the scene if not already loaded
                 if (!loadedScenes_.contains(sceneId)) {
-                    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Loading scene %llu", (unsigned long long)sceneId);
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Loading scene %llu", (unsigned long long)sceneId);
                     pakResource_.requestResourceAsync(sceneId);
                     ResourceData sceneScript{nullptr, 0, 0};
                     bool ready = pakResource_.tryGetResource(sceneId, sceneScript);
@@ -617,7 +617,7 @@ void SceneManager::updateTransition(float deltaTime) {
 
                 // Initialize the scene if not already initialized
                 if (!initializedScenes_.contains(sceneId)) {
-                    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "Initializing scene %llu", (unsigned long long)sceneId);
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Initializing scene %llu", (unsigned long long)sceneId);
                     luaInterface_->initScene(sceneId);
                     initializedScenes_.insert(sceneId);
                 }
@@ -656,7 +656,7 @@ void SceneManager::updateTransition(float deltaTime) {
             // Start fade-in
             transitionState_ = TRANSITION_FADE_IN;
             transitionTimer_ = 0.0f;
-            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Starting fade-in transition");
+            consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "SceneManager: Starting fade-in transition");
         }
     } else if (transitionState_ == TRANSITION_FADE_IN) {
         float fadeProgress = (fadeInTime_ > 0.0f) ? (transitionTimer_ / fadeInTime_) : 1.0f;
@@ -670,7 +670,7 @@ void SceneManager::updateTransition(float deltaTime) {
 
         if (fadeProgress >= 1.0f) {
             // Fade-in complete
-            consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Fade-in complete, transition finished");
+            consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "SceneManager: Fade-in complete, transition finished");
             transitionState_ = TRANSITION_NONE;
             transitionTimer_ = 0.0f;
             // Ensure fade overlay is fully transparent

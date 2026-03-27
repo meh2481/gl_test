@@ -214,7 +214,11 @@ extern "C" int app_main()
 
     // SDL_SetLogPriority internally calls SDL_InitLog → SDL_CreateProperties, which
     // requires the global SDL_properties hash table to be initialized by SDL_Init first.
-    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
+#ifdef DEBUG
+    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO);
+#else
+    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_WARN);
+#endif
 
     // Open log file in the same directory as config files
     char logFilePath[MAX_PREF_PATH];
@@ -264,7 +268,7 @@ extern "C" int app_main()
         }
     }
 
-    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Launching on display: %u", config.display);
+    consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Launching on display: %u", config.display);
 
     int x = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
     int y = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
@@ -296,7 +300,7 @@ extern "C" int app_main()
         assert(false);
     }
 
-    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Preloading all pak resources asynchronously...");
+    consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Preloading all pak resources asynchronously...");
     pakResource->preloadAllResourcesAsync();
 
     // Ensure trig table is available for engine bootstrap while remaining resources keep streaming
@@ -430,11 +434,11 @@ extern "C" int app_main()
                     consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Game Controller %d connected: %s", i, SDL_GetGamepadName(gameController));
                     if (vibrationManager->hasRumbleSupport())
                     {
-                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Rumble support: Yes");
+                        consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "  Rumble support: Yes");
                     }
                     if (vibrationManager->hasTriggerRumbleSupport())
                     {
-                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Trigger rumble support: Yes (DualSense)");
+                        consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "  Trigger rumble support: Yes (DualSense)");
                     }
                     break; // Use the first available controller
                 }
@@ -541,12 +545,6 @@ extern "C" int app_main()
                         SDL_SetAtomicInt(&reloadData.reloadRequested, 1);
                     }
                 }
-                // Handle special case: F6 for thread profiler toggle
-                if (event.key.key == SDLK_F6)
-                {
-                    imguiManager->toggleThreadProfiler();
-                    *consoleBuffer << SDL_LOG_PRIORITY_INFO << "Thread profiler toggled" << ConsoleBuffer::endl;
-                }
 #endif
             }
             // Handle gamepad button press
@@ -568,11 +566,11 @@ extern "C" int app_main()
                     consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Game Controller connected: %s", SDL_GetGamepadName(gameController));
                     if (vibrationManager->hasRumbleSupport())
                     {
-                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Rumble support: Yes");
+                        consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "  Rumble support: Yes");
                     }
                     if (vibrationManager->hasTriggerRumbleSupport())
                     {
-                        consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "  Trigger rumble support: Yes (DualSense)");
+                        consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "  Trigger rumble support: Yes (DualSense)");
                     }
                 }
             }
@@ -669,7 +667,7 @@ extern "C" int app_main()
 
         if (!preloadCompleteLogged && pakResource->areAllResourcesReady())
         {
-            consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Pak resource preload complete");
+            consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Pak resource preload complete");
             preloadCompleteLogged = true;
         }
 
@@ -819,7 +817,7 @@ extern "C" int app_main()
         config.fullscreenMode = 0;
     }
     config.display = SDL_GetDisplayForWindow(window);
-    consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Saving display: %u", config.display);
+    consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Saving display: %u", config.display);
 
     // Save keybindings to config
     keybindings->serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
