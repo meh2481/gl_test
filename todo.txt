@@ -1,2 +1,3 @@
-* Add a node script that, when an object of type "player" enters it, loads a specified scene.
-* Implement a function to save the current game state to a file.
+* Add sprite animations
+* Add textboxes, fonts, kerning, line spacing, automatic word wrapping, and text justification
+* Stream music in multiple layers, with support for fading layers in and out

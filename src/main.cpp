@@ -120,8 +120,26 @@ static int hotReloadThread(void *data)
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Hot-reloading resources in background thread...");
 
         // Rebuild shaders and pak file using make
-        //TODO: Reimplement without libc
-        int result = 0;//system("make shaders && make res_pak");
+        int result = -1;
+        const char *shadersArgs[] = {"make", "shaders", nullptr};
+        SDL_Process *shadersProc = SDL_CreateProcess(shadersArgs, false);
+        if (shadersProc)
+        {
+            int exitCode = 0;
+            SDL_WaitProcess(shadersProc, true, &exitCode);
+            SDL_DestroyProcess(shadersProc);
+            if (exitCode == 0)
+            {
+                const char *pakArgs[] = {"make", "res_pak", nullptr};
+                SDL_Process *pakProc = SDL_CreateProcess(pakArgs, false);
+                if (pakProc)
+                {
+                    SDL_WaitProcess(pakProc, true, &exitCode);
+                    SDL_DestroyProcess(pakProc);
+                    result = exitCode;
+                }
+            }
+        }
 
         // Store result
         SDL_SetAtomicInt(&reloadData->reloadSuccess, (result == 0) ? 1 : 0);
