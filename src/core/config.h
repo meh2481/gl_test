@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <SDL3/SDL.h>
+#include <vulkan/vulkan.h>
 
 #define MAX_KEYBINDING_STRING 2048
 #define MAX_CONFIG_SECTIONS 16
@@ -19,6 +20,9 @@ struct Config {
     SDL_WindowFlags fullscreenMode = SDL_WINDOW_FULLSCREEN;
     char keybindings[MAX_KEYBINDING_STRING] = {0};
     int gpuIndex = -1;  // -1 means auto-select, otherwise use specified GPU index
+    // Vulkan present mode: "fifo" (vsync), "mailbox" (triple-buf), "immediate" (uncapped), "fifo_relaxed"
+    // An empty string means unspecified; the renderer will default to "fifo"
+    VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
 };
 
 // Config manager for INI-style configuration files
@@ -67,5 +71,18 @@ void saveConfig(const Config& config);
 // Returns true if successful, false otherwise
 // pathBuffer should be at least MAX_PREF_PATH bytes
 bool getPrefFilePath(char* pathBuffer, Uint64 bufferSize, const char* filename);
+
+// Parse a present mode string from config
+// Valid values: "fifo" (vsync), "mailbox" (triple-buffered), "immediate" (uncapped), "fifo_relaxed"
+// Returns the string as-is if valid, or empty string if invalid
+const char* parsePresentModeString(const char* modeString);
+
+// Parse a present mode string and convert to Vulkan enum
+// Valid values: "fifo" (vsync), "mailbox" (triple-buffered), "immediate" (uncapped), "fifo_relaxed"
+// Invalid or empty strings default to VK_PRESENT_MODE_FIFO_KHR
+VkPresentModeKHR parsePresentModeEnum(const char* modeString);
+
+// Convert Vulkan present mode enum to string for human readable display
+const char* getActivePresentModeString(VkPresentModeKHR activePresentMode);
 
 #endif // CONFIG_H

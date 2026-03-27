@@ -341,7 +341,7 @@ extern "C" int app_main()
     new (renderer) VulkanRenderer(smallAllocator, largeAllocator, consoleBuffer);
     *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created VulkanRenderer" << ConsoleBuffer::endl;
 
-    renderer->initialize(window, config.gpuIndex);
+    renderer->initialize(window, config.gpuIndex, config.presentMode);
 
     // Update config with the selected GPU index
     config.gpuIndex = renderer->getSelectedGpuIndex();
@@ -797,6 +797,9 @@ extern "C" int app_main()
 
     // Save keybindings to config
     keybindings->serializeBindings(config.keybindings, MAX_KEYBINDING_STRING);
+
+    // Save the present mode that was actually used this session
+    config.presentMode = renderer->getActivePresentMode();
 
     saveConfig(config);
 

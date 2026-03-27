@@ -23,8 +23,10 @@ public:
     VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, ConsoleBuffer* consoleBuffer);
     ~VulkanRenderer();
 
-    void initialize(SDL_Window* window, int preferredGpuIndex = -1);
+    void initialize(SDL_Window* window, int preferredGpuIndex = -1, VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_FIFO_KHR);
     int getSelectedGpuIndex() const { return m_selectedGpuIndex; }
+    VkPresentModeKHR getActivePresentMode() const;
+
     void createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader);
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
@@ -197,6 +199,11 @@ private:
     // GPU selection
     int m_selectedGpuIndex;
     int m_preferredGpuIndex;
+
+    // Present mode preference read from config (VK_PRESENT_MODE_FIFO_KHR used as default/fallback)
+    VkPresentModeKHR m_preferredPresentMode;
+    // Actual present mode selected after checking GPU support
+    VkPresentModeKHR m_activePresentMode;
 
     // Memory allocator
     MemoryAllocator* m_allocator;

@@ -172,6 +172,12 @@ bool ConfigManager::save() {
             }
         }
 
+        // Write helpful comments before certain keys
+        if (SDL_strcmp(entries[i].key, "present_mode") == 0) {
+            const char* comment = "; Vulkan present mode: fifo (vsync), mailbox (triple-buffered uncapped fps), immediate (no buffering), fifo_relaxed (good for low spec)\n";
+            SDL_WriteIO(file, comment, SDL_strlen(comment));
+        }
+
         // Write key=value
         char line[MAX_CONFIG_LINE];
         SDL_snprintf(line, sizeof(line), "%s = %s\n", entries[i].key, entries[i].value);
@@ -219,6 +225,37 @@ void ConfigManager::setInt(const char* section, const char* key, int value) {
     setString(section, key, valueStr);
 }
 
+const char* parsePresentModeString(const char* modeString) {
+    if (!modeString || modeString[0] == '\0') {
+        return "";
+    }
+    // Validate against known present modes
+    if (SDL_strcmp(modeString, "fifo") == 0 ||
+        SDL_strcmp(modeString, "mailbox") == 0 ||
+        SDL_strcmp(modeString, "immediate") == 0 ||
+        SDL_strcmp(modeString, "fifo_relaxed") == 0) {
+        return modeString;
+    }
+    return "";
+}
+
+VkPresentModeKHR parsePresentModeEnum(const char* modeString) {
+    if (modeString && SDL_strcmp(modeString, "mailbox") == 0)   return VK_PRESENT_MODE_MAILBOX_KHR;
+    if (modeString && SDL_strcmp(modeString, "immediate") == 0)  return VK_PRESENT_MODE_IMMEDIATE_KHR;
+    if (modeString && SDL_strcmp(modeString, "fifo_relaxed") == 0) return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+    return VK_PRESENT_MODE_FIFO_KHR;  // "fifo" or anything unrecognised
+}
+
+const char* getActivePresentModeString(VkPresentModeKHR activePresentMode) {
+    switch (activePresentMode) {
+        case VK_PRESENT_MODE_MAILBOX_KHR:      return "mailbox";
+        case VK_PRESENT_MODE_IMMEDIATE_KHR:    return "immediate";
+        case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "fifo_relaxed";
+        case VK_PRESENT_MODE_FIFO_KHR:         return "fifo";
+        default:                               return "fifo";
+    }
+}
+
 // Legacy functions for backward compatibility
 
 Config loadConfig() {
@@ -232,6 +269,8 @@ Config loadConfig() {
             const char* keybindings = manager.getString("Input", "keybindings", "");
             SDL_strlcpy(config.keybindings, keybindings, MAX_KEYBINDING_STRING);
             config.gpuIndex = manager.getInt("Graphics", "gpu_index", -1);
+            const char* presentMode = manager.getString("Graphics", "present_mode", "");
+            config.presentMode = parsePresentModeEnum(presentMode);
         }
     }
     return config;
@@ -248,6 +287,7 @@ void saveConfig(const Config& config) {
             manager.setString("Input", "keybindings", config.keybindings);
         }
         manager.setInt("Graphics", "gpu_index", config.gpuIndex);
+        manager.setString("Graphics", "present_mode", getActivePresentModeString(config.presentMode));
         manager.save();
     }
 }

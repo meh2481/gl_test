@@ -97,6 +97,8 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_msaaColorImageView(VK_NULL_HANDLE),
     m_selectedGpuIndex(-1),
     m_preferredGpuIndex(-1),
+    m_preferredPresentMode(VK_PRESENT_MODE_FIFO_KHR),
+    m_activePresentMode(VK_PRESENT_MODE_FIFO_KHR),
     m_reflectionRenderPass(VK_NULL_HANDLE),
     m_reflectionFramebuffer(VK_NULL_HANDLE),
     m_reflectionTextureId(REFLECTION_TEXTURE_ID_INVALID),
@@ -129,7 +131,8 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
 VulkanRenderer::~VulkanRenderer() {
 }
 
-void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex) {
+void VulkanRenderer::initialize(SDL_Window* window, int preferredGpuIndex, VkPresentModeKHR preferredPresentMode) {
+    m_preferredPresentMode = preferredPresentMode;
     createInstance(window);
     createSurface(window);
     pickPhysicalDevice(preferredGpuIndex);
@@ -646,12 +649,23 @@ VkSurfaceFormatKHR VulkanRenderer::chooseSwapSurfaceFormat(const VkSurfaceFormat
 }
 
 VkPresentModeKHR VulkanRenderer::chooseSwapPresentMode(const VkPresentModeKHR* availablePresentModes, Uint32 presentModeCount) {
-    for (Uint32 i = 0; i < presentModeCount; i++) {
-        if (availablePresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-            return availablePresentModes[i];
+    // Use the mode from the config file if the GPU supports it
+    if (m_preferredPresentMode != VK_PRESENT_MODE_FIFO_KHR) {
+        for (Uint32 i = 0; i < presentModeCount; i++) {
+            if (availablePresentModes[i] == m_preferredPresentMode) {
+                m_activePresentMode = availablePresentModes[i];
+                return m_activePresentMode;
+            }
         }
+        // Requested mode not available – fall through to FIFO
     }
-    return VK_PRESENT_MODE_FIFO_KHR;
+    // VK_PRESENT_MODE_FIFO_KHR is guaranteed to be available (Vulkan spec 29.6)
+    m_activePresentMode = VK_PRESENT_MODE_FIFO_KHR;
+    return m_activePresentMode;
+}
+
+VkPresentModeKHR VulkanRenderer::getActivePresentMode() const {
+    return m_activePresentMode;
 }
 
 VkExtent2D VulkanRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, SDL_Window* window) {
