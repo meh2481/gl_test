@@ -3,7 +3,6 @@
 
 #include <AL/al.h>
 #include <AL/alc.h>
-#include <cstdint>
 #include <cassert>
 #include <SDL3/SDL.h>
 #include <opusfile.h>
@@ -58,11 +57,11 @@ public:
 
     // Load audio from memory into buffer slot
     // Returns buffer ID on success, -1 on failure
-    int loadAudioBufferFromMemory(const void* data, uint64_t size, int sampleRate, int channels, int bitsPerSample);
+    int loadAudioBufferFromMemory(const void* data, Uint64 size, int sampleRate, int channels, int bitsPerSample);
 
     // Load OPUS audio from memory into buffer slot
     // Returns buffer ID on success, -1 on failure
-    int loadOpusAudioFromMemory(const void* data, uint64_t size);
+    int loadOpusAudioFromMemory(const void* data, Uint64 size);
 
     // Create an audio source
     // Returns source ID on success, -1 on failure
@@ -122,14 +121,14 @@ public:
     // Async Opus decode: queue a decode job and return immediately
     // Returns job ID for tracking
     // Call getOpusDecodeResult() to retrieve decoded PCM
-    int decodeOpusAudioAsync(const void* data, size_t size);
+    int decodeOpusAudioAsync(const void* data, Uint64 size);
 
     // Wait for a decode job to complete and get result
     // Returns ownership of decoded PCM samples in outBuffer (int16)
     // Caller must release the returned buffer via freeDecodedBuffer()
     // Returns channels and sample rate via output parameters
     // Returns true on success, false on error
-    bool getOpusDecodeResult(int jobId, opus_int16*& outBuffer, uint64_t& outSampleCount, int& outChannels, int& outSampleRate);
+    bool getOpusDecodeResult(int jobId, opus_int16*& outBuffer, Uint64& outSampleCount, int& outChannels, int& outSampleRate);
 
     void freeDecodedBuffer(opus_int16* buffer);
 
@@ -171,9 +170,9 @@ private:
     struct AudioDecodeJob {
         int jobId;
         const void* compressedData;  // Pointer to compressed Opus data
-        size_t compressedSize;
+        Uint64 compressedSize;
         opus_int16* decodedPcm;  // Output: decoded PCM samples
-        uint64_t decodedSampleCount;
+        Uint64 decodedSampleCount;
         int channels;  // Output: channel count
         int sampleRate;  // Output: sample rate
         bool completed;

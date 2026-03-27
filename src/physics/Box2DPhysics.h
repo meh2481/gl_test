@@ -75,19 +75,19 @@ struct DestructibleProperties {
     float rootMinX, rootMinY;
     float rootWidth, rootHeight;
     bool hasRootBounds;  // True if root bounds are set (for fragments)
-    uint64_t textureId;      // Texture for rendering fragments
-    uint64_t normalMapId;    // Normal map for fragments
+    Uint64 textureId;      // Texture for rendering fragments
+    Uint64 normalMapId;    // Normal map for fragments
     int pipelineId;          // Shader pipeline for fragments
     // Atlas UV coordinates for texture (if using texture atlas)
     bool usesAtlas;
     float atlasU0, atlasV0;  // Top-left UV in atlas for texture
     float atlasU1, atlasV1;  // Bottom-right UV in atlas for texture
-    uint64_t atlasTextureId;      // Atlas texture ID (if using atlas)
+    Uint64 atlasTextureId;      // Atlas texture ID (if using atlas)
     // Atlas UV coordinates for normal map (separate, may be different)
     bool usesNormalMapAtlas;
     float normalAtlasU0, normalAtlasV0;  // Top-left UV in atlas for normal map
     float normalAtlasU1, normalAtlasV1;  // Bottom-right UV in atlas for normal map
-    uint64_t atlasNormalMapId;    // Atlas normal map ID (if using atlas)
+    Uint64 atlasNormalMapId;    // Atlas normal map ID (if using atlas)
 };
 
 // Callback for when a body is fractured (returns new fragment body IDs and layer IDs)
@@ -203,14 +203,14 @@ public:
     // Destructible object management
     void setBodyDestructible(int bodyId, float strength, float brittleness,
                              const float* vertices, int vertexCount,
-                             uint64_t textureId, uint64_t normalMapId, int pipelineId);
+                             Uint64 textureId, Uint64 normalMapId, int pipelineId);
 
     // Set atlas UV coordinates for a destructible body's texture (call after setBodyDestructible)
-    void setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureId,
+    void setBodyDestructibleAtlasUV(int bodyId, Uint64 atlasTextureId,
                                      float u0, float v0, float u1, float v1);
 
     // Set atlas UV coordinates for a destructible body's normal map (call after setBodyDestructible)
-    void setBodyDestructibleNormalMapAtlasUV(int bodyId, uint64_t atlasNormalMapId,
+    void setBodyDestructibleNormalMapAtlasUV(int bodyId, Uint64 atlasNormalMapId,
                                               float u0, float v0, float u1, float v1);
 
     // Set root bounding box for a destructible fragment (for proper UV mapping in recursive fractures)

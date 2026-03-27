@@ -29,10 +29,10 @@ public:
     ~SceneManager();
 
     // Scene management
-    void pushScene(uint64_t sceneId);
+    void pushScene(Uint64 sceneId);
     void popScene();
     bool isEmpty() const;
-    uint64_t getActiveSceneId() const;
+    Uint64 getActiveSceneId() const;
     void reloadCurrentScene();
 
     // Active scene operations
@@ -98,9 +98,9 @@ private:
     float fadeColorG_;
     float fadeColorB_;
     bool fadePipelineReady_;
-    uint64_t fadeVertShaderId_;
-    uint64_t fadeFragShaderId_;
-    uint64_t pendingSceneId_;
+    Uint64 fadeVertShaderId_;
+    Uint64 fadeFragShaderId_;
+    Uint64 pendingSceneId_;
     bool pendingScenePush_;
     MemoryAllocator* allocator_;
     PakResource& pakResource_;
@@ -112,9 +112,9 @@ private:
     WaterEffectManager* waterEffectManager_;
     LuaInterface* luaInterface_;
     AnimationEngine* animationEngine_;
-    Stack<uint64_t> sceneStack_;
-    HashSet<uint64_t> loadedScenes_;
-    HashSet<uint64_t> initializedScenes_;
+    Stack<Uint64> sceneStack_;
+    HashSet<Uint64> loadedScenes_;
+    HashSet<Uint64> initializedScenes_;
     bool pendingPop_;
 
     // Particle editor state

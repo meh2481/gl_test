@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
 
@@ -21,13 +20,13 @@ struct SpriteVertex {
 
 // Sprite batch for a single texture
 struct SpriteBatch {
-    uint64_t textureId;
-    uint64_t normalMapId;    // Normal map texture ID (0 if none)
-    uint64_t descriptorId;   // Descriptor set ID to use for this batch
+    Uint64 textureId;
+    Uint64 normalMapId;    // Normal map texture ID (0 if none)
+    Uint64 descriptorId;   // Descriptor set ID to use for this batch
     int pipelineId;          // Pipeline ID to use for this batch
     float parallaxDepth;     // Parallax depth for sorting (lower = background, higher = foreground)
     Vector<SpriteVertex> vertices;
-    Vector<uint16_t> indices;
+    Vector<Uint16> indices;
 
     // Animation parameters for this batch
     float spinSpeed;         // Degrees per second
@@ -71,7 +70,7 @@ struct ParticleInstance {
 
 // Particle batch for a group of particles at a specific parallax depth
 struct ParticleBatch {
-    uint64_t textureId;      // Atlas texture ID
+    Uint64 textureId;      // Atlas texture ID
     int pipelineId;          // Pipeline ID to use for this batch
     float parallaxDepth;     // Parallax depth for sorting
     Vector<ParticleInstance> instances;
@@ -91,11 +90,11 @@ struct LayerAtlasUV {
 
 // Scene layer that can be attached to a physics body
 struct SceneLayer {
-    uint64_t textureId;      // Resource ID of the primary texture
-    uint64_t normalMapId;    // Resource ID of normal map (0 if none)
-    uint64_t atlasTextureId; // Atlas texture ID (if using atlas, otherwise same as textureId)
-    uint64_t atlasNormalMapId; // Atlas normal map ID (if using atlas)
-    uint64_t descriptorId;   // Descriptor set ID to use for rendering
+    Uint64 textureId;      // Resource ID of the primary texture
+    Uint64 normalMapId;    // Resource ID of normal map (0 if none)
+    Uint64 atlasTextureId; // Atlas texture ID (if using atlas, otherwise same as textureId)
+    Uint64 atlasNormalMapId; // Atlas normal map ID (if using atlas)
+    Uint64 descriptorId;   // Descriptor set ID to use for rendering
     int pipelineId;          // Pipeline ID to use for rendering
     int physicsBodyId;       // Physics body this layer is attached to (-1 if not attached)
     float width;             // Width of sprite in world units
@@ -157,7 +156,7 @@ public:
     ~SceneLayerManager();
 
     // Layer management
-    int createLayer(uint64_t textureId, float width, float height, uint64_t normalMapId = 0, int pipelineId = -1);
+    int createLayer(Uint64 textureId, float width, float height, Uint64 normalMapId = 0, int pipelineId = -1);
     void destroyLayer(int layerId);
     void attachLayerToBody(int layerId, int physicsBodyId);
     void detachLayer(int layerId);
@@ -165,8 +164,8 @@ public:
     void setLayerEnabled(int layerId, bool enabled);
 
     // Set atlas UV coordinates for a layer's texture
-    void setLayerAtlasUV(int layerId, uint64_t atlasTextureId, float u0, float v0, float u1, float v1);
-    void setLayerNormalMapAtlasUV(int layerId, uint64_t atlasNormalMapId, float u0, float v0, float u1, float v1);
+    void setLayerAtlasUV(int layerId, Uint64 atlasTextureId, float u0, float v0, float u1, float v1);
+    void setLayerNormalMapAtlasUV(int layerId, Uint64 atlasNormalMapId, float u0, float v0, float u1, float v1);
 
     // Set polygon vertices and UVs for fragment rendering (texture clipping)
     // vertices: array of x,y pairs in local coordinates

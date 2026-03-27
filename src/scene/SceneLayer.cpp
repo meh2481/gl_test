@@ -19,7 +19,7 @@ SceneLayerManager::SceneLayerManager(MemoryAllocator* smallAllocator, MemoryAllo
 SceneLayerManager::~SceneLayerManager() {
 }
 
-int SceneLayerManager::createLayer(uint64_t textureId, float width, float height, uint64_t normalMapId, int pipelineId) {
+int SceneLayerManager::createLayer(Uint64 textureId, float width, float height, Uint64 normalMapId, int pipelineId) {
     assert(width > 0.0f && height > 0.0f);
 
     int layerId = nextLayerId_++;
@@ -142,7 +142,7 @@ void SceneLayerManager::setLayerEnabled(int layerId, bool enabled) {
     }
 }
 
-void SceneLayerManager::setLayerAtlasUV(int layerId, uint64_t atlasTextureId, float u0, float v0, float u1, float v1) {
+void SceneLayerManager::setLayerAtlasUV(int layerId, Uint64 atlasTextureId, float u0, float v0, float u1, float v1) {
     SceneLayer* layer = layers_.find(layerId);
     if (layer != nullptr) {
         layer->atlasTextureId = atlasTextureId;
@@ -163,7 +163,7 @@ void SceneLayerManager::setLayerAtlasUV(int layerId, uint64_t atlasTextureId, fl
     }
 }
 
-void SceneLayerManager::setLayerNormalMapAtlasUV(int layerId, uint64_t atlasNormalMapId, float u0, float v0, float u1, float v1) {
+void SceneLayerManager::setLayerNormalMapAtlasUV(int layerId, Uint64 atlasNormalMapId, float u0, float v0, float u1, float v1) {
     SceneLayer* layer = layers_.find(layerId);
     if (layer != nullptr) {
         layer->atlasNormalMapId = atlasNormalMapId;
@@ -174,7 +174,7 @@ void SceneLayerManager::setLayerNormalMapAtlasUV(int layerId, uint64_t atlasNorm
         layer->normalMapUV.isAtlas = true;
 
         // Update descriptor ID to use atlas textures
-        uint64_t texId = layer->textureUV.isAtlas ? layer->atlasTextureId : layer->textureId;
+        Uint64 texId = layer->textureUV.isAtlas ? layer->atlasTextureId : layer->textureId;
         layer->descriptorId = texId ^ (atlasNormalMapId << 1);
     }
 }
@@ -297,7 +297,7 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
     // Map to batch index instead of pointer to avoid invalidation during sorting
     struct BatchKey {
         int pipelineId;
-        uint64_t descriptorId;
+        Uint64 descriptorId;
         float parallaxDepth;
 
         bool operator==(const BatchKey& other) const {
@@ -306,7 +306,7 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
                    abs_float(parallaxDepth - other.parallaxDepth) < PARALLAX_EPSILON;
         }
     };
-    HashTable<BatchKey, uint64_t> batchMap(*allocator_, "updateLayerVertices::batchMap");
+    HashTable<BatchKey, Uint64> batchMap(*allocator_, "updateLayerVertices::batchMap");
 
     for (auto it = layers_.begin(); it != layers_.end(); ++it) {
         const SceneLayer& layer = it.value();
@@ -331,8 +331,8 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
                            layer.colorB != 1.0f || layer.colorA != 1.0f;
 
         // Find or create batch for this key
-        uint64_t batchIndex;
-        uint64_t* batchIndexPtr = batchMap.find(batchKey);
+        Uint64 batchIndex;
+        Uint64* batchIndexPtr = batchMap.find(batchKey);
         if (batchIndexPtr == nullptr || hasAnimation) {
             // Always create new batch for animated layers or if batch doesn't exist
             batchIndex = batches.size();
@@ -400,7 +400,7 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
         float cosA, sinA;
         trigLookup_->sincos(angle, sinA, cosA);
 
-        uint16_t baseIndex = static_cast<uint16_t>(batch.vertices.size());
+        Uint16 baseIndex = static_cast<Uint16>(batch.vertices.size());
 
         // Check if using polygon rendering (for fragment texture clipping)
         if (layer.polygonVertexCount >= 3) {

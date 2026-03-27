@@ -2,7 +2,6 @@
 
 #include <vulkan/vulkan.h>
 #include "../core/Vector.h"
-#include <cstdint>
 
 // Forward declaration
 class ConsoleBuffer;
@@ -20,40 +19,40 @@ public:
     // Buffer creation and management
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
                      VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-    void copyDataToBuffer(VkDeviceMemory bufferMemory, const void* data, uint64_t size);
+    void copyDataToBuffer(VkDeviceMemory bufferMemory, const void* data, Uint64 size);
 
     // Vertex buffer utilities
     struct DynamicBuffer {
         VkBuffer buffer;
         VkDeviceMemory memory;
-        uint64_t currentSize;
-        uint32_t count;
+        Uint64 currentSize;
+        Uint32 count;
     };
 
-    void createDynamicVertexBuffer(DynamicBuffer& dynBuffer, uint64_t initialSize);
+    void createDynamicVertexBuffer(DynamicBuffer& dynBuffer, Uint64 initialSize);
     void updateDynamicVertexBuffer(DynamicBuffer& dynBuffer, const Vector<float>& vertexData,
-                                   uint32_t floatsPerVertex);
+                                   Uint32 floatsPerVertex);
     void destroyDynamicBuffer(DynamicBuffer& dynBuffer);
 
     // Indexed buffer (vertex + index)
     struct IndexedBuffer {
         VkBuffer vertexBuffer;
         VkDeviceMemory vertexMemory;
-        uint64_t vertexSize;
-        uint32_t vertexCount;
+        Uint64 vertexSize;
+        Uint32 vertexCount;
         VkBuffer indexBuffer;
         VkDeviceMemory indexMemory;
-        uint64_t indexSize;
-        uint32_t indexCount;
+        Uint64 indexSize;
+        Uint32 indexCount;
     };
 
-    void createIndexedBuffer(IndexedBuffer& buffer, uint64_t initialVertexSize, uint64_t initialIndexSize);
+    void createIndexedBuffer(IndexedBuffer& buffer, Uint64 initialVertexSize, Uint64 initialIndexSize);
     void updateIndexedBuffer(IndexedBuffer& buffer, const Vector<float>& vertexData,
-                            const Vector<uint16_t>& indices, uint32_t floatsPerVertex);
+                            const Vector<Uint16>& indices, Uint32 floatsPerVertex);
     void destroyIndexedBuffer(IndexedBuffer& buffer);
 
     // Memory type finding utility
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    Uint32 findMemoryType(Uint32 typeFilter, VkMemoryPropertyFlags properties);
 
 private:
     VkDevice m_device;

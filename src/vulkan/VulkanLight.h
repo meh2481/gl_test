@@ -3,7 +3,6 @@
 #include <vulkan/vulkan.h>
 #include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
-#include <cstdint>
 
 // Maximum number of lights supported in the scene
 static const int MAX_LIGHTS = 8;
@@ -58,7 +57,7 @@ public:
     const LightBufferData& getLightBufferData() const { return m_lightBufferData; }
 
 private:
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    Uint32 findMemoryType(Uint32 typeFilter, VkMemoryPropertyFlags properties);
 
     VkDevice m_device;
     VkPhysicalDevice m_physicalDevice;

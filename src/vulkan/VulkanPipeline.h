@@ -5,7 +5,6 @@
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
 #include "../core/HashSet.h"
-#include <cstdint>
 
 // Forward declarations
 class VulkanDescriptor;
@@ -31,7 +30,7 @@ struct PipelineInfo {
     bool usesAnimationPushConstants;  // true = uses animation push constants (33 floats)
     bool isParticlePipeline;  // true = particle pipeline (uses vertex colors)
     bool isWaterPipeline;     // true = water pipeline (uses ripple push constants)
-    HashSet<uint64_t> descriptorIds;  // Which descriptor sets this pipeline uses
+    HashSet<Uint64> descriptorIds;  // Which descriptor sets this pipeline uses
 
     explicit PipelineInfo(MemoryAllocator& allocator)
         : layout(VK_NULL_HANDLE)
@@ -64,28 +63,28 @@ public:
     VkPipelineLayout getBasePipelineLayout() const { return m_pipelineLayout; }
 
     // Pipeline creation
-    void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
-    void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
-    void createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
-    void createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode = 0);
-    void createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
-    void createWaterPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 2);
+    void createPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
+    void createTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 1);
+    void createTexturedPipelineAdditive(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 1);
+    void createParticlePipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode = 0);
+    void createAnimTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 1);
+    void createWaterPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 2);
     void createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader);
 
     // Pipeline access
-    VkPipeline getPipeline(uint64_t id) const;
+    VkPipeline getPipeline(Uint64 id) const;
     VkPipeline getDebugLinePipeline() const { return m_debugLinePipeline; }
     VkPipeline getDebugTrianglePipeline() const { return m_debugTrianglePipeline; }
     VkPipeline getFadePipeline() const { return m_fadePipeline; }
-    bool hasPipeline(uint64_t id) const;
-    bool isDebugPipeline(uint64_t id) const;
+    bool hasPipeline(Uint64 id) const;
+    bool isDebugPipeline(Uint64 id) const;
 
     // Pipeline info access
-    const PipelineInfo* getPipelineInfo(uint64_t id) const;
-    PipelineInfo* getPipelineInfoMutable(uint64_t id);
+    const PipelineInfo* getPipelineInfo(Uint64 id) const;
+    PipelineInfo* getPipelineInfoMutable(Uint64 id);
 
     // Associate descriptor with pipeline
-    void associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId);
+    void associateDescriptorWithPipeline(Uint64 pipelineId, Uint64 descriptorId);
 
     // Shader parameters per pipeline
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
@@ -101,15 +100,15 @@ public:
     float getPipelineParallaxDepth(int pipelineId) const;
 
     // Set current pipeline
-    void setCurrentPipeline(uint64_t id);
+    void setCurrentPipeline(Uint64 id);
     VkPipeline getCurrentPipeline() const { return m_currentPipeline; }
 
     // Pipelines to draw
-    void setPipelinesToDraw(const Vector<uint64_t>& pipelineIds) { m_pipelinesToDraw = pipelineIds; }
-    const Vector<uint64_t>& getPipelinesToDraw() const { return m_pipelinesToDraw; }
+    void setPipelinesToDraw(const Vector<Uint64>& pipelineIds) { m_pipelinesToDraw = pipelineIds; }
+    const Vector<Uint64>& getPipelinesToDraw() const { return m_pipelinesToDraw; }
 
     // Destroy specific pipeline
-    void destroyPipeline(uint64_t id);
+    void destroyPipeline(Uint64 id);
 
     // Set shaders (for legacy API)
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
@@ -128,16 +127,16 @@ private:
     VkPipelineLayout m_pipelineLayout;
 
     // Pipelines
-    HashTable<uint64_t, VkPipeline> m_pipelines;
-    HashTable<uint64_t, bool> m_debugPipelines;
+    HashTable<Uint64, VkPipeline> m_pipelines;
+    HashTable<Uint64, bool> m_debugPipelines;
     VkPipeline m_debugLinePipeline;
     VkPipeline m_debugTrianglePipeline;
     VkPipeline m_fadePipeline;
     VkPipeline m_currentPipeline;
-    Vector<uint64_t> m_pipelinesToDraw;
+    Vector<Uint64> m_pipelinesToDraw;
 
     // Pipeline info
-    HashTable<uint64_t, PipelineInfo*> m_pipelineInfo;
+    HashTable<Uint64, PipelineInfo*> m_pipelineInfo;
 
     // Per-pipeline shader parameters
     HashTable<int, Vector<float>*> m_pipelineShaderParams;

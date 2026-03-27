@@ -40,7 +40,7 @@ private:
         float busyPercent;
         float waitingPercent;
         float idlePercent;
-        uint64_t totalNs;
+        Uint64 totalNs;
     };
 
     void drawProfilerUI() {
@@ -61,7 +61,7 @@ private:
             ImGui::TableSetupColumn("Idle Graph");
             ImGui::TableHeadersRow();
 
-            for (uint64_t i = 0; i < threadIds.size(); ++i) {
+            for (Uint64 i = 0; i < threadIds.size(); ++i) {
                 SDL_ThreadID threadId = threadIds[i];
                 ThreadStats stats;
 
@@ -74,9 +74,9 @@ private:
                 SDL_strlcpy(data.threadName, stats.threadName, sizeof(data.threadName));
 
                 // Calculate total time and percentages from rolling average
-                uint64_t avgBusyTime = 0;
-                uint64_t avgWaitingTime = 0;
-                uint64_t avgIdleTime = 0;
+                Uint64 avgBusyTime = 0;
+                Uint64 avgWaitingTime = 0;
+                Uint64 avgIdleTime = 0;
 
                 for (int j = 0; j < ThreadStats::HISTORY_SIZE; ++j) {
                     avgBusyTime += stats.history[j].stateTime[THREAD_STATE_BUSY];

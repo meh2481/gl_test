@@ -120,7 +120,7 @@ VkShaderModule VulkanPipeline::createShaderModule(const Vector<char>& code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    createInfo.pCode = reinterpret_cast<const Uint32*>(code.data());
     VkShaderModule shaderModule;
     VkResult result = vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule);
     if (result != VK_SUCCESS) {
@@ -148,13 +148,13 @@ void VulkanPipeline::createBasePipelineLayout() {
     }
 }
 
-void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline) {
+void VulkanPipeline::createPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline) {
     Vector<char> vertData(*m_allocator, "VulkanPipeline::createPipeline::vertData");
     Vector<char> fragData(*m_allocator, "VulkanPipeline::createPipeline::fragData");
-    for (uint64_t i = 0; i < vertShader.size; ++i) {
+    for (Uint64 i = 0; i < vertShader.size; ++i) {
         vertData.push_back(vertShader.data[i]);
     }
-    for (uint64_t i = 0; i < fragShader.size; ++i) {
+    for (Uint64 i = 0; i < fragShader.size; ++i) {
         fragData.push_back(fragShader.data[i]);
     }
 
@@ -326,10 +326,10 @@ void VulkanPipeline::createPipeline(uint64_t id, const ResourceData& vertShader,
 void VulkanPipeline::createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader) {
     Vector<char> vertData(*m_allocator, "VulkanPipeline::createFadePipeline::vertData");
     Vector<char> fragData(*m_allocator, "VulkanPipeline::createFadePipeline::fragData");
-    for (uint64_t i = 0; i < vertShader.size; ++i) {
+    for (Uint64 i = 0; i < vertShader.size; ++i) {
         vertData.push_back(vertShader.data[i]);
     }
-    for (uint64_t i = 0; i < fragShader.size; ++i) {
+    for (Uint64 i = 0; i < fragShader.size; ++i) {
         fragData.push_back(fragShader.data[i]);
     }
 
@@ -471,13 +471,13 @@ void VulkanPipeline::createFadePipeline(const ResourceData& vertShader, const Re
     m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Created fade overlay pipeline");
 }
 
-void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
+void VulkanPipeline::createTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures) {
     m_vertShaderData.clear();
     m_fragShaderData.clear();
-    for (uint64_t i = 0; i < vertShader.size; ++i) {
+    for (Uint64 i = 0; i < vertShader.size; ++i) {
         m_vertShaderData.push_back(vertShader.data[i]);
     }
-    for (uint64_t i = 0; i < fragShader.size; ++i) {
+    for (Uint64 i = 0; i < fragShader.size; ++i) {
         m_fragShaderData.push_back(fragShader.data[i]);
     }
 
@@ -503,7 +503,7 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     VkVertexInputAttributeDescription attributeDescriptions[4]{};
-    uint32_t numAttributes = 3;
+    Uint32 numAttributes = 3;
 
     if (numTextures == 2) {
         bindingDescription.stride = sizeof(float) * 10;
@@ -668,13 +668,13 @@ void VulkanPipeline::createTexturedPipeline(uint64_t id, const ResourceData& ver
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
 }
 
-void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
+void VulkanPipeline::createTexturedPipelineAdditive(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures) {
     m_vertShaderData.clear();
     m_fragShaderData.clear();
-    for (uint64_t i = 0; i < vertShader.size; ++i) {
+    for (Uint64 i = 0; i < vertShader.size; ++i) {
         m_vertShaderData.push_back(vertShader.data[i]);
     }
-    for (uint64_t i = 0; i < fragShader.size; ++i) {
+    for (Uint64 i = 0; i < fragShader.size; ++i) {
         m_fragShaderData.push_back(fragShader.data[i]);
     }
 
@@ -700,7 +700,7 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     VkVertexInputAttributeDescription attributeDescriptions[4]{};
-    uint32_t numAttributes = 3;
+    Uint32 numAttributes = 3;
 
     if (numTextures == 2) {
         bindingDescription.stride = sizeof(float) * 10;
@@ -865,13 +865,13 @@ void VulkanPipeline::createTexturedPipelineAdditive(uint64_t id, const ResourceD
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
 }
 
-void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
+void VulkanPipeline::createAnimTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures) {
     m_vertShaderData.clear();
     m_fragShaderData.clear();
-    for (uint64_t i = 0; i < vertShader.size; ++i) {
+    for (Uint64 i = 0; i < vertShader.size; ++i) {
         m_vertShaderData.push_back(vertShader.data[i]);
     }
-    for (uint64_t i = 0; i < fragShader.size; ++i) {
+    for (Uint64 i = 0; i < fragShader.size; ++i) {
         m_fragShaderData.push_back(fragShader.data[i]);
     }
 
@@ -897,7 +897,7 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     VkVertexInputAttributeDescription attributeDescriptions[4]{};
-    uint32_t numAttributes = 3;
+    Uint32 numAttributes = 3;
 
     if (numTextures == 2) {
         bindingDescription.stride = sizeof(float) * 10;
@@ -1063,14 +1063,14 @@ void VulkanPipeline::createAnimTexturedPipeline(uint64_t id, const ResourceData&
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
 }
 
-void VulkanPipeline::createWaterPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
+void VulkanPipeline::createWaterPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures) {
     // Copy shader data
     m_vertShaderData.clear();
     m_fragShaderData.clear();
-    for (uint64_t i = 0; i < vertShader.size; ++i) {
+    for (Uint64 i = 0; i < vertShader.size; ++i) {
         m_vertShaderData.push_back(vertShader.data[i]);
     }
-    for (uint64_t i = 0; i < fragShader.size; ++i) {
+    for (Uint64 i = 0; i < fragShader.size; ++i) {
         m_fragShaderData.push_back(fragShader.data[i]);
     }
 
@@ -1237,13 +1237,13 @@ void VulkanPipeline::createWaterPipeline(uint64_t id, const ResourceData& vertSh
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
 }
 
-void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode) {
+void VulkanPipeline::createParticlePipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode) {
     m_vertShaderData.clear();
     m_fragShaderData.clear();
-    for (uint64_t i = 0; i < vertShader.size; ++i) {
+    for (Uint64 i = 0; i < vertShader.size; ++i) {
         m_vertShaderData.push_back(vertShader.data[i]);
     }
-    for (uint64_t i = 0; i < fragShader.size; ++i) {
+    for (Uint64 i = 0; i < fragShader.size; ++i) {
         m_fragShaderData.push_back(fragShader.data[i]);
     }
 
@@ -1427,7 +1427,7 @@ void VulkanPipeline::createParticlePipeline(uint64_t id, const ResourceData& ver
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
 }
 
-VkPipeline VulkanPipeline::getPipeline(uint64_t id) const {
+VkPipeline VulkanPipeline::getPipeline(Uint64 id) const {
     const VkPipeline* pipelinePtr = m_pipelines.find(id);
     if (pipelinePtr != nullptr) {
         return *pipelinePtr;
@@ -1435,26 +1435,26 @@ VkPipeline VulkanPipeline::getPipeline(uint64_t id) const {
     return VK_NULL_HANDLE;
 }
 
-bool VulkanPipeline::hasPipeline(uint64_t id) const {
+bool VulkanPipeline::hasPipeline(Uint64 id) const {
     return m_pipelines.find(id) != nullptr;
 }
 
-bool VulkanPipeline::isDebugPipeline(uint64_t id) const {
+bool VulkanPipeline::isDebugPipeline(Uint64 id) const {
     const bool* isDebugPtr = m_debugPipelines.find(id);
     return isDebugPtr != nullptr && *isDebugPtr;
 }
 
-const PipelineInfo* VulkanPipeline::getPipelineInfo(uint64_t id) const {
+const PipelineInfo* VulkanPipeline::getPipelineInfo(Uint64 id) const {
     PipelineInfo* const* infoPtr = m_pipelineInfo.find(id);
     return infoPtr ? *infoPtr : nullptr;
 }
 
-PipelineInfo* VulkanPipeline::getPipelineInfoMutable(uint64_t id) {
+PipelineInfo* VulkanPipeline::getPipelineInfoMutable(Uint64 id) {
     PipelineInfo** infoPtr = m_pipelineInfo.find(id);
     return infoPtr ? *infoPtr : nullptr;
 }
 
-void VulkanPipeline::associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId) {
+void VulkanPipeline::associateDescriptorWithPipeline(Uint64 pipelineId, Uint64 descriptorId) {
     PipelineInfo** infoPtrPtr = m_pipelineInfo.find(pipelineId);
     if (infoPtrPtr != nullptr) {
         (*infoPtrPtr)->descriptorIds.insert(descriptorId);
@@ -1572,13 +1572,13 @@ float VulkanPipeline::getPipelineParallaxDepth(int pipelineId) const {
     return 0.0f;
 }
 
-void VulkanPipeline::setCurrentPipeline(uint64_t id) {
+void VulkanPipeline::setCurrentPipeline(Uint64 id) {
     const VkPipeline* pipelinePtr = m_pipelines.find(id);
     assert(pipelinePtr != nullptr);
     m_currentPipeline = *pipelinePtr;
 }
 
-void VulkanPipeline::destroyPipeline(uint64_t id) {
+void VulkanPipeline::destroyPipeline(Uint64 id) {
     VkPipeline* pipelinePtr = m_pipelines.find(id);
     if (pipelinePtr != nullptr) {
         vkDestroyPipeline(m_device, *pipelinePtr, nullptr);

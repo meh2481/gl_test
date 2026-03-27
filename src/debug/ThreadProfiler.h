@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <SDL3/SDL.h>
 #include "../memory/SmallMemoryAllocator.h"
 #include "../core/Vector.h"
@@ -14,8 +13,8 @@ enum ThreadState {
 };
 
 struct ThreadFrameStats {
-    uint64_t stateTime[THREAD_STATE_COUNT]; // Time in each state (nanoseconds)
-    uint64_t frameNumber;
+    Uint64 stateTime[THREAD_STATE_COUNT]; // Time in each state (nanoseconds)
+    Uint64 frameNumber;
 };
 
 struct ThreadStats {
@@ -23,13 +22,13 @@ struct ThreadStats {
     char threadName[64];
 
     // Current frame tracking
-    uint64_t currentFrameStartTime;
+    Uint64 currentFrameStartTime;
     ThreadState currentState;
-    uint64_t stateStartTime; // When we entered current state
+    Uint64 stateStartTime; // When we entered current state
 
     // Accumulated time for current frame (in nanoseconds)
-    uint64_t currentFrameStateTime[THREAD_STATE_COUNT];
-    uint64_t currentFrameNumber;
+    Uint64 currentFrameStateTime[THREAD_STATE_COUNT];
+    Uint64 currentFrameNumber;
 
     // Rolling buffer (last 60 frames)
     static const int HISTORY_SIZE = 60;
@@ -126,7 +125,7 @@ public:
     // Update thread state (call from within the thread)
     void updateThreadState(ThreadState newState) {
         SDL_ThreadID threadId = SDL_GetCurrentThreadID();
-        uint64_t currentTime = SDL_GetTicksNS();
+        Uint64 currentTime = SDL_GetTicksNS();
 
         SDL_LockMutex(globalMutex_);
         ThreadStats** statsPtr = threads_->find(threadId);
@@ -140,7 +139,7 @@ public:
         SDL_LockMutex(stats->statsMutex);
 
         // Accumulate time in previous state
-        uint64_t timeInState = currentTime - stats->stateStartTime;
+        Uint64 timeInState = currentTime - stats->stateStartTime;
         stats->currentFrameStateTime[stats->currentState] += timeInState;
 
         // Update state and reset timer
@@ -152,7 +151,7 @@ public:
 
     // Call once per frame to finalize frame data
     void endFrame() {
-        uint64_t currentTime = SDL_GetTicksNS();
+        Uint64 currentTime = SDL_GetTicksNS();
 
         SDL_LockMutex(globalMutex_);
         ++frameNumber_;
@@ -162,7 +161,7 @@ public:
             SDL_LockMutex(stats->statsMutex);
 
             // Finalize current frame
-            uint64_t timeInState = currentTime - stats->stateStartTime;
+            Uint64 timeInState = currentTime - stats->stateStartTime;
             stats->currentFrameStateTime[stats->currentState] += timeInState;
 
             // Store to history
@@ -219,7 +218,7 @@ public:
         return ids;
     }
 
-    uint64_t getFrameNumber() const {
+    Uint64 getFrameNumber() const {
         return frameNumber_;
     }
 
@@ -230,5 +229,5 @@ private:
     MemoryAllocator* allocator_;
     HashTable<SDL_ThreadID, ThreadStats*>* threads_;
     SDL_Mutex* globalMutex_;
-    uint64_t frameNumber_;
+    Uint64 frameNumber_;
 };

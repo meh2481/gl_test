@@ -45,10 +45,10 @@ static const char* vkResultToString(VkResult result) {
     } while(0)
 
 // Reserved texture ID for reflection render target
-static const uint64_t REFLECTION_TEXTURE_ID = 0xFFFFFFFF00000001ULL;
-static const uint64_t REFLECTION_TEXTURE_ID_INVALID = 0xFFFFFFFFFFFFFFFFULL;
+static const Uint64 REFLECTION_TEXTURE_ID = 0xFFFFFFFF00000001ULL;
+static const Uint64 REFLECTION_TEXTURE_ID_INVALID = 0xFFFFFFFFFFFFFFFFULL;
 
-inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max) {
+inline Uint32 clamp(Uint32 value, Uint32 min, Uint32 max) {
     if (value < min) return min;
     if (value > max) return max;
     return value;
@@ -203,7 +203,7 @@ void VulkanRenderer::setShaders(const ResourceData& vertShader, const ResourceDa
     m_pipelineManager.setShaders(vertShader, fragShader);
 }
 
-void VulkanRenderer::createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline) {
+void VulkanRenderer::createPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline) {
     m_pipelineManager.createPipeline(id, vertShader, fragShader, isDebugPipeline);
 }
 
@@ -211,15 +211,15 @@ void VulkanRenderer::createFadePipeline(const ResourceData& vertShader, const Re
     m_pipelineManager.createFadePipeline(vertShader, fragShader);
 }
 
-void VulkanRenderer::setCurrentPipeline(uint64_t id) {
+void VulkanRenderer::setCurrentPipeline(Uint64 id) {
     m_pipelineManager.setCurrentPipeline(id);
 }
 
-void VulkanRenderer::associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId) {
+void VulkanRenderer::associateDescriptorWithPipeline(Uint64 pipelineId, Uint64 descriptorId) {
     m_pipelineManager.associateDescriptorWithPipeline(pipelineId, descriptorId);
 }
 
-void VulkanRenderer::setPipelinesToDraw(const Vector<uint64_t>& pipelineIds) {
+void VulkanRenderer::setPipelinesToDraw(const Vector<Uint64>& pipelineIds) {
     m_pipelineManager.setPipelinesToDraw(pipelineIds);
 }
 
@@ -231,7 +231,7 @@ void VulkanRenderer::render(float time) {
         m_lightManager.updateLightUniformBuffer();
     }
 
-    uint32_t imageIndex;
+    Uint32 imageIndex;
     VkResult result = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         return;
@@ -277,12 +277,12 @@ void VulkanRenderer::render(float time) {
     m_currentFrame = (m_currentFrame + 1) % 2;
 }
 
-bool VulkanRenderer::getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const {
+bool VulkanRenderer::getTextureDimensions(Uint64 textureId, Uint32* width, Uint32* height) const {
     return m_textureManager.getTextureDimensions(textureId, width, height);
 }
 
 #ifdef DEBUG
-bool VulkanRenderer::getTextureForImGui(uint64_t textureId, VkImageView* imageView, VkSampler* sampler) const {
+bool VulkanRenderer::getTextureForImGui(Uint64 textureId, VkImageView* imageView, VkSampler* sampler) const {
     VulkanTexture::TextureData texData;
     if (!m_textureManager.getTexture(textureId, &texData)) {
         return false;
@@ -305,7 +305,7 @@ void VulkanRenderer::cleanup() {
     // Clean up reflection resources first
     destroyReflectionResources();
 
-    for (uint64_t i = 0; i < 2; i++) {
+    for (Uint64 i = 0; i < 2; i++) {
         if (m_renderFinishedSemaphores[i] != VK_NULL_HANDLE) {
             vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
         }
@@ -337,7 +337,7 @@ void VulkanRenderer::cleanup() {
     }
 
     if (m_swapchainFramebuffers != nullptr) {
-        for (uint64_t i = 0; i < m_swapchainImageCount; i++) {
+        for (Uint64 i = 0; i < m_swapchainImageCount; i++) {
             if (m_swapchainFramebuffers[i] != VK_NULL_HANDLE) {
                 vkDestroyFramebuffer(m_device, m_swapchainFramebuffers[i], nullptr);
             }
@@ -358,7 +358,7 @@ void VulkanRenderer::cleanup() {
     }
 
     if (m_swapchainImageViews != nullptr) {
-        for (uint64_t i = 0; i < m_swapchainImageCount; i++) {
+        for (Uint64 i = 0; i < m_swapchainImageCount; i++) {
             if (m_swapchainImageViews[i] != VK_NULL_HANDLE) {
                 vkDestroyImageView(m_device, m_swapchainImageViews[i], nullptr);
             }
@@ -428,13 +428,13 @@ void VulkanRenderer::createSurface(SDL_Window* window) {
 }
 
 bool VulkanRenderer::checkDeviceExtensionSupport(VkPhysicalDevice device) {
-    uint32_t extensionCount;
+    Uint32 extensionCount;
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
     VkExtensionProperties* availableExtensions = new VkExtensionProperties[extensionCount];
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions);
     const char* requiredExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     bool found = false;
-    for (uint32_t i = 0; i < extensionCount; i++) {
+    for (Uint32 i = 0; i < extensionCount; i++) {
         if (SDL_strcmp(availableExtensions[i].extensionName, requiredExtensions[0]) == 0) {
             found = true;
             break;
@@ -454,10 +454,10 @@ bool VulkanRenderer::isDeviceSuitable(VkPhysicalDevice device) {
     if (!checkDeviceExtensionSupport(device))
         return false;
 
-    uint32_t formatCount = 0;
+    Uint32 formatCount = 0;
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &formatCount, nullptr);
 
-    uint32_t presentModeCount = 0;
+    Uint32 presentModeCount = 0;
     vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &presentModeCount, nullptr);
 
     if (formatCount == 0 || presentModeCount == 0)
@@ -471,7 +471,7 @@ VkDeviceSize VulkanRenderer::getDeviceLocalMemory(VkPhysicalDevice device) {
     vkGetPhysicalDeviceMemoryProperties(device, &memProps);
 
     VkDeviceSize maxDeviceLocalMemory = 0;
-    for (uint32_t i = 0; i < memProps.memoryHeapCount; ++i) {
+    for (Uint32 i = 0; i < memProps.memoryHeapCount; ++i) {
         if (memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
             if (memProps.memoryHeaps[i].size > maxDeviceLocalMemory) {
                 maxDeviceLocalMemory = memProps.memoryHeaps[i].size;
@@ -510,7 +510,7 @@ int VulkanRenderer::rateDevice(VkPhysicalDevice device) {
 void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
     m_preferredGpuIndex = preferredGpuIndex;
 
-    uint32_t deviceCount = 0;
+    Uint32 deviceCount = 0;
     vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
     assert(deviceCount > 0 && "No Vulkan devices found!");
 
@@ -520,7 +520,7 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
     vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices);
 
     m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Available Vulkan devices:");
-    for (uint32_t i = 0; i < deviceCount; ++i) {
+    for (Uint32 i = 0; i < deviceCount; ++i) {
         VkPhysicalDeviceProperties props{};
         vkGetPhysicalDeviceProperties(devices[i], &props);
 
@@ -557,7 +557,7 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
     }
 
     if (bestDevice == VK_NULL_HANDLE) {
-        for (uint32_t i = 0; i < deviceCount; ++i) {
+        for (Uint32 i = 0; i < deviceCount; ++i) {
             int score = rateDevice(devices[i]);
             if (score > bestScore) {
                 bestScore = score;
@@ -581,7 +581,7 @@ void VulkanRenderer::pickPhysicalDevice(int preferredGpuIndex) {
 }
 
 void VulkanRenderer::createLogicalDevice() {
-    uint32_t queueFamilyCount = 0;
+    Uint32 queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, nullptr);
     assert(queueFamilyCount > 0);
 
@@ -590,7 +590,7 @@ void VulkanRenderer::createLogicalDevice() {
 
     int graphicsFamily = -1;
     int presentFamily = -1;
-    for (uint32_t i = 0; i < queueFamilyCount; i++) {
+    for (Uint32 i = 0; i < queueFamilyCount; i++) {
         if (graphicsFamily < 0 && (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
             graphicsFamily = i;
         }
@@ -605,10 +605,10 @@ void VulkanRenderer::createLogicalDevice() {
     assert(presentFamily >= 0);
 
     VkDeviceQueueCreateInfo queueCreateInfos[2];
-    uint32_t uniqueQueueFamilies[2];
+    Uint32 uniqueQueueFamilies[2];
     int numUnique = 0;
-    if (graphicsFamily >= 0) uniqueQueueFamilies[numUnique++] = static_cast<uint32_t>(graphicsFamily);
-    if (presentFamily >= 0 && presentFamily != graphicsFamily) uniqueQueueFamilies[numUnique++] = static_cast<uint32_t>(presentFamily);
+    if (graphicsFamily >= 0) uniqueQueueFamilies[numUnique++] = static_cast<Uint32>(graphicsFamily);
+    if (presentFamily >= 0 && presentFamily != graphicsFamily) uniqueQueueFamilies[numUnique++] = static_cast<Uint32>(presentFamily);
     float queuePriority = 1.0f;
     for (int i = 0; i < numUnique; i++) {
         VkDeviceQueueCreateInfo queueCreateInfo{};
@@ -621,7 +621,7 @@ void VulkanRenderer::createLogicalDevice() {
     VkPhysicalDeviceFeatures deviceFeatures{};
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.queueCreateInfoCount = static_cast<uint32_t>(numUnique);
+    createInfo.queueCreateInfoCount = static_cast<Uint32>(numUnique);
     createInfo.pQueueCreateInfos = queueCreateInfos;
     createInfo.pEnabledFeatures = &deviceFeatures;
     const char* deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -631,13 +631,13 @@ void VulkanRenderer::createLogicalDevice() {
     VkResult deviceResult = vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device);
     assert(deviceResult == VK_SUCCESS);
 
-    vkGetDeviceQueue(m_device, static_cast<uint32_t>(graphicsFamily), 0, &m_graphicsQueue);
+    vkGetDeviceQueue(m_device, static_cast<Uint32>(graphicsFamily), 0, &m_graphicsQueue);
     m_graphicsQueueFamilyIndex = graphicsFamily;
     delete[] queueFamilies;
 }
 
-VkSurfaceFormatKHR VulkanRenderer::chooseSwapSurfaceFormat(const VkSurfaceFormatKHR* availableFormats, uint32_t formatCount) {
-    for (uint32_t i = 0; i < formatCount; i++) {
+VkSurfaceFormatKHR VulkanRenderer::chooseSwapSurfaceFormat(const VkSurfaceFormatKHR* availableFormats, Uint32 formatCount) {
+    for (Uint32 i = 0; i < formatCount; i++) {
         if (availableFormats[i].format == VK_FORMAT_B8G8R8A8_UNORM && availableFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             return availableFormats[i];
         }
@@ -645,8 +645,8 @@ VkSurfaceFormatKHR VulkanRenderer::chooseSwapSurfaceFormat(const VkSurfaceFormat
     return availableFormats[0];
 }
 
-VkPresentModeKHR VulkanRenderer::chooseSwapPresentMode(const VkPresentModeKHR* availablePresentModes, uint32_t presentModeCount) {
-    for (uint32_t i = 0; i < presentModeCount; i++) {
+VkPresentModeKHR VulkanRenderer::chooseSwapPresentMode(const VkPresentModeKHR* availablePresentModes, Uint32 presentModeCount) {
+    for (Uint32 i = 0; i < presentModeCount; i++) {
         if (availablePresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
             return availablePresentModes[i];
         }
@@ -661,8 +661,8 @@ VkExtent2D VulkanRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capa
         int width, height;
         SDL_GetWindowSizeInPixels(window, &width, &height);
         VkExtent2D actualExtent = {
-            static_cast<uint32_t>(width),
-            static_cast<uint32_t>(height)
+            static_cast<Uint32>(width),
+            static_cast<Uint32>(height)
         };
         actualExtent.width = clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
         actualExtent.height = clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
@@ -673,18 +673,18 @@ VkExtent2D VulkanRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capa
 void VulkanRenderer::createSwapchain(SDL_Window* window) {
     VkSurfaceCapabilitiesKHR capabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, m_surface, &capabilities);
-    uint32_t formatCount;
+    Uint32 formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &formatCount, nullptr);
     VkSurfaceFormatKHR* formats = new VkSurfaceFormatKHR[formatCount];
     vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &formatCount, formats);
-    uint32_t presentModeCount;
+    Uint32 presentModeCount;
     vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModeCount, nullptr);
     VkPresentModeKHR* presentModes = new VkPresentModeKHR[presentModeCount];
     vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModeCount, presentModes);
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(formats, formatCount);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(presentModes, presentModeCount);
     VkExtent2D extent = chooseSwapExtent(capabilities, window);
-    uint32_t imageCount = capabilities.minImageCount + 1;
+    Uint32 imageCount = capabilities.minImageCount + 1;
     if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
         imageCount = capabilities.maxImageCount;
     }
@@ -718,7 +718,7 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
 
 void VulkanRenderer::createImageViews() {
     m_swapchainImageViews = new VkImageView[m_swapchainImageCount];
-    for (uint64_t i = 0; i < m_swapchainImageCount; i++) {
+    for (Uint64 i = 0; i < m_swapchainImageCount; i++) {
         VkImageViewCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         createInfo.image = m_swapchainImages[i];
@@ -785,7 +785,7 @@ void VulkanRenderer::createRenderPass() {
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
     VkAttachmentDescription attachments[] = {colorAttachment, colorAttachmentResolve};
-    uint32_t attachmentCount = (m_msaaSamples == VK_SAMPLE_COUNT_1_BIT) ? 1 : 2;
+    Uint32 attachmentCount = (m_msaaSamples == VK_SAMPLE_COUNT_1_BIT) ? 1 : 2;
 
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -803,9 +803,9 @@ void VulkanRenderer::createRenderPass() {
 
 void VulkanRenderer::createFramebuffers() {
     m_swapchainFramebuffers = new VkFramebuffer[m_swapchainImageCount];
-    for (uint64_t i = 0; i < m_swapchainImageCount; i++) {
+    for (Uint64 i = 0; i < m_swapchainImageCount; i++) {
         VkImageView attachments[2];
-        uint32_t attachmentCount;
+        Uint32 attachmentCount;
 
         if (m_msaaSamples == VK_SAMPLE_COUNT_1_BIT) {
             attachments[0] = m_swapchainImageViews[i];
@@ -831,10 +831,10 @@ void VulkanRenderer::createFramebuffers() {
     }
 }
 
-uint32_t VulkanRenderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+Uint32 VulkanRenderer::findMemoryType(Uint32 typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+    for (Uint32 i = 0; i < memProperties.memoryTypeCount; i++) {
         if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
             return i;
         }
@@ -872,7 +872,7 @@ void VulkanRenderer::createVertexBuffer() {
     vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexBufferMemory, 0);
     void* data;
     vkMapMemory(m_device, m_vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-    SDL_memcpy(data, vertices, (uint64_t)bufferInfo.size);
+    SDL_memcpy(data, vertices, (Uint64)bufferInfo.size);
     vkUnmapMemory(m_device, m_vertexBufferMemory);
 }
 
@@ -893,7 +893,7 @@ void VulkanRenderer::createCommandBuffers() {
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = m_commandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = (uint32_t)m_swapchainImageCount;
+    allocInfo.commandBufferCount = (Uint32)m_swapchainImageCount;
     {
         VkResult result = vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers);
         assert(result == VK_SUCCESS);
@@ -906,7 +906,7 @@ void VulkanRenderer::createSyncObjects() {
     VkFenceCreateInfo fenceInfo{};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    for (uint64_t i = 0; i < 2; i++) {
+    for (Uint64 i = 0; i < 2; i++) {
         {
             VkResult result = vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]);
             assert(result == VK_SUCCESS);
@@ -993,7 +993,7 @@ void VulkanRenderer::createMsaaColorResources() {
 
 // Texture and pipeline delegation methods
 
-void VulkanRenderer::loadTexture(uint64_t textureId, const ResourceData& imageData) {
+void VulkanRenderer::loadTexture(Uint64 textureId, const ResourceData& imageData) {
     m_textureManager.loadTexture(textureId, imageData);
     // Create descriptor set for the texture
     VulkanTexture::TextureData texData;
@@ -1002,7 +1002,7 @@ void VulkanRenderer::loadTexture(uint64_t textureId, const ResourceData& imageDa
     }
 }
 
-void VulkanRenderer::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData) {
+void VulkanRenderer::loadAtlasTexture(Uint64 atlasId, const ResourceData& atlasData) {
     m_textureManager.loadAtlasTexture(atlasId, atlasData);
     // Create descriptor set for the atlas
     VulkanTexture::TextureData texData;
@@ -1011,31 +1011,31 @@ void VulkanRenderer::loadAtlasTexture(uint64_t atlasId, const ResourceData& atla
     }
 }
 
-void VulkanRenderer::createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
+void VulkanRenderer::createTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures) {
     m_pipelineManager.createTexturedPipeline(id, vertShader, fragShader, numTextures);
 }
 
-void VulkanRenderer::createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
+void VulkanRenderer::createTexturedPipelineAdditive(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures) {
     m_pipelineManager.createTexturedPipelineAdditive(id, vertShader, fragShader, numTextures);
 }
 
-void VulkanRenderer::createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
+void VulkanRenderer::createAnimTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures) {
     m_pipelineManager.createAnimTexturedPipeline(id, vertShader, fragShader, numTextures);
 }
 
-void VulkanRenderer::createWaterPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures) {
+void VulkanRenderer::createWaterPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures) {
     m_pipelineManager.createWaterPipeline(id, vertShader, fragShader, numTextures);
 }
 
-void VulkanRenderer::createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode) {
+void VulkanRenderer::createParticlePipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode) {
     m_pipelineManager.createParticlePipeline(id, vertShader, fragShader, blendMode);
 }
 
-void VulkanRenderer::destroyPipeline(uint64_t id) {
+void VulkanRenderer::destroyPipeline(Uint64 id) {
     m_pipelineManager.destroyPipeline(id);
 }
 
-void VulkanRenderer::createDescriptorSetForTextures(uint64_t descriptorId, const Vector<uint64_t>& textureIds) {
+void VulkanRenderer::createDescriptorSetForTextures(Uint64 descriptorId, const Vector<Uint64>& textureIds) {
     m_descriptorManager.createDescriptorSetForTextures(descriptorId, textureIds);
 }
 
@@ -1062,7 +1062,7 @@ void VulkanRenderer::updateWaterPolygonVertices(const float* vertices, int verte
     m_waterPolygonManager.updateUniformBuffer(vertices, vertexCount);
 }
 
-void VulkanRenderer::createWaterDescriptorSet(uint64_t primaryTextureId, uint64_t reflectionTextureId) {
+void VulkanRenderer::createWaterDescriptorSet(Uint64 primaryTextureId, Uint64 reflectionTextureId) {
     m_consoleBuffer->log(SDL_LOG_PRIORITY_TRACE, "Creating water descriptor set with primary texture %llu and reflection texture %llu",
                         (unsigned long long)primaryTextureId, (unsigned long long)reflectionTextureId);
     m_descriptorManager.createWaterDescriptorSet(primaryTextureId, reflectionTextureId,
@@ -1104,12 +1104,12 @@ void VulkanRenderer::setDebugTriangleDrawData(const Vector<float>& vertexData) {
     m_bufferManager.updateDynamicVertexBuffer(m_debugTriangleBuffer, vertexData, 6);
 }
 
-void VulkanRenderer::setSpriteDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices) {
+void VulkanRenderer::setSpriteDrawData(const Vector<float>& vertexData, const Vector<Uint16>& indices) {
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
     m_bufferManager.updateIndexedBuffer(m_spriteBuffers[m_currentFrame], vertexData, indices, 6);
 }
 
-void VulkanRenderer::setParticleDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices, uint64_t textureId) {
+void VulkanRenderer::setParticleDrawData(const Vector<float>& vertexData, const Vector<Uint16>& indices, Uint64 textureId) {
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
     m_bufferManager.updateIndexedBuffer(m_particleBuffers[m_currentFrame], vertexData, indices, 18);
     m_particleTextureId = textureId;
@@ -1122,9 +1122,9 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
     m_spriteBatches.clear();
 
     Vector<float> allVertexData(*m_allocator, "VulkanRenderer::generateSpriteBatches::allVertexData");
-    Vector<uint16_t> allIndices(*m_allocator, "VulkanRenderer::generateSpriteBatches::allIndices");
-    uint32_t baseVertex = 0;
-    uint32_t orderIndex = 0;
+    Vector<Uint16> allIndices(*m_allocator, "VulkanRenderer::generateSpriteBatches::allIndices");
+    Uint32 baseVertex = 0;
+    Uint32 orderIndex = 0;
 
     for (const auto& batch : batches) {
         if (batch.vertices.empty() || batch.indices.empty()) {
@@ -1137,8 +1137,8 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
         drawData.descriptorId = batch.descriptorId;
         drawData.pipelineId = batch.pipelineId;
         drawData.parallaxDepth = batch.parallaxDepth;
-        drawData.firstIndex = static_cast<uint32_t>(allIndices.size());
-        drawData.indexCount = static_cast<uint32_t>(batch.indices.size());
+        drawData.firstIndex = static_cast<Uint32>(allIndices.size());
+        drawData.indexCount = static_cast<Uint32>(batch.indices.size());
         drawData.instanceCount = 1;
         drawData.firstInstance = 0;
         drawData.orderIndex = orderIndex++;
@@ -1179,11 +1179,11 @@ void VulkanRenderer::setSpriteBatches(const Vector<SpriteBatch>& batches) {
             allVertexData.push_back(v.uvMaxY);
         }
 
-        for (uint16_t idx : batch.indices) {
+        for (Uint16 idx : batch.indices) {
             allIndices.push_back(idx + baseVertex);
         }
 
-        baseVertex += static_cast<uint32_t>(batch.vertices.size());
+        baseVertex += static_cast<Uint32>(batch.vertices.size());
         m_spriteBatches.push_back(drawData);
     }
 
@@ -1198,10 +1198,10 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
     m_particleBatches.clear();
 
     Vector<float> allVertexData(*m_allocator, "VulkanRenderer::generateParticleBatches::allVertexData");
-    Vector<uint16_t> allIndices(*m_allocator, "VulkanRenderer::generateParticleBatches::allIndices");
-    uint32_t baseInstance = 0;
+    Vector<Uint16> allIndices(*m_allocator, "VulkanRenderer::generateParticleBatches::allIndices");
+    Uint32 baseInstance = 0;
     // Start order index after sprite batches to preserve creation order
-    uint32_t orderIndex = static_cast<uint32_t>(m_spriteBatches.size());
+    Uint32 orderIndex = static_cast<Uint32>(m_spriteBatches.size());
 
     for (const auto& batch : batches) {
         if (batch.instances.empty()) {
@@ -1216,7 +1216,7 @@ void VulkanRenderer::setParticleBatches(const Vector<ParticleBatch>& batches) {
         drawData.parallaxDepth = batch.parallaxDepth;
         drawData.firstIndex = 0;
         drawData.indexCount = 6;
-        drawData.instanceCount = static_cast<uint32_t>(batch.instances.size());
+        drawData.instanceCount = static_cast<Uint32>(batch.instances.size());
         drawData.firstInstance = baseInstance;
         drawData.orderIndex = orderIndex++;
         drawData.isParticle = true;
@@ -1330,7 +1330,7 @@ void VulkanRenderer::setAmbientLight(float r, float g, float b) {
 
 // Command buffer recording
 
-void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, float time) {
+void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 imageIndex, float time) {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     {
@@ -1367,7 +1367,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     const auto& pipelinesToDraw = m_pipelineManager.getPipelinesToDraw();
 
     // Phase 1: Draw background shaders (non-textured pipelines like nebula)
-    for (uint64_t pipelineId : pipelinesToDraw) {
+    for (Uint64 pipelineId : pipelinesToDraw) {
         if (m_pipelineManager.isDebugPipeline(pipelineId)) {
             continue; // Skip debug, draw last
         }
@@ -1618,7 +1618,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
     }
 
     // Phase 3: Draw debug shader (always last)
-    for (uint64_t pipelineId : pipelinesToDraw) {
+    for (Uint64 pipelineId : pipelinesToDraw) {
         if (!m_pipelineManager.isDebugPipeline(pipelineId)) {
             continue;
         }

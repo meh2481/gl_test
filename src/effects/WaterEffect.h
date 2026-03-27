@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 
 // Maximum number of active ripples (must match MAX_SHADER_RIPPLES in VulkanPipeline.h)
 static const int MAX_WATER_RIPPLES = 4;

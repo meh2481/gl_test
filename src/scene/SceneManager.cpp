@@ -182,7 +182,7 @@ void SceneManager::buildParticleBatches(Vector<ParticleBatch>& particleBatches) 
         ParticleSystem* system = &particleManager.getSystems()[i];
         if (!system || system->liveParticleCount == 0) continue;
 
-        uint64_t textureId = 0;
+        Uint64 textureId = 0;
         if (system->config.textureCount > 0) {
             AtlasUV atlasUV;
             if (pakResource_.tryGetAtlasUV(system->config.textureIds[0], atlasUV)) {
@@ -255,7 +255,7 @@ void SceneManager::buildParticleBatches(Vector<ParticleBatch>& particleBatches) 
     }
 }
 
-void SceneManager::pushScene(uint64_t sceneId) {
+void SceneManager::pushScene(Uint64 sceneId) {
     // If we're not currently in a transition and there's an active scene, start fade-out
     if (transitionState_ == TRANSITION_NONE && !sceneStack_.empty()) {
         consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "SceneManager: Starting fade-out transition for scene push");
@@ -321,7 +321,7 @@ bool SceneManager::isEmpty() const {
     return sceneStack_.empty();
 }
 
-uint64_t SceneManager::getActiveSceneId() const {
+Uint64 SceneManager::getActiveSceneId() const {
     if (!sceneStack_.empty()) {
         return sceneStack_.top();
     }
@@ -330,7 +330,7 @@ uint64_t SceneManager::getActiveSceneId() const {
 
 void SceneManager::reloadCurrentScene() {
     if (!sceneStack_.empty()) {
-        uint64_t currentSceneId = sceneStack_.top();
+        Uint64 currentSceneId = sceneStack_.top();
         // Cleanup the scene before reloading
         luaInterface_->cleanupScene(currentSceneId);
         // Clear existing pipelines for this scene
@@ -365,7 +365,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
     updateTransition(deltaTime);
 
     if (!sceneStack_.empty()) {
-        uint64_t activeSceneId = sceneStack_.top();
+        Uint64 activeSceneId = sceneStack_.top();
         luaInterface_->updateScene(activeSceneId, deltaTime);
 
         // Update animations
@@ -431,7 +431,7 @@ bool SceneManager::updateActiveScene(float deltaTime) {
             const Vector<DebugVertex>& debugTriangleVerts = physics.getDebugTriangleVertices();
             Vector<float> triangleVertexData(*luaInterface_->getStringAllocator(), "SceneManager::render::triangleVertexData");
             triangleVertexData.reserve(debugTriangleVerts.size() * 6);
-            for (uint64_t i = 0; i < debugTriangleVerts.size(); i += 3) {
+            for (Uint64 i = 0; i < debugTriangleVerts.size(); i += 3) {
                 // Reverse winding order: v0, v2, v1 instead of v0, v1, v2
                 const auto& v0 = debugTriangleVerts[i];
                 const auto& v1 = debugTriangleVerts[i + 1];
@@ -505,7 +505,7 @@ void SceneManager::ensureFadePipelineReady() {
 
 void SceneManager::handleAction(Action action) {
     if (!sceneStack_.empty()) {
-        uint64_t activeSceneId = sceneStack_.top();
+        Uint64 activeSceneId = sceneStack_.top();
         luaInterface_->handleAction(activeSceneId, action);
     }
 }
@@ -596,7 +596,7 @@ void SceneManager::updateTransition(float deltaTime) {
             // Handle pending scene change
             if (pendingScenePush_) {
                 // Complete the push operation
-                uint64_t sceneId = pendingSceneId_;
+                Uint64 sceneId = pendingSceneId_;
                 consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "SceneManager: Pushing scene %llu after fade-out", (unsigned long long)sceneId);
 
                 // Load the scene if not already loaded
@@ -630,7 +630,7 @@ void SceneManager::updateTransition(float deltaTime) {
 
             if (pendingPop_) {
                 // Complete the pop operation
-                uint64_t poppedSceneId = sceneStack_.top();
+                Uint64 poppedSceneId = sceneStack_.top();
                 consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "SceneManager: Popping scene %llu after fade-out", (unsigned long long)poppedSceneId);
 
                 // Cleanup the scene before popping
@@ -648,7 +648,7 @@ void SceneManager::updateTransition(float deltaTime) {
 
                 // Switch to the new active scene's pipeline
                 if (!sceneStack_.empty()) {
-                    uint64_t newActiveSceneId = sceneStack_.top();
+                    Uint64 newActiveSceneId = sceneStack_.top();
                     luaInterface_->switchToScenePipeline(newActiveSceneId);
                 }
             }

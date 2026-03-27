@@ -81,16 +81,16 @@ bool PakResource::load(const char* filename) {
         return false;
     }
 
-    m_pakFileBuffer.resize((uint64_t)fileSize);
-    uint64_t bytesRead = SDL_ReadIO(file, m_pakFileBuffer.data(), (uint64_t)fileSize);
+    m_pakFileBuffer.resize((Uint64)fileSize);
+    Uint64 bytesRead = SDL_ReadIO(file, m_pakFileBuffer.data(), (Uint64)fileSize);
     SDL_CloseIO(file);
 
-    if (bytesRead != (uint64_t)fileSize) {
+    if (bytesRead != (Uint64)fileSize) {
         m_pakFileBuffer.clear();
         return false;
     }
 
-    m_pakData = ResourceData{m_pakFileBuffer.data(), (uint64_t)fileSize, 0};
+    m_pakData = ResourceData{m_pakFileBuffer.data(), (Uint64)fileSize, 0};
 
     SDL_LockMutex(m_mutex);
     buildResourceIndexLocked();
@@ -145,13 +145,13 @@ void PakResource::buildResourceIndexLocked() {
     }
 
     ResourcePtr* ptrs = (ResourcePtr*)(m_pakData.data + sizeof(PakFileHeader));
-    for (uint32_t i = 0; i < header->numResources; i++) {
+    for (Uint32 i = 0; i < header->numResources; i++) {
         m_resourceIndex.insert(ptrs[i].id, ptrs[i]);
         m_resourceStates.insert(ptrs[i].id, RESOURCE_NOT_REQUESTED);
     }
 }
 
-bool PakResource::loadResourceDataLocked(uint64_t id, ResourceData& outData) {
+bool PakResource::loadResourceDataLocked(Uint64 id, ResourceData& outData) {
     ResourceData* loaded = m_loadedResourceData.find(id);
     if (loaded != nullptr) {
         outData = *loaded;
@@ -225,7 +225,7 @@ int PakResource::resourceWorkerThread(void* data) {
             break;
         }
 
-        uint64_t id = resource->m_requestQueue[0];
+        Uint64 id = resource->m_requestQueue[0];
         resource->m_requestQueue.erase(0);
         resource->m_resourceStates.insert(id, RESOURCE_LOADING);
 
@@ -239,7 +239,7 @@ int PakResource::resourceWorkerThread(void* data) {
     return 0;
 }
 
-void PakResource::requestResourceAsync(uint64_t id) {
+void PakResource::requestResourceAsync(Uint64 id) {
     SDL_LockMutex(m_mutex);
 
     if (!m_pakData.data) {
@@ -271,7 +271,7 @@ void PakResource::preloadAllResourcesAsync() {
     SDL_LockMutex(m_mutex);
 
     for (auto it = m_resourceIndex.begin(); it != m_resourceIndex.end(); ++it) {
-        uint64_t id = it.key();
+        Uint64 id = it.key();
         uint8_t* state = m_resourceStates.find(id);
         uint8_t currentState = (state != nullptr) ? *state : RESOURCE_NOT_REQUESTED;
         if (currentState == RESOURCE_READY || currentState == RESOURCE_LOADING || currentState == RESOURCE_QUEUED) {
@@ -285,7 +285,7 @@ void PakResource::preloadAllResourcesAsync() {
     SDL_UnlockMutex(m_mutex);
 }
 
-bool PakResource::tryGetResource(uint64_t id, ResourceData& outData) {
+bool PakResource::tryGetResource(Uint64 id, ResourceData& outData) {
     outData = ResourceData{nullptr, 0, 0};
 
     SDL_LockMutex(m_mutex);
@@ -328,7 +328,7 @@ bool PakResource::areAllResourcesReady() {
     return true;
 }
 
-bool PakResource::hasResource(uint64_t id) {
+bool PakResource::hasResource(Uint64 id) {
     SDL_LockMutex(m_mutex);
 
     bool exists = m_resourceIndex.contains(id);
@@ -336,7 +336,7 @@ bool PakResource::hasResource(uint64_t id) {
     return exists;
 }
 
-bool PakResource::tryGetAtlasUV(uint64_t textureId, AtlasUV& uv) {
+bool PakResource::tryGetAtlasUV(Uint64 textureId, AtlasUV& uv) {
     SDL_LockMutex(m_mutex);
 
     // Check cache first
@@ -389,7 +389,7 @@ bool PakResource::tryGetAtlasUV(uint64_t textureId, AtlasUV& uv) {
             AtlasEntry* entries = (AtlasEntry*)(atlasData.data + sizeof(AtlasHeader));
 
             // Find the entry for this texture
-            for (uint16_t i = 0; i < atlasHeader->numEntries; i++) {
+            for (Uint16 i = 0; i < atlasHeader->numEntries; i++) {
                 if (entries[i].originalId == textureId) {
                     uv.width = entries[i].width;
                     uv.height = entries[i].height;
@@ -410,7 +410,7 @@ bool PakResource::tryGetAtlasUV(uint64_t textureId, AtlasUV& uv) {
     return false;  // Not an atlas reference (standalone image)
 }
 
-bool PakResource::tryGetAtlasData(uint64_t atlasId, ResourceData& outData) {
+bool PakResource::tryGetAtlasData(Uint64 atlasId, ResourceData& outData) {
     outData = ResourceData{nullptr, 0, 0};
 
     ResourceData resData;
@@ -426,7 +426,7 @@ bool PakResource::tryGetAtlasData(uint64_t atlasId, ResourceData& outData) {
     return true;
 }
 
-bool PakResource::isResourceReady(uint64_t id) {
+bool PakResource::isResourceReady(Uint64 id) {
     SDL_LockMutex(m_mutex);
     uint8_t* state = m_resourceStates.find(id);
     bool ready = (state != nullptr && *state == RESOURCE_READY);

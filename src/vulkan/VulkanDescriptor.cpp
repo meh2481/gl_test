@@ -5,7 +5,7 @@
 
 // Animation push constant size: 6 base + 7 params + 20 animation = 33 floats
 // Water polygon vertices now passed via uniform buffer instead of push constants
-static const uint32_t ANIM_PUSH_CONSTANT_FLOAT_COUNT = 33;
+static const Uint32 ANIM_PUSH_CONSTANT_FLOAT_COUNT = 33;
 
 // Helper function to convert VkResult to readable string for error logging
 static const char* vkResultToString(VkResult result) {
@@ -282,7 +282,7 @@ void VulkanDescriptor::createLightDescriptorPool() {
     }
 }
 
-void VulkanDescriptor::createSingleTextureDescriptorSet(uint64_t textureId, VkImageView imageView, VkSampler sampler) {
+void VulkanDescriptor::createSingleTextureDescriptorSet(Uint64 textureId, VkImageView imageView, VkSampler sampler) {
     if (m_singleTextureDescriptorSets.find(textureId) != nullptr) {
         return;
     }
@@ -318,7 +318,7 @@ void VulkanDescriptor::createSingleTextureDescriptorSet(uint64_t textureId, VkIm
     m_singleTextureDescriptorSets.insert(textureId, descriptorSet);
 }
 
-void VulkanDescriptor::createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id) {
+void VulkanDescriptor::createDualTextureDescriptorSet(Uint64 descriptorId, Uint64 texture1Id, Uint64 texture2Id) {
     if (m_dualTextureDescriptorSets.find(descriptorId) != nullptr) {
         return;
     }
@@ -392,7 +392,7 @@ void VulkanDescriptor::createDualTextureDescriptorSet(uint64_t descriptorId, uin
     m_dualTextureDescriptorSets.insert(descriptorId, descriptorSet);
 }
 
-void VulkanDescriptor::createDescriptorSetForTextures(uint64_t descriptorId, const Vector<uint64_t>& textureIds) {
+void VulkanDescriptor::createDescriptorSetForTextures(Uint64 descriptorId, const Vector<Uint64>& textureIds) {
     if (textureIds.size() == 1) {
         const VkDescriptorSet* descSetPtr = m_singleTextureDescriptorSets.find(textureIds[0]);
         if (descSetPtr != nullptr) {
@@ -432,7 +432,7 @@ void VulkanDescriptor::createLightDescriptorSet(VkBuffer lightUniformBuffer, VkD
     vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
 }
 
-VkDescriptorSet VulkanDescriptor::getSingleTextureDescriptorSet(uint64_t textureId) const {
+VkDescriptorSet VulkanDescriptor::getSingleTextureDescriptorSet(Uint64 textureId) const {
     const VkDescriptorSet* descSetPtr = m_singleTextureDescriptorSets.find(textureId);
     if (descSetPtr != nullptr) {
         return *descSetPtr;
@@ -440,7 +440,7 @@ VkDescriptorSet VulkanDescriptor::getSingleTextureDescriptorSet(uint64_t texture
     return VK_NULL_HANDLE;
 }
 
-VkDescriptorSet VulkanDescriptor::getDualTextureDescriptorSet(uint64_t descriptorId) const {
+VkDescriptorSet VulkanDescriptor::getDualTextureDescriptorSet(Uint64 descriptorId) const {
     const VkDescriptorSet* descSetPtr = m_dualTextureDescriptorSets.find(descriptorId);
     if (descSetPtr != nullptr) {
         return *descSetPtr;
@@ -448,16 +448,16 @@ VkDescriptorSet VulkanDescriptor::getDualTextureDescriptorSet(uint64_t descripto
     return VK_NULL_HANDLE;
 }
 
-bool VulkanDescriptor::hasSingleTextureDescriptorSet(uint64_t textureId) const {
+bool VulkanDescriptor::hasSingleTextureDescriptorSet(Uint64 textureId) const {
     return m_singleTextureDescriptorSets.find(textureId) != nullptr;
 }
 
-bool VulkanDescriptor::hasDualTextureDescriptorSet(uint64_t descriptorId) const {
+bool VulkanDescriptor::hasDualTextureDescriptorSet(Uint64 descriptorId) const {
     return m_dualTextureDescriptorSets.find(descriptorId) != nullptr;
 }
 
-VkDescriptorSet VulkanDescriptor::getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId,
-                                                           uint64_t normalMapId, bool usesDualTexture) {
+VkDescriptorSet VulkanDescriptor::getOrCreateDescriptorSet(Uint64 descriptorId, Uint64 textureId,
+                                                           Uint64 normalMapId, bool usesDualTexture) {
     if (usesDualTexture) {
         const VkDescriptorSet* descSetPtr = m_dualTextureDescriptorSets.find(descriptorId);
         if (descSetPtr != nullptr) {
@@ -679,7 +679,7 @@ void VulkanDescriptor::createWaterDescriptorPool() {
     }
 }
 
-void VulkanDescriptor::createWaterDescriptorSet(uint64_t texture1Id, uint64_t texture2Id, VkBuffer waterPolygonUniformBuffer, VkDeviceSize bufferSize) {
+void VulkanDescriptor::createWaterDescriptorSet(Uint64 texture1Id, Uint64 texture2Id, VkBuffer waterPolygonUniformBuffer, VkDeviceSize bufferSize) {
     assert(m_textureManager != nullptr);
 
     VulkanTexture::TextureData tex1, tex2;

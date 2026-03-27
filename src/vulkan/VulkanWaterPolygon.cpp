@@ -40,10 +40,10 @@ void VulkanWaterPolygon::cleanup() {
     m_initialized = false;
 }
 
-uint32_t VulkanWaterPolygon::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+Uint32 VulkanWaterPolygon::findMemoryType(Uint32 typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+    for (Uint32 i = 0; i < memProperties.memoryTypeCount; i++) {
         if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
             return i;
         }
@@ -55,7 +55,7 @@ uint32_t VulkanWaterPolygon::findMemoryType(uint32_t typeFilter, VkMemoryPropert
 void VulkanWaterPolygon::createUniformBuffer() {
     VkDeviceSize bufferSize = sizeof(WaterPolygonBufferData);
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "VulkanWaterPolygon::createUniformBuffer - Creating buffer of size %zu bytes", (uint64_t)bufferSize);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "VulkanWaterPolygon::createUniformBuffer - Creating buffer of size %zu bytes", (Uint64)bufferSize);
 
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;

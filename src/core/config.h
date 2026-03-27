@@ -66,6 +66,6 @@ void saveConfig(const Config& config);
 // Helper function to build a path in the config directory
 // Returns true if successful, false otherwise
 // pathBuffer should be at least MAX_PREF_PATH bytes
-bool getPrefFilePath(char* pathBuffer, uint64_t bufferSize, const char* filename);
+bool getPrefFilePath(char* pathBuffer, Uint64 bufferSize, const char* filename);
 
 #endif // CONFIG_H

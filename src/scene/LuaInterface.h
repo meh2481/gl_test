@@ -41,13 +41,13 @@ public:
     void executeScript(const ResourceData& scriptData);
 
     // Scene management functions
-    void loadScene(uint64_t sceneId, const ResourceData& scriptData);
-    void initScene(uint64_t sceneId);
-    void updateScene(uint64_t sceneId, float deltaTime);
-    void handleAction(uint64_t sceneId, Action action);
-    void cleanupScene(uint64_t sceneId);
-    void switchToScenePipeline(uint64_t sceneId);
-    void clearScenePipelines(uint64_t sceneId);
+    void loadScene(Uint64 sceneId, const ResourceData& scriptData);
+    void initScene(Uint64 sceneId);
+    void updateScene(Uint64 sceneId, float deltaTime);
+    void handleAction(Uint64 sceneId, Action action);
+    void cleanupScene(Uint64 sceneId);
+    void switchToScenePipeline(Uint64 sceneId);
+    void clearScenePipelines(Uint64 sceneId);
 
     // Physics access
     Box2DPhysics& getPhysics() { return *physics_; }
@@ -243,8 +243,8 @@ private:
     ConsoleBuffer* consoleBuffer_;
 
     int pipelineIndex_;
-    uint64_t currentSceneId_;
-    HashTable<uint64_t, Vector<IntPair>* > scenePipelines_; // pipelineId, zIndex
+    Uint64 currentSceneId_;
+    HashTable<Uint64, Vector<IntPair>* > scenePipelines_; // pipelineId, zIndex
     Box2DPhysics* physics_;
     SceneLayerManager* layerManager_;
     AudioManager* audioManager_;
@@ -274,7 +274,7 @@ private:
 
     // Particle pipeline cache: maps shader config hash to pipeline ID
     // Key is hash of (vertShader ID, fragShader ID, blendMode)
-    HashTable<uint64_t, int> particlePipelineCache_;
+    HashTable<Uint64, int> particlePipelineCache_;
 
     // Water visual setup helper (called from createForceField when water=true)
     void setupWaterVisuals(int physicsForceFieldId, int waterFieldId,

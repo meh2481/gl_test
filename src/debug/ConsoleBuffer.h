@@ -134,10 +134,10 @@ public:
         return *this;
     }
 
-    // Stream an unsigned long / uint64_t
-    // Note: On some platforms uint64_t and unsigned long are the same type
+    // Stream an unsigned long / Uint64
+    // Note: On some platforms Uint64 and unsigned long are the same type
     #if !defined(__x86_64__) || defined(_WIN32) || defined(_WIN64)
-    ConsoleBuffer& operator<<(uint64_t value) {
+    ConsoleBuffer& operator<<(Uint64 value) {
         char buffer[32];
         SDL_snprintf(buffer, sizeof(buffer), "%zu", value);
         currentLine_ += buffer;

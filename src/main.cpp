@@ -1,7 +1,6 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
-#include <cstdint>
 #include <cassert>
 #include <lua.hpp>
 #include "vulkan/VulkanRenderer.h"
@@ -281,7 +280,7 @@ extern "C" int app_main()
     pakResource->preloadAllResourcesAsync();
 
     // Ensure trig table is available for engine bootstrap while remaining resources keep streaming
-    uint64_t trigTableId = hashCString("res/trig_table.bin");
+    Uint64 trigTableId = hashCString("res/trig_table.bin");
     pakResource->requestResourceAsync(trigTableId);
     while (!pakResource->isResourceReady(trigTableId))
     {

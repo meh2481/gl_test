@@ -57,7 +57,7 @@ public:
     }
 
     // Get number of elements in stack
-    uint64_t size() const {
+    Uint64 size() const {
         return data_.size();
     }
 

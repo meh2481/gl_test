@@ -27,33 +27,33 @@ public:
     int getSelectedGpuIndex() const { return m_selectedGpuIndex; }
     void createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader);
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
-    void createPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
-    void createTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
-    void createTexturedPipelineAdditive(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
-    void createAnimTexturedPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 1);
-    void createWaterPipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, uint32_t numTextures = 2);
-    void createParticlePipeline(uint64_t id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode = 0);
-    void destroyPipeline(uint64_t id);
-    void associateDescriptorWithPipeline(uint64_t pipelineId, uint64_t descriptorId);
-    void setCurrentPipeline(uint64_t id);
-    void setPipelinesToDraw(const Vector<uint64_t>& pipelineIds);
+    void createPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
+    void createTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 1);
+    void createTexturedPipelineAdditive(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 1);
+    void createAnimTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 1);
+    void createWaterPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 2);
+    void createParticlePipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, int blendMode = 0);
+    void destroyPipeline(Uint64 id);
+    void associateDescriptorWithPipeline(Uint64 pipelineId, Uint64 descriptorId);
+    void setCurrentPipeline(Uint64 id);
+    void setPipelinesToDraw(const Vector<Uint64>& pipelineIds);
     void setDebugDrawData(const Vector<float>& vertexData);
     void setDebugLineDrawData(const Vector<float>& vertexData);
     void setDebugTriangleDrawData(const Vector<float>& vertexData);
-    void setSpriteDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices);
+    void setSpriteDrawData(const Vector<float>& vertexData, const Vector<Uint16>& indices);
     void setSpriteBatches(const Vector<SpriteBatch>& batches);
     void setParticleBatches(const Vector<ParticleBatch>& batches);
-    void setParticleDrawData(const Vector<float>& vertexData, const Vector<uint16_t>& indices, uint64_t textureId = 0);
-    void loadTexture(uint64_t textureId, const ResourceData& imageData);
-    void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);
-    void createDescriptorSetForTextures(uint64_t descriptorId, const Vector<uint64_t>& textureIds);
+    void setParticleDrawData(const Vector<float>& vertexData, const Vector<Uint16>& indices, Uint64 textureId = 0);
+    void loadTexture(Uint64 textureId, const ResourceData& imageData);
+    void loadAtlasTexture(Uint64 atlasId, const ResourceData& atlasData);
+    void createDescriptorSetForTextures(Uint64 descriptorId, const Vector<Uint64>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
     void setPipelineParallaxDepth(int pipelineId, float depth);
     void markPipelineAsWater(int pipelineId);
     void setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples);
     void updateWaterPolygonVertices(const float* vertices, int vertexCount);
-    void createWaterDescriptorSet(uint64_t primaryTextureId, uint64_t reflectionTextureId);
-    bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
+    void createWaterDescriptorSet(Uint64 primaryTextureId, Uint64 reflectionTextureId);
+    bool getTextureDimensions(Uint64 textureId, Uint32* width, Uint32* height) const;
     void setCameraTransform(float offsetX, float offsetY, float zoom);
     void setClearColor(float r, float g, float b, float a = 1.0f);
     void setFadeOverlay(float r, float g, float b, float alpha);
@@ -63,7 +63,7 @@ public:
     // Reflection/render-to-texture support
     void enableReflection(float surfaceY);
     void disableReflection();
-    uint64_t getReflectionTextureId() const { return m_reflectionTextureId; }
+    Uint64 getReflectionTextureId() const { return m_reflectionTextureId; }
     bool isReflectionEnabled() const { return m_reflectionEnabled; }
 
     // Light management
@@ -80,15 +80,15 @@ public:
     VkInstance getInstance() const { return m_instance; }
     VkPhysicalDevice getPhysicalDevice() const { return m_physicalDevice; }
     VkDevice getDevice() const { return m_device; }
-    uint32_t getGraphicsQueueFamilyIndex() const { return m_graphicsQueueFamilyIndex; }
+    Uint32 getGraphicsQueueFamilyIndex() const { return m_graphicsQueueFamilyIndex; }
     VkQueue getGraphicsQueue() const { return m_graphicsQueue; }
     VkRenderPass getRenderPass() const { return m_renderPass; }
-    uint32_t getSwapchainImageCount() const { return m_swapchainImageCount; }
+    Uint32 getSwapchainImageCount() const { return m_swapchainImageCount; }
     VkCommandBuffer getCurrentCommandBuffer() const { return m_commandBuffers[m_currentFrame]; }
     VkSampleCountFlagBits getMsaaSamples() const { return m_msaaSamples; }
 
     // Get texture data for ImGui rendering
-    bool getTextureForImGui(uint64_t textureId, VkImageView* imageView, VkSampler* sampler) const;
+    bool getTextureForImGui(Uint64 textureId, VkImageView* imageView, VkSampler* sampler) const;
 
     // Set ImGui render callback
     void setImGuiRenderCallback(void (*callback)(VkCommandBuffer)) { m_imguiRenderCallback = callback; }
@@ -111,7 +111,7 @@ private:
     VkQueue m_graphicsQueue;
     VkSwapchainKHR m_swapchain;
     VkImage* m_swapchainImages;
-    uint32_t m_swapchainImageCount;
+    Uint32 m_swapchainImageCount;
     VkFormat m_swapchainImageFormat;
     VkExtent2D m_swapchainExtent;
     VkImageView* m_swapchainImageViews;
@@ -132,16 +132,16 @@ private:
 
     // Sprite batch data
     struct BatchDrawData {
-        uint64_t textureId;
-        uint64_t normalMapId;
-        uint64_t descriptorId;
+        Uint64 textureId;
+        Uint64 normalMapId;
+        Uint64 descriptorId;
         int pipelineId;
         float parallaxDepth;
-        uint32_t indexCount;
-        uint32_t firstIndex;
-        uint32_t instanceCount;
-        uint32_t firstInstance;
-        uint32_t orderIndex;  // Stable ordering index to preserve creation order
+        Uint32 indexCount;
+        Uint32 firstIndex;
+        Uint32 instanceCount;
+        Uint32 firstInstance;
+        Uint32 orderIndex;  // Stable ordering index to preserve creation order
         bool isParticle;  // true = particle batch, false = sprite batch
 
         // Animation parameters
@@ -161,7 +161,7 @@ private:
     void rebuildAllBatches();
 
     // Particle texture ID for rendering
-    uint64_t m_particleTextureId;
+    Uint64 m_particleTextureId;
 
     // Camera transform
     float m_cameraOffsetX;
@@ -184,8 +184,8 @@ private:
     VkSemaphore m_imageAvailableSemaphores[2];
     VkSemaphore m_renderFinishedSemaphores[2];
     VkFence m_inFlightFences[2];
-    uint64_t m_currentFrame;
-    uint32_t m_graphicsQueueFamilyIndex;
+    Uint64 m_currentFrame;
+    Uint32 m_graphicsQueueFamilyIndex;
     VkFramebuffer* m_swapchainFramebuffers;
 
     // MSAA resources
@@ -207,7 +207,7 @@ private:
     // Reflection render target for water effects
     VkRenderPass m_reflectionRenderPass;
     VkFramebuffer m_reflectionFramebuffer;
-    uint64_t m_reflectionTextureId;
+    Uint64 m_reflectionTextureId;
     bool m_reflectionEnabled;
     float m_reflectionSurfaceY;  // Y coordinate of water surface for reflection clipping
 
@@ -236,13 +236,13 @@ private:
     VkDeviceSize getDeviceLocalMemory(VkPhysicalDevice device);
 
     // Swapchain helpers
-    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR* availableFormats, uint32_t formatCount);
-    VkPresentModeKHR chooseSwapPresentMode(const VkPresentModeKHR* availablePresentModes, uint32_t presentModeCount);
+    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR* availableFormats, Uint32 formatCount);
+    VkPresentModeKHR chooseSwapPresentMode(const VkPresentModeKHR* availablePresentModes, Uint32 presentModeCount);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, SDL_Window* window);
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    Uint32 findMemoryType(Uint32 typeFilter, VkMemoryPropertyFlags properties);
 
     // Command buffer recording
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, float time);
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 imageIndex, float time);
 
     // Reflection rendering
     void createReflectionResources();

@@ -35,10 +35,10 @@ void VulkanTexture::cleanup() {
     m_initialized = false;
 }
 
-uint32_t VulkanTexture::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+Uint32 VulkanTexture::findMemoryType(Uint32 typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+    for (Uint32 i = 0; i < memProperties.memoryTypeCount; i++) {
         if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
             return i;
         }
@@ -47,8 +47,8 @@ uint32_t VulkanTexture::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlag
     return 0;
 }
 
-void VulkanTexture::createTextureImage(uint64_t textureId, const void* imageData, uint32_t width, uint32_t height,
-                                       VkFormat format, uint64_t dataSize) {
+void VulkanTexture::createTextureImage(Uint64 textureId, const void* imageData, Uint32 width, Uint32 height,
+                                       VkFormat format, Uint64 dataSize) {
     // Create staging buffer
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
@@ -226,7 +226,7 @@ void VulkanTexture::createTextureImage(uint64_t textureId, const void* imageData
     m_textures.insert(textureId, tex);
 }
 
-void VulkanTexture::createTextureSampler(uint64_t textureId) {
+void VulkanTexture::createTextureSampler(Uint64 textureId) {
     TextureData* texPtr = m_textures.find(textureId);
     assert(texPtr != nullptr);
 
@@ -254,7 +254,7 @@ void VulkanTexture::createTextureSampler(uint64_t textureId) {
     }
 }
 
-bool VulkanTexture::getTexture(uint64_t textureId, TextureData* outData) const {
+bool VulkanTexture::getTexture(Uint64 textureId, TextureData* outData) const {
     const TextureData* texPtr = m_textures.find(textureId);
     if (texPtr == nullptr) {
         return false;
@@ -265,11 +265,11 @@ bool VulkanTexture::getTexture(uint64_t textureId, TextureData* outData) const {
     return true;
 }
 
-bool VulkanTexture::hasTexture(uint64_t textureId) const {
+bool VulkanTexture::hasTexture(Uint64 textureId) const {
     return m_textures.find(textureId) != nullptr;
 }
 
-bool VulkanTexture::getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const {
+bool VulkanTexture::getTextureDimensions(Uint64 textureId, Uint32* width, Uint32* height) const {
     const TextureData* texPtr = m_textures.find(textureId);
     if (texPtr == nullptr) {
         return false;
@@ -279,7 +279,7 @@ bool VulkanTexture::getTextureDimensions(uint64_t textureId, uint32_t* width, ui
     return true;
 }
 
-void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageData) {
+void VulkanTexture::loadTexture(Uint64 textureId, const ResourceData& imageData) {
     // If texture already exists, skip reloading (textures don't change during hot-reload)
     if (m_textures.find(textureId) != nullptr) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Texture %llu: already in GPU memory (cache hit)", (unsigned long long)textureId);
@@ -295,7 +295,7 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
     if (imageData.size == 40) {  // Atlas reference
         // This is an atlas reference
         const TextureHeader* texHeader = (const TextureHeader*)imageData.data;
-        uint64_t atlasId = texHeader->atlasId;
+        Uint64 atlasId = texHeader->atlasId;
         m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Texture %llu: atlas reference (atlas id: %llu, UV: %f,%f - %f,%f)",
                              (unsigned long long)textureId, (unsigned long long)atlasId,
                              texHeader->coordinates[0], texHeader->coordinates[1],
@@ -317,12 +317,12 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
         // Parse ImageHeader to get format, width, height
         assert(imageData.size >= sizeof(ImageHeader));
         const ImageHeader* header = (const ImageHeader*)imageData.data;
-        uint32_t width = header->width;
-        uint32_t height = header->height;
-        uint16_t format = header->format;
+        Uint32 width = header->width;
+        Uint32 height = header->height;
+        Uint16 format = header->format;
 
         const char* compressedData = imageData.data + sizeof(ImageHeader);
-        uint64_t compressedSize = imageData.size - sizeof(ImageHeader);
+        Uint64 compressedSize = imageData.size - sizeof(ImageHeader);
 
         // Map our format to Vulkan format
         VkFormat vkFormat;
@@ -346,7 +346,7 @@ void VulkanTexture::loadTexture(uint64_t textureId, const ResourceData& imageDat
     }
 }
 
-void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData) {
+void VulkanTexture::loadAtlasTexture(Uint64 atlasId, const ResourceData& atlasData) {
     // If atlas texture already exists, skip reloading
     if (m_textures.find(atlasId) != nullptr) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Atlas %llu: already in GPU memory (cache hit)", (unsigned long long)atlasId);
@@ -356,15 +356,15 @@ void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlas
     // Parse AtlasHeader to get format, width, height
     assert(atlasData.size >= sizeof(AtlasHeader));
     const AtlasHeader* header = (const AtlasHeader*)atlasData.data;
-    uint32_t width = header->width;
-    uint32_t height = header->height;
-    uint16_t format = header->format;
-    uint16_t numEntries = header->numEntries;
+    Uint32 width = header->width;
+    Uint32 height = header->height;
+    Uint16 format = header->format;
+    Uint16 numEntries = header->numEntries;
 
     // Skip past header and entries to get to the compressed image data
-    uint64_t entriesSize = sizeof(AtlasEntry) * numEntries;
+    Uint64 entriesSize = sizeof(AtlasEntry) * numEntries;
     const char* compressedData = atlasData.data + sizeof(AtlasHeader) + entriesSize;
-    uint64_t compressedSize = atlasData.size - sizeof(AtlasHeader) - entriesSize;
+    Uint64 compressedSize = atlasData.size - sizeof(AtlasHeader) - entriesSize;
 
     // Map our format to Vulkan format
     VkFormat vkFormat;
@@ -387,7 +387,7 @@ void VulkanTexture::loadAtlasTexture(uint64_t atlasId, const ResourceData& atlas
     createTextureSampler(atlasId);
 }
 
-void VulkanTexture::destroyTexture(uint64_t textureId) {
+void VulkanTexture::destroyTexture(Uint64 textureId) {
     TextureData* texPtr = m_textures.find(textureId);
     if (texPtr == nullptr) {
         return;
@@ -436,7 +436,7 @@ void VulkanTexture::destroyAllTextures() {
     m_textures.clear();
 }
 
-void VulkanTexture::createRenderTargetTexture(uint64_t textureId, uint32_t width, uint32_t height, VkFormat format) {
+void VulkanTexture::createRenderTargetTexture(Uint64 textureId, Uint32 width, Uint32 height, VkFormat format) {
     // Destroy existing texture if present
     if (m_textures.find(textureId) != nullptr) {
         destroyTexture(textureId);

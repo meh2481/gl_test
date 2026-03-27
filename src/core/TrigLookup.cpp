@@ -36,7 +36,7 @@ bool TrigLookup::load(PakResource* pakResource) {
     assert(pakResource != nullptr);
 
     // Get the trig table resource using the well-known name
-    uint64_t trigTableId = hashCString("res/trig_table.bin");
+    Uint64 trigTableId = hashCString("res/trig_table.bin");
     pakResource->requestResourceAsync(trigTableId);
     ResourceData resData{nullptr, 0, 0};
     bool ready = pakResource->tryGetResource(trigTableId, resData);
@@ -63,7 +63,7 @@ bool TrigLookup::load(PakResource* pakResource) {
                         m_numEntries, m_angleStep);
 
     // Expected data size: header + sin table + cos table
-    uint64_t expectedSize = sizeof(TrigTableHeader) + (m_numEntries * sizeof(float) * 2);
+    Uint64 expectedSize = sizeof(TrigTableHeader) + (m_numEntries * sizeof(float) * 2);
     if (resData.size < expectedSize) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "TrigLookup: Invalid data size %zu, expected %zu",
                             resData.size, expectedSize);
@@ -71,7 +71,7 @@ bool TrigLookup::load(PakResource* pakResource) {
     }
 
     // Allocate memory for sin and cos tables using large allocator
-    uint64_t tableSize = m_numEntries * sizeof(float);
+    Uint64 tableSize = m_numEntries * sizeof(float);
     m_sinTable = (float*)m_tableAllocator->allocate(tableSize, "TrigLookup::m_sinTable");
     m_cosTable = (float*)m_tableAllocator->allocate(tableSize, "TrigLookup::m_cosTable");
 
@@ -119,14 +119,14 @@ float TrigLookup::sin(float angle) const {
     float indexF = angle * m_invAngleStep;
 
     // Get integer and fractional parts for interpolation
-    uint32_t index0 = (uint32_t)indexF;
+    Uint32 index0 = (Uint32)indexF;
     float frac = indexF - (float)index0;
 
     // Clamp to valid range and handle wrap-around
     if (index0 >= m_numEntries) {
         index0 = m_numEntries - 1;
     }
-    uint32_t index1 = index0 + 1;
+    Uint32 index1 = index0 + 1;
     if (index1 >= m_numEntries) {
         index1 = 0;
     }
@@ -167,14 +167,14 @@ float TrigLookup::cos(float angle) const {
     float indexF = angle * m_invAngleStep;
 
     // Get integer and fractional parts for interpolation
-    uint32_t index0 = (uint32_t)indexF;
+    Uint32 index0 = (Uint32)indexF;
     float frac = indexF - (float)index0;
 
     // Clamp to valid range and handle wrap-around
     if (index0 >= m_numEntries) {
         index0 = m_numEntries - 1;
     }
-    uint32_t index1 = index0 + 1;
+    Uint32 index1 = index0 + 1;
     if (index1 >= m_numEntries) {
         index1 = 0;
     }
@@ -216,14 +216,14 @@ void TrigLookup::sincos(float angle, float& outSin, float& outCos) const {
     float indexF = angle * m_invAngleStep;
 
     // Get integer and fractional parts for interpolation
-    uint32_t index0 = (uint32_t)indexF;
+    Uint32 index0 = (Uint32)indexF;
     float frac = indexF - (float)index0;
 
     // Clamp to valid range and handle wrap-around
     if (index0 >= m_numEntries) {
         index0 = m_numEntries - 1;
     }
-    uint32_t index1 = index0 + 1;
+    Uint32 index1 = index0 + 1;
     if (index1 >= m_numEntries) {
         index1 = 0;
     }

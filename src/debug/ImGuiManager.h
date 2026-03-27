@@ -14,7 +14,6 @@
 #include "../memory/SmallMemoryAllocator.h"
 #include "../memory/LargeMemoryAllocator.h"
 #include "ThreadProfilerUI.h"
-#include <cstdint>
 
 // Forward declarations
 class VulkanRenderer;
@@ -52,7 +51,7 @@ struct ParticleEditorState {
     bool isDraggingVertex;
 
     // Texture selection
-    uint64_t selectedTextureIds[EDITOR_MAX_TEXTURES];
+    Uint64 selectedTextureIds[EDITOR_MAX_TEXTURES];
     int selectedTextureCount;
     char textureNames[EDITOR_MAX_TEXTURES][EDITOR_MAX_TEXTURE_NAME_LEN];
 
@@ -107,8 +106,8 @@ public:
 
     // Initialize ImGui with Vulkan and SDL3
     void initialize(SDL_Window* window, VkInstance instance, VkPhysicalDevice physicalDevice,
-                    VkDevice device, uint32_t queueFamily, VkQueue graphicsQueue,
-                    VkRenderPass renderPass, uint32_t imageCount, VkSampleCountFlagBits msaaSamples);
+                    VkDevice device, Uint32 queueFamily, VkQueue graphicsQueue,
+                    VkRenderPass renderPass, Uint32 imageCount, VkSampleCountFlagBits msaaSamples);
 
     // Cleanup ImGui
     void cleanup();
@@ -195,7 +194,7 @@ private:
     String truncateTextureName(const char* fullName, float maxWidth);
 
     // ImGui texture cache for preview images
-    HashTable<uint64_t, VkDescriptorSet> imguiTextureCache_;
+    HashTable<Uint64, VkDescriptorSet> imguiTextureCache_;
 };
 
 #endif // DEBUG

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <SDL3/SDL.h>
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
@@ -12,17 +11,17 @@ class ConsoleBuffer;
 
 struct ResourceData {
     char* data;
-    uint64_t size;
-    uint32_t type;
+    Uint64 size;
+    Uint32 type;
 };
 
 // Atlas UV coordinates for texture
 struct AtlasUV {
-    uint64_t atlasId;   // ID of the atlas texture
+    Uint64 atlasId;   // ID of the atlas texture
     float u0, v0;       // Bottom-left UV
     float u1, v1;       // Top-right UV
-    uint16_t width;     // Original image width
-    uint16_t height;    // Original image height
+    Uint16 width;     // Original image width
+    Uint16 height;    // Original image height
 };
 
 class PakResource {
@@ -33,20 +32,20 @@ public:
     bool reload(const char* filename);
 
     // Async-only resource API
-    void requestResourceAsync(uint64_t id);
+    void requestResourceAsync(Uint64 id);
     void preloadAllResourcesAsync();
-    bool tryGetResource(uint64_t id, ResourceData& outData);
+    bool tryGetResource(Uint64 id, ResourceData& outData);
     bool areAllResourcesReady();
 
-    bool hasResource(uint64_t id);
+    bool hasResource(Uint64 id);
 
     // Non-blocking atlas helpers (return false when still loading/not atlas)
-    bool tryGetAtlasUV(uint64_t textureId, AtlasUV& uv);
+    bool tryGetAtlasUV(Uint64 textureId, AtlasUV& uv);
 
     // Non-blocking atlas data access
-    bool tryGetAtlasData(uint64_t atlasId, ResourceData& outData);
+    bool tryGetAtlasData(Uint64 atlasId, ResourceData& outData);
 
-    bool isResourceReady(uint64_t id);
+    bool isResourceReady(Uint64 id);
 
 private:
     enum ResourceLoadState : uint8_t {
@@ -58,18 +57,18 @@ private:
     };
 
     static int resourceWorkerThread(void* data);
-    bool loadResourceDataLocked(uint64_t id, ResourceData& outData);
+    bool loadResourceDataLocked(Uint64 id, ResourceData& outData);
     void clearResourceCacheLocked();
     void buildResourceIndexLocked();
 
     ResourceData m_pakData;
     Vector<char> m_pakFileBuffer;
-    HashTable<uint64_t, Vector<char>*> m_decompressedData;
-    HashTable<uint64_t, ResourcePtr> m_resourceIndex;
-    HashTable<uint64_t, ResourceData> m_loadedResourceData;
-    HashTable<uint64_t, uint8_t> m_resourceStates;
-    Vector<uint64_t> m_requestQueue;
-    HashTable<uint64_t, AtlasUV> m_atlasUVCache;  // Cache of atlas UV lookups
+    HashTable<Uint64, Vector<char>*> m_decompressedData;
+    HashTable<Uint64, ResourcePtr> m_resourceIndex;
+    HashTable<Uint64, ResourceData> m_loadedResourceData;
+    HashTable<Uint64, uint8_t> m_resourceStates;
+    Vector<Uint64> m_requestQueue;
+    HashTable<Uint64, AtlasUV> m_atlasUVCache;  // Cache of atlas UV lookups
     SDL_Mutex* m_mutex;
     SDL_Condition* m_requestCondition;
     SDL_Thread* m_workerThread;

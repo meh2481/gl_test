@@ -13,7 +13,7 @@
 
 // MAX_WATER_POLYGON_VERTICES defined in WaterEffect.h
 
-static bool requestAndTryResource(PakResource& pakResource, uint64_t resourceId, ResourceData& outData) {
+static bool requestAndTryResource(PakResource& pakResource, Uint64 resourceId, ResourceData& outData) {
     pakResource.requestResourceAsync(resourceId);
     return pakResource.tryGetResource(resourceId, outData);
 }
@@ -136,7 +136,7 @@ void LuaInterface::onPhysicsLuaCollision(int bodyIdA, int bodyIdB, float pointX,
 void LuaInterface::dispatchDefaultCollision(int bodyIdA, int bodyIdB, float pointX, float pointY,
                                             float normalX, float normalY, float approachSpeed) {
     // Iterate through all scene objects and call handleCollision on each that owns a colliding body
-    for (uint64_t i = 0; i < sceneObjects_.size(); ++i) {
+    for (Uint64 i = 0; i < sceneObjects_.size(); ++i) {
         int objRef = sceneObjects_[i];
         lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
         if (!lua_istable(luaState_, -1)) {
@@ -357,7 +357,7 @@ void LuaInterface::executeScript(const ResourceData& scriptData) {
     }
 }
 
-void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
+void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
     // Create a table for this scene
     lua_newtable(luaState_);
 
@@ -468,7 +468,7 @@ void LuaInterface::loadScene(uint64_t sceneId, const ResourceData& scriptData) {
     lua_pop(luaState_, 1);
 }
 
-void LuaInterface::initScene(uint64_t sceneId) {
+void LuaInterface::initScene(Uint64 sceneId) {
     currentSceneId_ = sceneId;
     // Get the scene table from registry
     lua_pushinteger(luaState_, sceneId);
@@ -510,7 +510,7 @@ void LuaInterface::initScene(uint64_t sceneId) {
     lua_pop(luaState_, 1);
 }
 
-void LuaInterface::updateScene(uint64_t sceneId, float deltaTime) {
+void LuaInterface::updateScene(Uint64 sceneId, float deltaTime) {
     // Synchronize with previous async step before running Lua callbacks.
     physics_->waitForStepComplete();
     physics_->dispatchDeferredCallbacks();
@@ -683,7 +683,7 @@ void LuaInterface::submitPendingAsyncPhysicsStep() {
     asyncStepRequested_ = false;
 }
 
-void LuaInterface::handleAction(uint64_t sceneId, Action action) {
+void LuaInterface::handleAction(Uint64 sceneId, Action action) {
     // Get the scene table from registry
     lua_pushinteger(luaState_, sceneId);
     lua_gettable(luaState_, LUA_REGISTRYINDEX);
@@ -713,7 +713,7 @@ void LuaInterface::handleAction(uint64_t sceneId, Action action) {
     }
 
     // Call onAction on all tracked scene objects
-    for (uint64_t i = 0; i < sceneObjects_.size(); ++i) {
+    for (Uint64 i = 0; i < sceneObjects_.size(); ++i) {
         int objRef = sceneObjects_[i];
         lua_rawgeti(luaState_, LUA_REGISTRYINDEX, objRef);
         if (lua_istable(luaState_, -1)) {
@@ -737,7 +737,7 @@ void LuaInterface::handleAction(uint64_t sceneId, Action action) {
     lua_pop(luaState_, 1);
 }
 
-void LuaInterface::cleanupScene(uint64_t sceneId) {
+void LuaInterface::cleanupScene(Uint64 sceneId) {
     // Ensure no async physics work is in flight before scene teardown/reset.
     physics_->waitForStepComplete();
     physics_->dispatchDeferredCallbacks();
@@ -826,7 +826,7 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
         assert(pipelines != nullptr);
         consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::cleanupScene: destroying %zu pipelines for sceneId %llu", pipelines->size(), (unsigned long long)sceneId);
         for (const auto& pair : *pipelines) {
-            uint64_t pipelineId = pair.first;
+            Uint64 pipelineId = pair.first;
             renderer_.destroyPipeline(pipelineId);
         }
         // Free the vector itself
@@ -844,7 +844,7 @@ void LuaInterface::cleanupScene(uint64_t sceneId) {
     cameraZoom_ = 1.0f;
 }
 
-void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
+void LuaInterface::switchToScenePipeline(Uint64 sceneId) {
     consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::switchToScenePipeline: sceneId=%llu", (unsigned long long)sceneId);
     Vector<IntPair>** pipelinesPtr = scenePipelines_.find(sceneId);
     if (pipelinesPtr != nullptr) {
@@ -860,7 +860,7 @@ void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
         });
 
         // Extract just the pipeline IDs in sorted order
-        Vector<uint64_t> pipelineIds(*stringAllocator_, "LuaInterface::switchToScenePipeline::pipelineIds");
+        Vector<Uint64> pipelineIds(*stringAllocator_, "LuaInterface::switchToScenePipeline::pipelineIds");
         for (const auto& pair : sortedPipelines) {
             pipelineIds.push_back(pair.first);
         }
@@ -870,7 +870,7 @@ void LuaInterface::switchToScenePipeline(uint64_t sceneId) {
     }
 }
 
-void LuaInterface::clearScenePipelines(uint64_t sceneId) {
+void LuaInterface::clearScenePipelines(Uint64 sceneId) {
     consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::clearScenePipelines: sceneId=%llu", (unsigned long long)sceneId);
     Vector<IntPair>** vecPtr = scenePipelines_.find(sceneId);
     if (vecPtr != nullptr) {
@@ -1145,8 +1145,8 @@ int LuaInterface::loadShaders(lua_State* L) {
     }
 
     // Hash filenames to get resource IDs
-    uint64_t vertId = hashCString(vertFile);
-    uint64_t fragId = hashCString(fragFile);
+    Uint64 vertId = hashCString(vertFile);
+    Uint64 fragId = hashCString(fragFile);
 
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "Loading shaders: %s, %s (z-index: %d)", vertFile, fragFile, zIndex);
 
@@ -1222,7 +1222,7 @@ int LuaInterface::pushScene(lua_State* L) {
     const char* sceneFile = lua_tostring(L, 1);
 
     // Hash filename to get resource ID
-    uint64_t sceneId = hashCString(sceneFile);
+    Uint64 sceneId = hashCString(sceneFile);
 
     // Push the scene using the scene manager
     assert(interface->sceneManager_ != nullptr);
@@ -1854,17 +1854,17 @@ int LuaInterface::b2SetBodyDestructible(lua_State* L) {
     }
     int vertexCount = tableLen / 2;
 
-    uint64_t textureId = 0;
-    uint64_t normalMapId = 0;
+    Uint64 textureId = 0;
+    Uint64 normalMapId = 0;
     int pipelineId = -1;
 
     if (numArgs >= 5) {
         assert(lua_isnumber(L, 5));
-        textureId = (uint64_t)lua_tointeger(L, 5);
+        textureId = (Uint64)lua_tointeger(L, 5);
     }
     if (numArgs >= 6) {
         assert(lua_isnumber(L, 6));
-        normalMapId = (uint64_t)lua_tointeger(L, 6);
+        normalMapId = (Uint64)lua_tointeger(L, 6);
     }
     if (numArgs >= 7) {
         assert(lua_isnumber(L, 7));
@@ -2256,7 +2256,7 @@ int LuaInterface::createLayer(lua_State* L) {
     assert(lua_isinteger(L, 1));
     assert(lua_isnumber(L, 2));
 
-    uint64_t textureId = (uint64_t)lua_tointeger(L, 1);
+    Uint64 textureId = (Uint64)lua_tointeger(L, 1);
     float size = (float)lua_tonumber(L, 2);
 
     // Check if this texture uses atlas
@@ -2264,7 +2264,7 @@ int LuaInterface::createLayer(lua_State* L) {
     bool usesAtlas = interface->pakResource_.tryGetAtlasUV(textureId, atlasUV);
 
     // Get texture dimensions and calculate width/height based on aspect ratio
-    uint32_t texWidth, texHeight;
+    Uint32 texWidth, texHeight;
     float width, height;
 
     if (usesAtlas && atlasUV.width > 0 && atlasUV.height > 0) {
@@ -2289,7 +2289,7 @@ int LuaInterface::createLayer(lua_State* L) {
         height = size;
     }
 
-    uint64_t normalMapId = 0;
+    Uint64 normalMapId = 0;
     int pipelineId = -1;
 
     if (numArgs == 3) {
@@ -2300,7 +2300,7 @@ int LuaInterface::createLayer(lua_State* L) {
         // 4 args: textureId, size, normalMapId, pipelineId
         assert(lua_isinteger(L, 3));
         assert(lua_isinteger(L, 4));
-        normalMapId = (uint64_t)lua_tointeger(L, 3);
+        normalMapId = (Uint64)lua_tointeger(L, 3);
         pipelineId = (int)lua_tointeger(L, 4);
     }
 
@@ -2583,7 +2583,7 @@ int LuaInterface::loadTexture(lua_State* L) {
     const char* filename = lua_tostring(L, 1);
 
     // Hash the filename to get texture ID (same as packer)
-    uint64_t textureId = hashCString(filename);
+    Uint64 textureId = hashCString(filename);
 
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Loading texture: %s (id: %d)", filename, textureId);
 
@@ -2640,8 +2640,8 @@ int LuaInterface::loadTexturedShaders(lua_State* L) {
     const char* fragShaderName = lua_tostring(L, 2);
     int zIndex = (int)lua_tointeger(L, 3);
 
-    uint64_t vertId = hashCString(vertShaderName);
-    uint64_t fragId = hashCString(fragShaderName);
+    Uint64 vertId = hashCString(vertShaderName);
+    Uint64 fragId = hashCString(fragShaderName);
 
     ResourceData vertShader{nullptr, 0, 0};
     ResourceData fragShader{nullptr, 0, 0};
@@ -2692,8 +2692,8 @@ int LuaInterface::loadTexturedShadersEx(lua_State* L) {
     int zIndex = (int)lua_tointeger(L, 3);
     int numTextures = (int)lua_tointeger(L, 4);
 
-    uint64_t vertId = hashCString(vertShaderName);
-    uint64_t fragId = hashCString(fragShaderName);
+    Uint64 vertId = hashCString(vertShaderName);
+    Uint64 fragId = hashCString(fragShaderName);
 
     ResourceData vertShader{nullptr, 0, 0};
     ResourceData fragShader{nullptr, 0, 0};
@@ -2744,8 +2744,8 @@ int LuaInterface::loadTexturedShadersAdditive(lua_State* L) {
     int zIndex = (int)lua_tointeger(L, 3);
     int numTextures = (int)lua_tointeger(L, 4);
 
-    uint64_t vertId = hashCString(vertShaderName);
-    uint64_t fragId = hashCString(fragShaderName);
+    Uint64 vertId = hashCString(vertShaderName);
+    Uint64 fragId = hashCString(fragShaderName);
 
     ResourceData vertShader{nullptr, 0, 0};
     ResourceData fragShader{nullptr, 0, 0};
@@ -2796,8 +2796,8 @@ int LuaInterface::loadAnimTexturedShaders(lua_State* L) {
     int zIndex = (int)lua_tointeger(L, 3);
     int numTextures = (int)lua_tointeger(L, 4);
 
-    uint64_t vertId = hashCString(vertShaderName);
-    uint64_t fragId = hashCString(fragShaderName);
+    Uint64 vertId = hashCString(vertShaderName);
+    Uint64 fragId = hashCString(fragShaderName);
 
     ResourceData vertShader{nullptr, 0, 0};
     ResourceData fragShader{nullptr, 0, 0};
@@ -2873,7 +2873,7 @@ int LuaInterface::audioLoadOpus(lua_State* L) {
     const char* resourceName = lua_tostring(L, 1);
 
     // Hash the resource name to get its ID
-    uint64_t resourceId = hashCString(resourceName);
+    Uint64 resourceId = hashCString(resourceName);
 
     // Load resource from pak
     ResourceData resourceData{nullptr, 0, 0};
@@ -3276,12 +3276,12 @@ int LuaInterface::loadParticleShaders(lua_State* L) {
     int blendMode = (int)lua_tointeger(L, 3);
     int zIndex = 0;  // Default zIndex for particles
 
-    uint64_t vertId = hashCString(vertShaderName);
-    uint64_t fragId = hashCString(fragShaderName);
+    Uint64 vertId = hashCString(vertShaderName);
+    Uint64 fragId = hashCString(fragShaderName);
 
     // Create a hash key for this shader configuration to check if we can reuse an existing pipeline
     // Combine vertId, fragId, and blendMode into a single hash
-    uint64_t configHash = vertId ^ (fragId << 16) ^ ((uint64_t)blendMode << 32);
+    Uint64 configHash = vertId ^ (fragId << 16) ^ ((Uint64)blendMode << 32);
 
     // Check if we already have a pipeline for this configuration
     int* cachedPipelinePtr = interface->particlePipelineCache_.find(configHash);
@@ -3659,7 +3659,7 @@ int LuaInterface::loadParticleConfig(lua_State* L) {
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Loading particle config: %s", filename);
 
     // Hash the filename to get resource ID
-    uint64_t resourceId = hashCString(filename);
+    Uint64 resourceId = hashCString(filename);
 
     // Load the Lua file from the pak
     ResourceData scriptData{nullptr, 0, 0};
@@ -3711,7 +3711,7 @@ int LuaInterface::loadObject(lua_State* L) {
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Loading object: %s", filename);
 
     // Hash the filename to get resource ID
-    uint64_t resourceId = hashCString(filename);
+    Uint64 resourceId = hashCString(filename);
 
     // Load the Lua file from the pak
     ResourceData scriptData{nullptr, 0, 0};
@@ -3882,7 +3882,7 @@ int LuaInterface::createNode(lua_State* L) {
     String scriptPath("res/nodes/", interface->stringAllocator_);
     scriptPath += nodeNameCStr;
     scriptPath += ".lua";
-    uint64_t scriptId = hashCString(scriptPath.c_str());
+    Uint64 scriptId = hashCString(scriptPath.c_str());
     if (interface->pakResource_.hasResource(scriptId)) {
         ResourceData scriptData{nullptr, 0, 0};
         bool haveScript = requestAndTryResource(interface->pakResource_, scriptId, scriptData);
@@ -4074,8 +4074,8 @@ void LuaInterface::setupWaterVisuals(int physicsForceFieldId, int waterFieldId,
     const char* waterVertShaderName = "res/shaders/water_vertex.spv";
     const char* waterFragShaderName = "res/shaders/water_fragment.spv";
 
-    uint64_t vertId = hashCString(waterVertShaderName);
-    uint64_t fragId = hashCString(waterFragShaderName);
+    Uint64 vertId = hashCString(waterVertShaderName);
+    Uint64 fragId = hashCString(waterFragShaderName);
 
     ResourceData vertShader{nullptr, 0, 0};
     ResourceData fragShader{nullptr, 0, 0};
@@ -4105,7 +4105,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
 
     // 3. Load a placeholder texture (required for layer creation)
     const char* placeholderTextureName = "res/textures/rock1.png";
-    uint64_t placeholderTexId = hashCString(placeholderTextureName);
+    Uint64 placeholderTexId = hashCString(placeholderTextureName);
 
     ResourceData texData{nullptr, 0, 0};
     bool haveTexture = requestAndTryResource(pakResource_, placeholderTexId, texData);
@@ -4114,7 +4114,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
     }
 
     // 4. Get reflection texture ID
-    uint64_t reflectionTexId = 0;
+    Uint64 reflectionTexId = 0;
     if (renderer_.isReflectionEnabled()) {
         reflectionTexId = renderer_.getReflectionTextureId();
     }
@@ -4135,7 +4135,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load water shaders");
     float centerY = (minY + maxY + WAVE_BUFFER) / 2.0f;
 
     // 5. Get texture dimensions for aspect ratio calculation
-    uint32_t texWidth = 1, texHeight = 1;
+    Uint32 texWidth = 1, texHeight = 1;
     renderer_.getTextureDimensions(placeholderTexId, &texWidth, &texHeight);
     float aspectRatio = (texHeight > 0) ? (float)texWidth / (float)texHeight : 1.0f;
 
@@ -4288,7 +4288,7 @@ int LuaInterface::b2GetBodyTypes(lua_State* L) {
     Vector<String> types = interface->physics_->getBodyTypes(bodyId);
 
     lua_newtable(L);
-    for (uint64_t i = 0; i < types.size(); ++i) {
+    for (Uint64 i = 0; i < types.size(); ++i) {
         lua_pushstring(L, types[i].c_str());
         lua_rawseti(L, -2, i + 1);
     }

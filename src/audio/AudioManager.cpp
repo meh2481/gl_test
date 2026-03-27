@@ -270,7 +270,7 @@ int AudioManager::findFreeBufferSlot() {
     return -1;
 }
 
-int AudioManager::loadAudioBufferFromMemory(const void* data, uint64_t size, int sampleRate, int channels, int bitsPerSample) {
+int AudioManager::loadAudioBufferFromMemory(const void* data, Uint64 size, int sampleRate, int channels, int bitsPerSample) {
     int slot = findFreeBufferSlot();
     if (slot == -1) {
 consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
@@ -319,7 +319,7 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
     return slot;
 }
 
-int AudioManager::loadOpusAudioFromMemory(const void* data, uint64_t size) {
+int AudioManager::loadOpusAudioFromMemory(const void* data, Uint64 size) {
     // Open OPUS file from memory
     int error = 0;
     OggOpusFile* opusFile = op_open_memory((const unsigned char*)data, size, &error);
@@ -765,7 +765,7 @@ int AudioManager::audioDecodeWorkerThread(void* arg) {
         }
 
         // Allocate PCM buffer (interleaved samples)
-        job->decodedSampleCount = static_cast<uint64_t>(samplesPerChannel) * static_cast<uint64_t>(job->channels);
+        job->decodedSampleCount = static_cast<Uint64>(samplesPerChannel) * static_cast<Uint64>(job->channels);
         job->decodedPcm = static_cast<opus_int16*>(self->allocator_->allocate(job->decodedSampleCount * sizeof(opus_int16), "AudioManager::decodedPcm"));
         if (!job->decodedPcm) {
             op_free(opusFile);
@@ -846,7 +846,7 @@ void AudioManager::submitDecodeJob(AudioDecodeJob* job) {
     SDL_SignalCondition(decodeCondition_);
 }
 
-int AudioManager::decodeOpusAudioAsync(const void* data, size_t size) {
+int AudioManager::decodeOpusAudioAsync(const void* data, Uint64 size) {
     AudioDecodeJob* job = static_cast<AudioDecodeJob*>(allocator_->allocate(sizeof(AudioDecodeJob), "AudioManager::AudioDecodeJob"));
     if (!job) {
         return -1;
@@ -868,7 +868,7 @@ int AudioManager::decodeOpusAudioAsync(const void* data, size_t size) {
 bool AudioManager::getOpusDecodeResult(
     int jobId,
     opus_int16*& outBuffer,
-    uint64_t& outSampleCount,
+    Uint64& outSampleCount,
     int& outChannels,
     int& outSampleRate
 ) {

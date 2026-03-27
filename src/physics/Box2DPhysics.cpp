@@ -1062,7 +1062,7 @@ int Box2DPhysics::findInternalBodyId(b2BodyId bodyId) {
 // Destructible object management
 void Box2DPhysics::setBodyDestructible(int bodyId, float strength, float brittleness,
                                         const float* vertices, int vertexCount,
-                                        uint64_t textureId, uint64_t normalMapId, int pipelineId) {
+                                        Uint64 textureId, Uint64 normalMapId, int pipelineId) {
     assert(vertexCount >= 3 && vertexCount <= 8);
 
     DestructibleProperties props;
@@ -1124,7 +1124,7 @@ void Box2DPhysics::setBodyDestructible(int bodyId, float strength, float brittle
     destructibles_.insert(bodyId, props);
 }
 
-void Box2DPhysics::setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureId,
+void Box2DPhysics::setBodyDestructibleAtlasUV(int bodyId, Uint64 atlasTextureId,
                                                float u0, float v0, float u1, float v1) {
     auto it = destructibles_.find(bodyId);
     if (it != nullptr) {
@@ -1137,7 +1137,7 @@ void Box2DPhysics::setBodyDestructibleAtlasUV(int bodyId, uint64_t atlasTextureI
     }
 }
 
-void Box2DPhysics::setBodyDestructibleNormalMapAtlasUV(int bodyId, uint64_t atlasNormalMapId,
+void Box2DPhysics::setBodyDestructibleNormalMapAtlasUV(int bodyId, Uint64 atlasNormalMapId,
                                                         float u0, float v0, float u1, float v1) {
     auto it = destructibles_.find(bodyId);
     if (it != nullptr) {
@@ -2037,8 +2037,8 @@ void Box2DPhysics::processFractures() {
 
                 // Create layer with atlas texture IDs if using atlas, otherwise original IDs
                 // This ensures proper descriptor set lookup in the renderer
-                uint64_t layerTexId = props->usesAtlas ? props->atlasTextureId : props->textureId;
-                uint64_t layerNormId = props->usesNormalMapAtlas ? props->atlasNormalMapId : props->normalMapId;
+                Uint64 layerTexId = props->usesAtlas ? props->atlasTextureId : props->textureId;
+                Uint64 layerNormId = props->usesNormalMapAtlas ? props->atlasNormalMapId : props->normalMapId;
                 layerId = layerManager_->createLayer(layerTexId, fragSize, fragSize, layerNormId, props->pipelineId);
                 layerManager_->attachLayerToBody(layerId, fragBodyId);
 
@@ -2349,7 +2349,7 @@ void Box2DPhysics::removeBodyType(int bodyId, const char* type) {
         assert(*it != nullptr);
         String typeStr(type, stringAllocator_);
         Vector<String>* types = *it;
-        for (uint64_t i = 0; i < types->size(); ) {
+        for (Uint64 i = 0; i < types->size(); ) {
             if ((*types)[i] == typeStr) {
                 types->erase(i);
                 consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "Box2DPhysics::removeBodyType: removed type %s", type);

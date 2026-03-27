@@ -3,7 +3,6 @@
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
-#include <cstdint>
 
 class SceneLayerManager;
 class ConsoleBuffer;

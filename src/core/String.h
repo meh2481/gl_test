@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../memory/MemoryAllocator.h"
-#include <cstdint>
 
 // Forward declaration
 class SmallMemoryAllocator;
@@ -12,11 +11,11 @@ class SmallMemoryAllocator;
 class String {
 public:
     // Special value returned by find() when pattern not found
-    static const uint64_t npos = (uint64_t)-1;
+    static const Uint64 npos = (Uint64)-1;
     // Constructors
     String(MemoryAllocator* allocator);
     String(const char* str, MemoryAllocator* allocator);
-    String(const char* str, uint64_t length, MemoryAllocator* allocator);
+    String(const char* str, Uint64 length, MemoryAllocator* allocator);
     String(const String& other);
     String(String&& other) noexcept;
 
@@ -46,53 +45,53 @@ public:
     String& operator+=(char c);
 
     // Access operators
-    char operator[](uint64_t index) const;
-    char& operator[](uint64_t index);
+    char operator[](Uint64 index) const;
+    char& operator[](Uint64 index);
 
     // String operations
-    uint64_t length() const { return length_; }
-    uint64_t capacity() const { return capacity_; }
+    Uint64 length() const { return length_; }
+    Uint64 capacity() const { return capacity_; }
     bool empty() const { return length_ == 0; }
     const char* c_str() const { return data_ ? data_ : ""; }
     const char* data() const { return data_; }
     char* data() { return data_; }
 
     // UTF-8 character count (may differ from byte length)
-    uint64_t utf8Length() const;
+    Uint64 utf8Length() const;
 
     // Clear the string (keeps allocated memory)
     void clear();
 
     // Reserve capacity (does not shrink)
-    void reserve(uint64_t newCapacity);
+    void reserve(Uint64 newCapacity);
 
     // Resize string to new length (truncates or pads with null)
-    void resize(uint64_t newLength);
+    void resize(Uint64 newLength);
 
     // Substring operations
-    String substr(uint64_t pos, uint64_t len) const;
+    String substr(Uint64 pos, Uint64 len) const;
 
     // Find operations
-    uint64_t find(const char* str, uint64_t pos = 0) const;
-    uint64_t find(char c, uint64_t pos = 0) const;
+    Uint64 find(const char* str, Uint64 pos = 0) const;
+    Uint64 find(char c, Uint64 pos = 0) const;
 
     // Static utility functions
-    static uint64_t SDL_strlen(const char* str);
+    static Uint64 SDL_strlen(const char* str);
     static int SDL_strcmp(const char* s1, const char* s2);
     static char* strcpy(char* dest, const char* src);
-    static char* strncpy(char* dest, const char* src, uint64_t n);
+    static char* strncpy(char* dest, const char* src, Uint64 n);
 
     MemoryAllocator* allocator_;  // Memory allocator for string data
 private:
     char* data_;       // Pointer to string data
-    uint64_t length_;    // Length of string in bytes (excluding null terminator)
-    uint64_t capacity_;  // Allocated capacity in bytes (excluding null terminator)
+    Uint64 length_;    // Length of string in bytes (excluding null terminator)
+    Uint64 capacity_;  // Allocated capacity in bytes (excluding null terminator)
 
     // Get the global string allocator
     static SmallMemoryAllocator& getAllocator();
 
     // Ensure capacity is sufficient for at least minCapacity bytes
-    void ensureCapacity(uint64_t minCapacity);
+    void ensureCapacity(Uint64 minCapacity);
 
     // Calculate UTF-8 character length from byte sequence
     static int utf8CharLength(unsigned char c);

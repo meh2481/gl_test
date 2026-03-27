@@ -4,7 +4,6 @@
 #include "../resources/resource.h"
 #include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
-#include <cstdint>
 
 class ConsoleBuffer;
 
@@ -24,35 +23,35 @@ public:
         VkDeviceMemory memory;
         VkImageView imageView;
         VkSampler sampler;
-        uint32_t width;
-        uint32_t height;
+        Uint32 width;
+        Uint32 height;
         bool isRenderTarget;
     };
 
     // Texture creation and management
-    void createTextureImage(uint64_t textureId, const void* imageData, uint32_t width, uint32_t height,
-                           VkFormat format, uint64_t dataSize);
-    void createTextureSampler(uint64_t textureId);
-    bool getTexture(uint64_t textureId, TextureData* outData) const;
-    bool hasTexture(uint64_t textureId) const;
-    bool getTextureDimensions(uint64_t textureId, uint32_t* width, uint32_t* height) const;
+    void createTextureImage(Uint64 textureId, const void* imageData, Uint32 width, Uint32 height,
+                           VkFormat format, Uint64 dataSize);
+    void createTextureSampler(Uint64 textureId);
+    bool getTexture(Uint64 textureId, TextureData* outData) const;
+    bool hasTexture(Uint64 textureId) const;
+    bool getTextureDimensions(Uint64 textureId, Uint32* width, Uint32* height) const;
 
     // Load texture from resource data (handles image header parsing)
-    void loadTexture(uint64_t textureId, const ResourceData& imageData);
-    void loadAtlasTexture(uint64_t atlasId, const ResourceData& atlasData);
+    void loadTexture(Uint64 textureId, const ResourceData& imageData);
+    void loadAtlasTexture(Uint64 atlasId, const ResourceData& atlasData);
 
     // Render target texture creation (for render-to-texture)
-    void createRenderTargetTexture(uint64_t textureId, uint32_t width, uint32_t height, VkFormat format);
+    void createRenderTargetTexture(Uint64 textureId, Uint32 width, Uint32 height, VkFormat format);
 
     // Cleanup individual texture
-    void destroyTexture(uint64_t textureId);
+    void destroyTexture(Uint64 textureId);
     void destroyAllTextures();
 
     // Access textures map directly for iteration
-    const HashTable<uint64_t, TextureData>& getTextures() const { return m_textures; }
+    const HashTable<Uint64, TextureData>& getTextures() const { return m_textures; }
 
 private:
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    Uint32 findMemoryType(Uint32 typeFilter, VkMemoryPropertyFlags properties);
 
     VkDevice m_device;
     VkPhysicalDevice m_physicalDevice;
@@ -60,7 +59,7 @@ private:
     VkQueue m_graphicsQueue;
     bool m_initialized;
 
-    HashTable<uint64_t, TextureData> m_textures;
+    HashTable<Uint64, TextureData> m_textures;
     MemoryAllocator* m_allocator;
     ConsoleBuffer* m_consoleBuffer;
 };

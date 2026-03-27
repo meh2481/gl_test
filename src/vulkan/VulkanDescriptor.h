@@ -3,7 +3,6 @@
 #include <vulkan/vulkan.h>
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
-#include <cstdint>
 
 // Forward declarations
 class VulkanTexture;
@@ -55,9 +54,9 @@ public:
     void createAnimDualTexturePipelineLayout();
 
     // Create descriptor sets
-    void createSingleTextureDescriptorSet(uint64_t textureId, VkImageView imageView, VkSampler sampler);
-    void createDualTextureDescriptorSet(uint64_t descriptorId, uint64_t texture1Id, uint64_t texture2Id);
-    void createDescriptorSetForTextures(uint64_t descriptorId, const Vector<uint64_t>& textureIds);
+    void createSingleTextureDescriptorSet(Uint64 textureId, VkImageView imageView, VkSampler sampler);
+    void createDualTextureDescriptorSet(Uint64 descriptorId, Uint64 texture1Id, Uint64 texture2Id);
+    void createDescriptorSetForTextures(Uint64 descriptorId, const Vector<Uint64>& textureIds);
 
     // Light descriptor set (special case - single set for all lights)
     void createLightDescriptorSet(VkBuffer lightUniformBuffer, VkDeviceSize bufferSize);
@@ -68,24 +67,24 @@ public:
     VkDescriptorSet getWaterPolygonDescriptorSet() const { return m_waterPolygonDescriptorSet; }
 
     // Water descriptor set (single set with 3 bindings: 2 textures + 1 uniform buffer)
-    void createWaterDescriptorSet(uint64_t texture1Id, uint64_t texture2Id, VkBuffer waterPolygonUniformBuffer, VkDeviceSize bufferSize);
+    void createWaterDescriptorSet(Uint64 texture1Id, Uint64 texture2Id, VkBuffer waterPolygonUniformBuffer, VkDeviceSize bufferSize);
     VkDescriptorSet getWaterDescriptorSet() const { return m_waterDescriptorSet; }
 
     // Get descriptor sets
-    VkDescriptorSet getSingleTextureDescriptorSet(uint64_t textureId) const;
-    VkDescriptorSet getDualTextureDescriptorSet(uint64_t descriptorId) const;
-    bool hasSingleTextureDescriptorSet(uint64_t textureId) const;
-    bool hasDualTextureDescriptorSet(uint64_t descriptorId) const;
+    VkDescriptorSet getSingleTextureDescriptorSet(Uint64 textureId) const;
+    VkDescriptorSet getDualTextureDescriptorSet(Uint64 descriptorId) const;
+    bool hasSingleTextureDescriptorSet(Uint64 textureId) const;
+    bool hasDualTextureDescriptorSet(Uint64 descriptorId) const;
 
     // Get or create descriptor set lazily
-    VkDescriptorSet getOrCreateDescriptorSet(uint64_t descriptorId, uint64_t textureId,
-                                             uint64_t normalMapId, bool usesDualTexture);
+    VkDescriptorSet getOrCreateDescriptorSet(Uint64 descriptorId, Uint64 textureId,
+                                             Uint64 normalMapId, bool usesDualTexture);
 
     // Access for iteration
-    const HashTable<uint64_t, VkDescriptorSet>& getSingleTextureDescriptorSets() const {
+    const HashTable<Uint64, VkDescriptorSet>& getSingleTextureDescriptorSets() const {
         return m_singleTextureDescriptorSets;
     }
-    const HashTable<uint64_t, VkDescriptorSet>& getDualTextureDescriptorSets() const {
+    const HashTable<Uint64, VkDescriptorSet>& getDualTextureDescriptorSets() const {
         return m_dualTextureDescriptorSets;
     }
 
@@ -97,13 +96,13 @@ private:
     // Single texture descriptors
     VkDescriptorSetLayout m_singleTextureDescriptorSetLayout;
     VkDescriptorPool m_singleTextureDescriptorPool;
-    HashTable<uint64_t, VkDescriptorSet> m_singleTextureDescriptorSets;
+    HashTable<Uint64, VkDescriptorSet> m_singleTextureDescriptorSets;
     VkPipelineLayout m_singleTexturePipelineLayout;
 
     // Dual texture descriptors
     VkDescriptorSetLayout m_dualTextureDescriptorSetLayout;
     VkDescriptorPool m_dualTextureDescriptorPool;
-    HashTable<uint64_t, VkDescriptorSet> m_dualTextureDescriptorSets;
+    HashTable<Uint64, VkDescriptorSet> m_dualTextureDescriptorSets;
     VkPipelineLayout m_dualTexturePipelineLayout;
 
     // Animation pipeline layouts (extended push constants)

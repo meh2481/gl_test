@@ -45,10 +45,10 @@ void VulkanLight::cleanup() {
     m_initialized = false;
 }
 
-uint32_t VulkanLight::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+Uint32 VulkanLight::findMemoryType(Uint32 typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+    for (Uint32 i = 0; i < memProperties.memoryTypeCount; i++) {
         if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
             return i;
         }

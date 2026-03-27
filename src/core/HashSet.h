@@ -2,16 +2,15 @@
 
 #include <SDL3/SDL_stdinc.h>
 #include "../memory/MemoryAllocator.h"
-#include <cstdint>
 #include <cassert>
 
 // Hash function for integral types (reusing from HashTable.h)
 template<typename K>
-inline uint32_t hashSetKey(const K& key) {
+inline Uint32 hashSetKey(const K& key) {
     // FNV-1a hash for general types
     const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&key);
-    uint32_t hash = 2166136261u;
-    for (uint64_t i = 0; i < sizeof(K); ++i) {
+    Uint32 hash = 2166136261u;
+    for (Uint64 i = 0; i < sizeof(K); ++i) {
         hash ^= bytes[i];
         hash *= 16777619u;
     }
@@ -20,9 +19,9 @@ inline uint32_t hashSetKey(const K& key) {
 
 // Specialization for pointer types
 template<typename T>
-inline uint32_t hashSetKey(T* const& ptr) {
+inline Uint32 hashSetKey(T* const& ptr) {
     uintptr_t val = reinterpret_cast<uintptr_t>(ptr);
-    uint32_t hash = static_cast<uint32_t>(val ^ (val >> 32));
+    Uint32 hash = static_cast<Uint32>(val ^ (val >> 32));
     hash ^= (hash >> 16);
     hash *= 0x85ebca6b;
     hash ^= (hash >> 13);
@@ -31,10 +30,10 @@ inline uint32_t hashSetKey(T* const& ptr) {
     return hash;
 }
 
-// Specialization for uint64_t (common in this codebase)
+// Specialization for Uint64 (common in this codebase)
 template<>
-inline uint32_t hashSetKey<uint64_t>(const uint64_t& key) {
-    uint32_t hash = static_cast<uint32_t>(key ^ (key >> 32));
+inline Uint32 hashSetKey<Uint64>(const Uint64& key) {
+    Uint32 hash = static_cast<Uint32>(key ^ (key >> 32));
     hash ^= (hash >> 16);
     hash *= 0x85ebca6b;
     hash ^= (hash >> 13);
@@ -43,10 +42,10 @@ inline uint32_t hashSetKey<uint64_t>(const uint64_t& key) {
     return hash;
 }
 
-// Specialization for uint32_t
+// Specialization for Uint32
 template<>
-inline uint32_t hashSetKey<uint32_t>(const uint32_t& key) {
-    uint32_t hash = key;
+inline Uint32 hashSetKey<Uint32>(const Uint32& key) {
+    Uint32 hash = key;
     hash ^= (hash >> 16);
     hash *= 0x85ebca6b;
     hash ^= (hash >> 13);
@@ -57,8 +56,8 @@ inline uint32_t hashSetKey<uint32_t>(const uint32_t& key) {
 
 // Specialization for int
 template<>
-inline uint32_t hashSetKey<int>(const int& key) {
-    return hashSetKey(static_cast<uint32_t>(key));
+inline Uint32 hashSetKey<int>(const int& key) {
+    return hashSetKey(static_cast<Uint32>(key));
 }
 
 // Template-based fast hash set
@@ -114,9 +113,9 @@ public:
             reserve(capacity_ * 2);
         }
 
-        uint32_t hash = hashSetKey(key);
-        uint32_t index = hash % capacity_;
-        uint32_t probeCount = 0;
+        Uint32 hash = hashSetKey(key);
+        Uint32 index = hash % capacity_;
+        Uint32 probeCount = 0;
 
         // Linear probing to find empty slot or existing key
         while (occupied_[index]) {
@@ -151,9 +150,9 @@ public:
         assert(keys_ != nullptr);
         assert(occupied_ != nullptr);
 
-        uint32_t hash = hashSetKey(key);
-        uint32_t index = hash % capacity_;
-        uint32_t probeCount = 0;
+        Uint32 hash = hashSetKey(key);
+        Uint32 index = hash % capacity_;
+        Uint32 probeCount = 0;
 
         // Linear probing to find the key
         while (probeCount < capacity_) {
@@ -182,9 +181,9 @@ public:
         assert(keys_ != nullptr);
         assert(occupied_ != nullptr);
 
-        uint32_t hash = hashSetKey(key);
-        uint32_t index = hash % capacity_;
-        uint32_t probeCount = 0;
+        Uint32 hash = hashSetKey(key);
+        Uint32 index = hash % capacity_;
+        Uint32 probeCount = 0;
 
         // Find the key
         while (probeCount < capacity_) {
@@ -197,7 +196,7 @@ public:
                 size_--;
 
                 // Rehash entries after this one to maintain probe chain
-                uint32_t nextIndex = (index + 1) % capacity_;
+                Uint32 nextIndex = (index + 1) % capacity_;
                 while (occupied_[nextIndex]) {
                     K rehashKey = keys_[nextIndex];
                     occupied_[nextIndex] = false;
@@ -227,7 +226,7 @@ public:
     }
 
     // Reserve capacity for at least n elements
-    void reserve(uint32_t n) {
+    void reserve(Uint32 n) {
         assert(n > 0);
         if (n <= capacity_) {
             return;
@@ -244,11 +243,11 @@ public:
 
         // Rehash existing entries into new arrays
         if (keys_ && occupied_) {
-            for (uint32_t i = 0; i < capacity_; ++i) {
+            for (Uint32 i = 0; i < capacity_; ++i) {
                 if (occupied_[i]) {
                     // Find slot in new table
-                    uint32_t hash = hashSetKey(keys_[i]);
-                    uint32_t newIndex = hash % n;
+                    Uint32 hash = hashSetKey(keys_[i]);
+                    Uint32 newIndex = hash % n;
 
                     // Linear probing
                     while (newOccupied[newIndex]) {
@@ -271,12 +270,12 @@ public:
     }
 
     // Get current number of entries
-    uint32_t size() const {
+    Uint32 size() const {
         return size_;
     }
 
     // Get current capacity
-    uint32_t capacity() const {
+    Uint32 capacity() const {
         return capacity_;
     }
 
@@ -288,7 +287,7 @@ public:
     // Iterator for traversing all entries
     class Iterator {
     public:
-        Iterator(HashSet* set, uint32_t index)
+        Iterator(HashSet* set, Uint32 index)
             : set_(set), index_(index)
         {
             // Move to first occupied slot
@@ -319,13 +318,13 @@ public:
 
     private:
         HashSet* set_;
-        uint32_t index_;
+        Uint32 index_;
     };
 
     // Const iterator for traversing all entries
     class ConstIterator {
     public:
-        ConstIterator(const HashSet* set, uint32_t index)
+        ConstIterator(const HashSet* set, Uint32 index)
             : set_(set), index_(index)
         {
             // Move to first occupied slot
@@ -356,7 +355,7 @@ public:
 
     private:
         const HashSet* set_;
-        uint32_t index_;
+        Uint32 index_;
     };
 
     Iterator begin() {
@@ -386,8 +385,8 @@ public:
 private:
     K* keys_;
     bool* occupied_;
-    uint32_t capacity_;
-    uint32_t size_;
+    Uint32 capacity_;
+    Uint32 size_;
 
     MemoryAllocator* allocator_;
     const char* callerId_;

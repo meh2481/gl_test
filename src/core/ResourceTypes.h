@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cstdint>    //Use specific-sized ints for this
+#include <SDL3/SDL_stdinc.h>
 
 #define VERSION_1_0        1
 
@@ -13,9 +13,9 @@
 typedef struct
 {
     char sig[4];        //PAKC in big endian for current version
-    uint32_t version;    //VERSION_1_0 for current version of the game
-    uint32_t numResources;
-    uint32_t pad;
+    Uint32 version;    //VERSION_1_0 for current version of the game
+    Uint32 numResources;
+    Uint32 pad;
     //Followed by numResources ResourcePtrs
 } PakFileHeader;
 
@@ -26,9 +26,9 @@ typedef struct
 
 typedef struct
 {
-    uint64_t id;        //Resource ID
-    uint64_t offset;    //Offset from start of file to CompressionHeader
-    uint64_t lastModified; //Unix timestamp of the last time this was modified prior to packing
+    Uint64 id;        //Resource ID
+    Uint64 offset;    //Offset from start of file to CompressionHeader
+    Uint64 lastModified; //Unix timestamp of the last time this was modified prior to packing
 } ResourcePtr;
 
 
@@ -40,10 +40,10 @@ typedef struct
 
 typedef struct
 {
-    uint32_t compressionType;    //One of the compression flags above
-    uint32_t compressedSize;
-    uint32_t decompressedSize;
-    uint32_t type;                //One of the resource types below
+    Uint32 compressionType;    //One of the compression flags above
+    Uint32 compressedSize;
+    Uint32 decompressedSize;
+    Uint32 type;                //One of the resource types below
     //Followed by compressed data
 } CompressionHeader;
 
@@ -71,35 +71,35 @@ typedef struct
 //--------------------------------------------------------------
 typedef struct //Structure for texture atlas data
 {
-    uint16_t format;        //Image format (see IMAGE_FORMAT_* constants below)
-    uint16_t width;         //Width of atlas in pixels
-    uint16_t height;        //Height of atlas in pixels
-    uint16_t numEntries;    //Number of images packed into this atlas
+    Uint16 format;        //Image format (see IMAGE_FORMAT_* constants below)
+    Uint16 width;         //Width of atlas in pixels
+    Uint16 height;        //Height of atlas in pixels
+    Uint16 numEntries;    //Number of images packed into this atlas
     //Followed by numEntries AtlasEntry structures
     //Followed by compressed image data
 } AtlasHeader;
 
 typedef struct //Structure for individual image entry in atlas
 {
-    uint64_t originalId;    //Original resource ID of the packed image
-    uint16_t x;             //X position in atlas (pixels)
-    uint16_t y;             //Y position in atlas (pixels)
-    uint16_t width;         //Width of image in atlas (pixels)
-    uint16_t height;        //Height of image in atlas (pixels)
+    Uint64 originalId;    //Original resource ID of the packed image
+    Uint16 x;             //X position in atlas (pixels)
+    Uint16 y;             //Y position in atlas (pixels)
+    Uint16 width;         //Width of image in atlas (pixels)
+    Uint16 height;        //Height of image in atlas (pixels)
 } AtlasEntry;
 
 typedef struct //Structure for image indices into the atlas AtlasHeader
 {
-    uint64_t atlasId;    //ID of AtlasHeader
+    Uint64 atlasId;    //ID of AtlasHeader
     f32_t coordinates[8];    //UV texture coordinates for the image in the atlas
 } TextureHeader;
 
 typedef struct //Structure for (non-atlased) image data
 {
-    uint16_t format;        //Image format (see IMAGE_FORMAT_* constants below)
-    uint16_t width;         //Width of image
-    uint16_t height;        //Height of image
-    uint16_t pad;
+    Uint16 format;        //Image format (see IMAGE_FORMAT_* constants below)
+    Uint16 width;         //Width of image
+    Uint16 height;        //Height of image
+    Uint16 pad;
                            //Followed by image data
 } ImageHeader;
 
@@ -120,10 +120,10 @@ typedef struct //Structure for (non-atlased) image data
 
 typedef struct
 {
-    uint32_t numChars;
-    uint64_t textureId;    //ID of texture resource to use
-    uint32_t pad;
-    //Followed by numChars uint32_t's (aka 32-bit UTF-8 codepoints), sorted from lowest to highest
+    Uint32 numChars;
+    Uint64 textureId;    //ID of texture resource to use
+    Uint32 pad;
+    //Followed by numChars Uint32's (aka 32-bit UTF-8 codepoints), sorted from lowest to highest
     //Followed by numChars * 8 floats (the UV coordinate rectangles for the characters, each float in range [0..1])
 } FontHeader;
 
@@ -133,8 +133,8 @@ typedef struct
 //String bank file format
 typedef struct
 {
-    uint32_t numStrings;
-    uint32_t numLanguages;
+    Uint32 numStrings;
+    Uint32 numLanguages;
     //Followed by numLangages LanguageOffsets
     //Followed by numStrings StringIDs (sorted from least to greatest)
     //Followed by numStrings*numLanguages StringDataPointers
@@ -145,7 +145,7 @@ typedef struct
 typedef struct
 {
     char languageID[4];    //ISO 639-1 (if existing) or 639-2 language code in all-lowercase (en for English, es for Spanish, etc). Should only be two or three chars, others '\0'
-    uint32_t offset;    //Offset from first StringDataPointer for a string's ID to the StringDataPointer for this language
+    Uint32 offset;    //Offset from first StringDataPointer for a string's ID to the StringDataPointer for this language
 
     //For example, for languages en=0 and es=1, for a StringID that's number 7 in the list (8th entry),
     //en's StringDataPointer is number 7*2+0=14 and the English string can be found at that pointer's offset
@@ -155,12 +155,12 @@ typedef struct
 
 typedef struct
 {
-    uint64_t id;        //ID of the string
+    Uint64 id;        //ID of the string
 } StringID;
 
 typedef struct
 {
-    uint64_t offset;    //Offset from start of string data to the start of the actual, null-terminated string
+    Uint64 offset;    //Offset from start of string data to the start of the actual, null-terminated string
 } StringDataPointer;
 
 //--------------------------------------------------------------
@@ -169,8 +169,8 @@ typedef struct
 //Song loop points
 typedef struct
 {
-    uint32_t loopStartMsec;
-    uint32_t loopEndMsec;
+    Uint32 loopStartMsec;
+    Uint32 loopEndMsec;
 } SoundLoop;
 
 //--------------------------------------------------------------
@@ -178,7 +178,7 @@ typedef struct
 //--------------------------------------------------------------
 typedef struct
 {
-    uint32_t numVertices;
+    Uint32 numVertices;
     //Followed by vertex data
     //Followed by texture coordinate data
     //Followed by normal data
@@ -186,8 +186,8 @@ typedef struct
 
 typedef struct
 {
-    uint64_t meshId;    //ID of MeshHeader
-    uint64_t textureId;    //ID of TextureHeader
+    Uint64 meshId;    //ID of MeshHeader
+    Uint64 textureId;    //ID of TextureHeader
 } Object3DHeader;
 
 //--------------------------------------------------------------
@@ -197,7 +197,7 @@ typedef struct
 // This gives us 720 entries to cover 0-360 degrees (0 to 2*PI radians)
 typedef struct
 {
-    uint32_t numEntries;    // Should be 720 (360 / 0.5)
+    Uint32 numEntries;    // Should be 720 (360 / 0.5)
     f32_t angleStep;        // Radians per entry (PI/360)
     // Followed by numEntries floats for sin values
     // Followed by numEntries floats for cos values

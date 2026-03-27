@@ -4,7 +4,6 @@
 #include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
 #include "../debug/ConsoleBuffer.h"
-#include <cstdint>
 
 // Water polygon uniform buffer data (must match shader layout with std140 alignment)
 struct WaterPolygonBufferData {
@@ -30,7 +29,7 @@ public:
     VkDeviceSize getBufferSize() const { return sizeof(WaterPolygonBufferData); }
 
 private:
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    Uint32 findMemoryType(Uint32 typeFilter, VkMemoryPropertyFlags properties);
 
     VkDevice m_device;
     VkPhysicalDevice m_physicalDevice;

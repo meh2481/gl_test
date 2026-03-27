@@ -17,7 +17,7 @@ public:
     // leftIntensity: Low frequency rumble motor (usually left)
     // rightIntensity: High frequency rumble motor (usually right)
     // duration: Duration in milliseconds
-    void vibrate(float leftIntensity, float rightIntensity, uint32_t duration) {
+    void vibrate(float leftIntensity, float rightIntensity, Uint32 duration) {
         if (!gameController_) {
             return;
         }
@@ -27,8 +27,8 @@ public:
         rightIntensity = clampFloat(rightIntensity, 0.0f, 1.0f);
 
         // Convert to SDL's 0-65535 range
-        uint16_t lowFreq = static_cast<uint16_t>(leftIntensity * 65535.0f);
-        uint16_t highFreq = static_cast<uint16_t>(rightIntensity * 65535.0f);
+        Uint16 lowFreq = static_cast<Uint16>(leftIntensity * 65535.0f);
+        Uint16 highFreq = static_cast<Uint16>(rightIntensity * 65535.0f);
 
         SDL_RumbleGamepad(gameController_, lowFreq, highFreq, duration);
     }
@@ -38,7 +38,7 @@ public:
     // rightTrigger: Right trigger intensity (0.0 to 1.0)
     // duration: Duration in milliseconds
     // Returns true if trigger rumble is supported and was triggered
-    bool vibrateTriggers(float leftTrigger, float rightTrigger, uint32_t duration) {
+    bool vibrateTriggers(float leftTrigger, float rightTrigger, Uint32 duration) {
         if (!gameController_) {
             return false;
         }
@@ -48,8 +48,8 @@ public:
         rightTrigger = clampFloat(rightTrigger, 0.0f, 1.0f);
 
         // Convert to SDL's 0-65535 range
-        uint16_t leftFreq = static_cast<uint16_t>(leftTrigger * 65535.0f);
-        uint16_t rightFreq = static_cast<uint16_t>(rightTrigger * 65535.0f);
+        Uint16 leftFreq = static_cast<Uint16>(leftTrigger * 65535.0f);
+        Uint16 rightFreq = static_cast<Uint16>(rightTrigger * 65535.0f);
 
         // SDL3 has built-in trigger rumble support
         bool result = SDL_RumbleGamepadTriggers(gameController_, leftFreq, rightFreq, duration);

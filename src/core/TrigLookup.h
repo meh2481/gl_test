@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cstdint>
+#include <SDL3/SDL_stdinc.h>
 #include <cassert>
 
 // Forward declarations
@@ -44,7 +44,7 @@ private:
     ConsoleBuffer* m_consoleBuffer;
     float* m_sinTable;
     float* m_cosTable;
-    uint32_t m_numEntries;
+    Uint32 m_numEntries;
     float m_angleStep;
     float m_invAngleStep;  // 1.0 / m_angleStep for faster division
 };

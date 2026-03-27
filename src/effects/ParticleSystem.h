@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <cassert>
 #include <SDL3/SDL.h>
 
@@ -22,7 +21,7 @@ struct ParticleEmitterConfig {
     int emissionVertexCount;     // Number of vertices (0 = point emitter)
 
     // Texture IDs (hashed from texture name)
-    uint64_t textureIds[8];  // Up to 8 texture variants
+    Uint64 textureIds[8];  // Up to 8 texture variants
     int textureCount;
 
     // Emission settings
