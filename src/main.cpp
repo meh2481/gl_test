@@ -30,29 +30,6 @@
 #define LUA_SCRIPT_ID 16891582414721442785ULL
 #define PAK_FILE "res.pak"
 
-extern "C" void my_write(int fd, const char* buf, size_t len) {
-    register long rax __asm__("rax") = 1;
-    register long rdi __asm__("rdi") = fd;
-    register long rsi __asm__("rsi") = (long)buf;
-    register long rdx __asm__("rdx") = len;
-    __asm__ volatile ("syscall" : : "r"(rax), "r"(rdi), "r"(rsi), "r"(rdx) : "rcx", "r11", "memory");
-}
-
-extern "C" size_t my_strlen(const char* s) {
-    size_t len = 0;
-    while (*s++) len++;
-    return len;
-}
-
-inline uint32_t clamp(uint32_t value, uint32_t min, uint32_t max)
-{
-    if (value < min)
-        return min;
-    if (value > max)
-        return max;
-    return value;
-}
-
 // Convert screen coordinates to world coordinates
 // World coordinates are -aspect to aspect in x, -1 to 1 in y (aspect = width/height)
 // Accounts for camera offset and zoom
