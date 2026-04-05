@@ -171,6 +171,16 @@ extern "C" __attribute__((visibility("hidden"))) int munmap(void* addr, size_t l
     return 0; // dummy
 }
 
+struct timespec_shim { long tv_sec; long tv_nsec; };
+extern "C" __attribute__((visibility("hidden"))) int clock_gettime(int clockid, struct timespec_shim* ts) {
+    register long rax __asm__("rax") = 228; // SYS_clock_gettime
+    register long rdi __asm__("rdi") = clockid;
+    register long rsi __asm__("rsi") = (long)ts;
+    long ret;
+    __asm__ volatile ("syscall" : "=r"(rax) : "r"(rax), "r"(rdi), "r"(rsi) : "rcx", "r11", "memory");
+    return (int)rax;
+}
+
 extern "C" __attribute__((visibility("hidden"))) void* memcpy(void* dest, const void* src, size_t n) {
     unsigned char* d = static_cast<unsigned char*>(dest);
     const unsigned char* s = static_cast<const unsigned char*>(src);
