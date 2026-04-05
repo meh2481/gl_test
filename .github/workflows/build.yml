@@ -67,7 +67,7 @@ jobs:
             ~/.local/lib/libbox2d*
             ~/.local/include/box2d
             ~/.local/lib/cmake/box2d
-          key: box2d-${{ runner.os }}-v3.1.1-v2
+          key: box2d-${{ runner.os }}-v3.1.1-v3
 
       - name: Install box2d v3 from source, without examples
         if: steps.cache-box2d.outputs.cache-hit != 'true'
@@ -76,7 +76,7 @@ jobs:
           cd box2d
           git checkout v3.1.1
           mkdir build && cd build
-          cmake -DBOX2D_SAMPLES=OFF -DBOX2D_DOCS=OFF -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=OFF -DCMAKE_INSTALL_PREFIX=$HOME/.local -DCMAKE_C_FLAGS="-fno-stack-protector" ..
+          cmake -DBOX2D_SAMPLES=OFF -DBOX2D_DOCS=OFF -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=$HOME/.local ..
           cmake --build .
           make install
 
