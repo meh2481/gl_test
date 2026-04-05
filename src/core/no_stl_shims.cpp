@@ -3,6 +3,8 @@
 
 extern "C" void* SDL_malloc(size_t);
 extern "C" void SDL_free(void*);
+extern "C" void* SDL_calloc(size_t nmemb, size_t size);
+extern "C" void* SDL_realloc(void* mem, size_t size);
 extern "C" int SDL_vsnprintf(char* text, size_t maxlen, const char* fmt, va_list ap);
 
 extern "C" [[noreturn]] void my_exit(int status) {
@@ -130,6 +132,23 @@ void operator delete(void* ptr, std::size_t) noexcept {
 
 void operator delete[](void* ptr, std::size_t) noexcept {
     SDL_free(ptr);
+}
+
+extern "C" __attribute__((visibility("hidden"))) void* malloc(size_t size) {
+    if (size == 0) size = 1;
+    return SDL_malloc(size);
+}
+
+extern "C" __attribute__((visibility("hidden"))) void free(void* ptr) {
+    SDL_free(ptr);
+}
+
+extern "C" __attribute__((visibility("hidden"))) void* calloc(size_t nmemb, size_t size) {
+    return SDL_calloc(nmemb, size);
+}
+
+extern "C" __attribute__((visibility("hidden"))) void* realloc(void* ptr, size_t size) {
+    return SDL_realloc(ptr, size);
 }
 
 extern "C" __attribute__((visibility("hidden"))) char* strncpy(char* dest, const char* src, size_t n) {
