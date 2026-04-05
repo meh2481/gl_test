@@ -1,4 +1,3 @@
 * Add sprite animations
 * Add textboxes, fonts, kerning, line spacing, automatic word wrapping, and text justification
 * Stream music in multiple layers, with support for fading layers in and out
-* Remove dead/unused code & functions
