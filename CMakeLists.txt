@@ -133,17 +133,24 @@ endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_options(shader_triangle PRIVATE
-        -O3
+        -Os
         -fno-exceptions
         -fno-asynchronous-unwind-tables
         -fno-unwind-tables
         -ffunction-sections
         -fdata-sections
+        -fno-rtti
+        -fvisibility=hidden
+        -fomit-frame-pointer
+        -fno-ident
     )
     target_link_options(shader_triangle PRIVATE
         -s
+        -Wl,-O1
         -Wl,--gc-sections
         -Wl,--strip-all
+        -Wl,--build-id=none
+        -Wl,-z,max-page-size=4096
     )
     add_custom_command(TARGET shader_triangle POST_BUILD
         COMMAND strip --strip-all $<TARGET_FILE:shader_triangle>
