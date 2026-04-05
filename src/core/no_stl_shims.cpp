@@ -142,6 +142,10 @@ extern "C" __attribute__((visibility("hidden"))) void __assert_fail(const char* 
     my_exit(1);
 }
 
+extern "C" __attribute__((visibility("hidden"))) void __stack_chk_fail(void) {
+    my_exit(1);
+}
+
 extern "C" __attribute__((visibility("hidden"))) const char* strrchr(const char* s, int c) {
     const char* last = NULL;
     while (*s) {
