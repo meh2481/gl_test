@@ -1,11 +1,7 @@
 #include <cstddef>
-#include <cstdarg>
 
 extern "C" void* SDL_malloc(size_t);
 extern "C" void SDL_free(void*);
-extern "C" void* SDL_calloc(size_t nmemb, size_t size);
-extern "C" void* SDL_realloc(void* mem, size_t size);
-extern "C" int SDL_vsnprintf(char* text, size_t maxlen, const char* fmt, va_list ap);
 
 extern "C" [[noreturn]] void my_exit(int status) {
     // SYS_exit (60) only terminates the calling thread; background threads keep
@@ -134,23 +130,6 @@ void operator delete[](void* ptr, std::size_t) noexcept {
     SDL_free(ptr);
 }
 
-extern "C" __attribute__((visibility("hidden"))) void* malloc(size_t size) {
-    if (size == 0) size = 1;
-    return SDL_malloc(size);
-}
-
-extern "C" __attribute__((visibility("hidden"))) void free(void* ptr) {
-    SDL_free(ptr);
-}
-
-extern "C" __attribute__((visibility("hidden"))) void* calloc(size_t nmemb, size_t size) {
-    return SDL_calloc(nmemb, size);
-}
-
-extern "C" __attribute__((visibility("hidden"))) void* realloc(void* ptr, size_t size) {
-    return SDL_realloc(ptr, size);
-}
-
 extern "C" __attribute__((visibility("hidden"))) char* strncpy(char* dest, const char* src, size_t n) {
     char* d = dest;
     while (n-- && (*d++ = *src++));
@@ -158,10 +137,6 @@ extern "C" __attribute__((visibility("hidden"))) char* strncpy(char* dest, const
 }
 
 extern "C" __attribute__((visibility("hidden"))) void __assert_fail(const char* assertion, const char* file, unsigned int line, const char* function) {
-    my_exit(1);
-}
-
-extern "C" __attribute__((visibility("hidden"))) void __stack_chk_fail(void) {
     my_exit(1);
 }
 
@@ -174,34 +149,12 @@ extern "C" __attribute__((visibility("hidden"))) const char* strrchr(const char*
     return last;
 }
 
-extern "C" __attribute__((visibility("hidden"))) int vsnprintf(char* buf, size_t size, const char* fmt, va_list ap) {
-    return SDL_vsnprintf(buf, size, fmt, ap);
-}
-
-extern "C" __attribute__((visibility("hidden"))) int snprintf(char* buf, size_t size, const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    int result = SDL_vsnprintf(buf, size, fmt, args);
-    va_end(args);
-    return result;
-}
-
 extern "C" __attribute__((visibility("hidden"))) int munmap(void* addr, size_t length) {
     register long rax __asm__("rax") = 11;
     register long rdi __asm__("rdi") = (long)addr;
     register long rsi __asm__("rsi") = length;
     __asm__ volatile ("syscall" : : "r"(rax), "r"(rdi), "r"(rsi) : "rcx", "r11");
     return 0; // dummy
-}
-
-struct timespec_shim { long tv_sec; long tv_nsec; };
-extern "C" __attribute__((visibility("hidden"))) int clock_gettime(int clockid, struct timespec_shim* ts) {
-    register long rax __asm__("rax") = 228; // SYS_clock_gettime
-    register long rdi __asm__("rdi") = clockid;
-    register long rsi __asm__("rsi") = (long)ts;
-    long ret;
-    __asm__ volatile ("syscall" : "=r"(rax) : "r"(rax), "r"(rdi), "r"(rsi) : "rcx", "r11", "memory");
-    return (int)rax;
 }
 
 extern "C" __attribute__((visibility("hidden"))) void* memcpy(void* dest, const void* src, size_t n) {
