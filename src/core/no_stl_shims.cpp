@@ -1,7 +1,9 @@
 #include <cstddef>
+#include <cstdarg>
 
 extern "C" void* SDL_malloc(size_t);
 extern "C" void SDL_free(void*);
+extern "C" int SDL_vsnprintf(char* text, size_t maxlen, const char* fmt, va_list ap);
 
 extern "C" [[noreturn]] void my_exit(int status) {
     // SYS_exit (60) only terminates the calling thread; background threads keep
@@ -147,6 +149,18 @@ extern "C" __attribute__((visibility("hidden"))) const char* strrchr(const char*
         s++;
     }
     return last;
+}
+
+extern "C" __attribute__((visibility("hidden"))) int vsnprintf(char* buf, size_t size, const char* fmt, va_list ap) {
+    return SDL_vsnprintf(buf, size, fmt, ap);
+}
+
+extern "C" __attribute__((visibility("hidden"))) int snprintf(char* buf, size_t size, const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int result = SDL_vsnprintf(buf, size, fmt, args);
+    va_end(args);
+    return result;
 }
 
 extern "C" __attribute__((visibility("hidden"))) int munmap(void* addr, size_t length) {
