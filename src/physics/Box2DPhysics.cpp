@@ -358,9 +358,12 @@ bool Box2DPhysics::isStepComplete() {
 }
 
 void Box2DPhysics::waitForStepComplete() {
+    ThreadProfiler& profiler = ThreadProfiler::instance();
     while (SDL_GetAtomicInt(&stepInProgress_) != 0) {
+        profiler.updateThreadState(THREAD_STATE_IDLE);
         SDL_Delay(1);
     }
+    profiler.updateThreadState(THREAD_STATE_BUSY);
 }
 
 void Box2DPhysics::dispatchDeferredCallbacks() {

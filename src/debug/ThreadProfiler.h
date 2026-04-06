@@ -12,6 +12,19 @@ enum ThreadState {
     THREAD_STATE_COUNT = 3
 };
 
+inline const char* getThreadStateName(ThreadState state) {
+    switch (state) {
+        case THREAD_STATE_BUSY:
+            return "Busy";
+        case THREAD_STATE_WAITING:
+            return "Waiting";
+        case THREAD_STATE_IDLE:
+            return "Idle";
+        default:
+            return "Unknown";
+    }
+}
+
 struct ThreadFrameStats {
     Uint64 stateTime[THREAD_STATE_COUNT]; // Time in each state (nanoseconds)
     Uint64 frameNumber;
@@ -137,6 +150,11 @@ public:
 
         ThreadStats* stats = *statsPtr;
         SDL_LockMutex(stats->statsMutex);
+
+        if (stats->currentState == newState) {
+            SDL_UnlockMutex(stats->statsMutex);
+            return;
+        }
 
         // Accumulate time in previous state
         Uint64 timeInState = currentTime - stats->stateStartTime;

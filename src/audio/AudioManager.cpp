@@ -873,6 +873,7 @@ bool AudioManager::getOpusDecodeResult(
     int& outSampleRate
 ) {
     AudioDecodeJob* job = nullptr;
+    ThreadProfiler& profiler = ThreadProfiler::instance();
 
     // Wait for job to complete
     while (true) {
@@ -881,15 +882,18 @@ bool AudioManager::getOpusDecodeResult(
             job = completedDecodeJob_;
             completedDecodeJob_ = nullptr;
             SDL_UnlockMutex(decodeMutex_);
+            profiler.updateThreadState(THREAD_STATE_BUSY);
             break;
         }
         SDL_UnlockMutex(decodeMutex_);
 
         if (pendingDecodeJob_ && pendingDecodeJob_->jobId == jobId) {
             // Job still pending, wait a bit
+            profiler.updateThreadState(THREAD_STATE_IDLE);
             SDL_Delay(1);
         } else {
             // Job not found
+            profiler.updateThreadState(THREAD_STATE_BUSY);
             return false;
         }
     }

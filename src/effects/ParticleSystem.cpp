@@ -658,12 +658,17 @@ void ParticleSystemManager::submitParticleUpdateJob(float deltaTime) {
 }
 
 void ParticleSystemManager::waitForParticleUpdateJob() {
+    ThreadProfiler& profiler = ThreadProfiler::instance();
+    profiler.updateThreadState(THREAD_STATE_WAITING);
+
     SDL_LockMutex(particleUpdateMutex_);
     while (!particleUpdateCompleted_) {
         SDL_WaitCondition(particleUpdateCondition_, particleUpdateMutex_);
     }
     particleUpdateCompleted_ = false;
     SDL_UnlockMutex(particleUpdateMutex_);
+
+    profiler.updateThreadState(THREAD_STATE_BUSY);
 }
 
 void ParticleSystemManager::update(float deltaTime) {

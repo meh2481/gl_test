@@ -2,6 +2,7 @@
 #include "../core/ResourceTypes.h"
 #include "../scene/SceneLayer.h"
 #include "../debug/ConsoleBuffer.h"
+#include "../debug/ThreadProfiler.h"
 #include <cassert>
 #include <SDL3/SDL_vulkan.h>
 
@@ -227,7 +228,11 @@ void VulkanRenderer::setPipelinesToDraw(const Vector<Uint64>& pipelineIds) {
 }
 
 void VulkanRenderer::render(float time) {
+    ThreadProfiler& profiler = ThreadProfiler::instance();
+
+    profiler.updateThreadState(THREAD_STATE_WAITING);
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    profiler.updateThreadState(THREAD_STATE_BUSY);
 
     // Update light uniform buffer if dirty
     if (m_lightManager.isDirty()) {
@@ -235,7 +240,9 @@ void VulkanRenderer::render(float time) {
     }
 
     Uint32 imageIndex;
+    profiler.updateThreadState(THREAD_STATE_WAITING);
     VkResult result = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+    profiler.updateThreadState(THREAD_STATE_BUSY);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
@@ -275,7 +282,9 @@ void VulkanRenderer::render(float time) {
     presentInfo.pSwapchains = swapchains;
     presentInfo.pImageIndices = &imageIndex;
 
+    profiler.updateThreadState(THREAD_STATE_WAITING);
     vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+    profiler.updateThreadState(THREAD_STATE_BUSY);
 
     m_currentFrame = (m_currentFrame + 1) % 2;
 }

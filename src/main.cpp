@@ -80,14 +80,19 @@ static void renderImGuiCallback(VkCommandBuffer commandBuffer)
 static int hotReloadThread(void *data)
 {
     HotReloadData *reloadData = (HotReloadData *)data;
+    ThreadProfiler& profiler = ThreadProfiler::instance();
+    profiler.registerThread("HotReloadWorker");
 
     while (true)
     {
         // Wait for reload request
         while (SDL_GetAtomicInt(&reloadData->reloadRequested) == 0)
         {
+            profiler.updateThreadState(THREAD_STATE_IDLE);
             SDL_Delay(100);
         }
+
+        profiler.updateThreadState(THREAD_STATE_BUSY);
 
         // Lock mutex to prevent concurrent reloads
         SDL_LockMutex(reloadData->mutex);
@@ -284,8 +289,10 @@ extern "C" int app_main()
     pakResource->requestResourceAsync(trigTableId);
     while (!pakResource->isResourceReady(trigTableId))
     {
+        ThreadProfiler::instance().updateThreadState(THREAD_STATE_IDLE);
         SDL_Delay(1);
     }
+    ThreadProfiler::instance().updateThreadState(THREAD_STATE_BUSY);
 
     // Load trig lookup table
     TrigLookup *trigLookup = static_cast<TrigLookup *>(

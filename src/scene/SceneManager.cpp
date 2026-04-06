@@ -164,6 +164,9 @@ void SceneManager::submitRenderPrepJob(float cameraX, float cameraY, float camer
 }
 
 int SceneManager::waitForRenderPrepJob() {
+    ThreadProfiler& profiler = ThreadProfiler::instance();
+    profiler.updateThreadState(THREAD_STATE_WAITING);
+
     SDL_LockMutex(renderPrepMutex_);
     while (!renderPrepCompleted_) {
         SDL_WaitCondition(renderPrepCondition_, renderPrepMutex_);
@@ -171,6 +174,8 @@ int SceneManager::waitForRenderPrepJob() {
     int readyIndex = renderPrepReadyIndex_;
     renderPrepCompleted_ = false;
     SDL_UnlockMutex(renderPrepMutex_);
+
+    profiler.updateThreadState(THREAD_STATE_BUSY);
     return readyIndex;
 }
 
