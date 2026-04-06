@@ -11,13 +11,12 @@ endif()
 find_package(Vulkan REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL3 REQUIRED IMPORTED_TARGET sdl3)
-pkg_check_modules(LZ4 REQUIRED IMPORTED_TARGET liblz4)
 pkg_check_modules(LUA REQUIRED IMPORTED_TARGET lua5.4)
 pkg_check_modules(PNG REQUIRED IMPORTED_TARGET libpng)
 pkg_check_modules(SQUISH REQUIRED libsquish)
 pkg_check_modules(OPENAL REQUIRED IMPORTED_TARGET openal)
 pkg_check_modules(OPUSFILE REQUIRED IMPORTED_TARGET opusfile)
-include_directories(${SDL3_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LZ4_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS} ${PNG_INCLUDE_DIRS} ${SQUISH_INCLUDE_DIRS} ${OPENAL_INCLUDE_DIRS} ${OPUSFILE_INCLUDE_DIRS})
+include_directories(${SDL3_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS} ${PNG_INCLUDE_DIRS} ${SQUISH_INCLUDE_DIRS} ${OPENAL_INCLUDE_DIRS} ${OPUSFILE_INCLUDE_DIRS})
 find_package(box2d CONFIG REQUIRED)
 
 # ImGui setup for debug builds only
@@ -70,7 +69,8 @@ endforeach()
 add_custom_target(shaders DEPENDS ${SHADER_FILES})
 
 add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
-target_link_libraries(packer PkgConfig::LZ4 PkgConfig::PNG squish)
+target_sources(packer PRIVATE src/compress/Compress.cpp)
+target_link_libraries(packer PkgConfig::PNG squish)
 
 file(GLOB_RECURSE RES_FILES
     "${CMAKE_SOURCE_DIR}/res/*.png"
@@ -87,16 +87,16 @@ add_custom_command(
 add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_executable(shader_triangle src/main.cpp src/core/config.cpp src/core/TrigLookup.cpp src/resources/resource.cpp src/vulkan/VulkanRenderer.cpp src/vulkan/VulkanBuffer.cpp src/vulkan/VulkanTexture.cpp src/vulkan/VulkanDescriptor.cpp src/vulkan/VulkanPipeline.cpp src/vulkan/VulkanLight.cpp src/vulkan/VulkanWaterPolygon.cpp src/scene/LuaInterface.cpp src/scene/SceneManager.cpp src/physics/Box2DPhysics.cpp src/scene/SceneLayer.cpp src/audio/AudioManager.cpp src/effects/ParticleSystem.cpp src/debug/ImGuiManager.cpp src/effects/WaterEffect.cpp src/memory/SmallMemoryAllocator.cpp src/memory/LargeMemoryAllocator.cpp src/core/String.cpp src/animation/AnimationEngine.cpp)
+    add_executable(shader_triangle src/main.cpp src/core/config.cpp src/core/TrigLookup.cpp src/resources/resource.cpp src/vulkan/VulkanRenderer.cpp src/vulkan/VulkanBuffer.cpp src/vulkan/VulkanTexture.cpp src/vulkan/VulkanDescriptor.cpp src/vulkan/VulkanPipeline.cpp src/vulkan/VulkanLight.cpp src/vulkan/VulkanWaterPolygon.cpp src/scene/LuaInterface.cpp src/scene/SceneManager.cpp src/physics/Box2DPhysics.cpp src/scene/SceneLayer.cpp src/audio/AudioManager.cpp src/effects/ParticleSystem.cpp src/debug/ImGuiManager.cpp src/effects/WaterEffect.cpp src/memory/SmallMemoryAllocator.cpp src/memory/LargeMemoryAllocator.cpp src/core/String.cpp src/animation/AnimationEngine.cpp src/compress/Compress.cpp)
 else()
-    add_executable(shader_triangle src/main.cpp src/core/config.cpp src/core/TrigLookup.cpp src/resources/resource.cpp src/vulkan/VulkanRenderer.cpp src/vulkan/VulkanBuffer.cpp src/vulkan/VulkanTexture.cpp src/vulkan/VulkanDescriptor.cpp src/vulkan/VulkanPipeline.cpp src/vulkan/VulkanLight.cpp src/vulkan/VulkanWaterPolygon.cpp src/scene/LuaInterface.cpp src/scene/SceneManager.cpp src/physics/Box2DPhysics.cpp src/scene/SceneLayer.cpp src/audio/AudioManager.cpp src/effects/ParticleSystem.cpp src/effects/WaterEffect.cpp src/memory/SmallMemoryAllocator.cpp src/memory/LargeMemoryAllocator.cpp src/core/String.cpp src/animation/AnimationEngine.cpp)
+    add_executable(shader_triangle src/main.cpp src/core/config.cpp src/core/TrigLookup.cpp src/resources/resource.cpp src/vulkan/VulkanRenderer.cpp src/vulkan/VulkanBuffer.cpp src/vulkan/VulkanTexture.cpp src/vulkan/VulkanDescriptor.cpp src/vulkan/VulkanPipeline.cpp src/vulkan/VulkanLight.cpp src/vulkan/VulkanWaterPolygon.cpp src/scene/LuaInterface.cpp src/scene/SceneManager.cpp src/physics/Box2DPhysics.cpp src/scene/SceneLayer.cpp src/audio/AudioManager.cpp src/effects/ParticleSystem.cpp src/effects/WaterEffect.cpp src/memory/SmallMemoryAllocator.cpp src/memory/LargeMemoryAllocator.cpp src/core/String.cpp src/animation/AnimationEngine.cpp src/compress/Compress.cpp)
 endif()
 add_dependencies(shader_triangle shaders res_pak)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_link_libraries(shader_triangle PkgConfig::SDL3 Vulkan::Vulkan PkgConfig::LZ4 PkgConfig::LUA box2d::box2d PkgConfig::OPENAL PkgConfig::OPUSFILE ${IMGUI_LIBRARIES})
+    target_link_libraries(shader_triangle PkgConfig::SDL3 Vulkan::Vulkan PkgConfig::LUA box2d::box2d PkgConfig::OPENAL PkgConfig::OPUSFILE ${IMGUI_LIBRARIES})
 else()
-    target_link_libraries(shader_triangle PkgConfig::SDL3 Vulkan::Vulkan PkgConfig::LZ4 PkgConfig::LUA box2d::box2d PkgConfig::OPENAL PkgConfig::OPUSFILE)
+    target_link_libraries(shader_triangle PkgConfig::SDL3 Vulkan::Vulkan PkgConfig::LUA box2d::box2d PkgConfig::OPENAL PkgConfig::OPUSFILE)
 endif()
 
 target_link_options(shader_triangle PRIVATE -nostdlib)
@@ -119,7 +119,6 @@ function(strip_libm_from_interface target_name)
 endfunction()
 
 strip_libm_from_interface(PkgConfig::SDL3)
-strip_libm_from_interface(PkgConfig::LZ4)
 strip_libm_from_interface(PkgConfig::OPENAL)
 strip_libm_from_interface(PkgConfig::OPUSFILE)
 strip_libm_from_interface(PkgConfig::IMGUI)

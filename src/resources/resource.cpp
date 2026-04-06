@@ -3,8 +3,8 @@
 #include "../core/Vector.h"
 #include "../debug/ConsoleBuffer.h"
 #include "../debug/ThreadProfiler.h"
+#include "../compress/Compress.h"
 #include <cassert>
-#include <lz4.h>
 
 PakResource::PakResource(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
     : m_pakData{nullptr, 0}
@@ -176,7 +176,7 @@ bool PakResource::loadResourceDataLocked(Uint64 id, ResourceData& outData) {
         return true;
     }
 
-    if (comp->compressionType != COMPRESSION_FLAGS_LZ4) {
+    if (comp->compressionType != COMPRESSION_FLAGS_CMPR) {
         return false;
     }
 
@@ -191,9 +191,9 @@ bool PakResource::loadResourceDataLocked(Uint64 id, ResourceData& outData) {
     Vector<char>* decompressed = new (vecMem) Vector<char>(*m_allocator, "PakResource::loadResourceDataLocked::decompressed");
     decompressed->resize(comp->decompressedSize);
 
-    int result = LZ4_decompress_safe(compressedData, decompressed->data(), comp->compressedSize, comp->decompressedSize);
-    if (result != (int)comp->decompressedSize) {
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "LZ4 decompression failed for resource %llu", (unsigned long long)id);
+    size_t result = Compress::decompress(compressedData, comp->compressedSize, decompressed->data(), comp->decompressedSize);
+    if (result != (size_t)comp->decompressedSize) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "CMPR decompression failed for resource %llu", (unsigned long long)id);
         decompressed->~Vector<char>();
         m_allocator->free(vecMem);
         return false;

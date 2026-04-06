@@ -7,13 +7,13 @@
 #include <sys/stat.h>
 #include <cstring>
 #include <cmath>
-#include <lz4.h>
 #include <filesystem>
 #include <functional>
 #include <png.h>
 #include <squish.h>
 #include <cassert>
 #include <algorithm>
+#include "../src/compress/Compress.h"
 
 using namespace std;
 
@@ -232,12 +232,12 @@ bool loadFile(const string& filename, vector<char>& data, time_t& mtime) {
 }
 
 void compressData(const vector<char>& input, vector<char>& output, Uint32& compressionType) {
-    int maxCompressedSize = LZ4_compressBound(input.size());
+    size_t maxCompressedSize = Compress::maxSize(input.size());
     output.resize(maxCompressedSize);
-    int compressedSize = LZ4_compress_default(input.data(), output.data(), input.size(), maxCompressedSize);
-    if (compressedSize > 0 && compressedSize < (int)input.size()) {
-        output.resize(compressedSize);
-        compressionType = COMPRESSION_FLAGS_LZ4;
+    size_t compressedSize = Compress::compress(input.data(), input.size(), output.data(), maxCompressedSize);
+    if (compressedSize > 0 && compressedSize < input.size()) {
+        output.resize((size_t)compressedSize);
+        compressionType = COMPRESSION_FLAGS_CMPR;
     } else {
         // Compression didn't help, store uncompressed
         output = input;

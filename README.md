@@ -35,7 +35,6 @@ A C++ application using Vulkan rendering with Lua scripting and Box2D physics in
 - Vulkan
 - Box2D 3.x
 - Lua 5.4
-- LZ4
 - OpenAL
 - OpusFile (libopusfile)
 - libpng
@@ -107,6 +106,6 @@ The application opens in fullscreen mode on the primary display, showing the neb
 - **Action-based keybinding system**: Flexible many-to-many mapping between keys/gamepad buttons and actions
 - **Lua-based scene management**: Scenes are defined in Lua scripts (`res/scenes/*.lua`) with support for scene stacking
 - **3D Audio system**: OPUS audio with spatial positioning and effects
-- **Resource packing**: Assets (shaders, textures, audio, Lua scripts) are packed into `res.pak` using LZ4 compression with optional texture atlas generation
+- **Resource packing**: Assets (shaders, textures, audio, Lua scripts) are packed into `res.pak` using CMPR compression with optional texture atlas generation
 - **Configuration persistence**: Display, fullscreen mode, GPU selection, present mode, and keybindings are saved between sessions
 - **Hot-reloading**: In debug builds, F5 recompiles shaders and rebuilds the pak file in a background thread, then reloads the current scene without restarting
