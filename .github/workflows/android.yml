@@ -87,6 +87,7 @@ jobs:
           ANDROID_CMAKE_ARGS=(
             -DCMAKE_SYSTEM_NAME=Android
             -DCMAKE_ANDROID_NDK=$NDK
+            -DANDROID_NDK=$NDK
             -DANDROID_ABI=$ABI
             -DANDROID_PLATFORM=android-$API
             -DANDROID_STL=c++_static
