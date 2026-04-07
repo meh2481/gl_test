@@ -1,5 +1,7 @@
 #include <cstddef>
 
+#ifndef _WIN32
+
 extern "C" void* SDL_malloc(size_t);
 extern "C" void SDL_free(void*);
 
@@ -186,7 +188,17 @@ extern "C" __attribute__((visibility("hidden"))) void* memmove(void* dest, const
     return dest;
 }
 
+#endif // !_WIN32
+
 extern "C" int app_main();
+
+#ifdef _WIN32
+
+int main() {
+    return app_main();
+}
+
+#else
 
 // _start must not be a normal C/C++ function: the kernel jumps here with %rsp
 // 16-byte aligned and NO return address pushed.  A C function prologue would
@@ -214,3 +226,5 @@ __asm__(
     "  movq  %rax, %rdi\n"        /* pass return value as exit status        */
     "  call  my_exit\n"
 );
+
+#endif // !_WIN32
