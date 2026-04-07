@@ -227,7 +227,7 @@ jobs:
           cd opusfile-0.12
           # opusfile uses autoconf; use cmake wrapper or compile directly
           $CC -O2 --target=${TARGET} --sysroot=$TOOLCHAIN/sysroot \
-            -I$SYSROOT/include -fPIC -c \
+            -I$SYSROOT/include -Iinclude -fPIC -c \
             src/http.c src/info.c src/internal.c src/opusfile.c src/stream.c
           $AR rcu libopusfile.a *.o
           $RANLIB libopusfile.a
