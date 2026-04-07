@@ -370,3 +370,14 @@ jobs:
             -DVulkan_LIBRARY=$HOME/.win64/lib/libvulkan-1.dll.a \
             ..
           make packer shader_triangle
+          # Collect the executable and the SDL3 runtime DLL needed to run it
+          mkdir -p $GITHUB_WORKSPACE/artifacts
+          cp shader_triangle.exe $GITHUB_WORKSPACE/artifacts/
+          cp $HOME/.win64/bin/SDL3.dll $GITHUB_WORKSPACE/artifacts/
+
+      - name: Upload Windows build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: shader_triangle-windows-x64
+          path: artifacts/
+          if-no-files-found: error
