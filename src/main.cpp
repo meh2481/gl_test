@@ -52,6 +52,28 @@ static float panStartCursorY = 0.0f;
 static float panStartCameraX = 0.0f;
 static float panStartCameraY = 0.0f;
 
+// Multi-touch tracking for two-finger gestures (pinch-to-zoom, two-finger tap)
+#define MAX_TRACKED_FINGERS 2
+struct TrackedFinger {
+    SDL_FingerID id;
+    float x;  // normalized 0..1
+    float y;  // normalized 0..1
+    float startX;
+    float startY;
+    bool active;
+};
+static TrackedFinger trackedFingers[MAX_TRACKED_FINGERS];
+static int activeTouchCount = 0;
+static float pinchStartDist = 0.0f;
+static float pinchStartZoom = 0.0f;
+static Uint64 twoFingerDownTime = 0;
+
+static float touchDist(const TrackedFinger& a, const TrackedFinger& b) {
+    float dx = a.x - b.x;
+    float dy = a.y - b.y;
+    return SDL_sqrtf(dx * dx + dy * dy);
+}
+
 #ifdef DEBUG
 // Structure to pass data to the hot-reload thread
 struct HotReloadData
@@ -646,6 +668,113 @@ extern "C" int app_main()
                                 sceneManager->getCameraZoom(), &worldX, &worldY);
                 sceneManager->setCursorPosition(worldX, worldY);
             }
+            // Handle two-finger touch for pinch-to-zoom and two-finger tap (ACTION_MENU)
+            if (event.type == SDL_EVENT_FINGER_DOWN)
+            {
+                // Find a free slot or replace an old one
+                for (int i = 0; i < MAX_TRACKED_FINGERS; i++)
+                {
+                    if (!trackedFingers[i].active)
+                    {
+                        trackedFingers[i].id = event.tfinger.fingerID;
+                        trackedFingers[i].x = event.tfinger.x;
+                        trackedFingers[i].y = event.tfinger.y;
+                        trackedFingers[i].startX = event.tfinger.x;
+                        trackedFingers[i].startY = event.tfinger.y;
+                        trackedFingers[i].active = true;
+                        activeTouchCount++;
+                        consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG,
+                                           "Finger down id=%lld count=%d",
+                                           (long long)trackedFingers[i].id, activeTouchCount);
+                        break;
+                    }
+                }
+                if (activeTouchCount == 2)
+                {
+                    pinchStartDist = touchDist(trackedFingers[0], trackedFingers[1]);
+                    pinchStartZoom = sceneManager->getCameraZoom();
+                    twoFingerDownTime = SDL_GetTicks();
+                    consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG,
+                                       "Two-finger down: pinchStartDist=%.4f zoom=%.2f",
+                                       pinchStartDist, pinchStartZoom);
+                }
+            }
+            if (event.type == SDL_EVENT_FINGER_UP)
+            {
+                for (int i = 0; i < MAX_TRACKED_FINGERS; i++)
+                {
+                    if (trackedFingers[i].active && trackedFingers[i].id == event.tfinger.fingerID)
+                    {
+                        trackedFingers[i].active = false;
+                        activeTouchCount--;
+                        consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG,
+                                           "Finger up id=%lld count=%d",
+                                           (long long)event.tfinger.fingerID, activeTouchCount);
+                        break;
+                    }
+                }
+                // Two-finger tap: both fingers released quickly (<300 ms) with little movement
+                if (activeTouchCount == 0 && twoFingerDownTime != 0)
+                {
+                    Uint64 elapsed = SDL_GetTicks() - twoFingerDownTime;
+                    bool quickTap = (elapsed < 300);
+                    bool smallMove = true;
+                    for (int i = 0; i < MAX_TRACKED_FINGERS; i++)
+                    {
+                        float dx = trackedFingers[i].x - trackedFingers[i].startX;
+                        float dy = trackedFingers[i].y - trackedFingers[i].startY;
+                        if (dx * dx + dy * dy > 0.05f * 0.05f)
+                        {
+                            smallMove = false;
+                        }
+                    }
+                    if (quickTap && smallMove)
+                    {
+                        consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG, "Two-finger tap -> ACTION_MENU");
+                        sceneManager->handleAction(ACTION_MENU);
+                    }
+                    twoFingerDownTime = 0;
+                }
+            }
+            if (event.type == SDL_EVENT_FINGER_MOTION && activeTouchCount == 2)
+            {
+                // Update position for the moving finger
+                for (int i = 0; i < MAX_TRACKED_FINGERS; i++)
+                {
+                    if (trackedFingers[i].active && trackedFingers[i].id == event.tfinger.fingerID)
+                    {
+                        trackedFingers[i].x = event.tfinger.x;
+                        trackedFingers[i].y = event.tfinger.y;
+                        break;
+                    }
+                }
+                // Pinch-to-zoom: scale camera zoom by the ratio of current to start distance
+                if (pinchStartDist > 0.001f)
+                {
+                    float currentDist = touchDist(trackedFingers[0], trackedFingers[1]);
+                    float newZoom = pinchStartZoom * (currentDist / pinchStartDist);
+                    sceneManager->setCameraZoom(newZoom);
+                }
+            }
+            // Handle Android/desktop app lifecycle events
+            if (event.type == SDL_EVENT_WILL_ENTER_BACKGROUND)
+            {
+                consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "App entering background - suspending audio");
+                audioManager->suspend();
+            }
+            if (event.type == SDL_EVENT_DID_ENTER_FOREGROUND)
+            {
+                consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "App entering foreground - resuming audio and swapchain");
+                audioManager->resume();
+                renderer->recreateSwapchain(window);
+            }
+            // Handle window resize (also covers Android surface recreation after rotation)
+            if (event.type == SDL_EVENT_WINDOW_RESIZED)
+            {
+                consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Window resized to %dx%d - recreating swapchain",
+                                   event.window.data1, event.window.data2);
+                renderer->recreateSwapchain(window);
+            }
         }
 
         if (!preloadCompleteLogged && pakResource->areAllResourcesReady())
@@ -784,6 +913,13 @@ extern "C" int app_main()
 #endif
 
         renderer->render(currentTime);
+
+        // Recreate swapchain if render signalled VK_ERROR_OUT_OF_DATE_KHR
+        if (renderer->needsSwapchainRecreation())
+        {
+            consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Swapchain out-of-date after render - recreating");
+            renderer->recreateSwapchain(window);
+        }
 
         // End profiler frame (finalize statistics)
         ThreadProfiler::instance().endFrame();

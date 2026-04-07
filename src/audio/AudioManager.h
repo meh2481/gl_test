@@ -118,6 +118,12 @@ public:
     // Release all active audio sources (for scene cleanup)
     void clearAllSources();
 
+    // Suspend audio processing (call when app goes to background)
+    void suspend();
+
+    // Resume audio processing (call when app returns to foreground)
+    void resume();
+
     // Async Opus decode: queue a decode job and return immediately
     // Returns job ID for tracking
     // Call getOpusDecodeResult() to retrieve decoded PCM

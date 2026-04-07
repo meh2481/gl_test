@@ -123,10 +123,40 @@ if(BUILD_GAME)
 
     add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 
+    set(GAME_SOURCES
+        src/main.cpp
+        src/core/config.cpp
+        src/core/TrigLookup.cpp
+        src/resources/resource.cpp
+        src/vulkan/VulkanRenderer.cpp
+        src/vulkan/VulkanBuffer.cpp
+        src/vulkan/VulkanTexture.cpp
+        src/vulkan/VulkanDescriptor.cpp
+        src/vulkan/VulkanPipeline.cpp
+        src/vulkan/VulkanLight.cpp
+        src/vulkan/VulkanWaterPolygon.cpp
+        src/scene/LuaInterface.cpp
+        src/scene/SceneManager.cpp
+        src/physics/Box2DPhysics.cpp
+        src/scene/SceneLayer.cpp
+        src/audio/AudioManager.cpp
+        src/effects/ParticleSystem.cpp
+        src/effects/WaterEffect.cpp
+        src/memory/SmallMemoryAllocator.cpp
+        src/memory/LargeMemoryAllocator.cpp
+        src/core/String.cpp
+        src/animation/AnimationEngine.cpp
+        src/compress/Compress.cpp
+    )
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_executable(shader_triangle src/main.cpp src/core/config.cpp src/core/TrigLookup.cpp src/resources/resource.cpp src/vulkan/VulkanRenderer.cpp src/vulkan/VulkanBuffer.cpp src/vulkan/VulkanTexture.cpp src/vulkan/VulkanDescriptor.cpp src/vulkan/VulkanPipeline.cpp src/vulkan/VulkanLight.cpp src/vulkan/VulkanWaterPolygon.cpp src/scene/LuaInterface.cpp src/scene/SceneManager.cpp src/physics/Box2DPhysics.cpp src/scene/SceneLayer.cpp src/audio/AudioManager.cpp src/effects/ParticleSystem.cpp src/debug/ImGuiManager.cpp src/effects/WaterEffect.cpp src/memory/SmallMemoryAllocator.cpp src/memory/LargeMemoryAllocator.cpp src/core/String.cpp src/animation/AnimationEngine.cpp src/compress/Compress.cpp)
+        list(APPEND GAME_SOURCES src/debug/ImGuiManager.cpp)
+    endif()
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+        add_library(shader_triangle SHARED ${GAME_SOURCES})
+        set_target_properties(shader_triangle PROPERTIES OUTPUT_NAME "main")
     else()
-        add_executable(shader_triangle src/main.cpp src/core/config.cpp src/core/TrigLookup.cpp src/resources/resource.cpp src/vulkan/VulkanRenderer.cpp src/vulkan/VulkanBuffer.cpp src/vulkan/VulkanTexture.cpp src/vulkan/VulkanDescriptor.cpp src/vulkan/VulkanPipeline.cpp src/vulkan/VulkanLight.cpp src/vulkan/VulkanWaterPolygon.cpp src/scene/LuaInterface.cpp src/scene/SceneManager.cpp src/physics/Box2DPhysics.cpp src/scene/SceneLayer.cpp src/audio/AudioManager.cpp src/effects/ParticleSystem.cpp src/effects/WaterEffect.cpp src/memory/SmallMemoryAllocator.cpp src/memory/LargeMemoryAllocator.cpp src/core/String.cpp src/animation/AnimationEngine.cpp src/compress/Compress.cpp)
+        add_executable(shader_triangle ${GAME_SOURCES})
     endif()
     add_dependencies(shader_triangle shaders res_pak)
 
@@ -143,7 +173,7 @@ if(BUILD_GAME)
         target_link_libraries(shader_triangle PkgConfig::SDL3 Vulkan::Vulkan PkgConfig::LUA box2d::box2d PkgConfig::OPENAL PkgConfig::OPUSFILE)
     endif()
 
-    if(UNIX)
+    if(UNIX AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
         target_link_options(shader_triangle PRIVATE -nostdlib)
     endif()
 
@@ -169,11 +199,16 @@ if(BUILD_GAME)
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_link_options(shader_triangle PRIVATE -Wl,--as-needed)
-        if(UNIX)
+        if(UNIX AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
             target_link_options(shader_triangle PRIVATE -nostdlib++)
         endif()
         target_compile_options(shader_triangle PRIVATE -fno-rtti -fno-exceptions)
-        target_sources(shader_triangle PRIVATE src/core/no_stl_shims.cpp)
+        if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+            target_sources(shader_triangle PRIVATE src/core/no_stl_shims.cpp)
+        else()
+            target_sources(shader_triangle PRIVATE src/core/android_main.cpp)
+            target_link_libraries(shader_triangle log android)
+        endif()
     endif()
 
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -195,7 +230,7 @@ if(BUILD_GAME)
             -Wl,--gc-sections
             -Wl,--strip-all
         )
-        if(UNIX)
+        if(UNIX AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
             target_link_options(shader_triangle PRIVATE
                 -Wl,--build-id=none
                 -Wl,-z,max-page-size=4096

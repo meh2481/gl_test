@@ -535,6 +535,10 @@ float SceneManager::getCameraZoom() const {
     return luaInterface_->getCameraZoom();
 }
 
+void SceneManager::setCameraZoom(float zoom) {
+    luaInterface_->setCameraZoom(zoom);
+}
+
 void SceneManager::applyScrollZoom(float scrollDelta) {
     luaInterface_->applyScrollZoom(scrollDelta);
 }
