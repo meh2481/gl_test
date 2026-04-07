@@ -3148,58 +3148,75 @@ int LuaInterface::audioLoadMusicTrack(lua_State* L) {
     return 1;
 }
 
-// audioPlayMusicTrack(musicTrackId)
+// audioPlayMusicTrack(musicTrackId [, fadeDuration])
 // Start streaming a loaded music track.  Returns nothing.
+// fadeDuration: optional fade-in time in seconds (default MUSIC_DEFAULT_FADE_DURATION).
 int LuaInterface::audioPlayMusicTrack(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    assert(lua_gettop(L) == 1);
+    int argc = lua_gettop(L);
+    assert(argc >= 1 && argc <= 2);
     assert(lua_isnumber(L, 1));
 
     int trackId = (int)lua_tointeger(L, 1);
+    float fadeDuration = (argc >= 2 && lua_isnumber(L, 2))
+        ? (float)lua_tonumber(L, 2)
+        : MUSIC_DEFAULT_FADE_DURATION;
+
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
-        "audioPlayMusicTrack: track %d", trackId);
-    interface->audioManager_->playMusicTrack(trackId);
+        "audioPlayMusicTrack: track %d (fade %.2f s)", trackId, fadeDuration);
+    interface->audioManager_->playMusicTrack(trackId, fadeDuration);
     return 0;
 }
 
-// audioStopMusicTrack(musicTrackId)
+// audioStopMusicTrack(musicTrackId [, fadeDuration])
 // Stop a music track and free its streaming resources.  Returns nothing.
+// fadeDuration: optional fade-out time in seconds (default MUSIC_DEFAULT_FADE_DURATION).
 int LuaInterface::audioStopMusicTrack(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    assert(lua_gettop(L) == 1);
+    int argc = lua_gettop(L);
+    assert(argc >= 1 && argc <= 2);
     assert(lua_isnumber(L, 1));
 
     int trackId = (int)lua_tointeger(L, 1);
+    float fadeDuration = (argc >= 2 && lua_isnumber(L, 2))
+        ? (float)lua_tonumber(L, 2)
+        : MUSIC_DEFAULT_FADE_DURATION;
+
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
-        "audioStopMusicTrack: track %d", trackId);
-    interface->audioManager_->stopMusicTrack(trackId);
+        "audioStopMusicTrack: track %d (fade %.2f s)", trackId, fadeDuration);
+    interface->audioManager_->stopMusicTrack(trackId, fadeDuration);
     return 0;
 }
 
-// audioSetMusicIntensity(musicTrackId, intensityName)
+// audioSetMusicIntensity(musicTrackId, intensityName [, fadeDuration])
 // Switch to the named intensity, fading layers in/out.  Returns nothing.
+// fadeDuration: optional cross-fade time in seconds (default MUSIC_DEFAULT_FADE_DURATION).
 int LuaInterface::audioSetMusicIntensity(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
-    assert(lua_gettop(L) == 2);
+    int argc = lua_gettop(L);
+    assert(argc >= 2 && argc <= 3);
     assert(lua_isnumber(L, 1));
     assert(lua_isstring(L, 2));
 
     int trackId = (int)lua_tointeger(L, 1);
     const char* name = lua_tostring(L, 2);
+    float fadeDuration = (argc >= 3 && lua_isnumber(L, 3))
+        ? (float)lua_tonumber(L, 3)
+        : MUSIC_DEFAULT_FADE_DURATION;
     Uint64 nameHash = hashCString(name);
 
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
-        "audioSetMusicIntensity: track %d -> '%s'", trackId, name);
-    interface->audioManager_->setMusicIntensity(trackId, nameHash);
+        "audioSetMusicIntensity: track %d -> '%s' (fade %.2f s)", trackId, name, fadeDuration);
+    interface->audioManager_->setMusicIntensity(trackId, nameHash, fadeDuration);
     return 0;
 }
 

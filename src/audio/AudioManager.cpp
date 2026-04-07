@@ -1088,6 +1088,8 @@ int AudioManager::loadMusicTrack(
     track.loopStartSample = loopStartSample;
     track.loopEndSample   = loopEndSample;
     track.currentIntensity = -1;
+    track.fadeRate        = 1.0f / MUSIC_DEFAULT_FADE_DURATION;
+    track.pendingStop     = false;
     track.playing         = false;
 
     // Open each unique OPUS layer.
@@ -1165,14 +1167,16 @@ int AudioManager::loadMusicTrack(
     return trackId;
 }
 
-void AudioManager::playMusicTrack(int trackId) {
+void AudioManager::playMusicTrack(int trackId, float fadeDuration) {
     assert(trackId >= 0 && trackId < MAX_MUSIC_TRACKS);
     assert(musicTracks_[trackId].valid);
 
     SDL_LockMutex(musicMutex_);
 
     MusicTrackState& track = musicTracks_[trackId];
-    track.playing = true;
+    track.playing     = true;
+    track.pendingStop = false;
+    track.fadeRate    = (fadeDuration > 0.0f) ? (1.0f / fadeDuration) : 0.0f;
 
     // Activate the first intensity by default if none has been chosen yet.
     if (track.currentIntensity < 0 && track.numIntensities > 0) {
@@ -1180,7 +1184,13 @@ void AudioManager::playMusicTrack(int trackId) {
         const MusicIntensityDesc& desc = track.intensities[0];
         for (int l = 0; l < track.numLayers; l++) {
             track.layers[l].targetVolume = desc.layerVolumes[l];
-            track.layers[l].volume       = desc.layerVolumes[l]; // snap immediately on first play
+            if (fadeDuration <= 0.0f) {
+                // Snap immediately — no fade-in.
+                track.layers[l].volume = desc.layerVolumes[l];
+            } else {
+                // Start silent and fade in.
+                track.layers[l].volume = 0.0f;
+            }
             alSourcef(track.layers[l].source, AL_GAIN, track.layers[l].volume);
         }
         consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
@@ -1217,17 +1227,32 @@ void AudioManager::playMusicTrack(int trackId) {
     consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: Music track %d playing", trackId);
 }
 
-void AudioManager::stopMusicTrack(int trackId) {
+void AudioManager::stopMusicTrack(int trackId, float fadeDuration) {
     assert(trackId >= 0 && trackId < MAX_MUSIC_TRACKS);
     if (!musicTracks_[trackId].valid) return;
 
     SDL_LockMutex(musicMutex_);
-    releaseMusicTrack(musicTracks_[trackId]);
-    SDL_UnlockMutex(musicMutex_);
-    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: Music track %d stopped", trackId);
+
+    MusicTrackState& track = musicTracks_[trackId];
+    if (fadeDuration <= 0.0f) {
+        // Instant stop: release immediately.
+        releaseMusicTrack(track);
+        SDL_UnlockMutex(musicMutex_);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: Music track %d stopped", trackId);
+    } else {
+        // Fade out then release once all layers reach silence.
+        track.fadeRate    = 1.0f / fadeDuration;
+        track.pendingStop = true;
+        for (int l = 0; l < track.numLayers; l++) {
+            track.layers[l].targetVolume = 0.0f;
+        }
+        SDL_UnlockMutex(musicMutex_);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO,
+            "AudioManager: Music track %d fading out over %.2f s", trackId, fadeDuration);
+    }
 }
 
-void AudioManager::setMusicIntensity(int trackId, Uint64 intensityNameHash) {
+void AudioManager::setMusicIntensity(int trackId, Uint64 intensityNameHash, float fadeDuration) {
     assert(trackId >= 0 && trackId < MAX_MUSIC_TRACKS);
     assert(musicTracks_[trackId].valid);
 
@@ -1256,9 +1281,15 @@ void AudioManager::setMusicIntensity(int trackId, Uint64 intensityNameHash) {
     }
 
     track.currentIntensity = newIdx;
+    track.fadeRate          = (fadeDuration > 0.0f) ? (1.0f / fadeDuration) : 0.0f;
     const MusicIntensityDesc& desc = track.intensities[newIdx];
     for (int l = 0; l < track.numLayers; l++) {
         track.layers[l].targetVolume = desc.layerVolumes[l];
+        if (fadeDuration <= 0.0f) {
+            // Snap immediately.
+            track.layers[l].volume = desc.layerVolumes[l];
+            alSourcef(track.layers[l].source, AL_GAIN, track.layers[l].volume);
+        }
     }
 
     SDL_UnlockMutex(musicMutex_);
@@ -1465,13 +1496,17 @@ void AudioManager::streamMusicTracks(float dt) {
 
             // Fade volume toward target.
             if (layer.volume != layer.targetVolume) {
-                float delta = MUSIC_FADE_RATE * dt;
-                if (layer.volume < layer.targetVolume) {
-                    layer.volume += delta;
-                    if (layer.volume > layer.targetVolume) layer.volume = layer.targetVolume;
+                if (track.fadeRate <= 0.0f) {
+                    layer.volume = layer.targetVolume;
                 } else {
-                    layer.volume -= delta;
-                    if (layer.volume < layer.targetVolume) layer.volume = layer.targetVolume;
+                    float delta = track.fadeRate * dt;
+                    if (layer.volume < layer.targetVolume) {
+                        layer.volume += delta;
+                        if (layer.volume > layer.targetVolume) layer.volume = layer.targetVolume;
+                    } else {
+                        layer.volume -= delta;
+                        if (layer.volume < layer.targetVolume) layer.volume = layer.targetVolume;
+                    }
                 }
                 alSourcef(layer.source, AL_GAIN, layer.volume);
             }
@@ -1502,6 +1537,22 @@ void AudioManager::streamMusicTracks(float dt) {
                         "AudioManager: Music layer %d/%d underrun, restarting", t, l);
                     alSourcePlay(layer.source);
                 }
+            }
+        }
+
+        // If a fade-out stop was requested, release the track once all layers are silent.
+        if (track.pendingStop) {
+            bool allSilent = true;
+            for (int l = 0; l < track.numLayers; l++) {
+                if (track.layers[l].active && track.layers[l].volume > 0.0f) {
+                    allSilent = false;
+                    break;
+                }
+            }
+            if (allSilent) {
+                consoleBuffer_->log(SDL_LOG_PRIORITY_INFO,
+                    "AudioManager: Music track %d fade-out complete, releasing", t);
+                releaseMusicTrack(track);
             }
         }
     }

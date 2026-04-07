@@ -45,7 +45,7 @@ struct AudioBuffer {
 #define MAX_MUSIC_INTENSITIES       8    // Max intensities per music track
 #define MUSIC_STREAM_BUFFERS        3    // OpenAL streaming buffers per layer
 #define MUSIC_STREAM_BUFFER_FRAMES  4800 // Decoded frames per streaming buffer (100 ms at 48 kHz)
-#define MUSIC_FADE_RATE             2.0f // Volume fade speed (units per second; 0.5 s for full fade)
+#define MUSIC_DEFAULT_FADE_DURATION 0.5f // Default fade duration in seconds
 
 // One streamed OPUS layer within a music track
 struct MusicLayerStream {
@@ -74,6 +74,8 @@ struct MusicTrackState {
     MusicIntensityDesc  intensities[MAX_MUSIC_INTENSITIES];
     int                 numIntensities;
     int                 currentIntensity; // Index of the active intensity (-1 = none set yet)
+    float               fadeRate;         // Current fade speed (volume units per second)
+    bool                pendingStop;      // If true, release track once all layers reach volume 0
     bool                playing;
     bool                valid;
 };
@@ -200,14 +202,17 @@ public:
                        const MusicIntensityInitData* intensities, int numIntensities);
 
     // Start playing a loaded music track.
-    void playMusicTrack(int trackId);
+    // fadeDuration: seconds to fade in from silence (default MUSIC_DEFAULT_FADE_DURATION).
+    void playMusicTrack(int trackId, float fadeDuration = MUSIC_DEFAULT_FADE_DURATION);
 
-    // Stop a music track and free its streaming resources.
-    void stopMusicTrack(int trackId);
+    // Stop a music track, fading out over fadeDuration seconds before freeing resources.
+    // fadeDuration: seconds to fade to silence before stopping (default MUSIC_DEFAULT_FADE_DURATION).
+    void stopMusicTrack(int trackId, float fadeDuration = MUSIC_DEFAULT_FADE_DURATION);
 
     // Switch to a named intensity (by FNV hash of the name string).
     // Layers not in the new intensity fade out; new layers fade in.
-    void setMusicIntensity(int trackId, Uint64 intensityNameHash);
+    // fadeDuration: seconds for the cross-fade (default MUSIC_DEFAULT_FADE_DURATION).
+    void setMusicIntensity(int trackId, Uint64 intensityNameHash, float fadeDuration = MUSIC_DEFAULT_FADE_DURATION);
 
 private:
     ALCdevice* device;
