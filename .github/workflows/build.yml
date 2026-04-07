@@ -189,7 +189,7 @@ jobs:
         id: cache-win64-deps
         with:
           path: ~/.win64
-          key: win64-deps-${{ runner.os }}-v4
+          key: win64-deps-${{ runner.os }}-v5
 
       - name: Build Windows cross-compile dependencies
         if: steps.cache-win64-deps.outputs.cache-hit != 'true'
@@ -316,7 +316,8 @@ jobs:
             -DMINGW64_SYSROOT=$SYSROOT \
             -DCMAKE_INSTALL_PREFIX=$SYSROOT \
             -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF -DALSOFT_UTILS=OFF \
-            -DBUILD_SHARED_LIBS=ON
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++"
           cmake --build openal-soft/build -j$(nproc)
           cmake --install openal-soft/build
 
