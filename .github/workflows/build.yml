@@ -375,9 +375,9 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/artifacts
           cp shader_triangle.exe $GITHUB_WORKSPACE/artifacts/
           cp packer.exe $GITHUB_WORKSPACE/artifacts/
+          cp res.pak $GITHUB_WORKSPACE/artifacts/
           cp $HOME/.win64/bin/SDL3.dll $GITHUB_WORKSPACE/artifacts/
           cp $HOME/.win64/bin/vulkan-1.dll $GITHUB_WORKSPACE/artifacts/
-          cp $HOME/.win64/bin/OpenAL32.dll $GITHUB_WORKSPACE/artifacts/
 
       - name: Upload Windows build artifacts
         uses: actions/upload-artifact@v4
