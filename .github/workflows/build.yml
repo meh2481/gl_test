@@ -189,7 +189,7 @@ jobs:
         id: cache-win64-deps
         with:
           path: ~/.win64
-          key: win64-deps-${{ runner.os }}-v3
+          key: win64-deps-${{ runner.os }}-v4
 
       - name: Build Windows cross-compile dependencies
         if: steps.cache-win64-deps.outputs.cache-hit != 'true'
@@ -316,7 +316,7 @@ jobs:
             -DMINGW64_SYSROOT=$SYSROOT \
             -DCMAKE_INSTALL_PREFIX=$SYSROOT \
             -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF -DALSOFT_UTILS=OFF \
-            -DBUILD_SHARED_LIBS=OFF
+            -DBUILD_SHARED_LIBS=ON
           cmake --build openal-soft/build -j$(nproc)
           cmake --install openal-soft/build
 
@@ -373,7 +373,10 @@ jobs:
           # Collect the executable and the SDL3 runtime DLL needed to run it
           mkdir -p $GITHUB_WORKSPACE/artifacts
           cp shader_triangle.exe $GITHUB_WORKSPACE/artifacts/
+          cp packer.exe $GITHUB_WORKSPACE/artifacts/
           cp $HOME/.win64/bin/SDL3.dll $GITHUB_WORKSPACE/artifacts/
+          cp $HOME/.win64/bin/vulkan-1.dll $GITHUB_WORKSPACE/artifacts/
+          cp $HOME/.win64/bin/OpenAL32.dll $GITHUB_WORKSPACE/artifacts/
 
       - name: Upload Windows build artifacts
         uses: actions/upload-artifact@v4
