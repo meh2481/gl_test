@@ -68,7 +68,14 @@ static float pinchStartDist = 0.0f;
 static float pinchStartZoom = 0.0f;
 static Uint64 twoFingerDownTime = 0;
 
-static float touchDist(const TrackedFinger& a, const TrackedFinger& b) {
+// Maximum time (ms) between first finger-down and last finger-up to count as a tap
+static const Uint64 TWO_FINGER_TAP_TIMEOUT_MS = 300;
+// Maximum normalized finger travel (0..1 screen coords) allowed in a tap gesture
+static const float FINGER_MOVEMENT_THRESHOLD = 0.05f;
+// Minimum pinch distance (normalized) to avoid division by near-zero values
+static const float MIN_PINCH_DISTANCE = 0.001f;
+
+static float calculateTouchDistance(const TrackedFinger& a, const TrackedFinger& b) {
     float dx = a.x - b.x;
     float dy = a.y - b.y;
     return SDL_sqrtf(dx * dx + dy * dy);
@@ -691,7 +698,7 @@ extern "C" int app_main()
                 }
                 if (activeTouchCount == 2)
                 {
-                    pinchStartDist = touchDist(trackedFingers[0], trackedFingers[1]);
+                    pinchStartDist = calculateTouchDistance(trackedFingers[0], trackedFingers[1]);
                     pinchStartZoom = sceneManager->getCameraZoom();
                     twoFingerDownTime = SDL_GetTicks();
                     consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG,
@@ -717,13 +724,13 @@ extern "C" int app_main()
                 if (activeTouchCount == 0 && twoFingerDownTime != 0)
                 {
                     Uint64 elapsed = SDL_GetTicks() - twoFingerDownTime;
-                    bool quickTap = (elapsed < 300);
+                    bool quickTap = (elapsed < TWO_FINGER_TAP_TIMEOUT_MS);
                     bool smallMove = true;
                     for (int i = 0; i < MAX_TRACKED_FINGERS; i++)
                     {
                         float dx = trackedFingers[i].x - trackedFingers[i].startX;
                         float dy = trackedFingers[i].y - trackedFingers[i].startY;
-                        if (dx * dx + dy * dy > 0.05f * 0.05f)
+                        if (dx * dx + dy * dy > FINGER_MOVEMENT_THRESHOLD * FINGER_MOVEMENT_THRESHOLD)
                         {
                             smallMove = false;
                         }
@@ -749,9 +756,9 @@ extern "C" int app_main()
                     }
                 }
                 // Pinch-to-zoom: scale camera zoom by the ratio of current to start distance
-                if (pinchStartDist > 0.001f)
+                if (pinchStartDist > MIN_PINCH_DISTANCE)
                 {
-                    float currentDist = touchDist(trackedFingers[0], trackedFingers[1]);
+                    float currentDist = calculateTouchDistance(trackedFingers[0], trackedFingers[1]);
                     float newZoom = pinchStartZoom * (currentDist / pinchStartDist);
                     sceneManager->setCameraZoom(newZoom);
                 }
