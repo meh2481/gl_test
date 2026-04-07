@@ -783,7 +783,7 @@ bool processLoopFile(const string& filename, vector<char>& output) {
     Json::CharReaderBuilder builder;
     string parseErrors;
     if (!Json::parseFromStream(builder, f, &root, &parseErrors)) {
-        cerr << "Failed to parse loop file " << filename << ": " << parseErrors << endl;
+        cerr << "Failed to parse loop file " << filename << ":\n" << parseErrors << endl;
         return false;
     }
 
@@ -808,9 +808,9 @@ bool processLoopFile(const string& filename, vector<char>& output) {
     {
         filesystem::path p(filename);
         string fullDir = p.parent_path().string();
-        Uint64 pos = fullDir.find("/res/");
-        if (pos != string::npos) {
-            loopDir = fullDir.substr(pos + 1) + "/";  // e.g. "res/music/"
+        Uint64 resDirPos = fullDir.find("/res/");
+        if (resDirPos != string::npos) {
+            loopDir = fullDir.substr(resDirPos + 1) + "/";  // e.g. "res/music/"
         } else {
             loopDir = "";
         }

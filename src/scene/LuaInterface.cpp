@@ -3064,11 +3064,11 @@ int LuaInterface::audioLoadMusicTrack(lua_State* L) {
     // Load the MusicTrackHeader resource.
     ResourceData trackData{nullptr, 0, 0};
     bool ok = requestAndTryResource(interface->pakResource_, trackResId, trackData);
+    assert(ok && trackData.data && trackData.size >= sizeof(MusicTrackHeader));
     if (!ok || !trackData.data || trackData.size < sizeof(MusicTrackHeader)) {
         interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
             "audioLoadMusicTrack: failed to load track resource '%s'", resourceName);
         lua_pushinteger(L, -1);
-        assert(false);
         return 1;
     }
 
@@ -3120,12 +3120,12 @@ int LuaInterface::audioLoadMusicTrack(lua_State* L) {
     for (int i = 0; i < numUniqueIds; i++) {
         ResourceData resData{nullptr, 0, 0};
         bool got = requestAndTryResource(interface->pakResource_, uniqueLayerIds[i], resData);
+        assert(got && resData.data && resData.size > 0);
         if (!got || !resData.data || resData.size == 0) {
             interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
                 "audioLoadMusicTrack: failed to load layer resource %llu",
                 (unsigned long long)uniqueLayerIds[i]);
             lua_pushinteger(L, -1);
-            assert(false);
             return 1;
         }
         layerData[i].resourceId = uniqueLayerIds[i];
