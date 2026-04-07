@@ -1,0 +1,14 @@
+{
+  "loop_start": 0,
+  "loop_end": 0,
+  "intensities": [
+    {
+      "name": "calm",
+      "layers": ["example_layer1.opus", "example_layer2.opus"]
+    },
+    {
+      "name": "battle",
+      "layers": ["example_layer1.opus", "example_layer3.opus"]
+    }
+  ]
+}

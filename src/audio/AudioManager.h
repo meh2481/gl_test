@@ -37,8 +37,65 @@ struct AudioBuffer {
     bool loaded;
 };
 
+// ============================================================================
+// Music streaming constants
+// ============================================================================
+#define MAX_MUSIC_TRACKS            4    // Max simultaneous music tracks
+#define MAX_MUSIC_LAYERS_PER_TRACK  16   // Max unique layers per music track
+#define MAX_MUSIC_INTENSITIES       8    // Max intensities per music track
+#define MUSIC_STREAM_BUFFERS        3    // OpenAL streaming buffers per layer
+#define MUSIC_STREAM_BUFFER_FRAMES  4800 // Decoded frames per streaming buffer (100 ms at 48 kHz)
+#define MUSIC_DEFAULT_FADE_DURATION 0.5f // Default fade duration in seconds
+
+// One streamed OPUS layer within a music track
+struct MusicLayerStream {
+    OggOpusFile* opusFile;                       // Open OPUS handle (nullptr = inactive)
+    ALuint       source;                         // Dedicated OpenAL source
+    ALuint       buffers[MUSIC_STREAM_BUFFERS];  // Buffer pool
+    float        volume;                         // Current rendered volume
+    float        targetVolume;                   // Target volume for fade
+    int          channels;                       // Channel count from OPUS file
+    bool         buffersCreated;                 // True once alGenBuffers succeeded
+    bool         active;                         // True if this slot is in use
+};
+
+// Per-intensity descriptor within a loaded music track
+struct MusicIntensityDesc {
+    Uint64 nameHash;                                   // FNV-1a hash of the intensity name
+    float  layerVolumes[MAX_MUSIC_LAYERS_PER_TRACK];   // Target volume (1.0 = on, 0.0 = off) for each layer
+};
+
+// State for one loaded music track
+struct MusicTrackState {
+    MusicLayerStream    layers[MAX_MUSIC_LAYERS_PER_TRACK];
+    int                 numLayers;
+    Uint32              loopStartSample;  // Loop start in OPUS samples (48 kHz)
+    Uint32              loopEndSample;    // Loop end in OPUS samples (0 = end of file)
+    MusicIntensityDesc  intensities[MAX_MUSIC_INTENSITIES];
+    int                 numIntensities;
+    int                 currentIntensity; // Index of the active intensity (-1 = none set yet)
+    float               fadeRate;         // Current fade speed (volume units per second)
+    bool                pendingStop;      // If true, release track once all layers reach volume 0
+    bool                playing;
+    bool                valid;
+};
+
 class MemoryAllocator;
 class ConsoleBuffer;
+
+// Data needed to initialise one OPUS layer stream
+struct MusicLayerInitData {
+    Uint64               resourceId;  // Resource ID of the OPUS file
+    const unsigned char* data;        // Pointer into pak buffer (stays valid while pak is loaded)
+    Uint64               size;
+};
+
+// Data needed to initialise one intensity entry
+struct MusicIntensityInitData {
+    Uint64        nameHash;
+    const Uint64* layerResourceIds;  // Resource IDs of layers active in this intensity
+    Uint32        numLayers;
+};
 
 class AudioManager {
 public:
@@ -138,6 +195,31 @@ public:
 
     void freeDecodedBuffer(opus_int16* buffer);
 
+    // ========================================================================
+    // Music streaming API
+    // ========================================================================
+
+    // Load a music track from pre-parsed binary data.
+    // uniqueLayers    - array of all unique OPUS layers referenced by any intensity.
+    // intensities     - per-intensity descriptor (name hash + which layer resource IDs are active).
+    // Returns a track ID (0..MAX_MUSIC_TRACKS-1) on success, -1 on failure.
+    int loadMusicTrack(Uint32 loopStartSample, Uint32 loopEndSample,
+                       const MusicLayerInitData* uniqueLayers, int numUniqueLayers,
+                       const MusicIntensityInitData* intensities, int numIntensities);
+
+    // Start playing a loaded music track.
+    // fadeDuration: seconds to fade in from silence (default MUSIC_DEFAULT_FADE_DURATION).
+    void playMusicTrack(int trackId, float fadeDuration = MUSIC_DEFAULT_FADE_DURATION);
+
+    // Stop a music track, fading out over fadeDuration seconds before freeing resources.
+    // fadeDuration: seconds to fade to silence before stopping (default MUSIC_DEFAULT_FADE_DURATION).
+    void stopMusicTrack(int trackId, float fadeDuration = MUSIC_DEFAULT_FADE_DURATION);
+
+    // Switch to a named intensity (by FNV hash of the name string).
+    // Layers not in the new intensity fade out; new layers fade in.
+    // fadeDuration: seconds for the cross-fade (default MUSIC_DEFAULT_FADE_DURATION).
+    void setMusicIntensity(int trackId, Uint64 intensityNameHash, float fadeDuration = MUSIC_DEFAULT_FADE_DURATION);
+
 private:
     ALCdevice* device;
     ALCcontext* context;
@@ -165,6 +247,9 @@ private:
 
     // Apply current effect settings
     void applyEffect();
+
+    // Apply current global effect to a single OpenAL source
+    void applyEffectToSource(ALuint alSource);
 
     // Memory allocator for temporary allocations
     MemoryAllocator* allocator_;
@@ -196,6 +281,36 @@ private:
     int nextDecodeJobId_;
     AudioDecodeJob* pendingDecodeJob_;  // Single job queue
     AudioDecodeJob* completedDecodeJob_;  // Result holder
+
+    // ========================================================================
+    // Music streaming internals
+    // ========================================================================
+
+    MusicTrackState musicTracks_[MAX_MUSIC_TRACKS];
+
+    SDL_Thread*    musicWorkerThread_;
+    SDL_Mutex*     musicMutex_;
+    SDL_Condition* musicCondition_;
+    bool           musicWorkerRunning_;
+
+    // Worker thread entry point
+    static int musicStreamWorkerThread(void* data);
+
+    // Stream all active tracks; called from worker thread.
+    // dt is elapsed time in seconds since the last call.
+    void streamMusicTracks(float dt);
+
+    // Fill one OpenAL buffer with up to frameCount decoded PCM frames from
+    // the given layer, handling loop wrap-around transparently.
+    // Returns the number of stereo/mono frames written (may be 0 on error).
+    int fillStreamBuffer(MusicLayerStream& layer, ALuint alBuffer,
+                         int frameCount, Uint32 loopStartSample, Uint32 loopEndSample);
+
+    // Release all OpenAL and opusfile resources held by a single layer.
+    void releaseMusicLayer(MusicLayerStream& layer);
+
+    // Release all resources for one track slot and mark it invalid.
+    void releaseMusicTrack(MusicTrackState& track);
 };
 
 #endif // AUDIOMANAGER_H

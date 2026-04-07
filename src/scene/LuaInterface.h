@@ -184,6 +184,10 @@ private:
     static int audioSetListenerOrientation(lua_State* L);
     static int audioSetGlobalVolume(lua_State* L);
     static int audioSetGlobalEffect(lua_State* L);
+    static int audioLoadMusicTrack(lua_State* L);
+    static int audioPlayMusicTrack(lua_State* L);
+    static int audioStopMusicTrack(lua_State* L);
+    static int audioSetMusicIntensity(lua_State* L);
 
     // Cursor position Lua bindings
     static int getCursorPosition(lua_State* L);

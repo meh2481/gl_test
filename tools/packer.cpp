@@ -13,6 +13,7 @@
 #include <squish.h>
 #include <cassert>
 #include <algorithm>
+#include <json/json.h>
 #include "../src/compress/Compress.h"
 
 using namespace std;
@@ -252,6 +253,7 @@ Uint32 getFileType(const string& filename, bool isAtlas = false) {
     if (ext == ".spv") return RESOURCE_TYPE_SHADER;
     if (ext == ".png") return RESOURCE_TYPE_IMAGE;
     if (ext == ".opus") return RESOURCE_TYPE_SOUND;
+    if (ext == ".loop") return RESOURCE_TYPE_MUSIC_TRACK;
     // Add more extensions as needed
     return RESOURCE_TYPE_UNKNOWN;
 }
@@ -766,6 +768,113 @@ bool generateTrigTable(vector<char>& output) {
     return true;
 }
 
+// Process a .loop JSON file into a binary MusicTrackHeader resource.
+// layerDir is the directory portion of the .loop file's path used to resolve
+// relative OPUS layer filenames.  loopRelDir is the corresponding "res/..."
+// prefix used when computing resource IDs (e.g., "res/music/").
+bool processLoopFile(const string& filename, vector<char>& output) {
+    ifstream f(filename);
+    if (!f) {
+        cerr << "Failed to open loop file: " << filename << endl;
+        return false;
+    }
+
+    Json::Value root;
+    Json::CharReaderBuilder builder;
+    string parseErrors;
+    if (!Json::parseFromStream(builder, f, &root, &parseErrors)) {
+        cerr << "Failed to parse loop file " << filename << ":\n" << parseErrors << endl;
+        return false;
+    }
+
+    Uint32 loopStart = root.get("loop_start", 0u).asUInt();
+    Uint32 loopEnd   = root.get("loop_end",   0u).asUInt();
+
+    const Json::Value& intensities = root["intensities"];
+    if (!intensities.isArray()) {
+        cerr << "Loop file missing 'intensities' array: " << filename << endl;
+        return false;
+    }
+
+    Uint32 numIntensities = (Uint32)intensities.size();
+    if (numIntensities == 0) {
+        cerr << "Loop file has no intensities: " << filename << endl;
+        return false;
+    }
+
+    // Collect per-intensity info and total layer count.
+    vector<vector<Uint64>> intensityLayers(numIntensities);
+    vector<Uint64>         intensityNames(numIntensities);
+    Uint32 totalLayers = 0;
+
+    for (Uint32 i = 0; i < numIntensities; i++) {
+        const Json::Value& entry = intensities[i];
+        string name = entry.get("name", "").asString();
+        if (name.empty()) {
+            cerr << "Intensity " << i << " has no name in " << filename << endl;
+            return false;
+        }
+        intensityNames[i] = hashCString(name.c_str());
+
+        const Json::Value& layers = entry["layers"];
+        if (!layers.isArray() || layers.empty()) {
+            cerr << "Intensity '" << name << "' has no layers in " << filename << endl;
+            return false;
+        }
+
+        for (const Json::Value& layerVal : layers) {
+            string layerFile = layerVal.asString();
+            Uint64 id = hashCString(layerFile.c_str());
+            intensityLayers[i].push_back(id);
+        }
+        totalLayers += (Uint32)intensityLayers[i].size();
+    }
+
+    // Compute total output size.
+    Uint64 headerSize      = sizeof(MusicTrackHeader);
+    Uint64 intensitySize   = sizeof(MusicIntensityInfo) * numIntensities;
+    Uint64 layerIdsSize    = sizeof(Uint64) * totalLayers;
+    Uint64 totalSize       = headerSize + intensitySize + layerIdsSize;
+    output.resize(totalSize);
+    char* ptr = output.data();
+
+    // Write MusicTrackHeader.
+    MusicTrackHeader hdr;
+    hdr.loopStartSample = loopStart;
+    hdr.loopEndSample   = loopEnd;
+    hdr.numIntensities  = numIntensities;
+    hdr.totalLayers     = totalLayers;
+    memcpy(ptr, &hdr, sizeof(hdr));
+    ptr += sizeof(hdr);
+
+    // Write MusicIntensityInfo[].
+    Uint32 layerStartIndex = 0;
+    for (Uint32 i = 0; i < numIntensities; i++) {
+        MusicIntensityInfo info;
+        info.nameHash        = intensityNames[i];
+        info.layerStartIndex = layerStartIndex;
+        info.numLayers       = (Uint32)intensityLayers[i].size();
+        info.pad             = 0;
+        memcpy(ptr, &info, sizeof(info));
+        ptr += sizeof(info);
+        layerStartIndex += info.numLayers;
+    }
+
+    // Write flat layer resource ID array.
+    for (Uint32 i = 0; i < numIntensities; i++) {
+        for (Uint64 id : intensityLayers[i]) {
+            memcpy(ptr, &id, sizeof(Uint64));
+            ptr += sizeof(Uint64);
+        }
+    }
+
+    cout << "Loop file " << filename << " -> " << numIntensities
+         << " intensities, " << totalLayers << " total layer refs, "
+         << output.size() << " bytes" << endl;
+    return true;
+}
+
+
 int main(int argc, char* argv[]) {
     if (argc < 3) {
         cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases]" << endl;
@@ -1168,9 +1277,18 @@ int main(int argc, char* argv[]) {
             continue;
         } else if (file.changed) {
             // Standard file processing
-            if (!loadFile(file.filename, file.data, file.mtime)) {
-                cerr << "Failed to load " << file.filename << endl;
-                return 1;
+            Uint32 ft = getFileType(file.filename);
+            if (ft == RESOURCE_TYPE_MUSIC_TRACK) {
+                // .loop JSON -> binary MusicTrackHeader
+                if (!processLoopFile(file.filename, file.data)) {
+                    cerr << "Failed to process loop file " << file.filename << endl;
+                    return 1;
+                }
+            } else {
+                if (!loadFile(file.filename, file.data, file.mtime)) {
+                    cerr << "Failed to load " << file.filename << endl;
+                    return 1;
+                }
             }
             compressData(file.data, file.compressedData, file.compressionType);
             file.decompressedSize = file.data.size();
