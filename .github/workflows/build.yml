@@ -189,7 +189,7 @@ jobs:
         id: cache-win64-deps
         with:
           path: ~/.win64
-          key: win64-deps-${{ runner.os }}-v1
+          key: win64-deps-${{ runner.os }}-v2
 
       - name: Build Windows cross-compile dependencies
         if: steps.cache-win64-deps.outputs.cache-hit != 'true'
@@ -258,24 +258,20 @@ jobs:
           # --- Vulkan-Loader (produces vulkan-1.dll + import library for Windows) ---
           git clone --depth=1 --branch vulkan-sdk-1.3.296.0 \
             https://github.com/KhronosGroup/Vulkan-Loader.git
-          cd Vulkan-Loader
-          mkdir build && cd build
-          cmake \
+          cmake -S Vulkan-Loader -B Vulkan-Loader/build \
             -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/cmake/toolchains/mingw64.cmake \
             -DMINGW64_SYSROOT=$SYSROOT \
             -DCMAKE_INSTALL_PREFIX=$SYSROOT \
             -DVULKAN_HEADERS_INSTALL_DIR=$SYSROOT \
             -DENABLE_WERROR=OFF \
-            -DBUILD_TESTS=OFF \
-            ..
-          cmake --build . -j$(nproc)
-          cmake --install .
-          cd ../..
+            -DBUILD_TESTS=OFF
+          cmake --build Vulkan-Loader/build -j$(nproc)
+          cmake --install Vulkan-Loader/build
 
           # --- Lua 5.4 (static library) ---
           curl -fsSL https://www.lua.org/ftp/lua-5.4.7.tar.gz | tar xz
           cd lua-5.4.7/src
-          $CROSS-gcc -O2 -DLUA_USE_WINDOWS -c \
+          $CROSS-gcc -O2 -c \
             lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c \
             lmem.c lobject.c lopcodes.c lparser.c lstate.c lstring.c ltable.c \
             ltm.c lundump.c lvm.c lzio.c \
@@ -302,33 +298,27 @@ jobs:
           git clone https://github.com/erincatto/box2d.git
           cd box2d
           git checkout v3.1.1
-          mkdir build && cd build
-          cmake \
+          cmake -S . -B build \
             -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/cmake/toolchains/mingw64.cmake \
             -DMINGW64_SYSROOT=$SYSROOT \
             -DCMAKE_INSTALL_PREFIX=$SYSROOT \
             -DBOX2D_SAMPLES=OFF -DBOX2D_DOCS=OFF \
             -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=OFF \
-            -DBUILD_SHARED_LIBS=OFF \
-            ..
-          cmake --build . -j$(nproc)
-          cmake --install .
-          cd ../..
+            -DBUILD_SHARED_LIBS=OFF
+          cmake --build build -j$(nproc)
+          cmake --install build
+          cd ..
 
           # --- OpenAL-soft ---
           git clone --depth=1 https://github.com/kcat/openal-soft.git
-          cd openal-soft
-          mkdir build && cd build
-          cmake \
+          cmake -S openal-soft -B openal-soft/build \
             -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/cmake/toolchains/mingw64.cmake \
             -DMINGW64_SYSROOT=$SYSROOT \
             -DCMAKE_INSTALL_PREFIX=$SYSROOT \
             -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF -DALSOFT_UTILS=OFF \
-            -DBUILD_SHARED_LIBS=OFF \
-            ..
-          cmake --build . -j$(nproc)
-          cmake --install .
-          cd ../..
+            -DBUILD_SHARED_LIBS=OFF
+          cmake --build openal-soft/build -j$(nproc)
+          cmake --install openal-soft/build
 
           # --- libopus ---
           curl -fsSL https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz | tar xz
