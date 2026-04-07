@@ -25,6 +25,18 @@ if(BUILD_GAME)
     pkg_check_modules(LUA REQUIRED IMPORTED_TARGET lua5.4)
     pkg_check_modules(OPENAL REQUIRED IMPORTED_TARGET openal)
     pkg_check_modules(OPUSFILE REQUIRED IMPORTED_TARGET opusfile)
+    pkg_check_modules(OGG QUIET IMPORTED_TARGET ogg)
+    pkg_check_modules(OPUS QUIET IMPORTED_TARGET opus)
+    # opusfile depends on ogg and opus; with dynamic libraries these are resolved
+    # transitively by the linker, but static builds require them to be linked
+    # explicitly.  Append them to opusfile's interface so any target that links
+    # PkgConfig::OPUSFILE automatically gets ogg and opus too.
+    if(OGG_FOUND AND TARGET PkgConfig::OGG)
+        set_property(TARGET PkgConfig::OPUSFILE APPEND PROPERTY INTERFACE_LINK_LIBRARIES PkgConfig::OGG)
+    endif()
+    if(OPUS_FOUND AND TARGET PkgConfig::OPUS)
+        set_property(TARGET PkgConfig::OPUSFILE APPEND PROPERTY INTERFACE_LINK_LIBRARIES PkgConfig::OPUS)
+    endif()
     include_directories(${SDL3_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS} ${OPENAL_INCLUDE_DIRS} ${OPUSFILE_INCLUDE_DIRS})
     find_package(box2d CONFIG REQUIRED)
 
