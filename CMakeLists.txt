@@ -14,7 +14,7 @@ endif()
 option(BUILD_GAME "Build the main game executable" ON)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(PNG REQUIRED IMPORTED_TARGET libpng)
+pkg_check_modules(PNG REQUIRED STATIC IMPORTED_TARGET libpng)
 pkg_check_modules(SQUISH REQUIRED libsquish)
 include_directories(${PNG_INCLUDE_DIRS})
 
