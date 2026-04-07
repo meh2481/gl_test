@@ -189,7 +189,7 @@ jobs:
         id: cache-win64-deps
         with:
           path: ~/.win64
-          key: win64-deps-${{ runner.os }}-v2
+          key: win64-deps-${{ runner.os }}-v3
 
       - name: Build Windows cross-compile dependencies
         if: steps.cache-win64-deps.outputs.cache-hit != 'true'
@@ -319,6 +319,14 @@ jobs:
             -DBUILD_SHARED_LIBS=OFF
           cmake --build openal-soft/build -j$(nproc)
           cmake --install openal-soft/build
+
+          # --- libogg (required by libopusfile) ---
+          curl -fsSL https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.xz | tar xJ
+          cd libogg-1.3.5
+          ./configure --host=$CROSS --prefix=$SYSROOT \
+            --disable-shared --enable-static
+          make -j$(nproc) && make install
+          cd ..
 
           # --- libopus ---
           curl -fsSL https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz | tar xz
