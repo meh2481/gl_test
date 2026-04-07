@@ -1116,14 +1116,17 @@ void VulkanRenderer::setFadeOverlay(float r, float g, float b, float alpha) {
 // Buffer update methods
 
 void VulkanRenderer::setDebugDrawData(const Vector<float>& vertexData) {
+    vkWaitForFences(m_device, 2, m_inFlightFences, VK_TRUE, UINT64_MAX);
     m_bufferManager.updateDynamicVertexBuffer(m_debugLineBuffer, vertexData, 6);
 }
 
 void VulkanRenderer::setDebugLineDrawData(const Vector<float>& vertexData) {
+    vkWaitForFences(m_device, 2, m_inFlightFences, VK_TRUE, UINT64_MAX);
     m_bufferManager.updateDynamicVertexBuffer(m_debugLineBuffer, vertexData, 6);
 }
 
 void VulkanRenderer::setDebugTriangleDrawData(const Vector<float>& vertexData) {
+    vkWaitForFences(m_device, 2, m_inFlightFences, VK_TRUE, UINT64_MAX);
     m_bufferManager.updateDynamicVertexBuffer(m_debugTriangleBuffer, vertexData, 6);
 }
 
