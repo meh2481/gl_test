@@ -388,7 +388,8 @@ jobs:
           OPENAL_VERSION=1.25.1
           curl -fsSL "https://github.com/kcat/openal-soft/releases/download/${OPENAL_VERSION}/openal-soft-${OPENAL_VERSION}-bin.zip" -o /tmp/openal-bin.zip
           python3 -m zipfile -e /tmp/openal-bin.zip /tmp/openal-bin/
-          cp "/tmp/openal-bin/openal-soft-${OPENAL_VERSION}-bin/Win64/OpenAL32.dll" $GITHUB_WORKSPACE/artifacts/
+          # The prebuilt DLL is named soft_oal.dll; rename to OpenAL32.dll (the name the app loads at runtime)
+          cp "/tmp/openal-bin/openal-soft-${OPENAL_VERSION}-bin/bin/Win64/soft_oal.dll" $GITHUB_WORKSPACE/artifacts/OpenAL32.dll
 
       - name: Upload Windows build artifacts
         uses: actions/upload-artifact@v4
