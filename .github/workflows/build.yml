@@ -190,7 +190,7 @@ jobs:
         id: cache-win64-deps
         with:
           path: ~/.win64
-          key: win64-deps-${{ runner.os }}-v6
+          key: win64-deps-${{ runner.os }}-v6  # Bumped to v6: switched from built OpenAL to prebuilt binary
 
       - name: Build Windows cross-compile dependencies
         if: steps.cache-win64-deps.outputs.cache-hit != 'true'

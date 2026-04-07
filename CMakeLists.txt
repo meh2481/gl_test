@@ -133,7 +133,7 @@ if(BUILD_GAME)
     # Embed the application icon on Windows builds (native or cross-compiled)
     if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         set(APP_ICON_RC "${CMAKE_BINARY_DIR}/app_icon.rc")
-        file(WRITE "${APP_ICON_RC}" "IDI_ICON1 ICON \"${CMAKE_SOURCE_DIR}/res/icons/rock.ico\"\n")
+        file(WRITE "${APP_ICON_RC}" "// IDI_ICON1 is the standard Windows resource identifier for the application icon.\nIDI_ICON1 ICON \"${CMAKE_SOURCE_DIR}/res/icons/rock.ico\"\n")
         target_sources(shader_triangle PRIVATE "${APP_ICON_RC}")
     endif()
 
