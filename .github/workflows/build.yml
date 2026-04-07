@@ -280,7 +280,7 @@ jobs:
           $CROSS-ar rcu liblua5.4.a *.o
           $CROSS-ranlib liblua5.4.a
           cp liblua5.4.a $SYSROOT/lib/
-          cp lua.h luaconf.h lualib.h lauxlib.h $SYSROOT/include/
+          cp lua.h luaconf.h lualib.h lauxlib.h lua.hpp $SYSROOT/include/
           cat > $SYSROOT/lib/pkgconfig/lua5.4.pc << EOF
           prefix=$SYSROOT
           exec_prefix=\${prefix}
