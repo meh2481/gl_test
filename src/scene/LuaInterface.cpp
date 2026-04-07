@@ -3083,8 +3083,6 @@ int LuaInterface::audioLoadMusicTrack(lua_State* L) {
         reinterpret_cast<const MusicIntensityInfo*>(trackData.data + sizeof(MusicTrackHeader));
     const Uint64* layerIds =
         reinterpret_cast<const Uint64*>(infoArr + numIntensities);
-    const char* stringData =
-        reinterpret_cast<const char*>(layerIds + totalLayers);
 
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
         "audioLoadMusicTrack: %u intensities, %u total layer refs, loop %u->%u",
@@ -3139,10 +3137,6 @@ int LuaInterface::audioLoadMusicTrack(lua_State* L) {
         intensityData[i].nameHash        = infoArr[i].nameHash;
         intensityData[i].layerResourceIds = layerIds + infoArr[i].layerStartIndex;
         intensityData[i].numLayers        = infoArr[i].numLayers;
-
-        const char* name = stringData + infoArr[i].nameOffset;
-        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
-            "audioLoadMusicTrack: intensity %u = '%s' (%u layers)", i, name, infoArr[i].numLayers);
     }
 
     int musicTrackId = interface->audioManager_->loadMusicTrack(

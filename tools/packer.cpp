@@ -802,64 +802,39 @@ bool processLoopFile(const string& filename, vector<char>& output) {
         return false;
     }
 
-    // Determine the resource path prefix for this file's directory so that
-    // layer filenames are resolved relative to the .loop file.
-    string loopDir;
-    {
-        filesystem::path p(filename);
-        string fullDir = p.parent_path().string();
-        Uint64 resDirPos = fullDir.find("/res/");
-        if (resDirPos != string::npos) {
-            loopDir = fullDir.substr(resDirPos + 1) + "/";  // e.g. "res/music/"
-        } else {
-            loopDir = "";
-        }
-    }
-
     // Collect per-intensity info and total layer count.
     vector<vector<Uint64>> intensityLayers(numIntensities);
-    vector<string>          intensityNames(numIntensities);
+    vector<Uint64>         intensityNames(numIntensities);
     Uint32 totalLayers = 0;
 
     for (Uint32 i = 0; i < numIntensities; i++) {
         const Json::Value& entry = intensities[i];
-        intensityNames[i] = entry.get("name", "").asString();
-        if (intensityNames[i].empty()) {
+        string name = entry.get("name", "").asString();
+        if (name.empty()) {
             cerr << "Intensity " << i << " has no name in " << filename << endl;
             return false;
         }
+        intensityNames[i] = hashCString(name.c_str());
 
         const Json::Value& layers = entry["layers"];
         if (!layers.isArray() || layers.empty()) {
-            cerr << "Intensity '" << intensityNames[i] << "' has no layers in " << filename << endl;
+            cerr << "Intensity '" << name << "' has no layers in " << filename << endl;
             return false;
         }
 
         for (const Json::Value& layerVal : layers) {
             string layerFile = layerVal.asString();
-            string relPath = loopDir + layerFile;
-            Uint64 id = hashCString(relPath.c_str());
+            Uint64 id = hashCString(layerFile.c_str());
             intensityLayers[i].push_back(id);
         }
         totalLayers += (Uint32)intensityLayers[i].size();
-    }
-
-    // Build string data block (packed null-terminated intensity names).
-    vector<char> stringData;
-    vector<Uint32> nameOffsets(numIntensities);
-    for (Uint32 i = 0; i < numIntensities; i++) {
-        nameOffsets[i] = (Uint32)stringData.size();
-        for (char c : intensityNames[i]) {
-            stringData.push_back(c);
-        }
-        stringData.push_back('\0');
     }
 
     // Compute total output size.
     Uint64 headerSize      = sizeof(MusicTrackHeader);
     Uint64 intensitySize   = sizeof(MusicIntensityInfo) * numIntensities;
     Uint64 layerIdsSize    = sizeof(Uint64) * totalLayers;
-    Uint64 totalSize       = headerSize + intensitySize + layerIdsSize + stringData.size();
+    Uint64 totalSize       = headerSize + intensitySize + layerIdsSize;
     output.resize(totalSize);
     char* ptr = output.data();
 
@@ -876,10 +851,9 @@ bool processLoopFile(const string& filename, vector<char>& output) {
     Uint32 layerStartIndex = 0;
     for (Uint32 i = 0; i < numIntensities; i++) {
         MusicIntensityInfo info;
-        info.nameHash        = hashCString(intensityNames[i].c_str());
+        info.nameHash        = intensityNames[i];
         info.layerStartIndex = layerStartIndex;
         info.numLayers       = (Uint32)intensityLayers[i].size();
-        info.nameOffset      = nameOffsets[i];
         info.pad             = 0;
         memcpy(ptr, &info, sizeof(info));
         ptr += sizeof(info);
@@ -892,11 +866,6 @@ bool processLoopFile(const string& filename, vector<char>& output) {
             memcpy(ptr, &id, sizeof(Uint64));
             ptr += sizeof(Uint64);
         }
-    }
-
-    // Write string data.
-    if (!stringData.empty()) {
-        memcpy(ptr, stringData.data(), stringData.size());
     }
 
     cout << "Loop file " << filename << " -> " << numIntensities
