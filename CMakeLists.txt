@@ -17,6 +17,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(PNG REQUIRED IMPORTED_TARGET libpng)
 pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
 pkg_check_modules(SQUISH REQUIRED libsquish)
+pkg_check_modules(JSONCPP REQUIRED IMPORTED_TARGET jsoncpp)
 include_directories(${PNG_INCLUDE_DIRS})
 
 if(BUILD_GAME)
@@ -92,7 +93,7 @@ endif()
 
 add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
 target_sources(packer PRIVATE src/compress/Compress.cpp)
-target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB ${SQUISH_LIBRARIES})
+target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB ${SQUISH_LIBRARIES} PkgConfig::JSONCPP)
 target_link_directories(packer PRIVATE ${SQUISH_LIBRARY_DIRS})
 
 if(BUILD_GAME)
@@ -100,6 +101,7 @@ if(BUILD_GAME)
         "${CMAKE_SOURCE_DIR}/res/*.png"
         "${CMAKE_SOURCE_DIR}/res/*.opus"
         "${CMAKE_SOURCE_DIR}/res/*.lua"
+        "${CMAKE_SOURCE_DIR}/res/*.loop"
     )
 
     # When cross-compiling, the built packer is a foreign executable and cannot run

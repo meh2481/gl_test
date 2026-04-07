@@ -51,7 +51,9 @@ AudioManager::AudioManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
       efxSupported(false), effectSlot(0), effect(0), filter(0),
       currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f), allocator_(allocator),
     consoleBuffer_(consoleBuffer), nextDecodeJobId_(1), decodeWorkerRunning_(true),
-    pendingDecodeJob_(nullptr), completedDecodeJob_(nullptr)
+    pendingDecodeJob_(nullptr), completedDecodeJob_(nullptr),
+    musicWorkerThread_(nullptr), musicMutex_(nullptr), musicCondition_(nullptr),
+    musicWorkerRunning_(true)
 {
     assert(allocator_ != nullptr);
     consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "AudioManager: Using shared memory allocator");
@@ -73,6 +75,20 @@ AudioManager::AudioManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
         buffers[i].buffer = 0;
     }
 
+    // Initialize music track slots
+    for (int i = 0; i < MAX_MUSIC_TRACKS; i++) {
+        musicTracks_[i].valid = false;
+        musicTracks_[i].playing = false;
+        musicTracks_[i].numLayers = 0;
+        musicTracks_[i].numIntensities = 0;
+        musicTracks_[i].currentIntensity = -1;
+        for (int j = 0; j < MAX_MUSIC_LAYERS_PER_TRACK; j++) {
+            musicTracks_[i].layers[j].active = false;
+            musicTracks_[i].layers[j].opusFile = nullptr;
+            musicTracks_[i].layers[j].buffersCreated = false;
+        }
+    }
+
     // Initialize decode worker thread
     decodeMutex_ = SDL_CreateMutex();
     decodeCondition_ = SDL_CreateCondition();
@@ -84,9 +100,37 @@ AudioManager::AudioManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
     } else {
         consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: Failed to create decode mutex/condition");
     }
+
+    // Initialize music stream worker thread
+    musicMutex_ = SDL_CreateMutex();
+    musicCondition_ = SDL_CreateCondition();
+    assert(musicMutex_ != nullptr);
+    assert(musicCondition_ != nullptr);
+    musicWorkerThread_ = SDL_CreateThread(&AudioManager::musicStreamWorkerThread, "MusicStreamWorker", this);
+    if (!musicWorkerThread_) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: Failed to create music stream worker thread");
+    } else {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "AudioManager: Music stream worker thread started");
+    }
 }
 
 AudioManager::~AudioManager() {
+    // Shut down music stream worker thread
+    if (musicMutex_) {
+        SDL_LockMutex(musicMutex_);
+        musicWorkerRunning_ = false;
+        SDL_UnlockMutex(musicMutex_);
+    }
+    if (musicCondition_) {
+        SDL_SignalCondition(musicCondition_);
+    }
+    if (musicWorkerThread_) {
+        int rc;
+        SDL_WaitThread(musicWorkerThread_, &rc);
+        musicWorkerThread_ = nullptr;
+        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "AudioManager: Music stream worker thread stopped (rc=%d)", rc);
+    }
+
     // Shut down decode worker thread
     if (decodeMutex_) {
         SDL_LockMutex(decodeMutex_);
@@ -132,6 +176,16 @@ AudioManager::~AudioManager() {
         SDL_DestroyMutex(decodeMutex_);
         decodeMutex_ = nullptr;
     }
+
+    // Cleanup music worker synchronization primitives (thread already joined above)
+    if (musicCondition_) {
+        SDL_DestroyCondition(musicCondition_);
+        musicCondition_ = nullptr;
+    }
+    if (musicMutex_) {
+        SDL_DestroyMutex(musicMutex_);
+        musicMutex_ = nullptr;
+    }
 }
 
 void AudioManager::initialize() {
@@ -164,6 +218,13 @@ void AudioManager::initialize() {
 }
 
 void AudioManager::cleanup() {
+    // Release all music tracks first (frees OggOpusFile handles and OpenAL sources)
+    for (int i = 0; i < MAX_MUSIC_TRACKS; i++) {
+        if (musicTracks_[i].valid) {
+            releaseMusicTrack(musicTracks_[i]);
+        }
+    }
+
     // Stop and delete all sources
     for (int i = 0; i < MAX_AUDIO_SOURCES; i++) {
         if (sources[i].active) {
@@ -597,6 +658,16 @@ void AudioManager::applyEffect() {
                     alSource3i(sources[i].source, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL);
                 }
             }
+
+            // Apply to all active music layer sources
+            for (int t = 0; t < MAX_MUSIC_TRACKS; t++) {
+                if (!musicTracks_[t].valid) continue;
+                for (int l = 0; l < musicTracks_[t].numLayers; l++) {
+                    if (musicTracks_[t].layers[l].active) {
+                        applyEffectToSource(musicTracks_[t].layers[l].source);
+                    }
+                }
+            }
             break;
 
         case AUDIO_EFFECT_REVERB:
@@ -626,6 +697,16 @@ void AudioManager::applyEffect() {
                     }
                 }
             }
+
+            // Apply to all active music layer sources
+            for (int t = 0; t < MAX_MUSIC_TRACKS; t++) {
+                if (!musicTracks_[t].valid) continue;
+                for (int l = 0; l < musicTracks_[t].numLayers; l++) {
+                    if (musicTracks_[t].layers[l].active) {
+                        applyEffectToSource(musicTracks_[t].layers[l].source);
+                    }
+                }
+            }
             break;
 
         case AUDIO_EFFECT_NONE:
@@ -651,6 +732,43 @@ void AudioManager::applyEffect() {
                         alSourcei(sources[i].source, AL_DIRECT_FILTER, AL_FILTER_NULL);
                     }
                 }
+            }
+
+            // Apply to all active music layer sources
+            for (int t = 0; t < MAX_MUSIC_TRACKS; t++) {
+                if (!musicTracks_[t].valid) continue;
+                for (int l = 0; l < musicTracks_[t].numLayers; l++) {
+                    if (musicTracks_[t].layers[l].active) {
+                        applyEffectToSource(musicTracks_[t].layers[l].source);
+                    }
+                }
+            }
+            break;
+    }
+}
+
+void AudioManager::applyEffectToSource(ALuint alSource) {
+    if (!efxSupported) {
+        return;
+    }
+    switch (currentEffect) {
+        case AUDIO_EFFECT_LOWPASS:
+            if (alFilteri) {
+                alSourcei(alSource, AL_DIRECT_FILTER, filter);
+            }
+            alSource3i(alSource, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL);
+            break;
+        case AUDIO_EFFECT_REVERB:
+            alSource3i(alSource, AL_AUXILIARY_SEND_FILTER, effectSlot, 0, AL_FILTER_NULL);
+            if (alFilteri) {
+                alSourcei(alSource, AL_DIRECT_FILTER, AL_FILTER_NULL);
+            }
+            break;
+        case AUDIO_EFFECT_NONE:
+        default:
+            alSource3i(alSource, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL);
+            if (alFilteri) {
+                alSourcei(alSource, AL_DIRECT_FILTER, AL_FILTER_NULL);
             }
             break;
     }
@@ -930,4 +1048,461 @@ void AudioManager::destroyDecodeJob(AudioDecodeJob* job) {
         job->decodedPcm = nullptr;
     }
     allocator_->free(job);
+}
+
+// ============================================================================
+// Music streaming implementation
+// ============================================================================
+
+int AudioManager::loadMusicTrack(
+    Uint32 loopStartSample, Uint32 loopEndSample,
+    const MusicLayerInitData* uniqueLayers, int numUniqueLayers,
+    const MusicIntensityInitData* intensities, int numIntensities)
+{
+    assert(uniqueLayers != nullptr);
+    assert(intensities != nullptr);
+    assert(numUniqueLayers > 0 && numUniqueLayers <= MAX_MUSIC_LAYERS_PER_TRACK);
+    assert(numIntensities > 0 && numIntensities <= MAX_MUSIC_INTENSITIES);
+
+    // Find a free track slot.
+    int trackId = -1;
+    for (int i = 0; i < MAX_MUSIC_TRACKS; i++) {
+        if (!musicTracks_[i].valid) {
+            trackId = i;
+            break;
+        }
+    }
+    if (trackId < 0) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+            "AudioManager: No free music track slots (MAX_MUSIC_TRACKS=%d)", MAX_MUSIC_TRACKS);
+        return -1;
+    }
+
+    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+        "AudioManager: Loading music track %d (%d layers, %d intensities, loop %u->%u)",
+        trackId, numUniqueLayers, numIntensities, loopStartSample, loopEndSample);
+
+    MusicTrackState& track = musicTracks_[trackId];
+    track.numLayers       = numUniqueLayers;
+    track.numIntensities  = numIntensities;
+    track.loopStartSample = loopStartSample;
+    track.loopEndSample   = loopEndSample;
+    track.currentIntensity = -1;
+    track.playing         = false;
+
+    // Open each unique OPUS layer.
+    for (int i = 0; i < numUniqueLayers; i++) {
+        MusicLayerStream& layer = track.layers[i];
+        layer.active        = false;
+        layer.opusFile      = nullptr;
+        layer.buffersCreated = false;
+        layer.volume        = 0.0f;
+        layer.targetVolume  = 0.0f;
+
+        int error = 0;
+        layer.opusFile = op_open_memory(
+            uniqueLayers[i].data, (size_t)uniqueLayers[i].size, &error);
+        if (!layer.opusFile) {
+            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+                "AudioManager: Failed to open OPUS stream for layer %d of track %d (error %d)",
+                i, trackId, error);
+            // Release what we've opened so far and bail.
+            for (int j = 0; j < i; j++) {
+                releaseMusicLayer(track.layers[j]);
+            }
+            track.valid = false;
+            return -1;
+        }
+
+        const OpusHead* head = op_head(layer.opusFile, -1);
+        layer.channels = head ? head->channel_count : 2;
+
+        // Create the OpenAL streaming source.
+        alGenSources(1, &layer.source);
+        alSourcef(layer.source, AL_GAIN, 0.0f);
+        alSource3f(layer.source, AL_POSITION, 0.0f, 0.0f, 0.0f);
+        alSource3f(layer.source, AL_VELOCITY, 0.0f, 0.0f, 0.0f);
+        alSourcei(layer.source, AL_SOURCE_RELATIVE, AL_TRUE);
+        alSourcei(layer.source, AL_LOOPING, AL_FALSE);
+
+        // Apply any active global effect.
+        applyEffectToSource(layer.source);
+
+        // Create the buffer pool for this layer.
+        alGenBuffers(MUSIC_STREAM_BUFFERS, layer.buffers);
+        layer.buffersCreated = true;
+        layer.active = true;
+
+        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+            "AudioManager: Music track %d layer %d opened (%d ch)", trackId, i, layer.channels);
+    }
+
+    // Build intensity descriptors (which layers are on/off per intensity).
+    for (int i = 0; i < numIntensities; i++) {
+        MusicIntensityDesc& desc = track.intensities[i];
+        desc.nameHash = intensities[i].nameHash;
+
+        // Default all layers to off.
+        for (int l = 0; l < numUniqueLayers; l++) {
+            desc.layerVolumes[l] = 0.0f;
+        }
+
+        // Set layers that belong to this intensity to 1.0.
+        for (Uint32 li = 0; li < intensities[i].numLayers; li++) {
+            Uint64 wantedId = intensities[i].layerResourceIds[li];
+            for (int l = 0; l < numUniqueLayers; l++) {
+                if (uniqueLayers[l].resourceId == wantedId) {
+                    desc.layerVolumes[l] = 1.0f;
+                    break;
+                }
+            }
+        }
+    }
+
+    track.valid = true;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO,
+        "AudioManager: Music track %d loaded successfully", trackId);
+    return trackId;
+}
+
+void AudioManager::playMusicTrack(int trackId) {
+    assert(trackId >= 0 && trackId < MAX_MUSIC_TRACKS);
+    assert(musicTracks_[trackId].valid);
+
+    SDL_LockMutex(musicMutex_);
+
+    MusicTrackState& track = musicTracks_[trackId];
+    track.playing = true;
+
+    // Activate the first intensity by default if none has been chosen yet.
+    if (track.currentIntensity < 0 && track.numIntensities > 0) {
+        track.currentIntensity = 0;
+        const MusicIntensityDesc& desc = track.intensities[0];
+        for (int l = 0; l < track.numLayers; l++) {
+            track.layers[l].targetVolume = desc.layerVolumes[l];
+            track.layers[l].volume       = desc.layerVolumes[l]; // snap immediately on first play
+            alSourcef(track.layers[l].source, AL_GAIN, track.layers[l].volume);
+        }
+        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+            "AudioManager: Music track %d starting with intensity 0 (hash %llu)",
+            trackId, (unsigned long long)desc.nameHash);
+    }
+
+    // Pre-fill all streaming buffers for each layer and start playback.
+    for (int l = 0; l < track.numLayers; l++) {
+        MusicLayerStream& layer = track.layers[l];
+        if (!layer.active || !layer.opusFile) continue;
+
+        // Re-seek to start so all layers are synchronised.
+        op_pcm_seek(layer.opusFile, 0);
+
+        // Fill and queue all stream buffers.
+        for (int b = 0; b < MUSIC_STREAM_BUFFERS; b++) {
+            int filled = fillStreamBuffer(layer, layer.buffers[b],
+                MUSIC_STREAM_BUFFER_FRAMES,
+                track.loopStartSample, track.loopEndSample);
+            if (filled > 0) {
+                alSourceQueueBuffers(layer.source, 1, &layer.buffers[b]);
+            }
+        }
+
+        alSourcePlay(layer.source);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+            "AudioManager: Music track %d layer %d started (vol=%.2f)",
+            trackId, l, layer.volume);
+    }
+
+    SDL_SignalCondition(musicCondition_);
+    SDL_UnlockMutex(musicMutex_);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: Music track %d playing", trackId);
+}
+
+void AudioManager::stopMusicTrack(int trackId) {
+    assert(trackId >= 0 && trackId < MAX_MUSIC_TRACKS);
+    if (!musicTracks_[trackId].valid) return;
+
+    SDL_LockMutex(musicMutex_);
+    releaseMusicTrack(musicTracks_[trackId]);
+    SDL_UnlockMutex(musicMutex_);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: Music track %d stopped", trackId);
+}
+
+void AudioManager::setMusicIntensity(int trackId, Uint64 intensityNameHash) {
+    assert(trackId >= 0 && trackId < MAX_MUSIC_TRACKS);
+    assert(musicTracks_[trackId].valid);
+
+    SDL_LockMutex(musicMutex_);
+
+    MusicTrackState& track = musicTracks_[trackId];
+    int newIdx = -1;
+    for (int i = 0; i < track.numIntensities; i++) {
+        if (track.intensities[i].nameHash == intensityNameHash) {
+            newIdx = i;
+            break;
+        }
+    }
+
+    if (newIdx < 0) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_WARN,
+            "AudioManager: Unknown intensity hash %llu for track %d",
+            (unsigned long long)intensityNameHash, trackId);
+        SDL_UnlockMutex(musicMutex_);
+        return;
+    }
+
+    if (newIdx == track.currentIntensity) {
+        SDL_UnlockMutex(musicMutex_);
+        return; // Already at this intensity; nothing to do.
+    }
+
+    track.currentIntensity = newIdx;
+    const MusicIntensityDesc& desc = track.intensities[newIdx];
+    for (int l = 0; l < track.numLayers; l++) {
+        track.layers[l].targetVolume = desc.layerVolumes[l];
+    }
+
+    SDL_UnlockMutex(musicMutex_);
+    consoleBuffer_->log(SDL_LOG_PRIORITY_INFO,
+        "AudioManager: Music track %d intensity -> %d (hash %llu)",
+        trackId, newIdx, (unsigned long long)intensityNameHash);
+}
+
+int AudioManager::fillStreamBuffer(MusicLayerStream& layer, ALuint alBuffer,
+                                    int frameCount, Uint32 loopStart, Uint32 loopEnd)
+{
+    assert(layer.opusFile != nullptr);
+    assert(frameCount > 0);
+
+    // Allocate a temporary PCM buffer on the heap (avoid large stack allocation).
+    int totalSamples = frameCount * layer.channels;
+    opus_int16* pcm = static_cast<opus_int16*>(
+        allocator_->allocate((Uint64)totalSamples * sizeof(opus_int16), "fillStreamBuffer::pcm"));
+    if (!pcm) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: OOM in fillStreamBuffer");
+        return 0;
+    }
+
+    int framesWritten = 0;
+    while (framesWritten < frameCount) {
+        // If a non-zero loopEnd is set, check whether we need to wrap.
+        if (loopEnd > 0) {
+            ogg_int64_t pos = op_pcm_tell(layer.opusFile);
+            if (pos < 0) {
+                consoleBuffer_->log(SDL_LOG_PRIORITY_WARN,
+                    "AudioManager: op_pcm_tell failed (pos=%lld)", (long long)pos);
+                break;
+            }
+            if ((Uint32)pos >= loopEnd) {
+                int err = op_pcm_seek(layer.opusFile, (ogg_int64_t)loopStart);
+                if (err != 0) {
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+                        "AudioManager: op_pcm_seek to loop start %u failed (err=%d)", loopStart, err);
+                    break;
+                }
+                consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE,
+                    "AudioManager: Music looped back to sample %u", loopStart);
+            }
+        }
+
+        int remaining = frameCount - framesWritten;
+        // If close to loopEnd, only decode up to the boundary so the next
+        // iteration handles the wrap correctly.
+        if (loopEnd > 0) {
+            ogg_int64_t pos = op_pcm_tell(layer.opusFile);
+            if (pos >= 0 && (Uint32)pos < loopEnd) {
+                int toEnd = (int)((ogg_int64_t)loopEnd - pos);
+                if (toEnd < remaining) {
+                    remaining = toEnd;
+                }
+            }
+        }
+
+        int read = op_read(layer.opusFile,
+                           pcm + framesWritten * layer.channels,
+                           remaining * layer.channels,
+                           nullptr);
+        if (read < 0) {
+            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+                "AudioManager: op_read error %d in fillStreamBuffer", read);
+            break;
+        }
+        if (read == 0) {
+            // EOF and no loop end set: seek to loopStart for seamless looping.
+            int err = op_pcm_seek(layer.opusFile, (ogg_int64_t)loopStart);
+            if (err != 0) {
+                consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+                    "AudioManager: op_pcm_seek to loop start on EOF failed (err=%d)", err);
+                break;
+            }
+            consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE,
+                "AudioManager: Music looped (EOF) back to sample %u", loopStart);
+            continue;
+        }
+        framesWritten += read;
+    }
+
+    if (framesWritten > 0) {
+        ALenum fmt = (layer.channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
+        alBufferData(alBuffer, fmt,
+                     pcm, framesWritten * layer.channels * (int)sizeof(opus_int16),
+                     48000);
+    }
+
+    allocator_->free(pcm);
+    return framesWritten;
+}
+
+void AudioManager::releaseMusicLayer(MusicLayerStream& layer) {
+    if (!layer.active) return;
+
+    // Stop and unqueue all buffers from the source.
+    if (layer.source) {
+        alSourceStop(layer.source);
+        ALint queued = 0;
+        alGetSourcei(layer.source, AL_BUFFERS_QUEUED, &queued);
+        while (queued > 0) {
+            ALuint tmp;
+            alSourceUnqueueBuffers(layer.source, 1, &tmp);
+            queued--;
+        }
+        alDeleteSources(1, &layer.source);
+        layer.source = 0;
+    }
+
+    if (layer.buffersCreated) {
+        alDeleteBuffers(MUSIC_STREAM_BUFFERS, layer.buffers);
+        layer.buffersCreated = false;
+    }
+
+    if (layer.opusFile) {
+        op_free(layer.opusFile);
+        layer.opusFile = nullptr;
+    }
+
+    layer.active = false;
+    layer.volume = 0.0f;
+    layer.targetVolume = 0.0f;
+}
+
+void AudioManager::releaseMusicTrack(MusicTrackState& track) {
+    if (!track.valid) return;
+    for (int i = 0; i < track.numLayers; i++) {
+        releaseMusicLayer(track.layers[i]);
+    }
+    track.numLayers      = 0;
+    track.numIntensities = 0;
+    track.currentIntensity = -1;
+    track.playing = false;
+    track.valid   = false;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "AudioManager: Music track released");
+}
+
+// ============================================================================
+// Music stream worker thread
+// ============================================================================
+
+int AudioManager::musicStreamWorkerThread(void* arg) {
+    AudioManager* self = static_cast<AudioManager*>(arg);
+    assert(self != nullptr);
+
+    ThreadProfiler& profiler = ThreadProfiler::instance();
+    profiler.registerThread("MusicStreamWorker");
+
+    Uint64 lastTicks = SDL_GetTicks();
+
+    while (true) {
+        SDL_LockMutex(self->musicMutex_);
+        if (!self->musicWorkerRunning_) {
+            SDL_UnlockMutex(self->musicMutex_);
+            break;
+        }
+
+        Uint64 now = SDL_GetTicks();
+        float dt = (float)(now - lastTicks) / 1000.0f;
+        lastTicks = now;
+        // Clamp dt to avoid large jumps after stalls.
+        if (dt > 0.5f) dt = 0.5f;
+
+        bool anyPlaying = false;
+        for (int t = 0; t < MAX_MUSIC_TRACKS; t++) {
+            if (self->musicTracks_[t].valid && self->musicTracks_[t].playing) {
+                anyPlaying = true;
+                break;
+            }
+        }
+
+        if (anyPlaying) {
+            profiler.updateThreadState(THREAD_STATE_BUSY);
+            self->streamMusicTracks(dt);
+        }
+
+        SDL_UnlockMutex(self->musicMutex_);
+
+        if (!anyPlaying) {
+            profiler.updateThreadState(THREAD_STATE_WAITING);
+            // Wait for a signal (e.g., playMusicTrack) or check every 100 ms.
+            SDL_LockMutex(self->musicMutex_);
+            SDL_WaitConditionTimeout(self->musicCondition_, self->musicMutex_, 100);
+            SDL_UnlockMutex(self->musicMutex_);
+        } else {
+            // Run at ~50 ms intervals while music is playing.
+            SDL_Delay(50);
+        }
+    }
+
+    self->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "MusicStreamWorker: thread exiting");
+    return 0;
+}
+
+void AudioManager::streamMusicTracks(float dt) {
+    for (int t = 0; t < MAX_MUSIC_TRACKS; t++) {
+        MusicTrackState& track = musicTracks_[t];
+        if (!track.valid || !track.playing) continue;
+
+        for (int l = 0; l < track.numLayers; l++) {
+            MusicLayerStream& layer = track.layers[l];
+            if (!layer.active || !layer.opusFile) continue;
+
+            // Fade volume toward target.
+            if (layer.volume != layer.targetVolume) {
+                float delta = MUSIC_FADE_RATE * dt;
+                if (layer.volume < layer.targetVolume) {
+                    layer.volume += delta;
+                    if (layer.volume > layer.targetVolume) layer.volume = layer.targetVolume;
+                } else {
+                    layer.volume -= delta;
+                    if (layer.volume < layer.targetVolume) layer.volume = layer.targetVolume;
+                }
+                alSourcef(layer.source, AL_GAIN, layer.volume);
+            }
+
+            // Refill any processed streaming buffers.
+            ALint processed = 0;
+            alGetSourcei(layer.source, AL_BUFFERS_PROCESSED, &processed);
+            while (processed > 0) {
+                ALuint buf;
+                alSourceUnqueueBuffers(layer.source, 1, &buf);
+                int filled = fillStreamBuffer(layer, buf,
+                    MUSIC_STREAM_BUFFER_FRAMES,
+                    track.loopStartSample, track.loopEndSample);
+                if (filled > 0) {
+                    alSourceQueueBuffers(layer.source, 1, &buf);
+                }
+                processed--;
+            }
+
+            // If the source stopped (buffer underrun), restart it.
+            ALint state = AL_STOPPED;
+            alGetSourcei(layer.source, AL_SOURCE_STATE, &state);
+            if (state == AL_STOPPED) {
+                ALint queued = 0;
+                alGetSourcei(layer.source, AL_BUFFERS_QUEUED, &queued);
+                if (queued > 0) {
+                    consoleBuffer_->log(SDL_LOG_PRIORITY_WARN,
+                        "AudioManager: Music layer %d/%d underrun, restarting", t, l);
+                    alSourcePlay(layer.source);
+                }
+            }
+        }
+    }
 }

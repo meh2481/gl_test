@@ -62,6 +62,7 @@ typedef struct
 #define RESOURCE_TYPE_IMAGE_NO_ATLAS 12  //Icon image or other image without atlas
 #define RESOURCE_TYPE_SHADER        13
 #define RESOURCE_TYPE_TRIG_TABLE    14  //Trig lookup table (sin/cos)
+#define RESOURCE_TYPE_MUSIC_TRACK   15  //Layered music track with loop points and intensities
 //#define RESOURCE_TYPE_
 //etc
 
@@ -166,12 +167,41 @@ typedef struct
 //--------------------------------------------------------------
 // Sound data
 //--------------------------------------------------------------
-//Song loop points
+//Song loop points (legacy - used by RESOURCE_TYPE_SOUND_LOOP single-track files)
 typedef struct
 {
     Uint32 loopStartMsec;
     Uint32 loopEndMsec;
 } SoundLoop;
+
+//--------------------------------------------------------------
+// Music track data (RESOURCE_TYPE_MUSIC_TRACK)
+// Layered music with multiple intensities and loop points.
+// Binary layout:
+//   MusicTrackHeader
+//   MusicIntensityInfo[numIntensities]
+//   Uint64 layerIds[totalLayers]   -- flat array, grouped by intensity in layerStartIndex order
+//   char   stringData[]            -- packed null-terminated intensity names
+//--------------------------------------------------------------
+typedef struct
+{
+    Uint32 loopStartSample;   //Loop start in audio samples at 48kHz (inclusive)
+    Uint32 loopEndSample;     //Loop end in audio samples at 48kHz (exclusive, 0 = use file end)
+    Uint32 numIntensities;    //Number of intensity entries that follow
+    Uint32 totalLayers;       //Total layer IDs stored across all intensities
+    //Followed by numIntensities MusicIntensityInfo structs
+    //Followed by totalLayers Uint64 layer resource IDs
+    //Followed by packed null-terminated intensity name strings
+} MusicTrackHeader;
+
+typedef struct
+{
+    Uint64 nameHash;          //FNV-1a hash of the intensity name string
+    Uint32 layerStartIndex;   //Index of first layer ID in the flat layerIds array
+    Uint32 numLayers;         //Number of layer resource IDs for this intensity
+    Uint32 nameOffset;        //Byte offset into the string data block for this name
+    Uint32 pad;
+} MusicIntensityInfo;
 
 //--------------------------------------------------------------
 // Mesh data

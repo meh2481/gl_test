@@ -4,6 +4,7 @@
 #include "../physics/Box2DPhysics.h"
 #include "../memory/SmallMemoryAllocator.h"
 #include "../core/hash.h"
+#include "../core/ResourceTypes.h"
 #include "../debug/ConsoleBuffer.h"
 #include "../animation/AnimationEngine.h"
 #include <cassert>
@@ -379,6 +380,8 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
                                      "audioLoadOpus", "audioCreateSource", "audioPlaySource",
                                      "audioSetSourcePosition", "audioSetListenerPosition",
                                      "audioSetListenerOrientation", "audioSetGlobalVolume", "audioSetGlobalEffect",
+                                     "audioLoadMusicTrack", "audioPlayMusicTrack", "audioStopMusicTrack",
+                                     "audioSetMusicIntensity",
                                      "getCursorPosition",
                                      "setCameraOffset", "setCameraZoom",
                                      "setTransitionFadeTime", "setTransitionColor",
@@ -977,6 +980,10 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "audioSetListenerOrientation", audioSetListenerOrientation);
     lua_register(luaState_, "audioSetGlobalVolume", audioSetGlobalVolume);
     lua_register(luaState_, "audioSetGlobalEffect", audioSetGlobalEffect);
+    lua_register(luaState_, "audioLoadMusicTrack", audioLoadMusicTrack);
+    lua_register(luaState_, "audioPlayMusicTrack", audioPlayMusicTrack);
+    lua_register(luaState_, "audioStopMusicTrack", audioStopMusicTrack);
+    lua_register(luaState_, "audioSetMusicIntensity", audioSetMusicIntensity);
 
     // Register cursor position function
     lua_register(luaState_, "getCursorPosition", getCursorPosition);
@@ -3033,6 +3040,172 @@ int LuaInterface::audioSetGlobalEffect(lua_State* L) {
 
     interface->audioManager_->setGlobalEffect((AudioEffect)effect, intensity);
 
+    return 0;
+}
+
+// audioLoadMusicTrack(resourceName)
+// Parses a RESOURCE_TYPE_MUSIC_TRACK binary resource, loads the referenced OPUS
+// layer streams, and returns a music track ID (integer >= 0) or -1 on failure.
+int LuaInterface::audioLoadMusicTrack(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isstring(L, 1));
+
+    const char* resourceName = lua_tostring(L, 1);
+    Uint64 trackResId = hashCString(resourceName);
+
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+        "audioLoadMusicTrack: loading '%s' (id=%llu)", resourceName,
+        (unsigned long long)trackResId);
+
+    // Load the MusicTrackHeader resource.
+    ResourceData trackData{nullptr, 0, 0};
+    bool ok = requestAndTryResource(interface->pakResource_, trackResId, trackData);
+    if (!ok || !trackData.data || trackData.size < sizeof(MusicTrackHeader)) {
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+            "audioLoadMusicTrack: failed to load track resource '%s'", resourceName);
+        lua_pushinteger(L, -1);
+        assert(false);
+        return 1;
+    }
+
+    const MusicTrackHeader* hdr = reinterpret_cast<const MusicTrackHeader*>(trackData.data);
+    Uint32 numIntensities = hdr->numIntensities;
+    Uint32 totalLayers    = hdr->totalLayers;
+
+    assert(numIntensities > 0 && numIntensities <= MAX_MUSIC_INTENSITIES);
+    assert(totalLayers > 0);
+
+    const MusicIntensityInfo* infoArr =
+        reinterpret_cast<const MusicIntensityInfo*>(trackData.data + sizeof(MusicTrackHeader));
+    const Uint64* layerIds =
+        reinterpret_cast<const Uint64*>(infoArr + numIntensities);
+    const char* stringData =
+        reinterpret_cast<const char*>(layerIds + totalLayers);
+
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+        "audioLoadMusicTrack: %u intensities, %u total layer refs, loop %u->%u",
+        numIntensities, totalLayers, hdr->loopStartSample, hdr->loopEndSample);
+
+    // Collect all unique layer resource IDs across all intensities.
+    // We use a simple linear scan with deduplication (layer count is small).
+    static const int MAX_UNIQUE = MAX_MUSIC_LAYERS_PER_TRACK;
+    Uint64 uniqueLayerIds[MAX_UNIQUE];
+    int numUniqueIds = 0;
+
+    for (Uint32 i = 0; i < numIntensities; i++) {
+        Uint32 start = infoArr[i].layerStartIndex;
+        Uint32 cnt   = infoArr[i].numLayers;
+        for (Uint32 j = 0; j < cnt; j++) {
+            Uint64 lid = layerIds[start + j];
+            bool found = false;
+            for (int k = 0; k < numUniqueIds; k++) {
+                if (uniqueLayerIds[k] == lid) { found = true; break; }
+            }
+            if (!found) {
+                assert(numUniqueIds < MAX_UNIQUE);
+                uniqueLayerIds[numUniqueIds++] = lid;
+            }
+        }
+    }
+
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+        "audioLoadMusicTrack: %d unique layers", numUniqueIds);
+
+    // Load each unique layer's OPUS data from the pak.
+    MusicLayerInitData layerData[MAX_UNIQUE];
+    for (int i = 0; i < numUniqueIds; i++) {
+        ResourceData resData{nullptr, 0, 0};
+        bool got = requestAndTryResource(interface->pakResource_, uniqueLayerIds[i], resData);
+        if (!got || !resData.data || resData.size == 0) {
+            interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+                "audioLoadMusicTrack: failed to load layer resource %llu",
+                (unsigned long long)uniqueLayerIds[i]);
+            lua_pushinteger(L, -1);
+            assert(false);
+            return 1;
+        }
+        layerData[i].resourceId = uniqueLayerIds[i];
+        layerData[i].data       = reinterpret_cast<const unsigned char*>(resData.data);
+        layerData[i].size       = resData.size;
+    }
+
+    // Build per-intensity descriptors.
+    MusicIntensityInitData intensityData[MAX_MUSIC_INTENSITIES];
+    for (Uint32 i = 0; i < numIntensities; i++) {
+        intensityData[i].nameHash        = infoArr[i].nameHash;
+        intensityData[i].layerResourceIds = layerIds + infoArr[i].layerStartIndex;
+        intensityData[i].numLayers        = infoArr[i].numLayers;
+
+        const char* name = stringData + infoArr[i].nameOffset;
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+            "audioLoadMusicTrack: intensity %u = '%s' (%u layers)", i, name, infoArr[i].numLayers);
+    }
+
+    int musicTrackId = interface->audioManager_->loadMusicTrack(
+        hdr->loopStartSample, hdr->loopEndSample,
+        layerData, numUniqueIds,
+        intensityData, (int)numIntensities);
+
+    lua_pushinteger(L, musicTrackId);
+    return 1;
+}
+
+// audioPlayMusicTrack(musicTrackId)
+// Start streaming a loaded music track.  Returns nothing.
+int LuaInterface::audioPlayMusicTrack(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int trackId = (int)lua_tointeger(L, 1);
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+        "audioPlayMusicTrack: track %d", trackId);
+    interface->audioManager_->playMusicTrack(trackId);
+    return 0;
+}
+
+// audioStopMusicTrack(musicTrackId)
+// Stop a music track and free its streaming resources.  Returns nothing.
+int LuaInterface::audioStopMusicTrack(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isnumber(L, 1));
+
+    int trackId = (int)lua_tointeger(L, 1);
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+        "audioStopMusicTrack: track %d", trackId);
+    interface->audioManager_->stopMusicTrack(trackId);
+    return 0;
+}
+
+// audioSetMusicIntensity(musicTrackId, intensityName)
+// Switch to the named intensity, fading layers in/out.  Returns nothing.
+int LuaInterface::audioSetMusicIntensity(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    assert(lua_isnumber(L, 1));
+    assert(lua_isstring(L, 2));
+
+    int trackId = (int)lua_tointeger(L, 1);
+    const char* name = lua_tostring(L, 2);
+    Uint64 nameHash = hashCString(name);
+
+    interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+        "audioSetMusicIntensity: track %d -> '%s'", trackId, name);
+    interface->audioManager_->setMusicIntensity(trackId, nameHash);
     return 0;
 }
 
