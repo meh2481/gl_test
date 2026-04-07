@@ -825,10 +825,14 @@ void VulkanPipeline::createTexturedPipelineAdditive(Uint64 id, const ResourceDat
     bool usesDualTexture = (numTextures == 2);
 
     if (usesDualTexture) {
-        pipelineLayout = m_descriptorManager->getDualTexturePipelineLayout();
+        pipelineLayout = m_descriptorManager->getAnimDualTexturePipelineLayout();
         descriptorSetLayout = m_descriptorManager->getDualTextureLayout();
     } else {
-        pipelineLayout = m_descriptorManager->getSingleTexturePipelineLayout();
+        // Use the animation single-texture layout so the fragment shader can
+        // access push constant data (e.g. glow colour for lightsaber effects).
+        // The standard single-texture layout only covers VK_SHADER_STAGE_VERTEX_BIT,
+        // which leaves fragment-stage push constant reads as undefined behaviour.
+        pipelineLayout = m_descriptorManager->getAnimSingleTexturePipelineLayout();
         descriptorSetLayout = m_descriptorManager->getSingleTextureLayout();
     }
 
@@ -855,7 +859,7 @@ void VulkanPipeline::createTexturedPipelineAdditive(Uint64 id, const ResourceDat
     info->layout = pipelineLayout;
     info->descriptorSetLayout = descriptorSetLayout;
     info->usesDualTexture = usesDualTexture;
-    info->usesExtendedPushConstants = false;
+    info->usesExtendedPushConstants = true;
     info->usesAnimationPushConstants = false;
     info->isParticlePipeline = false;
     info->isWaterPipeline = false;

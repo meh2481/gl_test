@@ -130,6 +130,13 @@ if(BUILD_GAME)
     endif()
     add_dependencies(shader_triangle shaders res_pak)
 
+    # Embed the application icon on Windows builds (native or cross-compiled)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        set(APP_ICON_RC "${CMAKE_BINARY_DIR}/app_icon.rc")
+        file(WRITE "${APP_ICON_RC}" "IDI_ICON1 ICON \"${CMAKE_SOURCE_DIR}/res/icons/rock.ico\"\n")
+        target_sources(shader_triangle PRIVATE "${APP_ICON_RC}")
+    endif()
+
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_link_libraries(shader_triangle PkgConfig::SDL3 Vulkan::Vulkan PkgConfig::LUA box2d::box2d PkgConfig::OPENAL PkgConfig::OPUSFILE ${IMGUI_LIBRARIES})
     else()
