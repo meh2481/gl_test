@@ -293,6 +293,32 @@ const char* getActivePresentModeString(VkPresentModeKHR activePresentMode) {
     }
 }
 
+SDL_LogPriority parseLogLevelEnum(const char* levelString) {
+    if (levelString && SDL_strcmp(levelString, "verbose")  == 0) return SDL_LOG_PRIORITY_VERBOSE;
+    if (levelString && SDL_strcmp(levelString, "debug")    == 0) return SDL_LOG_PRIORITY_DEBUG;
+    if (levelString && SDL_strcmp(levelString, "info")     == 0) return SDL_LOG_PRIORITY_INFO;
+    if (levelString && SDL_strcmp(levelString, "warn")     == 0) return SDL_LOG_PRIORITY_WARN;
+    if (levelString && SDL_strcmp(levelString, "error")    == 0) return SDL_LOG_PRIORITY_ERROR;
+    if (levelString && SDL_strcmp(levelString, "critical") == 0) return SDL_LOG_PRIORITY_CRITICAL;
+#ifdef DEBUG
+    return SDL_LOG_PRIORITY_DEBUG;
+#else
+    return SDL_LOG_PRIORITY_ERROR;
+#endif
+}
+
+const char* getLogLevelString(SDL_LogPriority priority) {
+    switch (priority) {
+        case SDL_LOG_PRIORITY_VERBOSE:  return "verbose";
+        case SDL_LOG_PRIORITY_DEBUG:    return "debug";
+        case SDL_LOG_PRIORITY_INFO:     return "info";
+        case SDL_LOG_PRIORITY_WARN:     return "warn";
+        case SDL_LOG_PRIORITY_ERROR:    return "error";
+        case SDL_LOG_PRIORITY_CRITICAL: return "critical";
+        default:                        return "error";
+    }
+}
+
 // Legacy functions for backward compatibility
 
 Config loadConfig() {
@@ -308,6 +334,10 @@ Config loadConfig() {
             config.gpuIndex = manager.getInt("Graphics", "gpu_index", -1);
             const char* presentMode = manager.getString("Graphics", "present_mode", "");
             config.presentMode = parsePresentModeEnum(presentMode);
+            const char* logLevel = manager.getString("Logging", "log_level", "");
+            if (logLevel[0] != '\0') {
+                config.logLevel = parseLogLevelEnum(logLevel);
+            }
         }
     }
     return config;
@@ -326,6 +356,8 @@ void saveConfig(const Config& config) {
         manager.setInt("Graphics", "gpu_index", config.gpuIndex);
         manager.setString("Graphics", "present_mode", getActivePresentModeString(config.presentMode));
         manager.setKeyComment("Graphics", "present_mode", "; Vulkan present mode: fifo (vsync), mailbox (triple-buffered uncapped fps), immediate (no buffering), fifo_relaxed (good for low spec)");
+        manager.setString("Logging", "log_level", getLogLevelString(config.logLevel));
+        manager.setKeyComment("Logging", "log_level", "; Log level: verbose, debug, info, warn, error, critical");
         manager.save();
     }
 }

@@ -23,6 +23,14 @@ struct Config {
     // Vulkan present mode: "fifo" (vsync), "mailbox" (triple-buf), "immediate" (uncapped), "fifo_relaxed"
     // An empty string means unspecified; the renderer will default to "fifo"
     VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
+    // Log level: verbose, debug, info, warn, error, critical
+    // Defaults to "debug" in debug builds and "error" in release builds
+    SDL_LogPriority logLevel =
+#ifdef DEBUG
+        SDL_LOG_PRIORITY_DEBUG;
+#else
+        SDL_LOG_PRIORITY_ERROR;
+#endif
 };
 
 // Config manager for INI-style configuration files
@@ -96,5 +104,13 @@ VkPresentModeKHR parsePresentModeEnum(const char* modeString);
 
 // Convert Vulkan present mode enum to string for human readable display
 const char* getActivePresentModeString(VkPresentModeKHR activePresentMode);
+
+// Parse a log level string and convert to SDL_LogPriority enum
+// Valid values: "verbose", "debug", "info", "warn", "error", "critical"
+// Invalid or empty strings default to DEBUG in debug builds, ERROR in release builds
+SDL_LogPriority parseLogLevelEnum(const char* levelString);
+
+// Convert SDL_LogPriority enum to lowercase string for config storage
+const char* getLogLevelString(SDL_LogPriority priority);
 
 #endif // CONFIG_H

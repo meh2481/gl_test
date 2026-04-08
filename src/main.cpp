@@ -195,10 +195,11 @@ extern "C" int app_main()
 
     // SDL_SetLogPriority internally calls SDL_InitLog → SDL_CreateProperties, which
     // requires the global SDL_properties hash table to be initialized by SDL_Init first.
+    // Set a compile-time default that will be overridden by config once it is loaded.
 #ifdef DEBUG
-    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO);
+    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
 #else
-    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_WARN);
+    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_ERROR);
 #endif
 
     // Open log file in the same directory as config files
@@ -230,6 +231,9 @@ extern "C" int app_main()
     consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "System RAM: %d MB", SDL_GetSystemRAM());
 
     Config config = loadConfig();
+
+    // Apply the log level from config (may differ from the compile-time default set above)
+    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, config.logLevel);
 
     SDL_DisplayID primaryDisplay = SDL_GetPrimaryDisplay();
     if (config.display == 0)
