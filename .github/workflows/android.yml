@@ -298,9 +298,24 @@ jobs:
           ninja shader_triangle
 
       - name: Package Android APK
+        env:
+          RELEASE_KEYSTORE: ${{ github.workspace }}/android/release.keystore
+          RELEASE_STORE_PASSWORD: android_ci_key
+          RELEASE_KEY_ALIAS: releasekey
+          RELEASE_KEY_PASSWORD: android_ci_key
         run: |
           set -e
           SYSROOT=$HOME/.android-arm64
+          STRIP=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
+
+          # Generate a temporary signing keystore for CI release builds.
+          keytool -genkeypair -noprompt \
+            -keystore $GITHUB_WORKSPACE/android/release.keystore \
+            -alias releasekey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android_ci_key \
+            -keypass android_ci_key \
+            -dname "CN=CI Build, O=CI, C=US"
 
           # Stage pre-built native shared libraries for Gradle packaging.
           # libmain.so is the game; libSDL3.so and libopenal.so are shared
@@ -310,6 +325,11 @@ jobs:
           cp $GITHUB_WORKSPACE/build-android/libmain.so $JNI_DIR/
           cp $SYSROOT/lib/libSDL3.so   $JNI_DIR/
           cp $SYSROOT/lib/libopenal.so $JNI_DIR/
+
+          # Strip debug symbols from all native libs before packaging.
+          $STRIP --strip-unneeded $JNI_DIR/libmain.so
+          $STRIP --strip-unneeded $JNI_DIR/libSDL3.so
+          $STRIP --strip-unneeded $JNI_DIR/libopenal.so
 
           # Stage packed game resources as Android assets.
           ASSETS_DIR=$GITHUB_WORKSPACE/android/app/src/main/assets
@@ -321,15 +341,15 @@ jobs:
           mkdir -p $JAVA_DIR
           cp -r $SYSROOT/sdl3-java/* $JAVA_DIR/
 
-          # Point Gradle at the Android SDK and build a debug APK.
+          # Point Gradle at the Android SDK and build a release APK.
           echo "sdk.dir=$ANDROID_HOME" > $GITHUB_WORKSPACE/android/local.properties
           cd $GITHUB_WORKSPACE/android
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
       - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: shader_triangle-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: shader_triangle-android
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 

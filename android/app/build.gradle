@@ -16,7 +16,7 @@ android {
 
     // sourceSets: pre-built native libs are staged by CI into
     // src/main/jniLibs/<abi>/ and the packed resources into src/main/assets/
-    // before ./gradlew assembleDebug is invoked.
+    // before ./gradlew assembleRelease is invoked.
     sourceSets {
         main {
             assets.srcDirs = ['src/main/assets']
@@ -24,10 +24,21 @@ android {
         }
     }
 
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("RELEASE_KEYSTORE") ?: "release.keystore")
+            storePassword System.getenv("RELEASE_STORE_PASSWORD") ?: "changeit"
+            keyAlias System.getenv("RELEASE_KEY_ALIAS") ?: "releasekey"
+            keyPassword System.getenv("RELEASE_KEY_PASSWORD") ?: "changeit"
+        }
+    }
+
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
         debug {
             jniDebuggable true
