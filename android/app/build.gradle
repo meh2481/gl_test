@@ -4,6 +4,7 @@ plugins {
 
 android {
     compileSdk 35
+    namespace "org.retsphinx.engine"
 
     defaultConfig {
         applicationId "org.retsphinx.engine"
