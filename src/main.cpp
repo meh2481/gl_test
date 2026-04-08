@@ -66,6 +66,8 @@ static TrackedFinger trackedFingers[MAX_TRACKED_FINGERS];
 static int activeTouchCount = 0;
 static float pinchStartDist = 0.0f;
 static float pinchStartZoom = 0.0f;
+static float twoFingerMidWorldX = 0.0f;  // world-space position of two-finger midpoint at gesture start
+static float twoFingerMidWorldY = 0.0f;
 static Uint64 twoFingerDownTime = 0;
 
 // Maximum time (ms) between first finger-down and last finger-up to count as a tap
@@ -710,9 +712,20 @@ extern "C" int app_main()
                     pinchStartDist = calculateTouchDistance(trackedFingers[0], trackedFingers[1]);
                     pinchStartZoom = sceneManager->getCameraZoom();
                     twoFingerDownTime = SDL_GetTicks();
+                    // Record world-space position of midpoint for two-finger panning
+                    {
+                        int ww, wh;
+                        SDL_GetWindowSize(window, &ww, &wh);
+                        float midPixelX = (trackedFingers[0].x + trackedFingers[1].x) * 0.5f * ww;
+                        float midPixelY = (trackedFingers[0].y + trackedFingers[1].y) * 0.5f * wh;
+                        screenToWorld(midPixelX, midPixelY, ww, wh,
+                                      sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                                      sceneManager->getCameraZoom(),
+                                      &twoFingerMidWorldX, &twoFingerMidWorldY);
+                    }
                     consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG,
-                                       "Two-finger down: pinchStartDist=%.4f zoom=%.2f",
-                                       pinchStartDist, pinchStartZoom);
+                                       "Two-finger down: pinchStartDist=%.4f zoom=%.2f midWorld=(%.3f,%.3f)",
+                                       pinchStartDist, pinchStartZoom, twoFingerMidWorldX, twoFingerMidWorldY);
                 }
             }
             if (event.type == SDL_EVENT_FINGER_UP)
@@ -764,12 +777,28 @@ extern "C" int app_main()
                         break;
                     }
                 }
-                // Pinch-to-zoom: scale camera zoom by the ratio of current to start distance
+                // Compute new zoom from pinch distance
+                float newZoom = sceneManager->getCameraZoom();
                 if (pinchStartDist > MIN_PINCH_DISTANCE)
                 {
                     float currentDist = calculateTouchDistance(trackedFingers[0], trackedFingers[1]);
-                    float newZoom = pinchStartZoom * (currentDist / pinchStartDist);
+                    newZoom = pinchStartZoom * (currentDist / pinchStartDist);
+                }
+                // Two-finger pan: keep twoFingerMidWorld anchored under the current midpoint.
+                // Invert screenToWorld:  worldX = (ndcX * aspect / zoom) + camX
+                //   => camX = twoFingerMidWorldX - ndcMidX * aspect / newZoom
+                {
+                    int ww, wh;
+                    SDL_GetWindowSize(window, &ww, &wh);
+                    float aspect = ww / (float)wh;
+                    float midPixelX = (trackedFingers[0].x + trackedFingers[1].x) * 0.5f * ww;
+                    float midPixelY = (trackedFingers[0].y + trackedFingers[1].y) * 0.5f * wh;
+                    float ndcMidX = (midPixelX / ww) * 2.0f - 1.0f;
+                    float ndcMidY = 1.0f - (midPixelY / wh) * 2.0f;
+                    float newCamX = twoFingerMidWorldX - ndcMidX * aspect / newZoom;
+                    float newCamY = twoFingerMidWorldY - ndcMidY / newZoom;
                     sceneManager->setCameraZoom(newZoom);
+                    sceneManager->setCameraOffset(newCamX, newCamY);
                 }
             }
             // Handle Android/desktop app lifecycle events
