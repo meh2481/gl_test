@@ -287,6 +287,7 @@ jobs:
             -DANDROID_STL=c++_static \
             -DNATIVE_PACKER=$GITHUB_WORKSPACE/build-native/packer \
             -DCMAKE_PREFIX_PATH=$HOME/.android-arm64 \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
             -DVulkan_INCLUDE_DIR=$HOME/.android-arm64/include \
             -DCMAKE_BUILD_TYPE=Release \
             -GNinja \
