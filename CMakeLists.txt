@@ -17,6 +17,24 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(PNG REQUIRED IMPORTED_TARGET libpng)
 pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
 pkg_check_modules(SQUISH REQUIRED IMPORTED_TARGET libsquish)
+# libsquish's pkg-config file is broken: empty prefix yields "/include" as the
+# includedir and "-llibsquish" as the link flag.  Fix both on the imported target.
+if(TARGET PkgConfig::SQUISH)
+    get_target_property(_squish_inc PkgConfig::SQUISH INTERFACE_INCLUDE_DIRECTORIES)
+    if(_squish_inc)
+        list(FILTER _squish_inc EXCLUDE REGEX "^/include$")
+        set_target_properties(PkgConfig::SQUISH PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${_squish_inc}")
+    endif()
+    get_target_property(_squish_libs PkgConfig::SQUISH INTERFACE_LINK_LIBRARIES)
+    if(_squish_libs)
+        list(TRANSFORM _squish_libs REPLACE "^libsquish$" "squish")
+        set_target_properties(PkgConfig::SQUISH PROPERTIES INTERFACE_LINK_LIBRARIES "${_squish_libs}")
+    endif()
+    # Also fix the raw SQUISH_LIBRARIES variable used by older-style link calls
+    if(SQUISH_LIBRARIES)
+        list(TRANSFORM SQUISH_LIBRARIES REPLACE "^libsquish$" "squish")
+    endif()
+endif()
 # jsoncpp is only used by the packer host tool, never by the game itself.
 # Skip it (and the packer target below) when cross-compiling for Android so
 # the android sysroot does not need a jsoncpp cross-build.
