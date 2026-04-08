@@ -65,7 +65,7 @@ jobs:
         id: cache-android-deps
         with:
           path: ~/.android-arm64
-          key: android-arm64-deps-${{ runner.os }}-v2
+          key: android-arm64-deps-${{ runner.os }}-v3
 
       - name: Build Android ARM64 dependencies
         if: steps.cache-android-deps.outputs.cache-hit != 'true'
@@ -144,8 +144,7 @@ jobs:
           sed -i 's/^[[:space:]]*//' $SYSROOT/lib/pkgconfig/libsquish.pc
           cd ..
 
-          # --- SDL3 pre-built Android library ---
-          # SDL3 provides official Android pre-built .aar and arm64 .so
+          # --- SDL3 ---
           SDL3_VERSION=3.2.0
           curl -fsSL https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VERSION}/SDL3-${SDL3_VERSION}.tar.gz | tar xz
           cd SDL3-${SDL3_VERSION}
@@ -154,6 +153,9 @@ jobs:
             .
           cmake --build build -j$(nproc)
           cmake --install build
+          # Save SDL3 Android Java source so it's available from cache in the APK step.
+          mkdir -p $SYSROOT/sdl3-java
+          cp -r android-project/app/src/main/java/* $SYSROOT/sdl3-java/
           cd ..
 
           # --- Vulkan headers ---
@@ -189,6 +191,7 @@ jobs:
           Cflags: -I${includedir}
           EOF
           sed -i "s|SYSROOT_PLACEHOLDER|$SYSROOT|g" $SYSROOT/lib/pkgconfig/lua5.4.pc
+          sed -i 's/^[[:space:]]*//' $SYSROOT/lib/pkgconfig/lua5.4.pc
           cd ../..
 
           # --- Box2D v3.1.1 ---
@@ -286,19 +289,47 @@ jobs:
             -DANDROID_STL=c++_static \
             -DNATIVE_PACKER=$GITHUB_WORKSPACE/build-native/packer \
             -DCMAKE_PREFIX_PATH=$HOME/.android-arm64 \
+            -DANDROID_DEPS_PREFIX=$HOME/.android-arm64 \
             -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
             -DVulkan_INCLUDE_DIR=$HOME/.android-arm64/include \
             -DCMAKE_BUILD_TYPE=Release \
             -GNinja \
             ..
           ninja shader_triangle
-          mkdir -p $GITHUB_WORKSPACE/artifacts-android/lib/arm64-v8a
-          cp libmain.so $GITHUB_WORKSPACE/artifacts-android/lib/arm64-v8a/
-          cp res.pak $GITHUB_WORKSPACE/artifacts-android/
 
-      - name: Upload Android native library artifact
+      - name: Package Android APK
+        run: |
+          set -e
+          SYSROOT=$HOME/.android-arm64
+
+          # Stage pre-built native shared libraries for Gradle packaging.
+          # libmain.so is the game; libSDL3.so and libopenal.so are shared
+          # dependencies that the Android linker must find at runtime.
+          JNI_DIR=$GITHUB_WORKSPACE/android/app/src/main/jniLibs/arm64-v8a
+          mkdir -p $JNI_DIR
+          cp $GITHUB_WORKSPACE/build-android/libmain.so $JNI_DIR/
+          cp $SYSROOT/lib/libSDL3.so   $JNI_DIR/
+          cp $SYSROOT/lib/libopenal.so $JNI_DIR/
+
+          # Stage packed game resources as Android assets.
+          ASSETS_DIR=$GITHUB_WORKSPACE/android/app/src/main/assets
+          mkdir -p $ASSETS_DIR
+          cp $GITHUB_WORKSPACE/build-android/res.pak $ASSETS_DIR/
+
+          # Stage SDL3 Android Java source (saved to the sysroot during deps build).
+          JAVA_DIR=$GITHUB_WORKSPACE/android/app/src/main/java
+          mkdir -p $JAVA_DIR
+          cp -r $SYSROOT/sdl3-java/* $JAVA_DIR/
+
+          # Point Gradle at the Android SDK and build a debug APK.
+          echo "sdk.dir=$ANDROID_HOME" > $GITHUB_WORKSPACE/android/local.properties
+          cd $GITHUB_WORKSPACE/android
+          ./gradlew assembleDebug
+
+      - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: shader_triangle-android-arm64
-          path: artifacts-android/
+          name: shader_triangle-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+

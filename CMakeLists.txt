@@ -28,12 +28,12 @@ include_directories(${PNG_INCLUDE_DIRS})
 if(BUILD_GAME)
     # When cross-compiling for Android the NDK toolchain restricts library search
     # to the NDK sysroot, so pkg-config imported targets' INTERFACE_LINK_DIRECTORIES
-    # don't reach the linker.  Explicitly add every prefix in CMAKE_PREFIX_PATH so
-    # that -L<prefix>/lib is present in the final link command.
+    # don't reach the linker.  Callers must pass -DANDROID_DEPS_PREFIX=<sysroot>
+    # (e.g. ~/.android-arm64) so that -L<sysroot>/lib is injected explicitly.
     if(CMAKE_SYSTEM_NAME STREQUAL "Android")
-        foreach(_pfx ${CMAKE_PREFIX_PATH})
-            link_directories("${_pfx}/lib")
-        endforeach()
+        if(DEFINED ANDROID_DEPS_PREFIX AND NOT ANDROID_DEPS_PREFIX STREQUAL "")
+            link_directories("${ANDROID_DEPS_PREFIX}/lib")
+        endif()
     endif()
 
     find_package(Vulkan REQUIRED)

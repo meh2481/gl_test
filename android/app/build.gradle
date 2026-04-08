@@ -4,7 +4,6 @@ plugins {
 
 android {
     compileSdk 35
-    ndkVersion "27.2.12479018"
 
     defaultConfig {
         applicationId "org.retsphinx.engine"
@@ -12,34 +11,15 @@ android {
         targetSdk 35
         versionCode 1
         versionName "1.0"
-
-        externalNativeBuild {
-            cmake {
-                // Primary ABI is arm64-v8a; add x86_64 for emulator support
-                abiFilters "arm64-v8a", "x86_64"
-                arguments "-DANDROID_PLATFORM=android-26",
-                          "-DANDROID_STL=c++_static",
-                          "-DCMAKE_BUILD_TYPE=Release"
-                // NATIVE_PACKER must be provided at build time via
-                // -PNATIVE_PACKER=<path> (Gradle property) or set explicitly.
-                // Example:
-                //   ./gradlew assembleRelease -PNATIVE_PACKER=/path/to/packer
-            }
-        }
     }
 
-    externalNativeBuild {
-        cmake {
-            // Point at the root CMakeLists.txt (two directories up from android/app/)
-            path "../../CMakeLists.txt"
-            version "3.22.1"
-        }
-    }
-
-    // Expose res.pak bundled under assets/ so the engine can open it with SDL_IOFromFile
+    // sourceSets: pre-built native libs are staged by CI into
+    // src/main/jniLibs/<abi>/ and the packed resources into src/main/assets/
+    // before ./gradlew assembleDebug is invoked.
     sourceSets {
         main {
             assets.srcDirs = ['src/main/assets']
+            jniLibs.srcDirs = ['src/main/jniLibs']
         }
     }
 
@@ -56,18 +36,5 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
-    }
-}
-
-// Copy the packed resource file into the Android assets directory before
-// the native build runs so it is bundled inside the APK.
-// The NATIVE_PACKER Gradle property points to the host packer binary used
-// to build res.pak in the cmake externalNativeBuild step.
-tasks.whenTaskAdded { task ->
-    if (task.name.startsWith('externalNativeBuild')) {
-        task.doFirst {
-            def resDir = file("src/main/assets")
-            resDir.mkdirs()
-        }
     }
 }
