@@ -16,7 +16,7 @@ option(BUILD_GAME "Build the main game executable" ON)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PNG REQUIRED IMPORTED_TARGET libpng)
 pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
-find_library(SQUISH_LIB NAMES squish REQUIRED)
+pkg_check_modules(SQUISH REQUIRED IMPORTED_TARGET libsquish)
 pkg_check_modules(JSONCPP REQUIRED IMPORTED_TARGET jsoncpp)
 include_directories(${PNG_INCLUDE_DIRS})
 
@@ -93,7 +93,7 @@ endif()
 
 add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
 target_sources(packer PRIVATE src/compress/Compress.cpp)
-target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB ${SQUISH_LIB} PkgConfig::JSONCPP)
+target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB PkgConfig::SQUISH PkgConfig::JSONCPP)
 
 if(BUILD_GAME)
     file(GLOB_RECURSE RES_FILES
