@@ -17,7 +17,12 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(PNG REQUIRED IMPORTED_TARGET libpng)
 pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
 pkg_check_modules(SQUISH REQUIRED IMPORTED_TARGET libsquish)
-pkg_check_modules(JSONCPP REQUIRED IMPORTED_TARGET jsoncpp)
+# jsoncpp is only used by the packer host tool, never by the game itself.
+# Skip it (and the packer target below) when cross-compiling for Android so
+# the android sysroot does not need a jsoncpp cross-build.
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+    pkg_check_modules(JSONCPP REQUIRED IMPORTED_TARGET jsoncpp)
+endif()
 include_directories(${PNG_INCLUDE_DIRS})
 
 if(BUILD_GAME)
@@ -91,9 +96,11 @@ if(BUILD_GAME)
     add_custom_target(shaders DEPENDS ${SHADER_FILES})
 endif()
 
-add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
-target_sources(packer PRIVATE src/compress/Compress.cpp)
-target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB PkgConfig::SQUISH PkgConfig::JSONCPP)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+    add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
+    target_sources(packer PRIVATE src/compress/Compress.cpp)
+    target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB PkgConfig::SQUISH PkgConfig::JSONCPP)
+endif()
 
 if(BUILD_GAME)
     file(GLOB_RECURSE RES_FILES
