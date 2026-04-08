@@ -3,4 +3,12 @@
 * Replace libopusfile with our own audio format
 * requestAndTryResource() in LuaInterface.cpp defeats the entire purpose of async resource loading
 * Windows test result: [2026-04-07 19:17:52.705] [ERROR] Vulkan error in vkQueueSubmit: VK_ERROR_DEVICE_LOST
-    - Needed to add libstdc++-6.dll, libgcc_s_seh-1.dll, and libwinpthread-1.dll
+
+Tablet: (hard crashes)
+Galaxy Tab S11
+SM-X730
+
+
+Phone: (malformed water reflections)
+Samsung Galaxy S22+
+SM-S906U1
