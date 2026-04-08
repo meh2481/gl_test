@@ -87,8 +87,7 @@ jobs:
           mkdir -p $SYSROOT/lib/pkgconfig $SYSROOT/include $SYSROOT/bin
 
           ANDROID_CMAKE_ARGS=(
-            -DCMAKE_SYSTEM_NAME=Android
-            -DCMAKE_ANDROID_NDK=$NDK
+            -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake
             -DANDROID_NDK=$NDK
             -DANDROID_ABI=$ABI
             -DANDROID_PLATFORM=android-$API
