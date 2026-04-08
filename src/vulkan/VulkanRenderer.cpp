@@ -247,7 +247,10 @@ void VulkanRenderer::render(float time) {
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         m_swapchainNeedsRecreation = true;
         return;
-    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+    } else if (result == VK_SUBOPTIMAL_KHR) {
+        // Swapchain is suboptimal (e.g. orientation changed); recreate after presenting this frame.
+        m_swapchainNeedsRecreation = true;
+    } else if (result != VK_SUCCESS) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
         assert(false);
     }
@@ -285,8 +288,13 @@ void VulkanRenderer::render(float time) {
     presentInfo.pImageIndices = &imageIndex;
 
     profiler.updateThreadState(THREAD_STATE_WAITING);
-    vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+    VkResult presentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
     profiler.updateThreadState(THREAD_STATE_BUSY);
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+        m_swapchainNeedsRecreation = true;
+    } else if (presentResult != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_WARN, "vkQueuePresentKHR returned: %s", vkResultToString(presentResult));
+    }
 
     m_currentFrame = (m_currentFrame + 1) % 2;
 }
@@ -789,7 +797,7 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    createInfo.preTransform = capabilities.currentTransform;
+    createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     // Select a supported composite alpha mode; prefer opaque for desktop,
     // fall back to inherit which Android always supports.
     if (capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {

@@ -494,6 +494,7 @@ extern "C" int app_main()
 #endif
 
     bool running = true;
+    bool isInBackground = false;
     SDL_Event event;
     float lastTime = SDL_GetTicks() / 1000.0f;
 
@@ -767,16 +768,18 @@ extern "C" int app_main()
             if (event.type == SDL_EVENT_WILL_ENTER_BACKGROUND)
             {
                 consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "App entering background - suspending audio");
+                isInBackground = true;
                 audioManager->suspend();
             }
             if (event.type == SDL_EVENT_DID_ENTER_FOREGROUND)
             {
                 consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "App entering foreground - resuming audio and swapchain");
+                isInBackground = false;
                 audioManager->resume();
                 renderer->recreateSwapchain(window);
             }
             // Handle window resize (also covers Android surface recreation after rotation)
-            if (event.type == SDL_EVENT_WINDOW_RESIZED)
+            if (event.type == SDL_EVENT_WINDOW_RESIZED || event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)
             {
                 consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Window resized to %dx%d - recreating swapchain",
                                    event.window.data1, event.window.data2);
@@ -919,10 +922,13 @@ extern "C" int app_main()
         }
 #endif
 
-        renderer->render(currentTime);
+        if (!isInBackground)
+        {
+            renderer->render(currentTime);
+        }
 
         // Recreate swapchain if render signalled VK_ERROR_OUT_OF_DATE_KHR
-        if (renderer->needsSwapchainRecreation())
+        if (!isInBackground && renderer->needsSwapchainRecreation())
         {
             consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Swapchain out-of-date after render - recreating");
             renderer->recreateSwapchain(window);
