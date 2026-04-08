@@ -1,97 +1,36 @@
 -- Scene initialization function
 
--- Button helpers (managed inline – avoids loadObject lifecycle issues for the base scene)
-local SCALE_NORMAL = 1.0
-local SCALE_HOVER  = 1.12
-local SCALE_PRESS  = 0.88
-
-local function btnInBounds(btn, cx, cy)
-    return math.abs(cx - btn.x) <= btn.half and math.abs(cy - btn.y) <= btn.half
-end
-
-local function btnAnimScale(btn, target, dur)
-    animateLayerScale(btn.layer, btn.scale, btn.scale, target, target, dur, INTERPOLATION_EASE_OUT)
-    btn.scale = target
-end
-
-local function btnUpdate(btn)
-    if btn == nil or btn.layer == nil then return end
-    local cx, cy = getCursorPosition()
-    local hov = btnInBounds(btn, cx, cy)
-    if hov ~= btn.hovered then
-        btn.hovered = hov
-        if not btn.pressed then
-            if hov then
-                btnAnimScale(btn, SCALE_HOVER, 0.1)
-            else
-                btnAnimScale(btn, SCALE_NORMAL, 0.1)
-            end
-        end
-    end
-end
-
-local function btnOnDragStart(btn)
-    if btn == nil or btn.layer == nil then return end
-    local cx, cy = getCursorPosition()
-    if btnInBounds(btn, cx, cy) then
-        btn.pressed = true
-        stopLayerAnimations(btn.layer, PROPERTY_LAYER_SCALE)
-        btnAnimScale(btn, SCALE_PRESS, 0.06)
-    end
-end
-
-local function btnOnDragEnd(btn)
-    if btn == nil or btn.layer == nil then return end
-    if btn.pressed then
-        btn.pressed = false
-        local cx, cy = getCursorPosition()
-        local inB = btnInBounds(btn, cx, cy)
-        btnAnimScale(btn, inB and SCALE_HOVER or SCALE_NORMAL, 0.1)
-        if inB then
-            fireAction(btn.action)
-        end
-    end
-end
-
 -- Shared button resources (loaded once, persist across sub-scene pushes/pops)
 local btnTexId    = nil
 local btnShaderId = nil
 
--- Button instances
+-- Button node instances
 local physicsBtn = nil
 local audioBtn   = nil
 
-local function makeButton(x, y, size, action, r, g, b)
-    local lay = createLayer(btnTexId, size, btnShaderId)
-    setLayerPosition(lay, x, y)
-    setLayerScale(lay, SCALE_NORMAL, SCALE_NORMAL)
-    setLayerColor(lay, r or 1.0, g or 1.0, b or 1.0, 1.0)
-    return {
-        layer   = lay,
-        x       = x, y = y,
-        half    = size / 2.0,
-        action  = action,
-        scale   = SCALE_NORMAL,
-        hovered = false,
-        pressed = false,
-    }
-end
-
--- (Re)create button layers — called from init() and onResume()
+-- (Re)create button nodes — called from init() and onResume()
 local function createButtons()
-    physicsBtn = makeButton(-0.25, -0.35, 0.22, ACTION_PHYSICS_DEMO, 1.0, 0.55, 0.1)
-    audioBtn   = makeButton( 0.25, -0.35, 0.22, ACTION_AUDIO_TEST,   0.3, 0.6,  1.0)
+    physicsBtn = loadObject("res/nodes/button.lua", {
+        texId    = btnTexId,
+        shaderId = btnShaderId,
+        x = -0.25, y = -0.35, size = 0.22,
+        action   = ACTION_PHYSICS_DEMO,
+        r = 1.0, g = 0.55, b = 0.1,
+    })
+    audioBtn = loadObject("res/nodes/button.lua", {
+        texId    = btnTexId,
+        shaderId = btnShaderId,
+        x = 0.25, y = -0.35, size = 0.22,
+        action   = ACTION_AUDIO_TEST,
+        r = 0.3, g = 0.6, b = 1.0,
+    })
 end
 
 local function destroyButtons()
-    if physicsBtn and physicsBtn.layer then
-        destroyLayer(physicsBtn.layer)
-        physicsBtn.layer = nil
-    end
-    if audioBtn and audioBtn.layer then
-        destroyLayer(audioBtn.layer)
-        audioBtn.layer = nil
-    end
+    if physicsBtn then physicsBtn.cleanup() end
+    if audioBtn   then audioBtn.cleanup()   end
+    physicsBtn = nil
+    audioBtn   = nil
 end
 
 function init()
@@ -108,44 +47,36 @@ function init()
 end
 
 -- Called when this scene becomes the active (top) scene again after a sub-scene is popped.
--- Sub-scene cleanup wipes all layers, so we recreate button layers here.
+-- Sub-scene cleanup wipes all layers, so we recreate button nodes here.
 function onResume()
     createButtons()
 end
 
 -- Scene update function called every frame
 function update(deltaTime)
-    btnUpdate(physicsBtn)
-    btnUpdate(audioBtn)
+    if physicsBtn then physicsBtn.update(deltaTime) end
+    if audioBtn   then audioBtn.update(deltaTime)   end
 end
 
 -- Handle actions
 function onAction(action)
+    -- Forward input actions to button nodes first (so they can fire their own actions)
+    if physicsBtn then physicsBtn.onAction(action) end
+    if audioBtn   then audioBtn.onAction(action)   end
+
     if action == ACTION_EXIT then
         popScene()
-    end
-    if action == ACTION_MENU then
+    elseif action == ACTION_MENU then
         destroyButtons()
         pushScene("res/scenes/menu.lua")
-    end
-    if action == ACTION_PHYSICS_DEMO then
+    elseif action == ACTION_PHYSICS_DEMO then
         destroyButtons()
         pushScene("res/scenes/physics.lua")
-    end
-    if action == ACTION_AUDIO_TEST then
+    elseif action == ACTION_AUDIO_TEST then
         destroyButtons()
         pushScene("res/scenes/audio_test.lua")
-    end
-    if action == ACTION_PARTICLE_EDITOR then
+    elseif action == ACTION_PARTICLE_EDITOR then
         destroyButtons()
         pushScene("res/scenes/particle_editor.lua")
-    end
-    if action == ACTION_DRAG_START then
-        btnOnDragStart(physicsBtn)
-        btnOnDragStart(audioBtn)
-    end
-    if action == ACTION_DRAG_END then
-        btnOnDragEnd(physicsBtn)
-        btnOnDragEnd(audioBtn)
     end
 end
