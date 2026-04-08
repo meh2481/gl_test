@@ -3,9 +3,11 @@
 #include "VulkanTexture.h"
 #include <cassert>
 
-// Animation push constant size: 6 base + 7 params + 20 animation = 33 floats
-// Water polygon vertices now passed via uniform buffer instead of push constants
-static const Uint32 ANIM_PUSH_CONSTANT_FLOAT_COUNT = 33;
+// Animation push constant size: 6 base + 4 params (param0-param3) + 20 animation = 30 floats (120 bytes)
+// param4/5/6 were removed - unused in all animation shaders - to stay within the 128-byte Vulkan minimum.
+// Water polygon vertices passed via uniform buffer; 8 trailing unused floats also removed.
+static const Uint32 ANIM_PUSH_CONSTANT_FLOAT_COUNT = 30;
+static const Uint32 WATER_PUSH_CONSTANT_FLOAT_COUNT = 25; // 6 system + 7 params + 12 ripple = 25 floats (100 bytes)
 
 // Helper function to convert VkResult to readable string for error logging
 static const char* vkResultToString(VkResult result) {
@@ -603,7 +605,7 @@ void VulkanDescriptor::createWaterPipelineLayout() {
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(float) * ANIM_PUSH_CONSTANT_FLOAT_COUNT;
+    pushConstantRange.size = sizeof(float) * WATER_PUSH_CONSTANT_FLOAT_COUNT;
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -695,6 +697,32 @@ void VulkanDescriptor::createWaterDescriptorSet(Uint64 texture1Id, Uint64 textur
                                 (unsigned long long)texture2Id, hasTex2 ? 1 : 0);
         }
         return;
+    }
+
+    // Sanity-check all handles before writing the descriptor set.
+    // A null sampler or image view written into a descriptor will cause the GPU
+    // to fault with VK_ERROR_DEVICE_LOST the moment the shader samples from it.
+    if (tex1.imageView == VK_NULL_HANDLE || tex1.sampler == VK_NULL_HANDLE) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "createWaterDescriptorSet: primary texture %llu has null imageView=%p or sampler=%p - "
+            "this will cause VK_ERROR_DEVICE_LOST when the water shader samples binding 0",
+            (unsigned long long)texture1Id,
+            static_cast<void*>(tex1.imageView), static_cast<void*>(tex1.sampler));
+        assert(false);
+    }
+    if (tex2.imageView == VK_NULL_HANDLE || tex2.sampler == VK_NULL_HANDLE) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "createWaterDescriptorSet: reflection texture %llu has null imageView=%p or sampler=%p - "
+            "this will cause VK_ERROR_DEVICE_LOST when the water shader samples binding 1",
+            (unsigned long long)texture2Id,
+            static_cast<void*>(tex2.imageView), static_cast<void*>(tex2.sampler));
+        assert(false);
+    }
+    if (waterPolygonUniformBuffer == VK_NULL_HANDLE) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "createWaterDescriptorSet: waterPolygonUniformBuffer is VK_NULL_HANDLE - "
+            "this will cause VK_ERROR_DEVICE_LOST when the water shader reads binding 2");
+        assert(false);
     }
 
     // Reset the descriptor pool to free any previously allocated descriptor sets

@@ -11,9 +11,6 @@ layout(push_constant) uniform PushConstants {
     float param1;
     float param2;
     float param3;
-    float param4;
-    float param5;
-    float param6;
     // Animation parameters
     float spinSpeed;      // Degrees per second
     float centerX;        // Spin center X

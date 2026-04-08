@@ -27,15 +27,7 @@ layout(push_constant) uniform PushConstants {
     float ripple3_x;
     float ripple3_time;
     float ripple3_amplitude;
-    // Unused animation slots (polygon data now in uniform buffer)
-    float unused0;
-    float unused1;
-    float unused2;
-    float unused3;
-    float unused4;
-    float unused5;
-    float unused6;
-    float unused7;
+    // (unused animation slots removed - polygon data is in the uniform buffer)
 } pc;
 
 layout(location = 0) in vec2 fragTexCoord;

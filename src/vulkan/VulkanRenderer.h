@@ -218,6 +218,22 @@ private:
     bool m_reflectionEnabled;
     float m_reflectionSurfaceY;  // Y coordinate of water surface for reflection clipping
 
+    // Frame counter and device-lost guard
+    // Once the device is lost we log diagnostics once then stop submitting to avoid
+    // flooding the log with hundreds of identical VK_ERROR_DEVICE_LOST lines.
+    Uint64 m_frameCount;
+    bool m_deviceLost;
+
+    // VK_NV_device_diagnostic_checkpoints (NVIDIA-specific, Windows and Linux)
+    // Inserts GPU-side breadcrumbs into the command stream so we can identify which
+    // draw call was actually in flight when the GPU TDR'd.
+    bool m_diagnosticCheckpointsEnabled;
+    PFN_vkCmdSetCheckpointNV m_vkCmdSetCheckpointNV;
+    PFN_vkGetQueueCheckpointDataNV m_vkGetQueueCheckpointDataNV;
+
+    // Emit a detailed one-shot diagnostic log when VK_ERROR_DEVICE_LOST is received.
+    void logDeviceLostDiagnostics();
+
 #ifdef DEBUG
     void (*m_imguiRenderCallback)(VkCommandBuffer);
 #endif

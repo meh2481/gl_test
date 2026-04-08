@@ -13,9 +13,6 @@ layout(push_constant) uniform PushConstants {
     float diffuseStrength;
     float specularStrength;
     float shininess;
-    float param4;
-    float param5;
-    float param6;
     // Animation parameters (not used in fragment but needed for layout)
     float spinSpeed;
     float centerX;

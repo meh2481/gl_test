@@ -105,6 +105,11 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_reflectionTextureId(REFLECTION_TEXTURE_ID_INVALID),
     m_reflectionEnabled(false),
     m_reflectionSurfaceY(0.0f),
+    m_frameCount(0),
+    m_deviceLost(false),
+    m_diagnosticCheckpointsEnabled(false),
+    m_vkCmdSetCheckpointNV(nullptr),
+    m_vkGetQueueCheckpointDataNV(nullptr),
     m_spriteBatches(*smallAllocator, "VulkanRenderer::m_spriteBatches"),
     m_particleBatches(*smallAllocator, "VulkanRenderer::m_particleBatches"),
     m_allBatches(*smallAllocator, "VulkanRenderer::m_allBatches"),
@@ -227,8 +232,66 @@ void VulkanRenderer::setPipelinesToDraw(const Vector<Uint64>& pipelineIds) {
     m_pipelineManager.setPipelinesToDraw(pipelineIds);
 }
 
+void VulkanRenderer::logDeviceLostDiagnostics() {
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+        "=== VK_ERROR_DEVICE_LOST on frame %llu ===", (unsigned long long)m_frameCount);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+        "  reflectionEnabled=%s reflectionTextureId=%llu",
+        m_reflectionEnabled ? "true" : "false",
+        (unsigned long long)m_reflectionTextureId);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+        "  waterDescriptorSet=%s lightDescriptorSet=%s",
+        m_descriptorManager.getWaterDescriptorSet() != VK_NULL_HANDLE ? "valid" : "NULL",
+        m_descriptorManager.getLightDescriptorSet() != VK_NULL_HANDLE ? "valid" : "NULL");
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+        "  allBatches.size()=%zu pipelinesToDraw.size()=%zu",
+        m_allBatches.size(),
+        m_pipelineManager.getPipelinesToDraw().size());
+
+    if (m_diagnosticCheckpointsEnabled && m_vkGetQueueCheckpointDataNV != nullptr) {
+        Uint32 count = 0;
+        m_vkGetQueueCheckpointDataNV(m_graphicsQueue, &count, nullptr);
+        if (count > 0) {
+            VkCheckpointDataNV* data = new VkCheckpointDataNV[count];
+            for (Uint32 i = 0; i < count; ++i) {
+                data[i].sType = VK_STRUCTURE_TYPE_CHECKPOINT_DATA_NV;
+                data[i].pNext = nullptr;
+            }
+            m_vkGetQueueCheckpointDataNV(m_graphicsQueue, &count, data);
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+                "  Last GPU checkpoint(s) before fault (%u reported):", count);
+            for (Uint32 i = 0; i < count; ++i) {
+                const char* label = (data[i].pCheckpointMarker != nullptr)
+                    ? static_cast<const char*>(data[i].pCheckpointMarker) : "(null)";
+                m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+                    "    [%u] stage=0x%x marker=\"%s\"",
+                    i, (unsigned)data[i].stage, label);
+            }
+            delete[] data;
+        } else {
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+                "  NV checkpoints enabled but count=0 (no commands reached the GPU)");
+        }
+    } else {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "  NV diagnostic checkpoints not available on this device/driver; "
+            "run with VK_LAYER_KHRONOS_validation for more detail");
+    }
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+        "=== end device-lost report ===");
+}
+
 void VulkanRenderer::render(float time) {
     ThreadProfiler& profiler = ThreadProfiler::instance();
+
+    // If the device was already declared lost, stop submitting.
+    // logDeviceLostDiagnostics() already fired on the first lost frame.
+    if (m_deviceLost) {
+        return;
+    }
+
+    ++m_frameCount;
 
     profiler.updateThreadState(THREAD_STATE_WAITING);
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
@@ -270,7 +333,16 @@ void VulkanRenderer::render(float time) {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrame]), "vkQueueSubmit");
+    {
+        VkResult submitResult = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrame]);
+        if (submitResult == VK_ERROR_DEVICE_LOST) {
+            m_deviceLost = true;
+            logDeviceLostDiagnostics();
+        } else if (submitResult != VK_SUCCESS) {
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkQueueSubmit failed on frame %llu: %s",
+                                 (unsigned long long)m_frameCount, vkResultToString(submitResult));
+        }
+    }
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -636,12 +708,49 @@ void VulkanRenderer::createLogicalDevice() {
     createInfo.queueCreateInfoCount = static_cast<Uint32>(numUnique);
     createInfo.pQueueCreateInfos = queueCreateInfos;
     createInfo.pEnabledFeatures = &deviceFeatures;
-    const char* deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-    createInfo.enabledExtensionCount = 1;
-    createInfo.ppEnabledExtensionNames = deviceExtensions;
+    // Check whether VK_NV_device_diagnostic_checkpoints is available.
+    // This extension lets us insert GPU-side breadcrumbs so we can see exactly
+    // which draw call was in flight when the device was lost.
+    bool checkpointsSupported = false;
+    {
+        Uint32 extCount = 0;
+        vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &extCount, nullptr);
+        VkExtensionProperties* exts = new VkExtensionProperties[extCount];
+        vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &extCount, exts);
+        for (Uint32 i = 0; i < extCount; ++i) {
+            if (SDL_strcmp(exts[i].extensionName, VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME) == 0) {
+                checkpointsSupported = true;
+            }
+        }
+        delete[] exts;
+    }
+
+    const char* deviceExtensionNames[2];
+    Uint32 deviceExtensionCount = 0;
+    deviceExtensionNames[deviceExtensionCount++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+    if (checkpointsSupported) {
+        deviceExtensionNames[deviceExtensionCount++] = VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "VK_NV_device_diagnostic_checkpoints enabled for GPU fault diagnosis");
+    } else {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "VK_NV_device_diagnostic_checkpoints not available on this device");
+    }
+    createInfo.enabledExtensionCount = deviceExtensionCount;
+    createInfo.ppEnabledExtensionNames = deviceExtensionNames;
 
     VkResult deviceResult = vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device);
     assert(deviceResult == VK_SUCCESS);
+
+    // Load NV checkpoint function pointers if the extension was enabled.
+    if (checkpointsSupported) {
+        m_vkCmdSetCheckpointNV = reinterpret_cast<PFN_vkCmdSetCheckpointNV>(
+            vkGetDeviceProcAddr(m_device, "vkCmdSetCheckpointNV"));
+        m_vkGetQueueCheckpointDataNV = reinterpret_cast<PFN_vkGetQueueCheckpointDataNV>(
+            vkGetDeviceProcAddr(m_device, "vkGetQueueCheckpointDataNV"));
+        m_diagnosticCheckpointsEnabled = (m_vkCmdSetCheckpointNV != nullptr && m_vkGetQueueCheckpointDataNV != nullptr);
+        if (!m_diagnosticCheckpointsEnabled) {
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_WARN, "Failed to load vkCmdSetCheckpointNV / vkGetQueueCheckpointDataNV proc addresses");
+        }
+    }
 
     vkGetDeviceQueue(m_device, static_cast<Uint32>(graphicsFamily), 0, &m_graphicsQueue);
     m_graphicsQueueFamilyIndex = graphicsFamily;
@@ -1356,6 +1465,13 @@ void VulkanRenderer::setAmbientLight(float r, float g, float b) {
 
 // Command buffer recording
 
+// Helper: insert a GPU-side diagnostic checkpoint if the NV extension is loaded.
+// The marker is a plain string literal whose address is stored as a breadcrumb on
+// the GPU.  After a device-lost the last marker that completed is queryable via
+// vkGetQueueCheckpointDataNV so we know exactly which phase triggered the TDR.
+#define INSERT_CHECKPOINT(cmdBuf, label) \
+    do { if (m_diagnosticCheckpointsEnabled) m_vkCmdSetCheckpointNV((cmdBuf), (label)); } while(0)
+
 void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 imageIndex, float time) {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1364,9 +1480,13 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
         assert(result == VK_SUCCESS);
     }
 
+    INSERT_CHECKPOINT(commandBuffer, "cmd_begin");
+
     // Render reflection pass first (if enabled)
     if (m_reflectionEnabled) {
+        INSERT_CHECKPOINT(commandBuffer, "reflection_pass_start");
         recordReflectionPass(commandBuffer, time);
+        INSERT_CHECKPOINT(commandBuffer, "reflection_pass_end");
     }
 
     VkRenderPassBeginInfo renderPassInfo{};
@@ -1379,6 +1499,8 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    INSERT_CHECKPOINT(commandBuffer, "main_pass_start");
 
     float pushConstants[7] = {
         static_cast<float>(m_swapchainExtent.width),
@@ -1393,6 +1515,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
     const auto& pipelinesToDraw = m_pipelineManager.getPipelinesToDraw();
 
     // Phase 1: Draw background shaders (non-textured pipelines like nebula)
+    INSERT_CHECKPOINT(commandBuffer, "phase1_background");
     for (Uint64 pipelineId : pipelinesToDraw) {
         if (m_pipelineManager.isDebugPipeline(pipelineId)) {
             continue; // Skip debug, draw last
@@ -1427,6 +1550,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
 
     // Phase 2: Draw all batches (sprites and particles) in parallax order
     // m_allBatches is pre-sorted by parallax depth (higher = background = drawn first)
+    INSERT_CHECKPOINT(commandBuffer, "phase2_batches");
     if (!m_allBatches.empty()) {
         int currentPipelineId = -1;
         bool currentIsParticle = false;
@@ -1486,15 +1610,15 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
 
             // Set push constants for this batch
             if (info->isWaterPipeline) {
-                // Water pipeline with ripple push constants (33 floats)
+                // Water pipeline with ripple push constants (25 floats = 100 bytes)
                 const Vector<float>* params = m_pipelineManager.getShaderParams(batch.pipelineId);
                 int rippleCount = 0;
                 ShaderRippleData ripples[MAX_SHADER_RIPPLES];
                 m_pipelineManager.getWaterRipples(batch.pipelineId, rippleCount, ripples);
 
                 // Build water push constants WITHOUT polygon vertices (now in uniform buffer)
-                // Layout: system(6) + params(7) + ripples(12) + unused(8) = 33 floats
-                float waterPushConstants[33] = {
+                // Layout: system(6) + params(7) + ripples(12) = 25 floats (100 bytes)
+                float waterPushConstants[25] = {
                     static_cast<float>(m_swapchainExtent.width),          // 0
                     static_cast<float>(m_swapchainExtent.height),         // 1
                     time,                                                  // 2
@@ -1509,7 +1633,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
                     params ? (*params)[4] : 0.0f,                          // 10: minX
                     params ? (*params)[5] : 0.0f,                          // 11: minY
                     params ? (*params)[6] : 0.0f,                          // 12: maxX
-                    // Ripple data (indices 13-24, 4 ripples x 3 values - restored)
+                    // Ripple data (indices 13-24, 4 ripples x 3 values)
                     rippleCount > 0 ? ripples[0].x : 0.0f,                 // 13
                     rippleCount > 0 ? ripples[0].time : -1.0f,             // 14
                     rippleCount > 0 ? ripples[0].amplitude : 0.0f,         // 15
@@ -1522,15 +1646,16 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
                     rippleCount > 3 ? ripples[3].x : 0.0f,                 // 22
                     rippleCount > 3 ? ripples[3].time : -1.0f,             // 23
                     rippleCount > 3 ? ripples[3].amplitude : 0.0f,         // 24
-                    // Unused slots (indices 25-32) - polygon vertices now in uniform buffer
-                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
                 };
                 vkCmdPushConstants(commandBuffer, info->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(waterPushConstants), waterPushConstants);
             } else if (info->usesAnimationPushConstants) {
-                // Animation pipeline with extended push constants (33 floats)
+                // Animation pipeline with push constants (30 floats = 120 bytes)
+                // Layout: system(6) + params(4: param0-param3) + animation(20) = 30 floats
+                // param4/5/6 removed - unused in all animation shaders, freed 12 bytes to
+                // stay within the 128-byte Vulkan push constant minimum.
                 const Vector<float>* params = m_pipelineManager.getShaderParams(batch.pipelineId);
 
-                float animPushConstants[33] = {
+                float animPushConstants[30] = {
                     static_cast<float>(m_swapchainExtent.width),
                     static_cast<float>(m_swapchainExtent.height),
                     time,
@@ -1538,7 +1663,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
                     m_cameraOffsetY,
                     m_cameraZoom,
                     params ? (*params)[0] : 0.0f, params ? (*params)[1] : 0.0f, params ? (*params)[2] : 0.0f,
-                    params ? (*params)[3] : 0.0f, params ? (*params)[4] : 0.0f, params ? (*params)[5] : 0.0f, params ? (*params)[6] : 0.0f,
+                    params ? (*params)[3] : 0.0f,
                     // Animation parameters
                     batch.spinSpeed,
                     batch.centerX,
@@ -1616,6 +1741,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
                 if (descriptorSet != VK_NULL_HANDLE) {
                     if (info->isWaterPipeline) {
                         // Water pipeline uses 2 descriptor sets: water (with 3 bindings) + light
+                        INSERT_CHECKPOINT(commandBuffer, "water_draw");
                         VkDescriptorSet waterSet = m_descriptorManager.getWaterDescriptorSet();
                         VkDescriptorSet lightSet = m_descriptorManager.getLightDescriptorSet();
 
@@ -1644,6 +1770,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
     }
 
     // Phase 3: Draw debug shader (always last)
+    INSERT_CHECKPOINT(commandBuffer, "phase3_debug");
     for (Uint64 pipelineId : pipelinesToDraw) {
         if (!m_pipelineManager.isDebugPipeline(pipelineId)) {
             continue;
@@ -1948,5 +2075,6 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
         }
     }
 
+    INSERT_CHECKPOINT(commandBuffer, "main_pass_end");
     vkCmdEndRenderPass(commandBuffer);
 }
