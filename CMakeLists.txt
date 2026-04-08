@@ -173,6 +173,13 @@ if(BUILD_GAME)
         if(UNIX)
             target_link_options(shader_triangle PRIVATE -nostdlib++)
         endif()
+        if(WIN32)
+            target_link_options(shader_triangle PRIVATE
+                -static-libgcc
+                -static-libstdc++
+                -Wl,-Bstatic,-lpthread,-Bdynamic
+            )
+        endif()
         target_compile_options(shader_triangle PRIVATE -fno-rtti -fno-exceptions)
         target_sources(shader_triangle PRIVATE src/core/no_stl_shims.cpp)
     endif()
