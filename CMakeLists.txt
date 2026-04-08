@@ -26,6 +26,16 @@ endif()
 include_directories(${PNG_INCLUDE_DIRS})
 
 if(BUILD_GAME)
+    # When cross-compiling for Android the NDK toolchain restricts library search
+    # to the NDK sysroot, so pkg-config imported targets' INTERFACE_LINK_DIRECTORIES
+    # don't reach the linker.  Explicitly add every prefix in CMAKE_PREFIX_PATH so
+    # that -L<prefix>/lib is present in the final link command.
+    if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+        foreach(_pfx ${CMAKE_PREFIX_PATH})
+            link_directories("${_pfx}/lib")
+        endforeach()
+    endif()
+
     find_package(Vulkan REQUIRED)
     pkg_check_modules(SDL3 REQUIRED IMPORTED_TARGET sdl3)
     pkg_check_modules(LUA REQUIRED IMPORTED_TARGET lua5.4)
