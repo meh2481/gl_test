@@ -62,6 +62,12 @@ public:
     void render(float time);
     void cleanup();
 
+    // Recreate the swapchain (call after VK_ERROR_OUT_OF_DATE_KHR or window resize)
+    void recreateSwapchain(SDL_Window* window);
+
+    // Returns true if the last render() call received VK_ERROR_OUT_OF_DATE_KHR
+    bool needsSwapchainRecreation() const { return m_swapchainNeedsRecreation; }
+
     // Reflection/render-to-texture support
     void enableReflection(float surfaceY);
     void disableReflection();
@@ -204,6 +210,9 @@ private:
     VkPresentModeKHR m_preferredPresentMode;
     // Actual present mode selected after checking GPU support
     VkPresentModeKHR m_activePresentMode;
+
+    // Set to true when render() receives VK_ERROR_OUT_OF_DATE_KHR; cleared by recreateSwapchain()
+    bool m_swapchainNeedsRecreation;
 
     // Memory allocator
     MemoryAllocator* m_allocator;

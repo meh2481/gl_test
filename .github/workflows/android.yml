@@ -1,0 +1,335 @@
+name: Build Android
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Cache apt packages (Android job)
+        uses: actions/cache@v4
+        id: cache-apt-android
+        with:
+          path: ~/apt-cache-android/*.deb
+          key: apt-packages-android-${{ runner.os }}-v1
+
+      - name: Restore apt cache (Android job)
+        if: steps.cache-apt-android.outputs.cache-hit == 'true'
+        run: |
+          sudo mkdir -p /var/cache/apt/archives
+          sudo cp ~/apt-cache-android/*.deb /var/cache/apt/archives/
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build pkg-config python3 nasm \
+            libvulkan-dev vulkan-tools glslc \
+            libpng-dev libsquish-dev libjsoncpp-dev \
+            openjdk-17-jdk-headless
+          # Ubuntu ships libsquish.pc with an empty prefix; fix it so pkg-config resolves correctly.
+          sudo sed -i 's|^prefix=$|prefix=/usr|' "$(pkg-config --variable=pcfiledir libsquish)/libsquish.pc"
+
+      - name: Prepare apt cache for saving (Android job)
+        run: |
+          mkdir -p ~/apt-cache-android
+          cp /var/cache/apt/archives/*.deb ~/apt-cache-android/ 2>/dev/null || true
+
+      - name: Set up Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+          add-to-path: false
+
+      - name: Install Vulkan SDK
+        uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          quiet: true
+          cache: true
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      - name: Cache Android ARM64 dependencies
+        uses: actions/cache@v4
+        id: cache-android-deps
+        with:
+          path: ~/.android-arm64
+          key: android-arm64-deps-${{ runner.os }}-v3
+
+      - name: Build Android ARM64 dependencies
+        if: steps.cache-android-deps.outputs.cache-hit != 'true'
+        env:
+          ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          set -e
+          SYSROOT=$HOME/.android-arm64
+          ABI=arm64-v8a
+          API=26
+          NDK=$ANDROID_NDK
+          TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+          TARGET=aarch64-linux-android
+          CC=$TOOLCHAIN/bin/${TARGET}${API}-clang
+          CXX=$TOOLCHAIN/bin/${TARGET}${API}-clang++
+          AR=$TOOLCHAIN/bin/llvm-ar
+          RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+          STRIP=$TOOLCHAIN/bin/llvm-strip
+          mkdir -p $SYSROOT/lib/pkgconfig $SYSROOT/include $SYSROOT/bin
+
+          ANDROID_CMAKE_ARGS=(
+            -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake
+            -DANDROID_NDK=$NDK
+            -DANDROID_ABI=$ABI
+            -DANDROID_PLATFORM=android-$API
+            -DANDROID_STL=c++_static
+            -DCMAKE_INSTALL_PREFIX=$SYSROOT
+            -DCMAKE_BUILD_TYPE=Release
+            -GNinja
+          )
+
+          # --- zlib ---
+          curl -fsSL https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz | tar xz
+          cd zlib-1.3.1
+          cmake -B build "${ANDROID_CMAKE_ARGS[@]}" .
+          cmake --build build -j$(nproc)
+          cmake --install build
+          cd ..
+
+          # --- libpng ---
+          curl -fsSL https://downloads.sourceforge.net/libpng/libpng-1.6.43.tar.xz | tar xJ
+          cd libpng-1.6.43
+          cmake -B build "${ANDROID_CMAKE_ARGS[@]}" \
+            -DCMAKE_PREFIX_PATH=$SYSROOT \
+            -DPNG_SHARED=OFF -DPNG_STATIC=ON \
+            .
+          cmake --build build -j$(nproc)
+          cmake --install build
+          cd ..
+
+          # --- libsquish ---
+          curl -fsSL "https://sourceforge.net/projects/libsquish/files/libsquish-1.15.tgz/download" \
+            -o libsquish-1.15.tgz
+          mkdir squish && tar xzf libsquish-1.15.tgz -C squish
+          cd squish
+          $CXX -O2 --target=${TARGET} --sysroot=$TOOLCHAIN/sysroot \
+            -I. -fPIC -c \
+            alpha.cpp clusterfit.cpp colourblock.cpp colourfit.cpp \
+            colourset.cpp maths.cpp rangefit.cpp singlecolourfit.cpp squish.cpp
+          $AR rcu libsquish.a *.o
+          $RANLIB libsquish.a
+          cp libsquish.a $SYSROOT/lib/
+          cp squish.h $SYSROOT/include/
+          cat > $SYSROOT/lib/pkgconfig/libsquish.pc << 'EOF'
+          prefix=SYSROOT_PLACEHOLDER
+          exec_prefix=${prefix}
+          libdir=${exec_prefix}/lib
+          includedir=${prefix}/include
+          Name: libsquish
+          Description: DXT Compression Library
+          Version: 1.15
+          Libs: -L${libdir} -lsquish
+          Cflags: -I${includedir}
+          EOF
+          sed -i "s|SYSROOT_PLACEHOLDER|$SYSROOT|g" $SYSROOT/lib/pkgconfig/libsquish.pc
+          sed -i 's/^[[:space:]]*//' $SYSROOT/lib/pkgconfig/libsquish.pc
+          cd ..
+
+          # --- SDL3 ---
+          SDL3_VERSION=3.2.0
+          curl -fsSL https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VERSION}/SDL3-${SDL3_VERSION}.tar.gz | tar xz
+          cd SDL3-${SDL3_VERSION}
+          cmake -B build "${ANDROID_CMAKE_ARGS[@]}" \
+            -DSDL_SHARED=ON -DSDL_STATIC=OFF \
+            .
+          cmake --build build -j$(nproc)
+          cmake --install build
+          # Save SDL3 Android Java source so it's available from cache in the APK step.
+          mkdir -p $SYSROOT/sdl3-java
+          cp -r android-project/app/src/main/java/* $SYSROOT/sdl3-java/
+          cd ..
+
+          # --- Vulkan headers ---
+          git clone --depth=1 --branch vulkan-sdk-1.3.296.0 \
+            https://github.com/KhronosGroup/Vulkan-Headers.git
+          cmake -S Vulkan-Headers -B Vulkan-Headers/build \
+            -DCMAKE_INSTALL_PREFIX=$SYSROOT
+          cmake --install Vulkan-Headers/build
+
+          # --- Lua 5.4 (static) ---
+          curl -fsSL https://www.lua.org/ftp/lua-5.4.7.tar.gz | tar xz
+          cd lua-5.4.7/src
+          $CC -O2 --target=${TARGET} --sysroot=$TOOLCHAIN/sysroot \
+            -DLUA_USE_POSIX -fPIC -c \
+            lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c \
+            lmem.c lobject.c lopcodes.c lparser.c lstate.c lstring.c ltable.c \
+            ltm.c lundump.c lvm.c lzio.c \
+            lauxlib.c lbaselib.c lcorolib.c ldblib.c liolib.c lmathlib.c \
+            loadlib.c loslib.c lstrlib.c ltablib.c lutf8lib.c linit.c
+          $AR rcu liblua5.4.a *.o
+          $RANLIB liblua5.4.a
+          cp liblua5.4.a $SYSROOT/lib/
+          cp lua.h luaconf.h lualib.h lauxlib.h lua.hpp $SYSROOT/include/
+          cat > $SYSROOT/lib/pkgconfig/lua5.4.pc << 'EOF'
+          prefix=SYSROOT_PLACEHOLDER
+          exec_prefix=${prefix}
+          libdir=${exec_prefix}/lib
+          includedir=${prefix}/include
+          Name: Lua 5.4
+          Description: Lua scripting language
+          Version: 5.4.7
+          Libs: -L${libdir} -llua5.4
+          Cflags: -I${includedir}
+          EOF
+          sed -i "s|SYSROOT_PLACEHOLDER|$SYSROOT|g" $SYSROOT/lib/pkgconfig/lua5.4.pc
+          sed -i 's/^[[:space:]]*//' $SYSROOT/lib/pkgconfig/lua5.4.pc
+          cd ../..
+
+          # --- Box2D v3.1.1 ---
+          git clone https://github.com/erincatto/box2d.git
+          cd box2d
+          git checkout v3.1.1
+          cmake -B build "${ANDROID_CMAKE_ARGS[@]}" \
+            -DBOX2D_SAMPLES=OFF -DBOX2D_DOCS=OFF \
+            -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=OFF \
+            -DBUILD_SHARED_LIBS=OFF \
+            .
+          cmake --build build -j$(nproc)
+          cmake --install build
+          cd ..
+
+          # --- libogg ---
+          curl -fsSL https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.xz | tar xJ
+          cd libogg-1.3.5
+          cmake -B build "${ANDROID_CMAKE_ARGS[@]}" \
+            -DBUILD_SHARED_LIBS=OFF \
+            .
+          cmake --build build -j$(nproc)
+          cmake --install build
+          cd ..
+
+          # --- libopus ---
+          curl -fsSL https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz | tar xz
+          cd opus-1.5.2
+          cmake -B build "${ANDROID_CMAKE_ARGS[@]}" \
+            -DBUILD_SHARED_LIBS=OFF \
+            .
+          cmake --build build -j$(nproc)
+          cmake --install build
+          cd ..
+
+          # --- libopusfile ---
+          curl -fsSL https://downloads.xiph.org/releases/opus/opusfile-0.12.tar.gz | tar xz
+          cd opusfile-0.12
+          # opusfile uses autoconf; use cmake wrapper or compile directly
+          $CC -O2 --target=${TARGET} --sysroot=$TOOLCHAIN/sysroot \
+            -I$SYSROOT/include -I$SYSROOT/include/opus -Iinclude -fPIC -c \
+            src/http.c src/info.c src/internal.c src/opusfile.c src/stream.c
+          $AR rcu libopusfile.a *.o
+          $RANLIB libopusfile.a
+          cp libopusfile.a $SYSROOT/lib/
+          mkdir -p $SYSROOT/include/opus
+          cp include/opusfile.h $SYSROOT/include/opus/
+          cat > $SYSROOT/lib/pkgconfig/opusfile.pc << 'EOF'
+          prefix=SYSROOT_PLACEHOLDER
+          exec_prefix=${prefix}
+          libdir=${exec_prefix}/lib
+          includedir=${prefix}/include
+          Name: opusfile
+          Description: High-level Opus decoding library
+          Version: 0.12
+          Libs: -L${libdir} -lopusfile -lopus -logg
+          Cflags: -I${includedir}
+          EOF
+          sed -i "s|SYSROOT_PLACEHOLDER|$SYSROOT|g" $SYSROOT/lib/pkgconfig/opusfile.pc
+          cd ..
+
+          # --- OpenAL-soft (AAudio backend for Android) ---
+          # Pin to 1.24.1: last release before .cppm C++20 module sources were added.
+          # clang-scan-deps (required for C++20 module scanning) is not present in NDK r27c.
+          git clone --depth=1 --branch 1.24.1 https://github.com/kcat/openal-soft.git
+          cmake -S openal-soft -B openal-soft/build \
+            "${ANDROID_CMAKE_ARGS[@]}" \
+            -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF -DALSOFT_UTILS=OFF \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_PREFIX_PATH=$SYSROOT
+          cmake --build openal-soft/build -j$(nproc)
+          cmake --install openal-soft/build
+
+      - name: Build native packer (host executable)
+        run: |
+          mkdir -p build-native
+          cd build-native
+          cmake -DBUILD_GAME=OFF \
+            -DCMAKE_CXX_FLAGS="-I$HOME/.android-arm64/include" ..
+          make packer
+
+      - name: Cross-compile libmain.so for Android ARM64
+        env:
+          ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          set -e
+          mkdir -p build-android
+          cd build-android
+          export PKG_CONFIG_LIBDIR=$HOME/.android-arm64/lib/pkgconfig
+          cmake \
+            -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/cmake/toolchains/android.cmake \
+            -DANDROID_NDK=$ANDROID_NDK \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-26 \
+            -DANDROID_STL=c++_static \
+            -DNATIVE_PACKER=$GITHUB_WORKSPACE/build-native/packer \
+            -DCMAKE_PREFIX_PATH=$HOME/.android-arm64 \
+            -DANDROID_DEPS_PREFIX=$HOME/.android-arm64 \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
+            -DVulkan_INCLUDE_DIR=$HOME/.android-arm64/include \
+            -DCMAKE_BUILD_TYPE=Release \
+            -GNinja \
+            ..
+          ninja shader_triangle
+
+      - name: Package Android APK
+        run: |
+          set -e
+          SYSROOT=$HOME/.android-arm64
+
+          # Stage pre-built native shared libraries for Gradle packaging.
+          # libmain.so is the game; libSDL3.so and libopenal.so are shared
+          # dependencies that the Android linker must find at runtime.
+          JNI_DIR=$GITHUB_WORKSPACE/android/app/src/main/jniLibs/arm64-v8a
+          mkdir -p $JNI_DIR
+          cp $GITHUB_WORKSPACE/build-android/libmain.so $JNI_DIR/
+          cp $SYSROOT/lib/libSDL3.so   $JNI_DIR/
+          cp $SYSROOT/lib/libopenal.so $JNI_DIR/
+
+          # Stage packed game resources as Android assets.
+          ASSETS_DIR=$GITHUB_WORKSPACE/android/app/src/main/assets
+          mkdir -p $ASSETS_DIR
+          cp $GITHUB_WORKSPACE/build-android/res.pak $ASSETS_DIR/
+
+          # Stage SDL3 Android Java source (saved to the sysroot during deps build).
+          JAVA_DIR=$GITHUB_WORKSPACE/android/app/src/main/java
+          mkdir -p $JAVA_DIR
+          cp -r $SYSROOT/sdl3-java/* $JAVA_DIR/
+
+          # Point Gradle at the Android SDK and build a debug APK.
+          echo "sdk.dir=$ANDROID_HOME" > $GITHUB_WORKSPACE/android/local.properties
+          cd $GITHUB_WORKSPACE/android
+          ./gradlew assembleDebug
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shader_triangle-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+

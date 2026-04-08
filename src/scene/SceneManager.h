@@ -48,6 +48,7 @@ public:
     float getCameraOffsetX() const;
     float getCameraOffsetY() const;
     float getCameraZoom() const;
+    void setCameraZoom(float zoom);
     void applyScrollZoom(float scrollDelta);
 
     // Particle editor support (DEBUG only)

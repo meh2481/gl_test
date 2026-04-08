@@ -217,6 +217,21 @@ void AudioManager::initialize() {
     alListenerfv(AL_ORIENTATION, listenerOri);
 }
 
+void AudioManager::suspend() {
+    if (context) {
+        alcSuspendContext(context);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: suspended OpenAL context");
+    }
+}
+
+void AudioManager::resume() {
+    if (context) {
+        alcProcessContext(context);
+        alcMakeContextCurrent(context);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_INFO, "AudioManager: resumed OpenAL context");
+    }
+}
+
 void AudioManager::cleanup() {
     // Release all music tracks first (frees OggOpusFile handles and OpenAL sources)
     for (int i = 0; i < MAX_MUSIC_TRACKS; i++) {

@@ -100,6 +100,7 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_preferredGpuIndex(-1),
     m_preferredPresentMode(VK_PRESENT_MODE_FIFO_KHR),
     m_activePresentMode(VK_PRESENT_MODE_FIFO_KHR),
+    m_swapchainNeedsRecreation(false),
     m_reflectionRenderPass(VK_NULL_HANDLE),
     m_reflectionFramebuffer(VK_NULL_HANDLE),
     m_reflectionTextureId(REFLECTION_TEXTURE_ID_INVALID),
@@ -307,8 +308,12 @@ void VulkanRenderer::render(float time) {
     VkResult result = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
     profiler.updateThreadState(THREAD_STATE_BUSY);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        m_swapchainNeedsRecreation = true;
         return;
-    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+    } else if (result == VK_SUBOPTIMAL_KHR) {
+        // Swapchain is suboptimal (e.g. orientation changed); recreate after presenting this frame.
+        m_swapchainNeedsRecreation = true;
+    } else if (result != VK_SUCCESS) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
         assert(false);
     }
@@ -355,10 +360,81 @@ void VulkanRenderer::render(float time) {
     presentInfo.pImageIndices = &imageIndex;
 
     profiler.updateThreadState(THREAD_STATE_WAITING);
-    vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+    VkResult presentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
     profiler.updateThreadState(THREAD_STATE_BUSY);
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+        m_swapchainNeedsRecreation = true;
+    } else if (presentResult != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_WARN, "vkQueuePresentKHR returned: %s", vkResultToString(presentResult));
+    }
 
     m_currentFrame = (m_currentFrame + 1) % 2;
+}
+
+void VulkanRenderer::recreateSwapchain(SDL_Window* window) {
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Recreating Vulkan swapchain...");
+    assert(m_device != VK_NULL_HANDLE);
+    vkDeviceWaitIdle(m_device);
+
+    // Destroy framebuffers
+    if (m_swapchainFramebuffers != nullptr) {
+        for (Uint64 i = 0; i < m_swapchainImageCount; i++) {
+            if (m_swapchainFramebuffers[i] != VK_NULL_HANDLE) {
+                vkDestroyFramebuffer(m_device, m_swapchainFramebuffers[i], nullptr);
+            }
+        }
+        delete[] m_swapchainFramebuffers;
+        m_swapchainFramebuffers = nullptr;
+    }
+
+    // Destroy MSAA color resources
+    if (m_msaaColorImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(m_device, m_msaaColorImageView, nullptr);
+        m_msaaColorImageView = VK_NULL_HANDLE;
+    }
+    if (m_msaaColorImage != VK_NULL_HANDLE) {
+        vkDestroyImage(m_device, m_msaaColorImage, nullptr);
+        m_msaaColorImage = VK_NULL_HANDLE;
+    }
+    if (m_msaaColorImageMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(m_device, m_msaaColorImageMemory, nullptr);
+        m_msaaColorImageMemory = VK_NULL_HANDLE;
+    }
+
+    // Destroy swapchain image views
+    if (m_swapchainImageViews != nullptr) {
+        for (Uint64 i = 0; i < m_swapchainImageCount; i++) {
+            if (m_swapchainImageViews[i] != VK_NULL_HANDLE) {
+                vkDestroyImageView(m_device, m_swapchainImageViews[i], nullptr);
+            }
+        }
+        delete[] m_swapchainImageViews;
+        m_swapchainImageViews = nullptr;
+    }
+
+    // Destroy old swapchain
+    if (m_swapchain != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+        m_swapchain = VK_NULL_HANDLE;
+    }
+    if (m_swapchainImages != nullptr) {
+        delete[] m_swapchainImages;
+        m_swapchainImages = nullptr;
+    }
+    m_swapchainImageCount = 0;
+
+    // Recreate swapchain and all dependent resources
+    createSwapchain(window);
+    createImageViews();
+    createMsaaColorResources();
+    createFramebuffers();
+
+    // Update the pipeline manager's stored extent so any new pipelines use the correct size
+    m_pipelineManager.init(m_device, m_renderPass, m_msaaSamples, m_swapchainExtent, m_consoleBuffer);
+
+    m_swapchainNeedsRecreation = false;
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "Swapchain recreated: %ux%u",
+                         m_swapchainExtent.width, m_swapchainExtent.height);
 }
 
 bool VulkanRenderer::getTextureDimensions(Uint64 textureId, Uint32* width, Uint32* height) const {
@@ -830,8 +906,14 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    createInfo.preTransform = capabilities.currentTransform;
-    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    // Select a supported composite alpha mode; prefer opaque for desktop,
+    // fall back to inherit which Android always supports.
+    if (capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    } else {
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    }
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
     {

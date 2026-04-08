@@ -114,6 +114,7 @@ public:
           actionToGamepadButtons_(*allocator, "KeybindingManager::actionToGamepadButtons_") {
         // Set up default keybindings
         bind(SDLK_ESCAPE, ACTION_EXIT);
+        bind(SDLK_AC_BACK, ACTION_EXIT);  // Android back button
         bind(SDLK_RETURN, ACTION_MENU);
         bind(SDLK_P, ACTION_PHYSICS_DEMO);
         bind(SDLK_A, ACTION_AUDIO_TEST);

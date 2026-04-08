@@ -16,11 +16,44 @@ option(BUILD_GAME "Build the main game executable" ON)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PNG REQUIRED IMPORTED_TARGET libpng)
 pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
-find_library(SQUISH_LIB NAMES squish REQUIRED)
-pkg_check_modules(JSONCPP REQUIRED IMPORTED_TARGET jsoncpp)
+pkg_check_modules(SQUISH REQUIRED IMPORTED_TARGET libsquish)
+# libsquish's pkg-config file is broken: empty prefix yields "/include" as the
+# includedir and "-llibsquish" as the link flag.  Fix both on the imported target.
+if(TARGET PkgConfig::SQUISH)
+    get_target_property(_squish_inc PkgConfig::SQUISH INTERFACE_INCLUDE_DIRECTORIES)
+    if(_squish_inc)
+        list(FILTER _squish_inc EXCLUDE REGEX "^/include$")
+        set_target_properties(PkgConfig::SQUISH PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${_squish_inc}")
+    endif()
+    get_target_property(_squish_libs PkgConfig::SQUISH INTERFACE_LINK_LIBRARIES)
+    if(_squish_libs)
+        list(TRANSFORM _squish_libs REPLACE "^libsquish$" "squish")
+        set_target_properties(PkgConfig::SQUISH PROPERTIES INTERFACE_LINK_LIBRARIES "${_squish_libs}")
+    endif()
+    # Also fix the raw SQUISH_LIBRARIES variable used by older-style link calls
+    if(SQUISH_LIBRARIES)
+        list(TRANSFORM SQUISH_LIBRARIES REPLACE "^libsquish$" "squish")
+    endif()
+endif()
+# jsoncpp is only used by the packer host tool, never by the game itself.
+# Skip it (and the packer target below) when cross-compiling for Android so
+# the android sysroot does not need a jsoncpp cross-build.
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+    pkg_check_modules(JSONCPP REQUIRED IMPORTED_TARGET jsoncpp)
+endif()
 include_directories(${PNG_INCLUDE_DIRS})
 
 if(BUILD_GAME)
+    # When cross-compiling for Android the NDK toolchain restricts library search
+    # to the NDK sysroot, so pkg-config imported targets' INTERFACE_LINK_DIRECTORIES
+    # don't reach the linker.  Callers must pass -DANDROID_DEPS_PREFIX=<sysroot>
+    # (e.g. ~/.android-arm64) so that -L<sysroot>/lib is injected explicitly.
+    if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+        if(DEFINED ANDROID_DEPS_PREFIX AND NOT ANDROID_DEPS_PREFIX STREQUAL "")
+            link_directories("${ANDROID_DEPS_PREFIX}/lib")
+        endif()
+    endif()
+
     find_package(Vulkan REQUIRED)
     pkg_check_modules(SDL3 REQUIRED IMPORTED_TARGET sdl3)
     pkg_check_modules(LUA REQUIRED IMPORTED_TARGET lua5.4)
@@ -91,9 +124,11 @@ if(BUILD_GAME)
     add_custom_target(shaders DEPENDS ${SHADER_FILES})
 endif()
 
-add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
-target_sources(packer PRIVATE src/compress/Compress.cpp)
-target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB ${SQUISH_LIB} PkgConfig::JSONCPP)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+    add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
+    target_sources(packer PRIVATE src/compress/Compress.cpp)
+    target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB PkgConfig::SQUISH PkgConfig::JSONCPP)
+endif()
 
 if(BUILD_GAME)
     file(GLOB_RECURSE RES_FILES
@@ -124,10 +159,40 @@ if(BUILD_GAME)
 
     add_custom_target(res_pak DEPENDS ${CMAKE_BINARY_DIR}/res.pak)
 
+    set(GAME_SOURCES
+        src/main.cpp
+        src/core/config.cpp
+        src/core/TrigLookup.cpp
+        src/resources/resource.cpp
+        src/vulkan/VulkanRenderer.cpp
+        src/vulkan/VulkanBuffer.cpp
+        src/vulkan/VulkanTexture.cpp
+        src/vulkan/VulkanDescriptor.cpp
+        src/vulkan/VulkanPipeline.cpp
+        src/vulkan/VulkanLight.cpp
+        src/vulkan/VulkanWaterPolygon.cpp
+        src/scene/LuaInterface.cpp
+        src/scene/SceneManager.cpp
+        src/physics/Box2DPhysics.cpp
+        src/scene/SceneLayer.cpp
+        src/audio/AudioManager.cpp
+        src/effects/ParticleSystem.cpp
+        src/effects/WaterEffect.cpp
+        src/memory/SmallMemoryAllocator.cpp
+        src/memory/LargeMemoryAllocator.cpp
+        src/core/String.cpp
+        src/animation/AnimationEngine.cpp
+        src/compress/Compress.cpp
+    )
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_executable(shader_triangle src/main.cpp src/core/config.cpp src/core/TrigLookup.cpp src/resources/resource.cpp src/vulkan/VulkanRenderer.cpp src/vulkan/VulkanBuffer.cpp src/vulkan/VulkanTexture.cpp src/vulkan/VulkanDescriptor.cpp src/vulkan/VulkanPipeline.cpp src/vulkan/VulkanLight.cpp src/vulkan/VulkanWaterPolygon.cpp src/scene/LuaInterface.cpp src/scene/SceneManager.cpp src/physics/Box2DPhysics.cpp src/scene/SceneLayer.cpp src/audio/AudioManager.cpp src/effects/ParticleSystem.cpp src/debug/ImGuiManager.cpp src/effects/WaterEffect.cpp src/memory/SmallMemoryAllocator.cpp src/memory/LargeMemoryAllocator.cpp src/core/String.cpp src/animation/AnimationEngine.cpp src/compress/Compress.cpp)
+        list(APPEND GAME_SOURCES src/debug/ImGuiManager.cpp)
+    endif()
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+        add_library(shader_triangle SHARED ${GAME_SOURCES})
+        set_target_properties(shader_triangle PROPERTIES OUTPUT_NAME "main")
     else()
-        add_executable(shader_triangle src/main.cpp src/core/config.cpp src/core/TrigLookup.cpp src/resources/resource.cpp src/vulkan/VulkanRenderer.cpp src/vulkan/VulkanBuffer.cpp src/vulkan/VulkanTexture.cpp src/vulkan/VulkanDescriptor.cpp src/vulkan/VulkanPipeline.cpp src/vulkan/VulkanLight.cpp src/vulkan/VulkanWaterPolygon.cpp src/scene/LuaInterface.cpp src/scene/SceneManager.cpp src/physics/Box2DPhysics.cpp src/scene/SceneLayer.cpp src/audio/AudioManager.cpp src/effects/ParticleSystem.cpp src/effects/WaterEffect.cpp src/memory/SmallMemoryAllocator.cpp src/memory/LargeMemoryAllocator.cpp src/core/String.cpp src/animation/AnimationEngine.cpp src/compress/Compress.cpp)
+        add_executable(shader_triangle ${GAME_SOURCES})
     endif()
     add_dependencies(shader_triangle shaders res_pak)
 
@@ -144,7 +209,7 @@ if(BUILD_GAME)
         target_link_libraries(shader_triangle PkgConfig::SDL3 Vulkan::Vulkan PkgConfig::LUA box2d::box2d PkgConfig::OPENAL PkgConfig::OPUSFILE)
     endif()
 
-    if(UNIX)
+    if(UNIX AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
         target_link_options(shader_triangle PRIVATE -nostdlib)
     endif()
 
@@ -170,7 +235,7 @@ if(BUILD_GAME)
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_link_options(shader_triangle PRIVATE -Wl,--as-needed)
-        if(UNIX)
+        if(UNIX AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
             target_link_options(shader_triangle PRIVATE -nostdlib++)
         endif()
         if(WIN32)
@@ -181,7 +246,12 @@ if(BUILD_GAME)
             )
         endif()
         target_compile_options(shader_triangle PRIVATE -fno-rtti -fno-exceptions)
-        target_sources(shader_triangle PRIVATE src/core/no_stl_shims.cpp)
+        if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+            target_sources(shader_triangle PRIVATE src/core/no_stl_shims.cpp)
+        else()
+            target_sources(shader_triangle PRIVATE src/core/android_main.cpp)
+            target_link_libraries(shader_triangle log android)
+        endif()
     endif()
 
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -203,7 +273,7 @@ if(BUILD_GAME)
             -Wl,--gc-sections
             -Wl,--strip-all
         )
-        if(UNIX)
+        if(UNIX AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
             target_link_options(shader_triangle PRIVATE
                 -Wl,--build-id=none
                 -Wl,-z,max-page-size=4096

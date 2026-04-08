@@ -29,6 +29,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libvulkan-dev vulkan-tools glslc liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev libjsoncpp-dev
+          # Ubuntu ships libsquish.pc with an empty prefix, which causes CMake to reject
+          # the imported target (includedir resolves to /include instead of /usr/include).
+          sudo sed -i 's|^prefix=$|prefix=/usr|' "$(pkg-config --variable=pcfiledir libsquish)/libsquish.pc"
 
       - name: Prepare apt cache for saving
         run: |
@@ -167,6 +170,8 @@ jobs:
             libvulkan-dev vulkan-tools glslc \
             libpng-dev libsquish-dev libjsoncpp-dev \
             cmake pkg-config python3 nasm zstd
+          # Ubuntu ships libsquish.pc with an empty prefix; fix it so pkg-config resolves correctly.
+          sudo sed -i 's|^prefix=$|prefix=/usr|' "$(pkg-config --variable=pcfiledir libsquish)/libsquish.pc"
 
       - name: Prepare apt cache for saving (Windows job)
         run: |
@@ -240,6 +245,7 @@ jobs:
           Libs: -L\${libdir} -lsquish
           Cflags: -I\${includedir}
           EOF
+          sed -i 's/^[[:space:]]*//' $SYSROOT/lib/pkgconfig/libsquish.pc
           cd ..
 
           # --- SDL3 pre-built MinGW development package ---
@@ -292,6 +298,7 @@ jobs:
           Libs: -L\${libdir} -llua5.4
           Cflags: -I\${includedir}
           EOF
+          sed -i 's/^[[:space:]]*//' $SYSROOT/lib/pkgconfig/lua5.4.pc
           cd ../..
 
           # --- Box2D v3.1.1 ---
