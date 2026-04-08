@@ -1,6 +1,5 @@
 * Add sprite animations
 * Add textboxes, fonts, kerning, line spacing, automatic word wrapping, and text justification
-* Stream music in multiple layers, with support for fading layers in and out
 * Replace libopusfile with our own audio format
 * requestAndTryResource() in LuaInterface.cpp defeats the entire purpose of async resource loading
 * Windows test result: [2026-04-07 19:17:52.705] [ERROR] Vulkan error in vkQueueSubmit: VK_ERROR_DEVICE_LOST
