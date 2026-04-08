@@ -140,6 +140,7 @@ jobs:
           Cflags: -I${includedir}
           EOF
           sed -i "s|SYSROOT_PLACEHOLDER|$SYSROOT|g" $SYSROOT/lib/pkgconfig/libsquish.pc
+          sed -i 's/^[[:space:]]*//' $SYSROOT/lib/pkgconfig/libsquish.pc
           cd ..
 
           # --- SDL3 pre-built Android library ---

@@ -240,6 +240,7 @@ jobs:
           Libs: -L\${libdir} -lsquish
           Cflags: -I\${includedir}
           EOF
+          sed -i 's/^[[:space:]]*//' $SYSROOT/lib/pkgconfig/libsquish.pc
           cd ..
 
           # --- SDL3 pre-built MinGW development package ---
@@ -292,6 +293,7 @@ jobs:
           Libs: -L\${libdir} -llua5.4
           Cflags: -I\${includedir}
           EOF
+          sed -i 's/^[[:space:]]*//' $SYSROOT/lib/pkgconfig/lua5.4.pc
           cd ../..
 
           # --- Box2D v3.1.1 ---
