@@ -388,6 +388,8 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
                                      "addLight", "updateLightPosition", "updateLightColor", "updateLightIntensity", "removeLight", "setAmbientLight",
                                      "createParticleSystem", "destroyParticleSystem", "setParticleSystemPosition", "loadParticleShaders",
                                      "openParticleEditor", "loadParticleConfig", "loadObject", "createNode", "getNode", "destroyNode", "getNodePosition",
+                                     "animateLayerScale", "animateLayerPosition", "animateLayerRotation", "animateLayerColor", "animateLayerOffset",
+                                     "animateLightIntensity", "stopAnimation", "stopLayerAnimations", "fireAction",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -436,6 +438,28 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
         nullptr
     };
     for (const char** constant = audioConstants; *constant; ++constant) {
+        lua_getglobal(luaState_, *constant);
+        lua_setfield(luaState_, -2, *constant);
+    }
+
+    // Copy interpolation type constants
+    const char* interpConstants[] = {
+        "INTERPOLATION_LINEAR", "INTERPOLATION_EASE_IN", "INTERPOLATION_EASE_OUT",
+        "INTERPOLATION_EASE_IN_OUT", "INTERPOLATION_SMOOTH_STEP", "INTERPOLATION_CATMULL_ROM",
+        nullptr
+    };
+    for (const char** constant = interpConstants; *constant; ++constant) {
+        lua_getglobal(luaState_, *constant);
+        lua_setfield(luaState_, -2, *constant);
+    }
+
+    // Copy animation property type constants
+    const char* propConstants[] = {
+        "PROPERTY_LAYER_SCALE", "PROPERTY_LAYER_POSITION", "PROPERTY_LAYER_ROTATION",
+        "PROPERTY_LAYER_COLOR", "PROPERTY_LAYER_OFFSET",
+        nullptr
+    };
+    for (const char** constant = propConstants; *constant; ++constant) {
         lua_getglobal(luaState_, *constant);
         lua_setfield(luaState_, -2, *constant);
     }
@@ -847,6 +871,33 @@ void LuaInterface::cleanupScene(Uint64 sceneId) {
     cameraZoom_ = 1.0f;
 }
 
+void LuaInterface::resumeScene(Uint64 sceneId) {
+    // Get the scene table from registry
+    lua_pushinteger(luaState_, sceneId);
+    lua_gettable(luaState_, LUA_REGISTRYINDEX);
+
+    if (!lua_istable(luaState_, -1)) {
+        lua_pop(luaState_, 1);
+        return; // Scene not found, silently ignore
+    }
+
+    // Get the onResume function from the table (optional)
+    lua_getfield(luaState_, -1, "onResume");
+    if (lua_isfunction(luaState_, -1)) {
+        if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
+            const char* errorMsg = lua_tostring(luaState_, -1);
+            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua onResume error: %s", (errorMsg ? errorMsg : "unknown error"));
+            lua_pop(luaState_, 1); // Pop error message
+            assert(false);
+        }
+    } else {
+        lua_pop(luaState_, 1); // Pop non-function
+    }
+
+    // Pop the table
+    lua_pop(luaState_, 1);
+}
+
 void LuaInterface::switchToScenePipeline(Uint64 sceneId) {
     consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::switchToScenePipeline: sceneId=%llu", (unsigned long long)sceneId);
     Vector<IntPair>** pipelinesPtr = scenePipelines_.find(sceneId);
@@ -1033,6 +1084,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "animateLightIntensity", animateLightIntensity);
     lua_register(luaState_, "stopAnimation", stopAnimation);
     lua_register(luaState_, "stopLayerAnimations", stopLayerAnimations);
+    lua_register(luaState_, "fireAction", fireAction);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -1061,10 +1113,8 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_APPLY_FORCE");
     lua_pushinteger(luaState_, ACTION_RESET_PHYSICS);
     lua_setglobal(luaState_, "ACTION_RESET_PHYSICS");
-#ifdef DEBUG
     lua_pushinteger(luaState_, ACTION_TOGGLE_DEBUG_DRAW);
     lua_setglobal(luaState_, "ACTION_TOGGLE_DEBUG_DRAW");
-#endif
     lua_pushinteger(luaState_, ACTION_DRAG_START);
     lua_setglobal(luaState_, "ACTION_DRAG_START");
     lua_pushinteger(luaState_, ACTION_DRAG_END);
@@ -1097,6 +1147,18 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "INTERPOLATION_SMOOTH_STEP");
     lua_pushinteger(luaState_, INTERPOLATION_CATMULL_ROM);
     lua_setglobal(luaState_, "INTERPOLATION_CATMULL_ROM");
+
+    // Register animation property type constants (for stopLayerAnimations)
+    lua_pushinteger(luaState_, PROPERTY_LAYER_SCALE);
+    lua_setglobal(luaState_, "PROPERTY_LAYER_SCALE");
+    lua_pushinteger(luaState_, PROPERTY_LAYER_POSITION);
+    lua_setglobal(luaState_, "PROPERTY_LAYER_POSITION");
+    lua_pushinteger(luaState_, PROPERTY_LAYER_ROTATION);
+    lua_setglobal(luaState_, "PROPERTY_LAYER_ROTATION");
+    lua_pushinteger(luaState_, PROPERTY_LAYER_COLOR);
+    lua_setglobal(luaState_, "PROPERTY_LAYER_COLOR");
+    lua_pushinteger(luaState_, PROPERTY_LAYER_OFFSET);
+    lua_setglobal(luaState_, "PROPERTY_LAYER_OFFSET");
 }
 
 int LuaInterface::loadShaders(lua_State* L) {
@@ -1253,6 +1315,26 @@ int LuaInterface::popScene(lua_State* L) {
 
     return 0; // No return values
 }
+
+// fireAction(action)
+// Dispatches an action through the scene manager, as if it came from keyboard/gamepad input.
+// This allows Lua UI elements (e.g. buttons) to hook into the action system.
+int LuaInterface::fireAction(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isinteger(L, 1));
+
+    int action = (int)lua_tointeger(L, 1);
+    if (action >= 0 && action < ACTION_COUNT) {
+        assert(interface->sceneManager_ != nullptr);
+        interface->sceneManager_->handleAction(static_cast<Action>(action));
+    }
+    return 0;
+}
+
 // Box2D Lua bindings
 int LuaInterface::b2SetGravity(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");

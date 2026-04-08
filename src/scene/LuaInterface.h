@@ -46,6 +46,7 @@ public:
     void updateScene(Uint64 sceneId, float deltaTime);
     void handleAction(Uint64 sceneId, Action action);
     void cleanupScene(Uint64 sceneId);
+    void resumeScene(Uint64 sceneId);
     void switchToScenePipeline(Uint64 sceneId);
     void clearScenePipelines(Uint64 sceneId);
 
@@ -235,6 +236,7 @@ private:
     static int animateLightIntensity(lua_State* L);
     static int stopAnimation(lua_State* L);
     static int stopLayerAnimations(lua_State* L);
+    static int fireAction(lua_State* L);
 
     void registerFunctions();
 

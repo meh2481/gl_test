@@ -659,6 +659,7 @@ void SceneManager::updateTransition(float deltaTime) {
                 if (!sceneStack_.empty()) {
                     Uint64 newActiveSceneId = sceneStack_.top();
                     luaInterface_->switchToScenePipeline(newActiveSceneId);
+                    luaInterface_->resumeScene(newActiveSceneId);
                 }
             }
 
