@@ -798,6 +798,10 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    // Using IDENTITY instead of capabilities.currentTransform means we do not pre-rotate
+    // content in shaders; the Android compositor handles physical screen rotation.
+    // The driver may return VK_SUBOPTIMAL_KHR as a performance hint (encouraging
+    // pre-rotation), but that is benign and intentionally ignored in render().
     // Select a supported composite alpha mode; prefer opaque for desktop,
     // fall back to inherit which Android always supports.
     if (capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
