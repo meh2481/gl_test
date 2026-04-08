@@ -31,7 +31,7 @@ function init()
 
     -- Load shared button resources
     local texId    = loadTexture("res/objects/rock/rock.png")
-    local shaderId = loadTexturedShaders("res/shaders/sprite_vertex.spv", "res/shaders/sprite_fragment.spv", 1)
+    local shaderId = loadAnimTexturedShaders("res/shaders/anim_sprite_vertex.spv", "res/shaders/anim_sprite_fragment.spv", 1, 1)
 
     -- Row 1 (y=0.5): play-sound buttons — left / center / right
     loadObject("res/nodes/button.lua", { texId=texId, shaderId=shaderId,

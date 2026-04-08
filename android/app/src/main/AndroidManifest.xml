@@ -19,7 +19,7 @@
         <activity
             android:name=".GameActivity"
             android:exported="true"
-            android:screenOrientation="landscape"
+            android:screenOrientation="fullSensor"
             android:resizeableActivity="false"
             android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation">
             <intent-filter>

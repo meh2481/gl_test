@@ -83,6 +83,17 @@ local function createButtons()
     audioBtn   = makeButton( 0.25, -0.35, 0.22, ACTION_AUDIO_TEST,   0.3, 0.6,  1.0)
 end
 
+local function destroyButtons()
+    if physicsBtn and physicsBtn.layer then
+        destroyLayer(physicsBtn.layer)
+        physicsBtn.layer = nil
+    end
+    if audioBtn and audioBtn.layer then
+        destroyLayer(audioBtn.layer)
+        audioBtn.layer = nil
+    end
+end
+
 function init()
     -- Load the nebula shaders (z-index 0)
     loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", 0)
@@ -91,7 +102,7 @@ function init()
 
     -- Load shared button resources (texture and shader persist even when sub-scenes are cleaned up)
     btnTexId    = loadTexture("res/objects/rock/rock.png")
-    btnShaderId = loadTexturedShaders("res/shaders/sprite_vertex.spv", "res/shaders/sprite_fragment.spv", 1)
+    btnShaderId = loadAnimTexturedShaders("res/shaders/anim_sprite_vertex.spv", "res/shaders/anim_sprite_fragment.spv", 1, 1)
 
     createButtons()
 end
@@ -114,15 +125,19 @@ function onAction(action)
         popScene()
     end
     if action == ACTION_MENU then
+        destroyButtons()
         pushScene("res/scenes/menu.lua")
     end
     if action == ACTION_PHYSICS_DEMO then
+        destroyButtons()
         pushScene("res/scenes/physics.lua")
     end
     if action == ACTION_AUDIO_TEST then
+        destroyButtons()
         pushScene("res/scenes/audio_test.lua")
     end
     if action == ACTION_PARTICLE_EDITOR then
+        destroyButtons()
         pushScene("res/scenes/particle_editor.lua")
     end
     if action == ACTION_DRAG_START then
