@@ -310,10 +310,9 @@ void VulkanRenderer::render(float time) {
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         m_swapchainNeedsRecreation = true;
         return;
-    } else if (result == VK_SUBOPTIMAL_KHR) {
-        // Swapchain is suboptimal (e.g. orientation changed); recreate after presenting this frame.
-        m_swapchainNeedsRecreation = true;
-    } else if (result != VK_SUCCESS) {
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        // VK_SUBOPTIMAL_KHR is a benign performance hint on Android (preTransform mismatch);
+        // the compositor handles the rotation, so ignore it and do not recreate.
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkAcquireNextImageKHR failed: %s", vkResultToString(result));
         assert(false);
     }
@@ -362,9 +361,10 @@ void VulkanRenderer::render(float time) {
     profiler.updateThreadState(THREAD_STATE_WAITING);
     VkResult presentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
     profiler.updateThreadState(THREAD_STATE_BUSY);
-    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR) {
         m_swapchainNeedsRecreation = true;
-    } else if (presentResult != VK_SUCCESS) {
+    } else if (presentResult != VK_SUCCESS && presentResult != VK_SUBOPTIMAL_KHR) {
+        // VK_SUBOPTIMAL_KHR from present is harmless (preTransform mismatch hint); ignore it.
         m_consoleBuffer->log(SDL_LOG_PRIORITY_WARN, "vkQueuePresentKHR returned: %s", vkResultToString(presentResult));
     }
 
@@ -907,6 +907,10 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    // Using IDENTITY instead of capabilities.currentTransform means we do not pre-rotate
+    // content in shaders; the Android compositor handles physical screen rotation.
+    // The driver may return VK_SUBOPTIMAL_KHR as a performance hint (encouraging
+    // pre-rotation), but that is benign and intentionally ignored in render().
     // Select a supported composite alpha mode; prefer opaque for desktop,
     // fall back to inherit which Android always supports.
     if (capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
@@ -959,7 +963,11 @@ void VulkanRenderer::createRenderPass() {
     colorAttachment.format = m_swapchainImageFormat;
     colorAttachment.samples = m_msaaSamples;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    // When MSAA is enabled the MSAA image is resolved into the resolve attachment;
+    // the MSAA data does not need to be written to memory (DONT_CARE is correct and
+    // avoids expensive tile-memory flushes on tile-based GPUs such as Adreno).
+    colorAttachment.storeOp = (m_msaaSamples == VK_SAMPLE_COUNT_1_BIT) ?
+        VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;

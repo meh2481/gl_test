@@ -286,6 +286,10 @@ extern "C" int app_main()
 
     int x = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
     int y = SDL_WINDOWPOS_CENTERED_DISPLAY(config.display);
+    // Lock to landscape on Android/mobile so the swapchain is always landscape-sized.
+    // SDL3 infers orientation from the initial window aspect ratio; setting the hint
+    // explicitly avoids SDL3 locking to portrait when the phone is held upright at launch.
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
     SDL_PropertiesID props = SDL_CreateProperties();
     SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Shader Triangle");
     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, x);
