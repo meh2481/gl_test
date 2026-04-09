@@ -119,6 +119,9 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_reflectionRenderPass(VK_NULL_HANDLE),
     m_reflectionFramebuffer(VK_NULL_HANDLE),
     m_reflectionTextureId(REFLECTION_TEXTURE_ID_INVALID),
+    m_reflectionMsaaImage(VK_NULL_HANDLE),
+    m_reflectionMsaaImageMemory(VK_NULL_HANDLE),
+    m_reflectionMsaaImageView(VK_NULL_HANDLE),
     m_reflectionEnabled(false),
     m_reflectionSurfaceY(0.0f),
     m_frameCount(0),
@@ -2259,6 +2262,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
     }
 #endif
 
+    INSERT_CHECKPOINT(commandBuffer, "main_pass_end");
     vkCmdEndRenderPass(commandBuffer);
     {
         VkResult result = vkEndCommandBuffer(commandBuffer);
@@ -2299,7 +2303,8 @@ void VulkanRenderer::disableReflection() {
 }
 
 void VulkanRenderer::createReflectionResources() {
-    // Create render target texture for reflection
+    // Create render target texture for reflection (always 1-sample; used as the
+    // resolve attachment when MSAA is active, or the direct color attachment otherwise).
     m_reflectionTextureId = REFLECTION_TEXTURE_ID;
     m_textureManager.createRenderTargetTexture(m_reflectionTextureId,
                                                 m_swapchainExtent.width,
@@ -2312,25 +2317,87 @@ void VulkanRenderer::createReflectionResources() {
         m_descriptorManager.createSingleTextureDescriptorSet(m_reflectionTextureId, texData.imageView, texData.sampler);
     }
 
-    // Create render pass for reflection (no MSAA, single attachment)
+    // If MSAA is active we need a matching multi-sample color image for the reflection
+    // render pass.  Sprites and phong pipelines are compiled against the main render pass
+    // sample count (m_msaaSamples).  Using them inside a 1-sample render pass violates
+    // VUID-vkCmdBindPipeline and causes VK_ERROR_DEVICE_LOST on strict drivers (NVIDIA).
+    const bool useMsaa = (m_msaaSamples != VK_SAMPLE_COUNT_1_BIT);
+    if (useMsaa) {
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent = {m_swapchainExtent.width, m_swapchainExtent.height, 1};
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = m_swapchainImageFormat;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imageInfo.samples = m_msaaSamples;
+        VkResult r = vkCreateImage(m_device, &imageInfo, nullptr, &m_reflectionMsaaImage);
+        assert(r == VK_SUCCESS);
+
+        VkMemoryRequirements memReq;
+        vkGetImageMemoryRequirements(m_device, m_reflectionMsaaImage, &memReq);
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memReq.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        r = vkAllocateMemory(m_device, &allocInfo, nullptr, &m_reflectionMsaaImageMemory);
+        assert(r == VK_SUCCESS);
+        vkBindImageMemory(m_device, m_reflectionMsaaImage, m_reflectionMsaaImageMemory, 0);
+
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = m_reflectionMsaaImage;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = m_swapchainImageFormat;
+        viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        r = vkCreateImageView(m_device, &viewInfo, nullptr, &m_reflectionMsaaImageView);
+        assert(r == VK_SUCCESS);
+    }
+
+    // Build the reflection render pass.  The sample count and attachment structure
+    // must exactly mirror the main render pass so that the same pipelines can be used.
+    //
+    //  Non-MSAA: one attachment (the reflection texture, STORE)
+    //  MSAA:     attachment[0] = MSAA image (DONT_CARE store, intermediate)
+    //            attachment[1] = reflection texture (resolve target, STORE)
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = m_swapchainImageFormat;
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.samples = m_msaaSamples;  // match the pipelines
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.storeOp = useMsaa ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    colorAttachment.finalLayout = useMsaa ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                                          : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentDescription resolveAttachment{};
+    resolveAttachment.format = m_swapchainImageFormat;
+    resolveAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    resolveAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    resolveAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    resolveAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    resolveAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    resolveAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    resolveAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkAttachmentReference colorAttachmentRef{};
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentReference resolveAttachmentRef{};
+    resolveAttachmentRef.attachment = 1;
+    resolveAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pResolveAttachments = useMsaa ? &resolveAttachmentRef : nullptr;
 
     // Entry dependency: wait for any previous sampling/attachment use before writing
     VkSubpassDependency dependencies[2]{};
@@ -2342,9 +2409,8 @@ void VulkanRenderer::createReflectionResources() {
     dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-    // Exit dependency: ensure color writes are complete and layout transition to
-    // SHADER_READ_ONLY_OPTIMAL is visible before the main pass samples this texture.
-    // NVIDIA Windows drivers enforce this strictly; missing it causes VK_ERROR_DEVICE_LOST.
+    // Exit dependency: ensure color writes (and the implicit MSAA resolve) are visible
+    // to the main pass fragment shader before it samples the reflection texture.
     dependencies[1].srcSubpass = 0;
     dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -2353,10 +2419,11 @@ void VulkanRenderer::createReflectionResources() {
     dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
     dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
+    VkAttachmentDescription attachments[] = {colorAttachment, resolveAttachment};
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.attachmentCount = useMsaa ? 2u : 1u;
+    renderPassInfo.pAttachments = attachments;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 2;
@@ -2367,11 +2434,22 @@ void VulkanRenderer::createReflectionResources() {
 
     // Create framebuffer for reflection
     if (m_textureManager.getTexture(m_reflectionTextureId, &texData)) {
+        VkImageView fbAttachments[2];
+        Uint32 fbAttachmentCount;
+        if (useMsaa) {
+            fbAttachments[0] = m_reflectionMsaaImageView;  // slot 0: MSAA draw target
+            fbAttachments[1] = texData.imageView;          // slot 1: resolve target
+            fbAttachmentCount = 2;
+        } else {
+            fbAttachments[0] = texData.imageView;          // slot 0: direct color target
+            fbAttachmentCount = 1;
+        }
+
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = m_reflectionRenderPass;
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = &texData.imageView;
+        framebufferInfo.attachmentCount = fbAttachmentCount;
+        framebufferInfo.pAttachments = fbAttachments;
         framebufferInfo.width = m_swapchainExtent.width;
         framebufferInfo.height = m_swapchainExtent.height;
         framebufferInfo.layers = 1;
@@ -2380,7 +2458,9 @@ void VulkanRenderer::createReflectionResources() {
         assert(result == VK_SUCCESS);
     }
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_TRACE, "Created reflection resources: %dx%d", m_swapchainExtent.width, m_swapchainExtent.height);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_DEBUG,
+        "Created reflection resources: %dx%d msaa=%d",
+        m_swapchainExtent.width, m_swapchainExtent.height, (int)m_msaaSamples);
 }
 
 void VulkanRenderer::destroyReflectionResources() {
@@ -2392,6 +2472,19 @@ void VulkanRenderer::destroyReflectionResources() {
     if (m_reflectionRenderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(m_device, m_reflectionRenderPass, nullptr);
         m_reflectionRenderPass = VK_NULL_HANDLE;
+    }
+
+    if (m_reflectionMsaaImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(m_device, m_reflectionMsaaImageView, nullptr);
+        m_reflectionMsaaImageView = VK_NULL_HANDLE;
+    }
+    if (m_reflectionMsaaImage != VK_NULL_HANDLE) {
+        vkDestroyImage(m_device, m_reflectionMsaaImage, nullptr);
+        m_reflectionMsaaImage = VK_NULL_HANDLE;
+    }
+    if (m_reflectionMsaaImageMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(m_device, m_reflectionMsaaImageMemory, nullptr);
+        m_reflectionMsaaImageMemory = VK_NULL_HANDLE;
     }
 
     if (m_reflectionTextureId != REFLECTION_TEXTURE_ID_INVALID) {
@@ -2518,7 +2611,6 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
         }
     }
 
-    INSERT_CHECKPOINT(commandBuffer, "main_pass_end");
     vkCmdEndRenderPass(commandBuffer);
     m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
         "[Vulkan][Frame %llu] reflection pass end",

@@ -224,6 +224,13 @@ private:
     VkRenderPass m_reflectionRenderPass;
     VkFramebuffer m_reflectionFramebuffer;
     Uint64 m_reflectionTextureId;
+    // MSAA resolve image for reflection (only used when m_msaaSamples > 1).
+    // The reflection render pass must use the same sample count as the pipelines
+    // (created for the main pass).  This MSAA image is the color attachment;
+    // the actual reflection texture is the resolve attachment.
+    VkImage m_reflectionMsaaImage;
+    VkDeviceMemory m_reflectionMsaaImageMemory;
+    VkImageView m_reflectionMsaaImageView;
     bool m_reflectionEnabled;
     float m_reflectionSurfaceY;  // Y coordinate of water surface for reflection clipping
 
