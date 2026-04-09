@@ -3,7 +3,32 @@
 #include "../core/HashSet.h"
 #include "../debug/ConsoleBuffer.h"
 #include <cassert>
+#include <cstdint>
 #include <SDL3/SDL_log.h>
+
+static const char* vkResultToString(VkResult result) {
+    switch (result) {
+        case VK_SUCCESS: return "VK_SUCCESS";
+        case VK_NOT_READY: return "VK_NOT_READY";
+        case VK_TIMEOUT: return "VK_TIMEOUT";
+        case VK_EVENT_SET: return "VK_EVENT_SET";
+        case VK_EVENT_RESET: return "VK_EVENT_RESET";
+        case VK_INCOMPLETE: return "VK_INCOMPLETE";
+        case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+        case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
+        case VK_ERROR_DEVICE_LOST: return "VK_ERROR_DEVICE_LOST";
+        case VK_ERROR_MEMORY_MAP_FAILED: return "VK_ERROR_MEMORY_MAP_FAILED";
+        case VK_ERROR_LAYER_NOT_PRESENT: return "VK_ERROR_LAYER_NOT_PRESENT";
+        case VK_ERROR_EXTENSION_NOT_PRESENT: return "VK_ERROR_EXTENSION_NOT_PRESENT";
+        case VK_ERROR_FEATURE_NOT_PRESENT: return "VK_ERROR_FEATURE_NOT_PRESENT";
+        case VK_ERROR_INCOMPATIBLE_DRIVER: return "VK_ERROR_INCOMPATIBLE_DRIVER";
+        case VK_ERROR_TOO_MANY_OBJECTS: return "VK_ERROR_TOO_MANY_OBJECTS";
+        case VK_ERROR_FORMAT_NOT_SUPPORTED: return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+        case VK_ERROR_FRAGMENTED_POOL: return "VK_ERROR_FRAGMENTED_POOL";
+        default: return "VK_UNKNOWN_ERROR";
+    }
+}
 
 VulkanTexture::VulkanTexture(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer) :
     m_device(VK_NULL_HANDLE),
@@ -28,6 +53,12 @@ void VulkanTexture::init(VkDevice device, VkPhysicalDevice physicalDevice, VkCom
     m_commandPool = commandPool;
     m_graphicsQueue = graphicsQueue;
     m_initialized = true;
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] init device=%p physicalDevice=%p commandPool=%p graphicsQueue=%p",
+        (void*)(uintptr_t)(m_device),
+        (void*)(uintptr_t)(m_physicalDevice),
+        (void*)(uintptr_t)(m_commandPool),
+        (void*)(uintptr_t)(m_graphicsQueue));
 }
 
 void VulkanTexture::cleanup() {
@@ -49,6 +80,14 @@ Uint32 VulkanTexture::findMemoryType(Uint32 typeFilter, VkMemoryPropertyFlags pr
 
 void VulkanTexture::createTextureImage(Uint64 textureId, const void* imageData, Uint32 width, Uint32 height,
                                        VkFormat format, Uint64 dataSize) {
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] createTextureImage id=%llu size=%ux%u format=%d uploadBytes=%llu",
+        (unsigned long long)textureId,
+        width,
+        height,
+        (int)format,
+        (unsigned long long)dataSize);
+
     // Create staging buffer
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
@@ -133,13 +172,25 @@ void VulkanTexture::createTextureImage(Uint64 textureId, const void* imageData, 
     cmdAllocInfo.commandPool = m_commandPool;
     cmdAllocInfo.commandBufferCount = 1;
 
-    vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &commandBuffer);
+    VkResult allocCmdResult = vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &commandBuffer);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkAllocateCommandBuffers(texture=%llu) -> %s cmd=%p",
+        (unsigned long long)textureId,
+        vkResultToString(allocCmdResult),
+        (void*)(uintptr_t)(commandBuffer));
+    assert(allocCmdResult == VK_SUCCESS);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VkResult beginResult = vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkBeginCommandBuffer(texture=%llu, cmd=%p) -> %s",
+        (unsigned long long)textureId,
+        (void*)(uintptr_t)(commandBuffer),
+        vkResultToString(beginResult));
+    assert(beginResult == VK_SUCCESS);
 
     // Transition to transfer dst
     VkImageMemoryBarrier barrier{};
@@ -156,6 +207,10 @@ void VulkanTexture::createTextureImage(Uint64 textureId, const void* imageData, 
     barrier.subresourceRange.layerCount = 1;
     barrier.srcAccessMask = 0;
     barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] barrier texture=%llu UNDEFINED -> TRANSFER_DST_OPTIMAL",
+        (unsigned long long)textureId);
 
     vkCmdPipelineBarrier(commandBuffer,
                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -177,12 +232,21 @@ void VulkanTexture::createTextureImage(Uint64 textureId, const void* imageData, 
     region.imageExtent = {width, height, 1};
 
     vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, tex.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkCmdCopyBufferToImage texture=%llu extent=%ux%u",
+        (unsigned long long)textureId,
+        width,
+        height);
 
     // Transition to shader read
     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] barrier texture=%llu TRANSFER_DST_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL",
+        (unsigned long long)textureId);
 
     vkCmdPipelineBarrier(commandBuffer,
                         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
@@ -191,15 +255,35 @@ void VulkanTexture::createTextureImage(Uint64 textureId, const void* imageData, 
                         0, nullptr,
                         1, &barrier);
 
-    vkEndCommandBuffer(commandBuffer);
+    VkResult endResult = vkEndCommandBuffer(commandBuffer);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkEndCommandBuffer(texture=%llu, cmd=%p) -> %s",
+        (unsigned long long)textureId,
+        (void*)(uintptr_t)(commandBuffer),
+        vkResultToString(endResult));
+    assert(endResult == VK_SUCCESS);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_graphicsQueue);
+    VkResult submitResult = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkQueueSubmit(texture=%llu, queue=%p, cmd=%p) -> %s",
+        (unsigned long long)textureId,
+        (void*)(uintptr_t)(m_graphicsQueue),
+        (void*)(uintptr_t)(commandBuffer),
+        vkResultToString(submitResult));
+    assert(submitResult == VK_SUCCESS);
+
+    VkResult waitIdleResult = vkQueueWaitIdle(m_graphicsQueue);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkQueueWaitIdle(texture=%llu, queue=%p) -> %s",
+        (unsigned long long)textureId,
+        (void*)(uintptr_t)(m_graphicsQueue),
+        vkResultToString(waitIdleResult));
+    assert(waitIdleResult == VK_SUCCESS);
 
     vkFreeCommandBuffers(m_device, m_commandPool, 1, &commandBuffer);
     vkDestroyBuffer(m_device, stagingBuffer, nullptr);
@@ -437,6 +521,13 @@ void VulkanTexture::destroyAllTextures() {
 }
 
 void VulkanTexture::createRenderTargetTexture(Uint64 textureId, Uint32 width, Uint32 height, VkFormat format) {
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] createRenderTargetTexture id=%llu size=%ux%u format=%d",
+        (unsigned long long)textureId,
+        width,
+        height,
+        (int)format);
+
     // Destroy existing texture if present
     if (m_textures.find(textureId) != nullptr) {
         destroyTexture(textureId);
@@ -491,13 +582,25 @@ void VulkanTexture::createRenderTargetTexture(Uint64 textureId, Uint32 width, Ui
     cmdAllocInfo.commandPool = m_commandPool;
     cmdAllocInfo.commandBufferCount = 1;
 
-    vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &commandBuffer);
+    VkResult allocCmdResult = vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &commandBuffer);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkAllocateCommandBuffers(renderTarget=%llu) -> %s cmd=%p",
+        (unsigned long long)textureId,
+        vkResultToString(allocCmdResult),
+        (void*)(uintptr_t)(commandBuffer));
+    assert(allocCmdResult == VK_SUCCESS);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VkResult beginResult = vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkBeginCommandBuffer(renderTarget=%llu, cmd=%p) -> %s",
+        (unsigned long long)textureId,
+        (void*)(uintptr_t)(commandBuffer),
+        vkResultToString(beginResult));
+    assert(beginResult == VK_SUCCESS);
 
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -514,6 +617,10 @@ void VulkanTexture::createRenderTargetTexture(Uint64 textureId, Uint32 width, Ui
     barrier.srcAccessMask = 0;
     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] barrier renderTarget=%llu UNDEFINED -> SHADER_READ_ONLY_OPTIMAL",
+        (unsigned long long)textureId);
+
     vkCmdPipelineBarrier(commandBuffer,
                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         0,
@@ -521,15 +628,35 @@ void VulkanTexture::createRenderTargetTexture(Uint64 textureId, Uint32 width, Ui
                         0, nullptr,
                         1, &barrier);
 
-    vkEndCommandBuffer(commandBuffer);
+    VkResult endResult = vkEndCommandBuffer(commandBuffer);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkEndCommandBuffer(renderTarget=%llu, cmd=%p) -> %s",
+        (unsigned long long)textureId,
+        (void*)(uintptr_t)(commandBuffer),
+        vkResultToString(endResult));
+    assert(endResult == VK_SUCCESS);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_graphicsQueue);
+    VkResult submitResult = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkQueueSubmit(renderTarget=%llu, queue=%p, cmd=%p) -> %s",
+        (unsigned long long)textureId,
+        (void*)(uintptr_t)(m_graphicsQueue),
+        (void*)(uintptr_t)(commandBuffer),
+        vkResultToString(submitResult));
+    assert(submitResult == VK_SUCCESS);
+
+    VkResult waitIdleResult = vkQueueWaitIdle(m_graphicsQueue);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[VulkanTexture] vkQueueWaitIdle(renderTarget=%llu, queue=%p) -> %s",
+        (unsigned long long)textureId,
+        (void*)(uintptr_t)(m_graphicsQueue),
+        vkResultToString(waitIdleResult));
+    assert(waitIdleResult == VK_SUCCESS);
 
     vkFreeCommandBuffers(m_device, m_commandPool, 1, &commandBuffer);
 

@@ -4,6 +4,7 @@
 #include "../debug/ConsoleBuffer.h"
 #include "../debug/ThreadProfiler.h"
 #include <cassert>
+#include <cstdint>
 #include <SDL3/SDL_vulkan.h>
 
 // Helper function to convert VkResult to readable string for error logging
@@ -32,6 +33,20 @@ static const char* vkResultToString(VkResult result) {
         case VK_SUBOPTIMAL_KHR: return "VK_SUBOPTIMAL_KHR";
         case VK_ERROR_OUT_OF_DATE_KHR: return "VK_ERROR_OUT_OF_DATE_KHR";
         default: return "VK_UNKNOWN_ERROR";
+    }
+}
+
+static const char* boolToString(bool value) {
+    return value ? "true" : "false";
+}
+
+static const char* vkPresentModeToString(VkPresentModeKHR mode) {
+    switch (mode) {
+        case VK_PRESENT_MODE_IMMEDIATE_KHR: return "VK_PRESENT_MODE_IMMEDIATE_KHR";
+        case VK_PRESENT_MODE_MAILBOX_KHR: return "VK_PRESENT_MODE_MAILBOX_KHR";
+        case VK_PRESENT_MODE_FIFO_KHR: return "VK_PRESENT_MODE_FIFO_KHR";
+        case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "VK_PRESENT_MODE_FIFO_RELAXED_KHR";
+        default: return "VK_PRESENT_MODE_UNKNOWN";
     }
 }
 
@@ -248,6 +263,13 @@ void VulkanRenderer::logDeviceLostDiagnostics() {
         "  allBatches.size()=%zu pipelinesToDraw.size()=%zu",
         m_allBatches.size(),
         m_pipelineManager.getPipelinesToDraw().size());
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+        "  currentFrame=%llu commandBuffer=%p imageAvailableSemaphore=%p renderFinishedSemaphore=%p inFlightFence=%p",
+        (unsigned long long)m_currentFrame,
+        (m_commandBuffers != nullptr) ? (void*)(uintptr_t)(m_commandBuffers[m_currentFrame]) : nullptr,
+        (void*)(uintptr_t)(m_imageAvailableSemaphores[m_currentFrame]),
+        (void*)(uintptr_t)(m_renderFinishedSemaphores[m_currentFrame]),
+        (void*)(uintptr_t)(m_inFlightFences[m_currentFrame]));
 
     if (m_diagnosticCheckpointsEnabled && m_vkGetQueueCheckpointDataNV != nullptr) {
         Uint32 count = 0;
@@ -294,9 +316,36 @@ void VulkanRenderer::render(float time) {
 
     ++m_frameCount;
 
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] begin currentFrame=%llu device=%p queue=%p swapchain=%p reflection=%s batches=%zu",
+        (unsigned long long)m_frameCount,
+        (unsigned long long)m_currentFrame,
+        (void*)(uintptr_t)(m_device),
+        (void*)(uintptr_t)(m_graphicsQueue),
+        (void*)(uintptr_t)(m_swapchain),
+        boolToString(m_reflectionEnabled),
+        m_allBatches.size());
+
     profiler.updateThreadState(THREAD_STATE_WAITING);
-    vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    VkResult waitResult = vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
     profiler.updateThreadState(THREAD_STATE_BUSY);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] vkWaitForFences(frameFence=%p) -> %s",
+        (unsigned long long)m_frameCount,
+        (void*)(uintptr_t)(m_inFlightFences[m_currentFrame]),
+        vkResultToString(waitResult));
+    if (waitResult == VK_ERROR_DEVICE_LOST) {
+        m_deviceLost = true;
+        logDeviceLostDiagnostics();
+        return;
+    }
+    if (waitResult != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "vkWaitForFences failed on frame %llu: %s",
+            (unsigned long long)m_frameCount,
+            vkResultToString(waitResult));
+        assert(false);
+    }
 
     // Update light uniform buffer if dirty
     if (m_lightManager.isDirty()) {
@@ -307,8 +356,21 @@ void VulkanRenderer::render(float time) {
     profiler.updateThreadState(THREAD_STATE_WAITING);
     VkResult result = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
     profiler.updateThreadState(THREAD_STATE_BUSY);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] vkAcquireNextImageKHR(waitSem=%p) -> %s imageIndex=%u",
+        (unsigned long long)m_frameCount,
+        (void*)(uintptr_t)(m_imageAvailableSemaphores[m_currentFrame]),
+        vkResultToString(result),
+        imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         m_swapchainNeedsRecreation = true;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "[Vulkan][Frame %llu] swapchain marked for recreation (acquire out-of-date)",
+            (unsigned long long)m_frameCount);
+        return;
+    } else if (result == VK_ERROR_DEVICE_LOST) {
+        m_deviceLost = true;
+        logDeviceLostDiagnostics();
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         // VK_SUBOPTIMAL_KHR is a benign performance hint on Android (preTransform mismatch);
@@ -317,10 +379,54 @@ void VulkanRenderer::render(float time) {
         assert(false);
     }
 
-    vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
+    VkResult resetFenceResult = vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] vkResetFences(frameFence=%p) -> %s",
+        (unsigned long long)m_frameCount,
+        (void*)(uintptr_t)(m_inFlightFences[m_currentFrame]),
+        vkResultToString(resetFenceResult));
+    if (resetFenceResult == VK_ERROR_DEVICE_LOST) {
+        m_deviceLost = true;
+        logDeviceLostDiagnostics();
+        return;
+    }
+    if (resetFenceResult != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "vkResetFences failed on frame %llu: %s",
+            (unsigned long long)m_frameCount,
+            vkResultToString(resetFenceResult));
+        assert(false);
+    }
 
-    vkResetCommandBuffer(m_commandBuffers[m_currentFrame], 0);
+    VkResult resetCmdResult = vkResetCommandBuffer(m_commandBuffers[m_currentFrame], 0);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] vkResetCommandBuffer(cmd=%p) -> %s",
+        (unsigned long long)m_frameCount,
+        (void*)(uintptr_t)(m_commandBuffers[m_currentFrame]),
+        vkResultToString(resetCmdResult));
+    if (resetCmdResult == VK_ERROR_DEVICE_LOST) {
+        m_deviceLost = true;
+        logDeviceLostDiagnostics();
+        return;
+    }
+    if (resetCmdResult != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "vkResetCommandBuffer failed on frame %llu: %s",
+            (unsigned long long)m_frameCount,
+            vkResultToString(resetCmdResult));
+        assert(false);
+    }
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] recordCommandBuffer begin cmd=%p imageIndex=%u",
+        (unsigned long long)m_frameCount,
+        (void*)(uintptr_t)(m_commandBuffers[m_currentFrame]),
+        imageIndex);
     recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, time);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] recordCommandBuffer end cmd=%p",
+        (unsigned long long)m_frameCount,
+        (void*)(uintptr_t)(m_commandBuffers[m_currentFrame]));
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -337,8 +443,22 @@ void VulkanRenderer::render(float time) {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] vkQueueSubmit queue=%p cmd=%p waitSem=%p signalSem=%p fence=%p waitStageMask=0x%x",
+        (unsigned long long)m_frameCount,
+        (void*)(uintptr_t)(m_graphicsQueue),
+        (void*)(uintptr_t)(m_commandBuffers[m_currentFrame]),
+        (void*)(uintptr_t)(waitSemaphores[0]),
+        (void*)(uintptr_t)(signalSemaphores[0]),
+        (void*)(uintptr_t)(m_inFlightFences[m_currentFrame]),
+        (unsigned)waitStages[0]);
+
     {
         VkResult submitResult = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrame]);
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "[Vulkan][Frame %llu] vkQueueSubmit -> %s",
+            (unsigned long long)m_frameCount,
+            vkResultToString(submitResult));
         if (submitResult == VK_ERROR_DEVICE_LOST) {
             m_deviceLost = true;
             logDeviceLostDiagnostics();
@@ -358,17 +478,39 @@ void VulkanRenderer::render(float time) {
     presentInfo.pSwapchains = swapchains;
     presentInfo.pImageIndices = &imageIndex;
 
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] vkQueuePresentKHR queue=%p swapchain=%p imageIndex=%u waitSem=%p",
+        (unsigned long long)m_frameCount,
+        (void*)(uintptr_t)(m_graphicsQueue),
+        (void*)(uintptr_t)(m_swapchain),
+        imageIndex,
+        (void*)(uintptr_t)(signalSemaphores[0]));
+
     profiler.updateThreadState(THREAD_STATE_WAITING);
     VkResult presentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
     profiler.updateThreadState(THREAD_STATE_BUSY);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] vkQueuePresentKHR -> %s",
+        (unsigned long long)m_frameCount,
+        vkResultToString(presentResult));
     if (presentResult == VK_ERROR_OUT_OF_DATE_KHR) {
         m_swapchainNeedsRecreation = true;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "[Vulkan][Frame %llu] swapchain marked for recreation (present out-of-date)",
+            (unsigned long long)m_frameCount);
+    } else if (presentResult == VK_ERROR_DEVICE_LOST) {
+        m_deviceLost = true;
+        logDeviceLostDiagnostics();
     } else if (presentResult != VK_SUCCESS && presentResult != VK_SUBOPTIMAL_KHR) {
         // VK_SUBOPTIMAL_KHR from present is harmless (preTransform mismatch hint); ignore it.
         m_consoleBuffer->log(SDL_LOG_PRIORITY_WARN, "vkQueuePresentKHR returned: %s", vkResultToString(presentResult));
     }
 
     m_currentFrame = (m_currentFrame + 1) % 2;
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] end nextCurrentFrame=%llu",
+        (unsigned long long)m_frameCount,
+        (unsigned long long)m_currentFrame);
 }
 
 void VulkanRenderer::recreateSwapchain(SDL_Window* window) {
@@ -751,11 +893,20 @@ void VulkanRenderer::createLogicalDevice() {
     int graphicsFamily = -1;
     int presentFamily = -1;
     for (Uint32 i = 0; i < queueFamilyCount; i++) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "QueueFamily[%u]: flags=0x%x queueCount=%u",
+            i,
+            (unsigned)queueFamilies[i].queueFlags,
+            queueFamilies[i].queueCount);
         if (graphicsFamily < 0 && (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
             graphicsFamily = i;
         }
         VkBool32 presentSupport = false;
         vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, i, m_surface, &presentSupport);
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "QueueFamily[%u]: presentSupport=%s",
+            i,
+            boolToString(presentSupport == VK_TRUE));
         if (presentFamily < 0 && presentSupport) {
             presentFamily = i;
         }
@@ -779,6 +930,10 @@ void VulkanRenderer::createLogicalDevice() {
         queueCreateInfos[i] = queueCreateInfo;
     }
     VkPhysicalDeviceFeatures deviceFeatures{};
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "Selected queue families: graphics=%d present=%d",
+        graphicsFamily,
+        presentFamily);
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     createInfo.queueCreateInfoCount = static_cast<Uint32>(numUnique);
@@ -810,10 +965,21 @@ void VulkanRenderer::createLogicalDevice() {
     } else {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "VK_NV_device_diagnostic_checkpoints not available on this device");
     }
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "Creating logical device with %u extension(s): %s%s%s",
+        deviceExtensionCount,
+        deviceExtensionNames[0],
+        (deviceExtensionCount > 1) ? ", " : "",
+        (deviceExtensionCount > 1) ? deviceExtensionNames[1] : "");
     createInfo.enabledExtensionCount = deviceExtensionCount;
     createInfo.ppEnabledExtensionNames = deviceExtensionNames;
 
     VkResult deviceResult = vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "vkCreateDevice -> %s device=%p",
+        vkResultToString(deviceResult),
+        (void*)(uintptr_t)(m_device));
     assert(deviceResult == VK_SUCCESS);
 
     // Load NV checkpoint function pointers if the extension was enabled.
@@ -829,6 +995,10 @@ void VulkanRenderer::createLogicalDevice() {
     }
 
     vkGetDeviceQueue(m_device, static_cast<Uint32>(graphicsFamily), 0, &m_graphicsQueue);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "vkGetDeviceQueue(graphicsFamily=%u, index=0) -> queue=%p",
+        static_cast<Uint32>(graphicsFamily),
+        (void*)(uintptr_t)(m_graphicsQueue));
     m_graphicsQueueFamilyIndex = graphicsFamily;
     delete[] queueFamilies;
 }
@@ -892,6 +1062,28 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(formats, formatCount);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(presentModes, presentModeCount);
     VkExtent2D extent = chooseSwapExtent(capabilities, window);
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "Surface capabilities: minImageCount=%u maxImageCount=%u currentExtent=%ux%u minExtent=%ux%u maxExtent=%ux%u currentTransform=0x%x supportedTransforms=0x%x",
+        capabilities.minImageCount,
+        capabilities.maxImageCount,
+        capabilities.currentExtent.width,
+        capabilities.currentExtent.height,
+        capabilities.minImageExtent.width,
+        capabilities.minImageExtent.height,
+        capabilities.maxImageExtent.width,
+        capabilities.maxImageExtent.height,
+        (unsigned)capabilities.currentTransform,
+        (unsigned)capabilities.supportedTransforms);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "Swapchain choices: format=%d colorSpace=%d presentMode=%s(%d) extent=%ux%u",
+        (int)surfaceFormat.format,
+        (int)surfaceFormat.colorSpace,
+        vkPresentModeToString(presentMode),
+        (int)presentMode,
+        extent.width,
+        extent.height);
+
     Uint32 imageCount = capabilities.minImageCount + 1;
     if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
         imageCount = capabilities.maxImageCount;
@@ -922,6 +1114,14 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
     createInfo.clipped = VK_TRUE;
     {
         VkResult result = vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain);
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "vkCreateSwapchainKHR(imageCount=%u, usage=0x%x, preTransform=0x%x, compositeAlpha=0x%x) -> %s swapchain=%p",
+            imageCount,
+            (unsigned)createInfo.imageUsage,
+            (unsigned)createInfo.preTransform,
+            (unsigned)createInfo.compositeAlpha,
+            vkResultToString(result),
+            (void*)(uintptr_t)(m_swapchain));
         assert(result == VK_SUCCESS);
     }
     vkGetSwapchainImagesKHR(m_device, m_swapchain, &imageCount, nullptr);
@@ -930,6 +1130,21 @@ void VulkanRenderer::createSwapchain(SDL_Window* window) {
     vkGetSwapchainImagesKHR(m_device, m_swapchain, &imageCount, m_swapchainImages);
     m_swapchainImageFormat = surfaceFormat.format;
     m_swapchainExtent = extent;
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "Swapchain created: imageCount=%u format=%d extent=%ux%u",
+        imageCount,
+        (int)m_swapchainImageFormat,
+        m_swapchainExtent.width,
+        m_swapchainExtent.height);
+
+    for (Uint32 i = 0; i < imageCount; ++i) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "  swapchainImage[%u]=%p",
+            i,
+            (void*)(uintptr_t)(m_swapchainImages[i]));
+    }
+
     delete[] formats;
     delete[] presentModes;
 }
@@ -1589,10 +1804,24 @@ void VulkanRenderer::setAmbientLight(float r, float g, float b) {
     do { if (m_diagnosticCheckpointsEnabled) m_vkCmdSetCheckpointNV((cmdBuf), (label)); } while(0)
 
 void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 imageIndex, float time) {
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] recordCommandBuffer(cmd=%p, imageIndex=%u, time=%.3f) pipelines=%zu batches=%zu",
+        (unsigned long long)m_frameCount,
+        (void*)(uintptr_t)(commandBuffer),
+        imageIndex,
+        time,
+        m_pipelineManager.getPipelinesToDraw().size(),
+        m_allBatches.size());
+
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     {
         VkResult result = vkBeginCommandBuffer(commandBuffer, &beginInfo);
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "[Vulkan][Frame %llu] vkBeginCommandBuffer(cmd=%p) -> %s",
+            (unsigned long long)m_frameCount,
+            (void*)(uintptr_t)(commandBuffer),
+            vkResultToString(result));
         assert(result == VK_SUCCESS);
     }
 
@@ -1600,6 +1829,10 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
 
     // Render reflection pass first (if enabled)
     if (m_reflectionEnabled) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "[Vulkan][Frame %llu] reflection pass enabled (surfaceY=%.3f)",
+            (unsigned long long)m_frameCount,
+            m_reflectionSurfaceY);
         INSERT_CHECKPOINT(commandBuffer, "reflection_pass_start");
         recordReflectionPass(commandBuffer, time);
         INSERT_CHECKPOINT(commandBuffer, "reflection_pass_end");
@@ -1629,6 +1862,10 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
     };
 
     const auto& pipelinesToDraw = m_pipelineManager.getPipelinesToDraw();
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] pipeline pass start: pipelinesToDraw=%zu",
+        (unsigned long long)m_frameCount,
+        pipelinesToDraw.size());
 
     // Phase 1: Draw background shaders (non-textured pipelines like nebula)
     INSERT_CHECKPOINT(commandBuffer, "phase1_background");
@@ -1642,6 +1879,11 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
 
         // Non-textured pipeline (e.g., background shaders)
         if (pipeline != VK_NULL_HANDLE && info == nullptr) {
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                "[Vulkan][Frame %llu] draw background pipelineId=%llu pipeline=%p",
+                (unsigned long long)m_frameCount,
+                (unsigned long long)pipelineId,
+                (void*)(uintptr_t)(pipeline));
             float parallaxDepth = m_pipelineManager.getPipelineParallaxDepth(static_cast<int>(pipelineId));
 
             float pipelinePushConstants[7] = {
@@ -1668,6 +1910,10 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
     // m_allBatches is pre-sorted by parallax depth (higher = background = drawn first)
     INSERT_CHECKPOINT(commandBuffer, "phase2_batches");
     if (!m_allBatches.empty()) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "[Vulkan][Frame %llu] drawing %zu total batches",
+            (unsigned long long)m_frameCount,
+            m_allBatches.size());
         int currentPipelineId = -1;
         bool currentIsParticle = false;
         bool spriteBound = false;
@@ -1678,8 +1924,28 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
             const PipelineInfo* info = m_pipelineManager.getPipelineInfo(batch.pipelineId);
 
             if (pipeline == VK_NULL_HANDLE || info == nullptr) {
+                m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                    "[Vulkan][Frame %llu] skip batch pipelineId=%d (pipeline=%p info=%p)",
+                    (unsigned long long)m_frameCount,
+                    batch.pipelineId,
+                    (void*)(uintptr_t)(pipeline),
+                    static_cast<const void*>(info));
                 continue;
             }
+
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                "[Vulkan][Frame %llu] batch pipelineId=%d isParticle=%s descriptorId=%llu tex=%llu normal=%llu idxCount=%u firstIdx=%u instCount=%u firstInst=%u depth=%.3f",
+                (unsigned long long)m_frameCount,
+                batch.pipelineId,
+                boolToString(batch.isParticle),
+                (unsigned long long)batch.descriptorId,
+                (unsigned long long)batch.textureId,
+                (unsigned long long)batch.normalMapId,
+                batch.indexCount,
+                batch.firstIndex,
+                batch.instanceCount,
+                batch.firstInstance,
+                batch.parallaxDepth);
 
             // Switch buffers if switching between sprite and particle batches
             if (batch.isParticle != currentIsParticle) {
@@ -1722,6 +1988,11 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
             if (batch.pipelineId != currentPipelineId) {
                 currentPipelineId = batch.pipelineId;
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+                m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                    "[Vulkan][Frame %llu] vkCmdBindPipeline pipelineId=%d pipeline=%p",
+                    (unsigned long long)m_frameCount,
+                    batch.pipelineId,
+                    (void*)(uintptr_t)(pipeline));
             }
 
             // Set push constants for this batch
@@ -1841,6 +2112,11 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
                             descriptorSet = it.value();
                         }
                     }
+                    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                        "[Vulkan][Frame %llu] particle descriptor bind textureId=%llu descriptorSet=%p",
+                        (unsigned long long)m_frameCount,
+                        (unsigned long long)batch.textureId,
+                        (void*)(uintptr_t)(descriptorSet));
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                           info->layout, 0, 1, &descriptorSet, 0, nullptr);
                     vkCmdDrawIndexed(commandBuffer, batch.indexCount, batch.instanceCount, batch.firstIndex, 0, batch.firstInstance);
@@ -1869,17 +2145,43 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
                             waterSet,
                             lightSet
                         };
+                        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                            "[Vulkan][Frame %llu] water descriptor bind waterSet=%p lightSet=%p",
+                            (unsigned long long)m_frameCount,
+                            (void*)(uintptr_t)(waterSet),
+                            (void*)(uintptr_t)(lightSet));
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                               info->layout, 0, 2, descriptorSets, 0, nullptr);
                     } else if (info->usesDualTexture) {
                         VkDescriptorSet descriptorSets[] = {descriptorSet, m_descriptorManager.getLightDescriptorSet()};
+                        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                            "[Vulkan][Frame %llu] dual-texture descriptor bind materialSet=%p lightSet=%p",
+                            (unsigned long long)m_frameCount,
+                            (void*)(uintptr_t)(descriptorSet),
+                            (void*)(uintptr_t)(m_descriptorManager.getLightDescriptorSet()));
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                               info->layout, 0, 2, descriptorSets, 0, nullptr);
                     } else {
+                        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                            "[Vulkan][Frame %llu] single descriptor bind set=%p",
+                            (unsigned long long)m_frameCount,
+                            (void*)(uintptr_t)(descriptorSet));
                         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                               info->layout, 0, 1, &descriptorSet, 0, nullptr);
                     }
                     vkCmdDrawIndexed(commandBuffer, batch.indexCount, batch.instanceCount, batch.firstIndex, 0, batch.firstInstance);
+                    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                        "[Vulkan][Frame %llu] vkCmdDrawIndexed(indexCount=%u, instanceCount=%u, firstIndex=%u, firstInstance=%u)",
+                        (unsigned long long)m_frameCount,
+                        batch.indexCount,
+                        batch.instanceCount,
+                        batch.firstIndex,
+                        batch.firstInstance);
+                } else {
+                    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                        "[Vulkan][Frame %llu] skipped sprite draw because descriptorSet is NULL (descriptorId=%llu)",
+                        (unsigned long long)m_frameCount,
+                        (unsigned long long)batch.descriptorId);
                 }
             }
         }
@@ -1960,6 +2262,11 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
     vkCmdEndRenderPass(commandBuffer);
     {
         VkResult result = vkEndCommandBuffer(commandBuffer);
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "[Vulkan][Frame %llu] vkEndCommandBuffer(cmd=%p) -> %s",
+            (unsigned long long)m_frameCount,
+            (void*)(uintptr_t)(commandBuffer),
+            vkResultToString(result));
         assert(result == VK_SUCCESS);
     }
 }
@@ -2095,8 +2402,19 @@ void VulkanRenderer::destroyReflectionResources() {
 
 void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float time) {
     if (!m_reflectionEnabled || m_reflectionRenderPass == VK_NULL_HANDLE) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+            "[Vulkan][Frame %llu] reflection pass skipped enabled=%s renderPass=%p",
+            (unsigned long long)m_frameCount,
+            boolToString(m_reflectionEnabled),
+            (void*)(uintptr_t)(m_reflectionRenderPass));
         return;
     }
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] reflection pass begin cmd=%p framebuffer=%p",
+        (unsigned long long)m_frameCount,
+        (void*)(uintptr_t)(commandBuffer),
+        (void*)(uintptr_t)(m_reflectionFramebuffer));
 
     // Begin reflection render pass
     VkRenderPassBeginInfo renderPassInfo{};
@@ -2143,6 +2461,15 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
         if (pipeline != VK_NULL_HANDLE && info != nullptr) {
             // Skip water pipelines in reflection pass
             if (info->isWaterPipeline) continue;
+
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+                "[Vulkan][Frame %llu] reflection draw pipelineId=%d descriptorId=%llu tex=%llu indexCount=%u firstIndex=%u",
+                (unsigned long long)m_frameCount,
+                batch.pipelineId,
+                (unsigned long long)batch.descriptorId,
+                (unsigned long long)batch.textureId,
+                batch.indexCount,
+                batch.firstIndex);
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
@@ -2193,4 +2520,7 @@ void VulkanRenderer::recordReflectionPass(VkCommandBuffer commandBuffer, float t
 
     INSERT_CHECKPOINT(commandBuffer, "main_pass_end");
     vkCmdEndRenderPass(commandBuffer);
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "[Vulkan][Frame %llu] reflection pass end",
+        (unsigned long long)m_frameCount);
 }
