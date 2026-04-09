@@ -8,9 +8,15 @@ layout(push_constant) uniform PushConstants {
     float iTime;
 } pc;
 
-// Simple noise function
+// Hash function using only fract/dot - avoids the precision loss that occurs
+// when sin() receives large arguments on NVIDIA hardware.  The sin-based version
+// (sin(dot(p,...)) * 43758) degrades to blocky/quantised noise on NVIDIA Windows
+// because 32-bit float sin() loses resolution for large inputs.
+// Based on Inigo Quilez's "hash12" (https://iquilezles.org/articles/hash/).
 float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+    p = fract(p * vec2(0.1031, 0.1030));
+    p += dot(p, p.yx + 33.33);
+    return fract((p.x + p.y) * p.x);
 }
 
 float noise(vec2 p) {
