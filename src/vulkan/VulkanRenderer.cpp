@@ -1188,7 +1188,33 @@ void VulkanRenderer::createMsaaColorResources() {
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    // Prefer lazily-allocated memory for transient attachments: on tile-based mobile
+    // GPUs (Adreno, Mali) this keeps MSAA data entirely in on-chip tile memory and
+    // never touches system RAM.  More importantly, Adreno drivers may only list
+    // LAZILY_ALLOCATED types in memoryTypeBits for TRANSIENT images, so searching
+    // for plain DEVICE_LOCAL would fail the assert in findMemoryType and crash.
+    {
+        bool foundLazy = false;
+        VkPhysicalDeviceMemoryProperties memProps{};
+        vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProps);
+        for (Uint32 i = 0; i < memProps.memoryTypeCount; i++) {
+            constexpr VkMemoryPropertyFlags kLazy =
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+            if ((memRequirements.memoryTypeBits & (1u << i)) &&
+                (memProps.memoryTypes[i].propertyFlags & kLazy) == kLazy) {
+                allocInfo.memoryTypeIndex = i;
+                foundLazy = true;
+                m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO,
+                    "MSAA color image: using lazily-allocated (on-chip) memory (type %u)", i);
+                break;
+            }
+        }
+        if (!foundLazy) {
+            allocInfo.memoryTypeIndex = findMemoryType(
+                memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        }
+    }
 
     {
         VkResult result = vkAllocateMemory(m_device, &allocInfo, nullptr, &m_msaaColorImageMemory);

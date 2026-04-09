@@ -4,11 +4,13 @@
 * requestAndTryResource() in LuaInterface.cpp defeats the entire purpose of async resource loading
 * Windows test result: [2026-04-07 19:17:52.705] [ERROR] Vulkan error in vkQueueSubmit: VK_ERROR_DEVICE_LOST
 
+Phone 1: (works fine, slightly low fps in large scenes, but seems fine)
+Google Pixel 10 Pro
+
 Tablet: (hard crashes)
 Galaxy Tab S11
 SM-X730
 
-
-Phone: (malformed water reflections)
+Phone 2: (slightly malformed water reflections)
 Samsung Galaxy S22+
 SM-S906U1
