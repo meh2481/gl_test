@@ -1,6 +1,8 @@
 # Build directories
 build/
 build-release/
+build_full/
+build_packer_only/
 
 # Compiled Object files
 *.slo
