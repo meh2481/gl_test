@@ -103,13 +103,17 @@ typedef struct //Structure for (non-atlased) image data
 } ImageHeader;
 
 // Image format constants for ImageHeader.format
+// Most modern desktop GPUs support BC3/DXT5 compression, most mobile GPUs support ETC2 compression
 #define IMAGE_FORMAT_RAW_RGBA       0   // Uncompressed RGBA (4 bytes per pixel)
 #define IMAGE_FORMAT_RAW_RGB        1   // Uncompressed RGB (3 bytes per pixel)
 #define IMAGE_FORMAT_BC1_DXT1       2   // BC1/DXT1 compression (RGB, no alpha, 0.5 bytes per pixel)
 #define IMAGE_FORMAT_BC3_DXT5       3   // BC3/DXT5 compression (RGBA with alpha, 1 byte per pixel)
+#define IMAGE_FORMAT_ETC1           4   // ETC1 compression (RGB, no alpha, 0.5 bytes per pixel)
+#define IMAGE_FORMAT_ETC2           5   // ETC2 compression (RGBA with alpha, 1 byte per pixel)
+#define IMAGE_FORMAT_ASTC_4x4       6   // ASTC 4x4 compression (RGBA with alpha, 1 byte per pixel)
 
 // Default maximum atlas texture size (can be overridden at pack time)
-// Most GPUs support at least 4096x4096 textures
+// Most desktop GPUs support at least 4096x4096 textures
 #define DEFAULT_ATLAS_MAX_SIZE      4096
 
 
