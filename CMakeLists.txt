@@ -127,9 +127,14 @@ endif()
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
     add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
     target_sources(packer PRIVATE src/compress/Compress.cpp)
-    # Bundle the ETC1 encoder/decoder source so no external android-libetc1-dev is needed.
-    target_sources(packer PRIVATE tools/etc1.cpp)
     target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB PkgConfig::SQUISH PkgConfig::JSONCPP)
+    find_path(ETC1_INCLUDE_DIR NAMES android/ETC1/etc1.h)
+    find_library(ETC1_LIBRARY NAMES ETC1
+        HINTS /usr/lib/x86_64-linux-gnu/android /usr/lib/android)
+    if(ETC1_INCLUDE_DIR AND ETC1_LIBRARY)
+        target_compile_definitions(packer PRIVATE ENABLE_ETC)
+        target_link_libraries(packer ${ETC1_LIBRARY})
+    endif()
 endif()
 
 if(BUILD_GAME)

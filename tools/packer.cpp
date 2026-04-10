@@ -15,7 +15,9 @@
 #include <algorithm>
 #include <json/json.h>
 #include "../src/compress/Compress.h"
-#include "etc1.h"
+#ifdef ENABLE_ETC
+#include <android/ETC1/etc1.h>
+#endif
 
 using namespace std;
 
@@ -259,8 +261,9 @@ Uint32 getFileType(const string& filename, bool isAtlas = false) {
     return RESOURCE_TYPE_UNKNOWN;
 }
 
+#ifdef ENABLE_ETC
 // Round up to next multiple of 4 for DXT/ETC block alignment
-Uint32 alignTo4(Uint32 val) {
+static Uint32 alignTo4(Uint32 val) {
     return (val + 3) & ~3;
 }
 
@@ -486,6 +489,7 @@ void compressImageETC(const vector<uint8_t>& imageData, vector<char>& compressed
         }
     }
 }
+#endif // ENABLE_ETC
 
 // Load PNG image and convert to RGBA
 bool loadPNG(const string& filename, vector<uint8_t>& imageData, Uint32& width, Uint32& height, bool& hasAlpha) {
@@ -623,6 +627,7 @@ void compressImage(const vector<uint8_t>& imageData, vector<char>& compressed, U
     assert(imageData.size() == width * height * 4);
 
     if (useETC) {
+#ifdef ENABLE_ETC
         // ETC requires dimensions to be multiples of 4; pad if necessary
         Uint32 paddedW = alignTo4(width);
         Uint32 paddedH = alignTo4(height);
@@ -638,6 +643,10 @@ void compressImage(const vector<uint8_t>& imageData, vector<char>& compressed, U
             compressImageETC(imageData, compressed, width, height, hasAlpha, format);
         }
         return;
+#else
+        assert(false && "ETC compression not supported in this build");
+        return;
+#endif
     }
 
     // Choose compression format based on alpha channel
@@ -1141,7 +1150,12 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--max-atlas-size" && i + 1 < argc) {
             maxAtlasSize = (Uint32)stoul(argv[++i]);
         } else if (arg == "--etc") {
+#ifdef ENABLE_ETC
             useETC = true;
+#else
+            cerr << "ETC compression not supported in this build" << endl;
+            return 1;
+#endif
         } else if (output.empty()) {
             output = arg;
         } else {
