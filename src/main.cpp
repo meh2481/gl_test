@@ -71,6 +71,8 @@ static float pinchStartZoom = 0.0f;
 static float twoFingerMidWorldX = 0.0f;  // world-space position of two-finger midpoint at gesture start
 static float twoFingerMidWorldY = 0.0f;
 static Uint64 twoFingerDownTime = 0;
+// True while a single-finger drag is in progress (used to dispatch ACTION_DRAG_START/END on touch)
+static bool singleFingerDragging = false;
 
 // Maximum time (ms) between first finger-down and last finger-up to count as a tap
 static const Uint64 TWO_FINGER_TAP_TIMEOUT_MS = 300;
@@ -717,8 +719,27 @@ extern "C" int app_main()
                         break;
                     }
                 }
+                if (activeTouchCount == 1)
+                {
+                    // Single finger down: update cursor and dispatch drag-start for UI buttons
+                    int ww, wh;
+                    float worldX, worldY;
+                    SDL_GetWindowSize(window, &ww, &wh);
+                    screenToWorld(event.tfinger.x * ww, event.tfinger.y * wh, ww, wh,
+                                  sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                                  sceneManager->getCameraZoom(), &worldX, &worldY);
+                    sceneManager->setCursorPosition(worldX, worldY);
+                    sceneManager->handleAction(ACTION_DRAG_START);
+                    singleFingerDragging = true;
+                }
                 if (activeTouchCount == 2)
                 {
+                    // Second finger arrived: cancel any in-progress single-finger button press
+                    if (singleFingerDragging)
+                    {
+                        singleFingerDragging = false;
+                        sceneManager->handleAction(ACTION_DRAG_END);
+                    }
                     pinchStartDist = calculateTouchDistance(trackedFingers[0], trackedFingers[1]);
                     pinchStartZoom = sceneManager->getCameraZoom();
                     twoFingerDownTime = SDL_GetTicks();
@@ -751,6 +772,19 @@ extern "C" int app_main()
                                            (long long)event.tfinger.fingerID, activeTouchCount);
                         break;
                     }
+                }
+                // Single finger lifted: dispatch drag-end for UI buttons
+                if (singleFingerDragging && activeTouchCount == 0)
+                {
+                    int ww, wh;
+                    float worldX, worldY;
+                    SDL_GetWindowSize(window, &ww, &wh);
+                    screenToWorld(event.tfinger.x * ww, event.tfinger.y * wh, ww, wh,
+                                  sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                                  sceneManager->getCameraZoom(), &worldX, &worldY);
+                    sceneManager->setCursorPosition(worldX, worldY);
+                    sceneManager->handleAction(ACTION_DRAG_END);
+                    singleFingerDragging = false;
                 }
                 // Two-finger tap: both fingers released quickly (<300 ms) with little movement
                 if (activeTouchCount == 0 && twoFingerDownTime != 0)

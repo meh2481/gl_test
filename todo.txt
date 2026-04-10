@@ -1,7 +1,6 @@
 * Add sprite animations
 * Add textboxes, fonts, kerning, line spacing, automatic word wrapping, and text justification
 * requestAndTryResource() in LuaInterface.cpp defeats the entire purpose of async resource loading
-* Buttons tapped in lua scenes do not decrease in size after tap
 * OpenAL has some effects built in, worth looking into:
     [45/96] Building CXX object CMakeFiles/OpenAL.dir/alc/effects/autowah.cpp.o
     [46/96] Building CXX object CMakeFiles/OpenAL.dir/alc/effects/compressor.cpp.o
@@ -15,4 +14,3 @@
     [54/96] Building CXX object CMakeFiles/OpenAL.dir/alc/effects/null.cpp.o
     [55/96] Building CXX object CMakeFiles/OpenAL.dir/alc/effects/modulator.cpp.o
     [56/96] Building CXX object CMakeFiles/OpenAL.dir/alc/effects/pshifter.cpp.o
-* Random crashes on app exit (SIGSEGV)
