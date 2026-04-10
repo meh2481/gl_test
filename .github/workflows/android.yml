@@ -344,12 +344,12 @@ jobs:
           # Point Gradle at the Android SDK and build a release APK.
           echo "sdk.dir=$ANDROID_HOME" > $GITHUB_WORKSPACE/android/local.properties
           cd $GITHUB_WORKSPACE/android
-          ./gradlew assembleRelease
+          ./gradlew assemble
 
       - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: shader_triangle-android
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
 

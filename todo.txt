@@ -9,6 +9,7 @@ Google Pixel 10 Pro
 Tablet: (hard crashes)
 Galaxy Tab S11
 SM-X730
+(Stay Awake & USB Debugging enabled in developer options)
 
 Phone 2: (slightly malformed water reflections)
 Samsung Galaxy S22+
