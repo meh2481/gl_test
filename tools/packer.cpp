@@ -261,12 +261,12 @@ Uint32 getFileType(const string& filename, bool isAtlas = false) {
     return RESOURCE_TYPE_UNKNOWN;
 }
 
-#ifdef ENABLE_ETC
-// Round up to next multiple of 4 for DXT/ETC block alignment
+// Round up to next multiple of 4 for block alignment
 static Uint32 alignTo4(Uint32 val) {
     return (val + 3) & ~3;
 }
 
+#ifdef ENABLE_ETC
 // EAC alpha modifier tables from OpenGL ES 3.0 specification Table C.4.3
 // Used for ETC2 RGBA alpha channel compression
 static const int kEACModifiers[16][8] = {
