@@ -36,9 +36,9 @@ A C++ application using Vulkan rendering with Lua scripting and Box2D physics in
 - Box2D 3.x
 - Lua 5.4
 - OpenAL
-- OpusFile (libopusfile)
-- libpng
-- libsquish
+- libpng - packer only
+- libsquish - packer only
+- libetc - packer for Android builds only
 - CMake
 - ImGui - Debug builds only
 

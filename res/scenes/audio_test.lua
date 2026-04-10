@@ -19,14 +19,14 @@ function init()
     audioSetListenerPosition(listenerX, listenerY, listenerZ)
     audioSetListenerOrientation(0, 0, -1, 0, 1, 0) -- Looking forward, up is up
 
-    -- Load OPUS audio from pak resource
-    print("Loading OPUS audio from resource...")
-    audioBuffer = audioLoadOpus("res/sfx/sfx.opus")
+    -- Load GLA audio (IMA ADPCM) from pak resource
+    print("Loading GLA audio from resource...")
+    audioBuffer = audioLoadGla("res/sfx/sfx.wav")
 
     if audioBuffer >= 0 then
-        print("Successfully loaded OPUS audio buffer with ID: " .. audioBuffer)
+        print("Successfully loaded GLA audio buffer with ID: " .. audioBuffer)
     else
-        print("Failed to load OPUS audio")
+        print("Failed to load GLA audio")
     end
 
     -- Load shared button resources

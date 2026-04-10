@@ -249,13 +249,320 @@ void compressData(const vector<char>& input, vector<char>& output, Uint32& compr
     }
 }
 
+// ============================================================================
+// IMA ADPCM encoder (for WAV -> GLA conversion)
+// Produces data in the AL_EXT_IMA4 block format:
+//   Mono   block: 36 bytes (4-byte header + 32 bytes nibbles) = 65 samples/block
+//   Stereo block: 72 bytes (8-byte header + 64 bytes interleaved nibbles) = 65 samples/channel/block
+// ============================================================================
+
+static const int IMA_STEP_TABLE[89] = {
+    7, 8, 9, 10, 11, 12, 13, 14, 16, 17,
+    19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
+    50, 55, 60, 66, 73, 80, 88, 97, 107, 118,
+    130, 143, 157, 173, 190, 209, 230, 253, 279, 307,
+    337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
+    876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066,
+    2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358,
+    5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
+    15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
+};
+
+static const int IMA_INDEX_TABLE[16] = {
+    -1, -1, -1, -1, 2, 4, 6, 8,
+    -1, -1, -1, -1, 2, 4, 6, 8
+};
+
+// Encode one PCM sample as a 4-bit IMA ADPCM nibble.
+// predictor and stepIndex are updated in-place (mirror the decoder state).
+static int imaEncodeNibble(int sample, int* predictor, int* stepIndex) {
+    assert(stepIndex != nullptr);
+    assert(predictor != nullptr);
+    assert(*stepIndex >= 0 && *stepIndex <= 88);
+
+    int step = IMA_STEP_TABLE[*stepIndex];
+    int diff = sample - *predictor;
+    int nibble = 0;
+
+    if (diff < 0) {
+        nibble = 8;
+        diff = -diff;
+    }
+
+    if (diff >= step)       { nibble |= 4; diff -= step; }
+    step >>= 1;
+    if (diff >= step)       { nibble |= 2; diff -= step; }
+    step >>= 1;
+    if (diff >= step)       { nibble |= 1; }
+
+    // Update predictor using the same arithmetic as the decoder so round-trips match.
+    int fullStep = IMA_STEP_TABLE[*stepIndex];
+    int vpdiff   = fullStep >> 3;
+    if (nibble & 4) vpdiff += fullStep;
+    if (nibble & 2) vpdiff += fullStep >> 1;
+    if (nibble & 1) vpdiff += fullStep >> 2;
+
+    if (nibble & 8) *predictor -= vpdiff;
+    else            *predictor += vpdiff;
+
+    if (*predictor >  32767) *predictor =  32767;
+    if (*predictor < -32768) *predictor = -32768;
+
+    *stepIndex += IMA_INDEX_TABLE[nibble];
+    if (*stepIndex <  0) *stepIndex = 0;
+    if (*stepIndex > 88) *stepIndex = 88;
+
+    return nibble & 0xF;
+}
+
+// Read a 16-bit PCM WAV file from disk.
+// Fills samples (interleaved L/R for stereo), channels, and sampleRate.
+// Returns false on error.
+static bool readWavFile(const string& filename,
+                        vector<Sint16>& samples,
+                        int& channels,
+                        int& sampleRate)
+{
+    ifstream f(filename, ios::binary);
+    if (!f) {
+        cerr << "readWavFile: cannot open '" << filename << "'" << endl;
+        return false;
+    }
+
+    // RIFF header
+    char riff[4];
+    f.read(riff, 4);
+    if (memcmp(riff, "RIFF", 4) != 0) {
+        cerr << "readWavFile: not a RIFF file: " << filename << endl;
+        return false;
+    }
+    Uint32 riffSize = 0;
+    f.read(reinterpret_cast<char*>(&riffSize), 4);
+    char wave[4];
+    f.read(wave, 4);
+    if (memcmp(wave, "WAVE", 4) != 0) {
+        cerr << "readWavFile: not a WAVE file: " << filename << endl;
+        return false;
+    }
+
+    channels    = 0;
+    sampleRate  = 0;
+    Uint32 dataSize    = 0;
+    streampos  dataOffset = 0;
+
+    // Parse chunks until we find fmt  and data.
+    while (f && f.good()) {
+        char chunkId[4];
+        f.read(chunkId, 4);
+        if (f.gcount() < 4) break;
+
+        Uint32 chunkSize = 0;
+        f.read(reinterpret_cast<char*>(&chunkSize), 4);
+        if (f.gcount() < 4) break;
+
+        if (memcmp(chunkId, "fmt ", 4) == 0) {
+            Uint16 audioFormat = 0, ch = 0, blockAlign = 0, bps = 0;
+            Uint32 sr = 0, byteRate = 0;
+            f.read(reinterpret_cast<char*>(&audioFormat), 2);
+            f.read(reinterpret_cast<char*>(&ch),          2);
+            f.read(reinterpret_cast<char*>(&sr),           4);
+            f.read(reinterpret_cast<char*>(&byteRate),     4);
+            f.read(reinterpret_cast<char*>(&blockAlign),   2);
+            f.read(reinterpret_cast<char*>(&bps),          2);
+
+            if (audioFormat != 1) {
+                cerr << "readWavFile: only PCM (format 1) supported, got "
+                     << audioFormat << " in " << filename << endl;
+                return false;
+            }
+            if (bps != 16) {
+                cerr << "readWavFile: only 16-bit samples supported, got "
+                     << bps << " bits in " << filename << endl;
+                return false;
+            }
+            if (ch != 1 && ch != 2) {
+                cerr << "readWavFile: only mono/stereo supported, got "
+                     << ch << " channels in " << filename << endl;
+                return false;
+            }
+            channels   = (int)ch;
+            sampleRate = (int)sr;
+
+            // Skip any extra fmt bytes (e.g. PCM extension words)
+            if (chunkSize > 16) {
+                f.seekg(chunkSize - 16, ios::cur);
+            }
+
+        } else if (memcmp(chunkId, "data", 4) == 0) {
+            dataSize   = chunkSize;
+            dataOffset = f.tellg();
+            break; // data chunk found — stop scanning
+
+        } else {
+            // Unknown chunk — skip it
+            f.seekg(chunkSize, ios::cur);
+        }
+    }
+
+    if (channels == 0 || sampleRate == 0 || dataSize == 0) {
+        cerr << "readWavFile: missing fmt or data chunk in " << filename << endl;
+        return false;
+    }
+
+    f.seekg(dataOffset);
+    size_t numSamples = dataSize / sizeof(Sint16);
+    samples.resize(numSamples);
+    f.read(reinterpret_cast<char*>(samples.data()), dataSize);
+    if (!f && !f.eof()) {
+        cerr << "readWavFile: read error in " << filename << endl;
+        return false;
+    }
+
+    return true;
+}
+
+// Encode a 16-bit PCM WAV file to the GLA format (IMA ADPCM + GlaHeader).
+// Returns false on error.
+static bool processWavToGla(const string& filename, vector<char>& output) {
+    vector<Sint16> samples;
+    int channels = 0, sampleRate = 0;
+
+    if (!readWavFile(filename, samples, channels, sampleRate)) {
+        return false;
+    }
+
+    assert(channels >= 1 && channels <= 2);
+    assert(sampleRate > 0);
+
+    size_t totalSamples = samples.size() / (size_t)channels; // per-channel count
+    assert(totalSamples > 0);
+
+    // Fixed IMA4 block parameters for AL_EXT_IMA4 default block alignment (65 samples/block).
+    const int BLOCK_BYTES = (channels == 1) ? GLA_MONO_BLOCK_BYTES : GLA_STEREO_BLOCK_BYTES;
+    const int SPB         = GLA_SAMPLES_PER_BLOCK; // 65
+
+    // Number of blocks needed (last block may be padded with silence).
+    size_t numBlocks = (totalSamples + (size_t)(SPB - 1)) / (size_t)SPB;
+    assert(numBlocks > 0);
+
+    size_t outputSize = sizeof(GlaHeader) + numBlocks * (size_t)BLOCK_BYTES;
+    output.resize(outputSize);
+
+    // Write GlaHeader.
+    GlaHeader hdr;
+    memcpy(hdr.sig, "GLAD", 4);
+    hdr.version       = GLA_VERSION;
+    hdr.sampleRate    = (Uint32)sampleRate;
+    hdr.channels      = (Uint16)channels;
+    hdr.blockSizeBytes  = (Uint16)BLOCK_BYTES;
+    hdr.samplesPerBlock = (Uint32)SPB;
+    hdr.totalSamples  = (Uint32)totalSamples;
+    hdr.loopStart     = 0;
+    hdr.loopEnd       = 0;
+    memcpy(output.data(), &hdr, sizeof(hdr));
+
+    Uint8* blockPtr = reinterpret_cast<Uint8*>(output.data()) + sizeof(GlaHeader);
+
+    if (channels == 1) {
+        // Mono: carry predictor/stepIndex across blocks for minimal discontinuity.
+        int predictor = 0, stepIndex = 0;
+
+        for (size_t b = 0; b < numBlocks; b++) {
+            size_t base = b * (size_t)SPB;
+
+            // The first sample of the block becomes the block-header predictor.
+            int firstSample = (base < totalSamples)
+                              ? (int)samples[base]
+                              : predictor;
+            predictor = firstSample;
+
+            // Write block header: int16 predictor (LE) + uint8 stepIndex + uint8 pad.
+            Uint16 upred = (Uint16)(Sint16)predictor;
+            blockPtr[0] = (Uint8)(upred & 0xFF);
+            blockPtr[1] = (Uint8)(upred >> 8);
+            blockPtr[2] = (Uint8)stepIndex;
+            blockPtr[3] = 0;
+
+            // Encode 64 samples as 32 bytes (two nibbles per byte, low nibble first).
+            for (int i = 0; i < 32; i++) {
+                size_t i0 = base + 1 + (size_t)(i * 2);
+                size_t i1 = i0 + 1;
+                int s0 = (i0 < totalSamples) ? (int)samples[i0] : predictor;
+                int s1 = (i1 < totalSamples) ? (int)samples[i1] : predictor;
+                int n0 = imaEncodeNibble(s0, &predictor, &stepIndex);
+                int n1 = imaEncodeNibble(s1, &predictor, &stepIndex);
+                blockPtr[4 + i] = (Uint8)(n0 | (n1 << 4));
+            }
+            blockPtr += GLA_MONO_BLOCK_BYTES;
+        }
+
+    } else {
+        // Stereo: interleaved pairs [4 bytes L][4 bytes R] after the 8-byte dual header.
+        int predL = 0, stepL = 0;
+        int predR = 0, stepR = 0;
+
+        for (size_t b = 0; b < numBlocks; b++) {
+            size_t base = b * (size_t)SPB; // per-channel sample offset
+
+            int firstL = (base < totalSamples) ? (int)samples[base * 2]     : predL;
+            int firstR = (base < totalSamples) ? (int)samples[base * 2 + 1] : predR;
+            predL = firstL;
+            predR = firstR;
+
+            // Write dual channel headers.
+            Uint16 upL = (Uint16)(Sint16)predL;
+            Uint16 upR = (Uint16)(Sint16)predR;
+            blockPtr[0] = (Uint8)(upL & 0xFF);
+            blockPtr[1] = (Uint8)(upL >> 8);
+            blockPtr[2] = (Uint8)stepL;
+            blockPtr[3] = 0;
+            blockPtr[4] = (Uint8)(upR & 0xFF);
+            blockPtr[5] = (Uint8)(upR >> 8);
+            blockPtr[6] = (Uint8)stepR;
+            blockPtr[7] = 0;
+
+            // 8 groups of [4 bytes L][4 bytes R] = 64 bytes = 8*8 = 64 samples/channel.
+            for (int g = 0; g < 8; g++) {
+                size_t groupBase = base + 1 + (size_t)(g * 8); // per-channel sample index
+                // 4 bytes of L nibbles (8 L samples)
+                for (int b2 = 0; b2 < 4; b2++) {
+                    size_t i0 = groupBase + (size_t)(b2 * 2);
+                    size_t i1 = i0 + 1;
+                    int s0 = (i0 < totalSamples) ? (int)samples[i0 * 2]     : predL;
+                    int s1 = (i1 < totalSamples) ? (int)samples[i1 * 2]     : predL;
+                    int n0 = imaEncodeNibble(s0, &predL, &stepL);
+                    int n1 = imaEncodeNibble(s1, &predL, &stepL);
+                    blockPtr[8 + g * 8 + b2] = (Uint8)(n0 | (n1 << 4));
+                }
+                // 4 bytes of R nibbles (8 R samples)
+                for (int b2 = 0; b2 < 4; b2++) {
+                    size_t i0 = groupBase + (size_t)(b2 * 2);
+                    size_t i1 = i0 + 1;
+                    int s0 = (i0 < totalSamples) ? (int)samples[i0 * 2 + 1] : predR;
+                    int s1 = (i1 < totalSamples) ? (int)samples[i1 * 2 + 1] : predR;
+                    int n0 = imaEncodeNibble(s0, &predR, &stepR);
+                    int n1 = imaEncodeNibble(s1, &predR, &stepR);
+                    blockPtr[8 + g * 8 + 4 + b2] = (Uint8)(n0 | (n1 << 4));
+                }
+            }
+            blockPtr += GLA_STEREO_BLOCK_BYTES;
+        }
+    }
+
+    cout << "WAV " << filename << ": " << totalSamples << " samples/ch, "
+         << channels << " ch, " << sampleRate << " Hz -> "
+         << numBlocks << " IMA4 blocks, " << outputSize << " bytes" << endl;
+
+    return true;
+}
+
 Uint32 getFileType(const string& filename, bool isAtlas = false) {
     if (isAtlas) return RESOURCE_TYPE_IMAGE_ATLAS;
     string ext = filesystem::path(filename).extension().string();
     if (ext == ".lua") return RESOURCE_TYPE_LUA;
     if (ext == ".spv") return RESOURCE_TYPE_SHADER;
     if (ext == ".png") return RESOURCE_TYPE_IMAGE;
-    if (ext == ".opus") return RESOURCE_TYPE_SOUND;
+    if (ext == ".wav") return RESOURCE_TYPE_SOUND;
     if (ext == ".loop") return RESOURCE_TYPE_MUSIC_TRACK;
     // Add more extensions as needed
     return RESOURCE_TYPE_UNKNOWN;
@@ -1552,6 +1859,12 @@ int main(int argc, char* argv[]) {
                 // .loop JSON -> binary MusicTrackHeader
                 if (!processLoopFile(file.filename, file.data)) {
                     cerr << "Failed to process loop file " << file.filename << endl;
+                    return 1;
+                }
+            } else if (ft == RESOURCE_TYPE_SOUND) {
+                // .wav -> GLA (IMA ADPCM) encoded sound resource
+                if (!processWavToGla(file.filename, file.data)) {
+                    cerr << "Failed to encode WAV file " << file.filename << endl;
                     return 1;
                 }
             } else {

@@ -177,7 +177,7 @@ private:
     static int setShaderParameters(lua_State* L);
 
     // Audio Lua bindings
-    static int audioLoadOpus(lua_State* L);
+    static int audioLoadGla(lua_State* L);
     static int audioCreateSource(lua_State* L);
     static int audioPlaySource(lua_State* L);
     static int audioSetSourcePosition(lua_State* L);

@@ -4,11 +4,11 @@
   "intensities": [
     {
       "name": "calm",
-      "layers": ["example_layer1.opus", "example_layer2.opus"]
+      "layers": ["res/music/example_layer1.wav", "res/music/example_layer2.wav"]
     },
     {
       "name": "battle",
-      "layers": ["example_layer1.opus", "example_layer3.opus"]
+      "layers": ["res/music/example_layer1.wav", "res/music/example_layer3.wav"]
     }
   ]
 }

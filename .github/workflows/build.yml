@@ -28,7 +28,7 @@ jobs:
       - name: Install required libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev vulkan-tools glslc liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev libjsoncpp-dev android-libetc1-dev
+          sudo apt-get install -y libvulkan-dev vulkan-tools glslc liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libjsoncpp-dev android-libetc1-dev
           # Ubuntu ships libsquish.pc with an empty prefix, which causes CMake to reject
           # the imported target (includedir resolves to /include instead of /usr/include).
           sudo sed -i 's|^prefix=$|prefix=/usr|' "$(pkg-config --variable=pcfiledir libsquish)/libsquish.pc"
@@ -194,7 +194,7 @@ jobs:
         id: cache-win64-deps
         with:
           path: ~/.win64
-          key: win64-deps-${{ runner.os }}-v8  # v8: add jsoncpp cross-compile for packer.exe
+          key: win64-deps-${{ runner.os }}-v9  # v9: Remove opus/ogg dependencies
 
       - name: Build Windows cross-compile dependencies
         if: steps.cache-win64-deps.outputs.cache-hit != 'true'
@@ -343,32 +343,6 @@ jobs:
             -DJSONCPP_WITH_POST_BUILD_UNITTEST=OFF
           cmake --build jsoncpp-1.9.5/build -j$(nproc)
           cmake --install jsoncpp-1.9.5/build
-
-          # --- libogg (required by libopusfile) ---
-          curl -fsSL https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.xz | tar xJ
-          cd libogg-1.3.5
-          ./configure --host=$CROSS --prefix=$SYSROOT \
-            --disable-shared --enable-static
-          make -j$(nproc) && make install
-          cd ..
-
-          # --- libopus ---
-          curl -fsSL https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz | tar xz
-          cd opus-1.5.2
-          ./configure --host=$CROSS --prefix=$SYSROOT \
-            --disable-shared --enable-static
-          make -j$(nproc) && make install
-          cd ..
-
-          # --- libopusfile ---
-          curl -fsSL https://downloads.xiph.org/releases/opus/opusfile-0.12.tar.gz | tar xz
-          cd opusfile-0.12
-          PKG_CONFIG_LIBDIR=$SYSROOT/lib/pkgconfig \
-            ./configure --host=$CROSS --prefix=$SYSROOT \
-            --disable-shared --enable-static --disable-http \
-            CFLAGS="-I$SYSROOT/include" LDFLAGS="-L$SYSROOT/lib"
-          make -j$(nproc) && make install
-          cd ..
 
       - name: Build native packer (host executable for resource packing)
         run: |

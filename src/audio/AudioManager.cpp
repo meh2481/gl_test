@@ -1,13 +1,12 @@
 #include "AudioManager.h"
 #include <SDL3/SDL.h>
-#include "../core/Vector.h"
 #include "../debug/ConsoleBuffer.h"
 #include "../debug/ThreadProfiler.h"
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
 #include <AL/efx.h>
-#include <opusfile.h>
+#include <cstring>
 
 // EFX constants (in case not defined)
 #ifndef AL_EFFECT_LOWPASS
@@ -49,11 +48,10 @@ static LPALAUXILIARYEFFECTSLOTI alAuxiliaryEffectSloti = nullptr;
 AudioManager::AudioManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuffer)
     : device(nullptr), context(nullptr), bufferCount(0),
       efxSupported(false), effectSlot(0), effect(0), filter(0),
-      currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f), allocator_(allocator),
-    consoleBuffer_(consoleBuffer), nextDecodeJobId_(1), decodeWorkerRunning_(true),
-    pendingDecodeJob_(nullptr), completedDecodeJob_(nullptr),
-    musicWorkerThread_(nullptr), musicMutex_(nullptr), musicCondition_(nullptr),
-    musicWorkerRunning_(true)
+      currentEffect(AUDIO_EFFECT_NONE), currentEffectIntensity(1.0f),
+      ima4Supported_(false), allocator_(allocator), consoleBuffer_(consoleBuffer),
+      musicWorkerThread_(nullptr), musicMutex_(nullptr), musicCondition_(nullptr),
+      musicWorkerRunning_(true)
 {
     assert(allocator_ != nullptr);
     consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE, "AudioManager: Using shared memory allocator");
@@ -84,21 +82,9 @@ AudioManager::AudioManager(MemoryAllocator* allocator, ConsoleBuffer* consoleBuf
         musicTracks_[i].currentIntensity = -1;
         for (int j = 0; j < MAX_MUSIC_LAYERS_PER_TRACK; j++) {
             musicTracks_[i].layers[j].active = false;
-            musicTracks_[i].layers[j].opusFile = nullptr;
+            musicTracks_[i].layers[j].glaState.valid = false;
             musicTracks_[i].layers[j].buffersCreated = false;
         }
-    }
-
-    // Initialize decode worker thread
-    decodeMutex_ = SDL_CreateMutex();
-    decodeCondition_ = SDL_CreateCondition();
-    if (decodeMutex_ && decodeCondition_) {
-        decodeWorkerThread_ = SDL_CreateThread(&AudioManager::audioDecodeWorkerThread, "AudioDecodeWorker", this);
-        if (!decodeWorkerThread_) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: Failed to create decode worker thread");
-        }
-    } else {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: Failed to create decode mutex/condition");
     }
 
     // Initialize music stream worker thread
@@ -131,51 +117,7 @@ AudioManager::~AudioManager() {
         consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "AudioManager: Music stream worker thread stopped (rc=%d)", rc);
     }
 
-    // Shut down decode worker thread
-    if (decodeMutex_) {
-        SDL_LockMutex(decodeMutex_);
-        decodeWorkerRunning_ = false;
-        SDL_UnlockMutex(decodeMutex_);
-    }
-    if (decodeCondition_) {
-        SDL_SignalCondition(decodeCondition_);
-    }
-    if (decodeWorkerThread_) {
-        int returnCode;
-        SDL_WaitThread(decodeWorkerThread_, &returnCode);
-    }
-
-    // Wait for any pending decode job to complete
-    if (decodeMutex_ && pendingDecodeJob_) {
-        SDL_LockMutex(decodeMutex_);
-        while (pendingDecodeJob_ && !pendingDecodeJob_->completed && !pendingDecodeJob_->failed) {
-            SDL_UnlockMutex(decodeMutex_);
-            SDL_Delay(1);
-            SDL_LockMutex(decodeMutex_);
-        }
-        SDL_UnlockMutex(decodeMutex_);
-    }
-
-    if (pendingDecodeJob_) {
-        destroyDecodeJob(pendingDecodeJob_);
-        pendingDecodeJob_ = nullptr;
-    }
-    if (completedDecodeJob_) {
-        destroyDecodeJob(completedDecodeJob_);
-        completedDecodeJob_ = nullptr;
-    }
-
     cleanup();
-
-    // Cleanup decode worker synchronization primitives
-    if (decodeCondition_) {
-        SDL_DestroyCondition(decodeCondition_);
-        decodeCondition_ = nullptr;
-    }
-    if (decodeMutex_) {
-        SDL_DestroyMutex(decodeMutex_);
-        decodeMutex_ = nullptr;
-    }
 
     // Cleanup music worker synchronization primitives (thread already joined above)
     if (musicCondition_) {
@@ -200,6 +142,15 @@ void AudioManager::initialize() {
     // Make context current
     ALCboolean result = alcMakeContextCurrent(context);
     assert(result == ALC_TRUE && "Failed to make audio context current");
+
+    // Check for required AL_EXT_IMA4 extension
+    ima4Supported_ = alIsExtensionPresent("AL_EXT_IMA4") == AL_TRUE;
+    assert(ima4Supported_ && "AL_EXT_IMA4 extension is required for GLA audio format");
+    if (ima4Supported_) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "AudioManager: AL_EXT_IMA4 supported");
+    } else {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: AL_EXT_IMA4 NOT supported - audio will not function");
+    }
 
     // Check for EFX support
     if (alcIsExtensionPresent(device, "ALC_EXT_EFX")) {
@@ -233,7 +184,7 @@ void AudioManager::resume() {
 }
 
 void AudioManager::cleanup() {
-    // Release all music tracks first (frees OggOpusFile handles and OpenAL sources)
+    // Release all music tracks first (frees GlaStreamState and OpenAL sources)
     for (int i = 0; i < MAX_MUSIC_TRACKS; i++) {
         if (musicTracks_[i].valid) {
             releaseMusicTrack(musicTracks_[i]);
@@ -349,7 +300,7 @@ int AudioManager::findFreeBufferSlot() {
 int AudioManager::loadAudioBufferFromMemory(const void* data, Uint64 size, int sampleRate, int channels, int bitsPerSample) {
     int slot = findFreeBufferSlot();
     if (slot == -1) {
-consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
         assert(false);
         return -1;
     }
@@ -395,61 +346,70 @@ consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free buffer slots available");
     return slot;
 }
 
-int AudioManager::loadOpusAudioFromMemory(const void* data, Uint64 size) {
-    // Open OPUS file from memory
-    int error = 0;
-    OggOpusFile* opusFile = op_open_memory((const unsigned char*)data, size, &error);
+int AudioManager::loadGlaAudioFromMemory(const void* data, Uint64 size) {
+    assert(data != nullptr);
+    assert(size >= sizeof(GlaHeader));
+    assert(ima4Supported_ && "AL_EXT_IMA4 required for GLA audio");
 
-    if (!opusFile || error != 0) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to open OPUS data from memory, error code: %d", error);
+    const GlaHeader* hdr = static_cast<const GlaHeader*>(data);
+    if (SDL_memcmp(hdr->sig, "GLAD", 4) != 0) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: loadGlaAudioFromMemory: bad magic (not GLAD)");
+        assert(false);
+        return -1;
+    }
+    if (hdr->version != GLA_VERSION) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: loadGlaAudioFromMemory: unsupported version %u", hdr->version);
         assert(false);
         return -1;
     }
 
-    // Get audio info
-    const OpusHead* head = op_head(opusFile, -1);
-    if (!head) {
-consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to get OPUS header");
-        assert(false);
-        op_free(opusFile);
-        return -1;
-    }
+    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
+        "AudioManager: loadGlaAudioFromMemory: %u ch, %u Hz, %u samples, blockSize=%u",
+        hdr->channels, hdr->sampleRate, hdr->totalSamples, hdr->blockSizeBytes);
 
-    int channels = head->channel_count;
-    int sampleRate = 48000; // OPUS always decodes to 48kHz
-
-    // Read all audio data
-    Vector<opus_int16> pcmData(*allocator_, "AudioManager::playMusic::pcmData");
-    const int bufferSize = 5760 * channels; // Max frame size for 120ms at 48kHz
-    opus_int16 buffer[bufferSize];
-
-    int samplesRead;
-    while ((samplesRead = op_read(opusFile, buffer, bufferSize, nullptr)) > 0) {
-        for (int i = 0; i < samplesRead * channels; ++i) {
-            pcmData.push_back(buffer[i]);
-        }
-    }
-
-    if (samplesRead < 0) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Error reading OPUS data: %d", samplesRead);
-        op_free(opusFile);
+    int slot = findFreeBufferSlot();
+    if (slot == -1) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: No free buffer slots available");
         assert(false);
         return -1;
     }
 
-    op_free(opusFile);
+    // Select IMA4 format
+    ALenum fmt = (hdr->channels == 2) ? AL_FORMAT_STEREO_IMA4 : AL_FORMAT_MONO_IMA4;
 
-    if (pcmData.empty()) {
-consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No audio data decoded from OPUS");
+    // Audio data immediately follows the header
+    const void* audioData = static_cast<const Uint8*>(data) + sizeof(GlaHeader);
+    ALsizei audioSize = (ALsizei)(size - sizeof(GlaHeader));
+
+    if (audioSize <= 0) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: GLA file has no audio data");
         assert(false);
         return -1;
     }
 
-    // Load the PCM data into OpenAL buffer
-    int bufferId = loadAudioBufferFromMemory(pcmData.data(), pcmData.size() * sizeof(opus_int16),
-                                             sampleRate, channels, 16);
+    alGenBuffers(1, &buffers[slot].buffer);
+    ALenum error = alGetError();
+    if (error != AL_NO_ERROR) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: Failed to generate GL audio buffer: %d", error);
+        assert(false);
+        return -1;
+    }
 
-    return bufferId;
+    // Upload IMA4 data - OpenAL Soft decodes internally during playback
+    alBufferData(buffers[slot].buffer, fmt, audioData, audioSize, (ALsizei)hdr->sampleRate);
+    error = alGetError();
+    if (error != AL_NO_ERROR) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: Failed to upload GLA IMA4 data: error %d (size=%d, fmt=%d, rate=%u)",
+            error, audioSize, fmt, hdr->sampleRate);
+        alDeleteBuffers(1, &buffers[slot].buffer);
+        assert(false);
+        return -1;
+    }
+
+    buffers[slot].loaded = true;
+    bufferCount++;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "AudioManager: GLA buffer loaded into slot %d", slot);
+    return slot;
 }
 
 int AudioManager::createAudioSource(int bufferId, bool looping, float volume) {
@@ -461,7 +421,7 @@ int AudioManager::createAudioSource(int bufferId, bool looping, float volume) {
 
     int slot = findFreeSourceSlot();
     if (slot == -1) {
-consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free source slots available");
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "No free source slots available");
         assert(false);
         return -1;
     }
@@ -632,7 +592,7 @@ void AudioManager::setGlobalVolume(float volume) {
 
 void AudioManager::setGlobalEffect(AudioEffect effect, float intensity) {
     if (!efxSupported) {
-consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "EFX not supported, cannot set global effect");
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "EFX not supported, cannot set global effect");
         assert(false);
         return;
     }
@@ -805,269 +765,25 @@ void AudioManager::clearAllSources() {
         }
     }
 }
-// ============================================================================
-// Audio Decode Worker Thread
-// ============================================================================
-
-int AudioManager::audioDecodeWorkerThread(void* arg) {
-    AudioManager* self = static_cast<AudioManager*>(arg);
-    ThreadProfiler& profiler = ThreadProfiler::instance();
-    profiler.registerThread("AudioDecodeWorker");
-
-    while (true) {
-        profiler.updateThreadState(THREAD_STATE_WAITING);
-
-        AudioDecodeJob* job = nullptr;
-
-        // Wait for a job
-        {
-            SDL_LockMutex(self->decodeMutex_);
-            while (!self->pendingDecodeJob_ && self->decodeWorkerRunning_) {
-                SDL_WaitCondition(self->decodeCondition_, self->decodeMutex_);
-            }
-
-            if (!self->decodeWorkerRunning_ && !self->pendingDecodeJob_) {
-                SDL_UnlockMutex(self->decodeMutex_);
-                break;
-            }
-
-            job = self->pendingDecodeJob_;
-            SDL_UnlockMutex(self->decodeMutex_);
-        }
-
-        if (!job) continue;
-
-        // Process decode job
-        profiler.updateThreadState(THREAD_STATE_BUSY);
-
-        // Create OpusFile from memory
-        OggOpusFile* opusFile = nullptr;
-        int error = 0;
-        opusFile = op_open_memory(
-            static_cast<const unsigned char*>(job->compressedData),
-            job->compressedSize,
-            &error
-        );
-
-        if (!opusFile) {
-            job->failed = true;
-            job->completed = true;
-            SDL_LockMutex(self->decodeMutex_);
-            if (self->completedDecodeJob_) {
-                self->destroyDecodeJob(self->completedDecodeJob_);
-            }
-            self->completedDecodeJob_ = job;
-            self->pendingDecodeJob_ = nullptr;
-            SDL_UnlockMutex(self->decodeMutex_);
-            continue;
-        }
-
-        // Get audio info
-        const OpusHead* opusInfo = op_head(opusFile, -1);
-        if (!opusInfo) {
-            op_free(opusFile);
-            job->failed = true;
-            job->completed = true;
-            SDL_LockMutex(self->decodeMutex_);
-            if (self->completedDecodeJob_) {
-                self->destroyDecodeJob(self->completedDecodeJob_);
-            }
-            self->completedDecodeJob_ = job;
-            self->pendingDecodeJob_ = nullptr;
-            SDL_UnlockMutex(self->decodeMutex_);
-            continue;
-        }
-
-        job->channels = opusInfo->channel_count;
-        job->sampleRate = 48000;  // Opus is always 48 kHz
-
-        // Decode the entire file into PCM
-        int samplesPerChannel = op_pcm_total(opusFile, -1);
-        if (samplesPerChannel <= 0) {
-            op_free(opusFile);
-            job->failed = true;
-            job->completed = true;
-            SDL_LockMutex(self->decodeMutex_);
-            if (self->completedDecodeJob_) {
-                self->destroyDecodeJob(self->completedDecodeJob_);
-            }
-            self->completedDecodeJob_ = job;
-            self->pendingDecodeJob_ = nullptr;
-            SDL_UnlockMutex(self->decodeMutex_);
-            continue;
-        }
-
-        // Allocate PCM buffer (interleaved samples)
-        job->decodedSampleCount = static_cast<Uint64>(samplesPerChannel) * static_cast<Uint64>(job->channels);
-        job->decodedPcm = static_cast<opus_int16*>(self->allocator_->allocate(job->decodedSampleCount * sizeof(opus_int16), "AudioManager::decodedPcm"));
-        if (!job->decodedPcm) {
-            op_free(opusFile);
-            job->failed = true;
-            job->completed = true;
-            SDL_LockMutex(self->decodeMutex_);
-            if (self->completedDecodeJob_) {
-                self->destroyDecodeJob(self->completedDecodeJob_);
-            }
-            self->completedDecodeJob_ = job;
-            self->pendingDecodeJob_ = nullptr;
-            SDL_UnlockMutex(self->decodeMutex_);
-            continue;
-        }
-        opus_int16* pcmBuffer = job->decodedPcm;
-
-        // Decode all samples
-        int totalSamplesDecoded = 0;
-        bool decodeError = false;
-        while (totalSamplesDecoded < samplesPerChannel) {
-            int samplesRead = op_read(
-                opusFile,
-                pcmBuffer + totalSamplesDecoded * job->channels,
-                (samplesPerChannel - totalSamplesDecoded) * job->channels,
-                nullptr
-            );
-
-            if (samplesRead <= 0) {
-                if (samplesRead < 0) {
-                    // Decode error
-                    job->failed = true;
-                    decodeError = true;
-                    break;
-                }
-                break;  // EOF
-            }
-
-            totalSamplesDecoded += samplesRead;
-        }
-
-        op_free(opusFile);
-
-        if (decodeError) {
-            job->completed = true;
-            SDL_LockMutex(self->decodeMutex_);
-            if (self->completedDecodeJob_) {
-                self->destroyDecodeJob(self->completedDecodeJob_);
-            }
-            self->completedDecodeJob_ = job;
-            self->pendingDecodeJob_ = nullptr;
-            SDL_UnlockMutex(self->decodeMutex_);
-            continue;
-        }
-
-        // Mark as complete
-        {
-            SDL_LockMutex(self->decodeMutex_);
-            if (self->completedDecodeJob_) {
-                self->destroyDecodeJob(self->completedDecodeJob_);
-            }
-            self->completedDecodeJob_ = job;
-            self->pendingDecodeJob_ = nullptr;
-            job->completed = true;
-            SDL_UnlockMutex(self->decodeMutex_);
-        }
-    }
-
-    return 0;
-}
-
-void AudioManager::submitDecodeJob(AudioDecodeJob* job) {
-    SDL_LockMutex(decodeMutex_);
-    if (pendingDecodeJob_) {
-        destroyDecodeJob(pendingDecodeJob_);
-    }
-    pendingDecodeJob_ = job;
-    SDL_UnlockMutex(decodeMutex_);
-    SDL_SignalCondition(decodeCondition_);
-}
-
-int AudioManager::decodeOpusAudioAsync(const void* data, Uint64 size) {
-    AudioDecodeJob* job = static_cast<AudioDecodeJob*>(allocator_->allocate(sizeof(AudioDecodeJob), "AudioManager::AudioDecodeJob"));
-    if (!job) {
-        return -1;
-    }
-    job->compressedData = data;
-    job->compressedSize = size;
-    job->jobId = nextDecodeJobId_++;
-    job->decodedPcm = nullptr;
-    job->decodedSampleCount = 0;
-    job->channels = 0;
-    job->sampleRate = 0;
-    job->completed = false;
-    job->failed = false;
-
-    submitDecodeJob(job);
-    return job->jobId;
-}
-
-bool AudioManager::getOpusDecodeResult(
-    int jobId,
-    opus_int16*& outBuffer,
-    Uint64& outSampleCount,
-    int& outChannels,
-    int& outSampleRate
-) {
-    AudioDecodeJob* job = nullptr;
-    ThreadProfiler& profiler = ThreadProfiler::instance();
-
-    // Wait for job to complete
-    while (true) {
-        SDL_LockMutex(decodeMutex_);
-        if (completedDecodeJob_ && completedDecodeJob_->jobId == jobId) {
-            job = completedDecodeJob_;
-            completedDecodeJob_ = nullptr;
-            SDL_UnlockMutex(decodeMutex_);
-            profiler.updateThreadState(THREAD_STATE_BUSY);
-            break;
-        }
-        SDL_UnlockMutex(decodeMutex_);
-
-        if (pendingDecodeJob_ && pendingDecodeJob_->jobId == jobId) {
-            // Job still pending, wait a bit
-            profiler.updateThreadState(THREAD_STATE_IDLE);
-            SDL_Delay(1);
-        } else {
-            // Job not found
-            profiler.updateThreadState(THREAD_STATE_BUSY);
-            return false;
-        }
-    }
-
-    if (!job || job->failed) {
-        if (job) {
-            destroyDecodeJob(job);
-        }
-        return false;
-    }
-
-    outBuffer = job->decodedPcm;
-    outSampleCount = job->decodedSampleCount;
-    outChannels = job->channels;
-    outSampleRate = job->sampleRate;
-    job->decodedPcm = nullptr;
-    job->decodedSampleCount = 0;
-    destroyDecodeJob(job);
-    return true;
-}
-
-void AudioManager::freeDecodedBuffer(opus_int16* buffer) {
-    if (buffer) {
-        allocator_->free(buffer);
-    }
-}
-
-void AudioManager::destroyDecodeJob(AudioDecodeJob* job) {
-    if (!job) {
-        return;
-    }
-    if (job->decodedPcm) {
-        allocator_->free(job->decodedPcm);
-        job->decodedPcm = nullptr;
-    }
-    allocator_->free(job);
-}
 
 // ============================================================================
 // Music streaming implementation
 // ============================================================================
+
+void AudioManager::seekGlaStream(GlaStreamState& st, Uint32 targetSample) {
+    assert(st.valid);
+    assert(st.samplesPerBlock > 0);
+    Uint32 blockIdx = targetSample / st.samplesPerBlock;
+    Uint64 maxBlocks = st.dataSize / st.blockSizeBytes;
+    if (blockIdx >= maxBlocks) {
+        blockIdx = (maxBlocks > 0) ? (Uint32)(maxBlocks - 1) : 0;
+    }
+    st.byteOffset = (Uint64)blockIdx * st.blockSizeBytes;
+    st.currentSample = blockIdx * st.samplesPerBlock;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE,
+        "AudioManager: seekGlaStream: target=%u -> block=%u, byteOffset=%llu, sample=%u",
+        targetSample, blockIdx, (unsigned long long)st.byteOffset, st.currentSample);
+}
 
 int AudioManager::loadMusicTrack(
     Uint32 loopStartSample, Uint32 loopEndSample,
@@ -1078,6 +794,7 @@ int AudioManager::loadMusicTrack(
     assert(intensities != nullptr);
     assert(numUniqueLayers > 0 && numUniqueLayers <= MAX_MUSIC_LAYERS_PER_TRACK);
     assert(numIntensities > 0 && numIntensities <= MAX_MUSIC_INTENSITIES);
+    assert(ima4Supported_ && "AL_EXT_IMA4 required for GLA music streaming");
 
     // Find a free track slot.
     int trackId = -1;
@@ -1107,32 +824,50 @@ int AudioManager::loadMusicTrack(
     track.pendingStop     = false;
     track.playing         = false;
 
-    // Open each unique OPUS layer.
+    // Open each unique GLA layer.
     for (int i = 0; i < numUniqueLayers; i++) {
         MusicLayerStream& layer = track.layers[i];
-        layer.active        = false;
-        layer.opusFile      = nullptr;
+        layer.active         = false;
+        layer.glaState.valid = false;
         layer.buffersCreated = false;
-        layer.volume        = 0.0f;
-        layer.targetVolume  = 0.0f;
+        layer.volume         = 0.0f;
+        layer.targetVolume   = 0.0f;
 
-        int error = 0;
-        layer.opusFile = op_open_memory(
-            uniqueLayers[i].data, (size_t)uniqueLayers[i].size, &error);
-        if (!layer.opusFile) {
+        // Validate GLA header
+        const Uint8* data = uniqueLayers[i].data;
+        Uint64 size = uniqueLayers[i].size;
+        assert(data != nullptr && size >= sizeof(GlaHeader));
+
+        const GlaHeader* hdr = reinterpret_cast<const GlaHeader*>(data);
+        if (SDL_memcmp(hdr->sig, "GLAD", 4) != 0) {
             consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
-                "AudioManager: Failed to open OPUS stream for layer %d of track %d (error %d)",
-                i, trackId, error);
-            // Release what we've opened so far and bail.
-            for (int j = 0; j < i; j++) {
-                releaseMusicLayer(track.layers[j]);
-            }
+                "AudioManager: layer %d of track %d has bad GLA magic", i, trackId);
+            assert(false);
+            for (int j = 0; j < i; j++) releaseMusicLayer(track.layers[j]);
+            track.valid = false;
+            return -1;
+        }
+        if (hdr->version != GLA_VERSION) {
+            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+                "AudioManager: layer %d of track %d has unsupported GLA version %u", i, trackId, hdr->version);
+            assert(false);
+            for (int j = 0; j < i; j++) releaseMusicLayer(track.layers[j]);
             track.valid = false;
             return -1;
         }
 
-        const OpusHead* head = op_head(layer.opusFile, -1);
-        layer.channels = head ? head->channel_count : 2;
+        // Initialise GlaStreamState: blockData points into the pak buffer
+        GlaStreamState& st = layer.glaState;
+        st.blockData      = data + sizeof(GlaHeader);
+        st.dataSize       = size - sizeof(GlaHeader);
+        st.byteOffset     = 0;
+        st.sampleRate     = hdr->sampleRate;
+        st.channels       = hdr->channels;
+        st.blockSizeBytes = hdr->blockSizeBytes;
+        st.samplesPerBlock = hdr->samplesPerBlock;
+        st.totalSamples   = hdr->totalSamples;
+        st.currentSample  = 0;
+        st.valid          = true;
 
         // Create the OpenAL streaming source.
         alGenSources(1, &layer.source);
@@ -1151,7 +886,8 @@ int AudioManager::loadMusicTrack(
         layer.active = true;
 
         consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
-            "AudioManager: Music track %d layer %d opened (%d ch)", trackId, i, layer.channels);
+            "AudioManager: Music track %d layer %d opened (%d ch, %u Hz, %u samples, blockSize=%u)",
+            trackId, i, st.channels, st.sampleRate, st.totalSamples, st.blockSizeBytes);
     }
 
     // Build intensity descriptors (which layers are on/off per intensity).
@@ -1216,10 +952,10 @@ void AudioManager::playMusicTrack(int trackId, float fadeDuration) {
     // Pre-fill all streaming buffers for each layer and start playback.
     for (int l = 0; l < track.numLayers; l++) {
         MusicLayerStream& layer = track.layers[l];
-        if (!layer.active || !layer.opusFile) continue;
+        if (!layer.active || !layer.glaState.valid) continue;
 
-        // Re-seek to start so all layers are synchronised.
-        op_pcm_seek(layer.opusFile, 0);
+        // Seek all layers to the beginning so they are synchronised.
+        seekGlaStream(layer.glaState, 0);
 
         // Fill and queue all stream buffers.
         for (int b = 0; b < MUSIC_STREAM_BUFFERS; b++) {
@@ -1316,86 +1052,82 @@ void AudioManager::setMusicIntensity(int trackId, Uint64 intensityNameHash, floa
 int AudioManager::fillStreamBuffer(MusicLayerStream& layer, ALuint alBuffer,
                                     int frameCount, Uint32 loopStart, Uint32 loopEnd)
 {
-    assert(layer.opusFile != nullptr);
+    GlaStreamState& st = layer.glaState;
+    assert(st.valid);
     assert(frameCount > 0);
+    assert(st.samplesPerBlock > 0);
+    assert(st.blockSizeBytes > 0);
 
-    // Allocate a temporary PCM buffer on the heap (avoid large stack allocation).
-    int totalSamples = frameCount * layer.channels;
-    opus_int16* pcm = static_cast<opus_int16*>(
-        allocator_->allocate((Uint64)totalSamples * sizeof(opus_int16), "fillStreamBuffer::pcm"));
-    if (!pcm) {
-        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: OOM in fillStreamBuffer");
+    // If already at or past loop end, seek back to loop start first.
+    if (loopEnd > 0 && st.currentSample >= loopEnd) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE,
+            "AudioManager: fillStreamBuffer: currentSample %u >= loopEnd %u, seeking to loopStart %u",
+            st.currentSample, loopEnd, loopStart);
+        seekGlaStream(st, loopStart);
+    }
+
+    // If we've reached the end of data, seek back to loop start.
+    if (st.byteOffset >= st.dataSize) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE,
+            "AudioManager: fillStreamBuffer: EOF, seeking to loopStart %u", loopStart);
+        seekGlaStream(st, loopStart);
+    }
+
+    // Desired number of complete IMA4 blocks.
+    int numBlocks = frameCount / (int)st.samplesPerBlock;
+    if (numBlocks < 1) numBlocks = 1;
+
+    // Clamp to loop boundary (if set).
+    if (loopEnd > 0 && st.currentSample < loopEnd) {
+        Uint32 samplesUntilLoop = loopEnd - st.currentSample;
+        int blocksUntilLoop = (int)(samplesUntilLoop / st.samplesPerBlock);
+        if (blocksUntilLoop < numBlocks) {
+            // Always deliver at least 1 block; the next fill will wrap.
+            numBlocks = (blocksUntilLoop > 0) ? blocksUntilLoop : 1;
+        }
+    }
+
+    // Clamp to available data in the file.
+    Uint64 bytesAvail = st.dataSize - st.byteOffset;
+    int blocksAvail = (int)(bytesAvail / (Uint64)st.blockSizeBytes);
+    if (blocksAvail <= 0) {
+        // Exhausted — seek to loop start and recalculate.
+        seekGlaStream(st, loopStart);
+        bytesAvail = st.dataSize - st.byteOffset;
+        blocksAvail = (int)(bytesAvail / (Uint64)st.blockSizeBytes);
+        consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE,
+            "AudioManager: fillStreamBuffer: re-seeked; blocksAvail=%d", blocksAvail);
+    }
+    if (numBlocks > blocksAvail) numBlocks = blocksAvail;
+    if (numBlocks <= 0) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_WARN, "AudioManager: fillStreamBuffer: no blocks available");
         return 0;
     }
 
-    int framesWritten = 0;
-    while (framesWritten < frameCount) {
-        // If a non-zero loopEnd is set, check whether we need to wrap.
-        if (loopEnd > 0) {
-            ogg_int64_t pos = op_pcm_tell(layer.opusFile);
-            if (pos < 0) {
-                consoleBuffer_->log(SDL_LOG_PRIORITY_WARN,
-                    "AudioManager: op_pcm_tell failed (pos=%lld)", (long long)pos);
-                break;
-            }
-            if ((Uint32)pos >= loopEnd) {
-                int err = op_pcm_seek(layer.opusFile, (ogg_int64_t)loopStart);
-                if (err != 0) {
-                    consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
-                        "AudioManager: op_pcm_seek to loop start %u failed (err=%d)", loopStart, err);
-                    break;
-                }
-                consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE,
-                    "AudioManager: Music looped back to sample %u", loopStart);
-            }
-        }
+    // Submit the IMA4 data directly to OpenAL — no decode step needed.
+    Uint64 dataBytes = (Uint64)numBlocks * st.blockSizeBytes;
+    ALenum fmt = (st.channels == 2) ? AL_FORMAT_STEREO_IMA4 : AL_FORMAT_MONO_IMA4;
+    alBufferData(alBuffer, fmt,
+                 st.blockData + st.byteOffset,
+                 (ALsizei)dataBytes,
+                 (ALsizei)st.sampleRate);
 
-        int remaining = frameCount - framesWritten;
-        // If close to loopEnd, only decode up to the boundary so the next
-        // iteration handles the wrap correctly.
-        if (loopEnd > 0) {
-            ogg_int64_t pos = op_pcm_tell(layer.opusFile);
-            if (pos >= 0 && (Uint32)pos < loopEnd) {
-                int toEnd = (int)((ogg_int64_t)loopEnd - pos);
-                if (toEnd < remaining) {
-                    remaining = toEnd;
-                }
-            }
-        }
-
-        int read = op_read(layer.opusFile,
-                           pcm + framesWritten * layer.channels,
-                           remaining * layer.channels,
-                           nullptr);
-        if (read < 0) {
-            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
-                "AudioManager: op_read error %d in fillStreamBuffer", read);
-            break;
-        }
-        if (read == 0) {
-            // EOF and no loop end set: seek to loopStart for seamless looping.
-            int err = op_pcm_seek(layer.opusFile, (ogg_int64_t)loopStart);
-            if (err != 0) {
-                consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
-                    "AudioManager: op_pcm_seek to loop start on EOF failed (err=%d)", err);
-                break;
-            }
-            consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE,
-                "AudioManager: Music looped (EOF) back to sample %u", loopStart);
-            continue;
-        }
-        framesWritten += read;
+    ALenum err = alGetError();
+    if (err != AL_NO_ERROR) {
+        consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+            "AudioManager: alBufferData IMA4 error %d in fillStreamBuffer (blocks=%d, bytes=%llu)",
+            err, numBlocks, (unsigned long long)dataBytes);
+        return 0;
     }
 
-    if (framesWritten > 0) {
-        ALenum fmt = (layer.channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
-        alBufferData(alBuffer, fmt,
-                     pcm, framesWritten * layer.channels * (int)sizeof(opus_int16),
-                     48000);
-    }
+    st.byteOffset    += dataBytes;
+    st.currentSample += (Uint32)numBlocks * st.samplesPerBlock;
 
-    allocator_->free(pcm);
-    return framesWritten;
+    consoleBuffer_->log(SDL_LOG_PRIORITY_TRACE,
+        "AudioManager: fillStreamBuffer: %d blocks, %llu bytes, sample now %u",
+        numBlocks, (unsigned long long)dataBytes, st.currentSample);
+
+    return numBlocks * (int)st.samplesPerBlock;
 }
 
 void AudioManager::releaseMusicLayer(MusicLayerStream& layer) {
@@ -1420,10 +1152,8 @@ void AudioManager::releaseMusicLayer(MusicLayerStream& layer) {
         layer.buffersCreated = false;
     }
 
-    if (layer.opusFile) {
-        op_free(layer.opusFile);
-        layer.opusFile = nullptr;
-    }
+    // Clear stream state (does NOT free the pak buffer — it's owned by the resource system)
+    layer.glaState.valid = false;
 
     layer.active = false;
     layer.volume = 0.0f;
@@ -1507,7 +1237,7 @@ void AudioManager::streamMusicTracks(float dt) {
 
         for (int l = 0; l < track.numLayers; l++) {
             MusicLayerStream& layer = track.layers[l];
-            if (!layer.active || !layer.opusFile) continue;
+            if (!layer.active || !layer.glaState.valid) continue;
 
             // Fade volume toward target.
             if (layer.volume != layer.targetVolume) {

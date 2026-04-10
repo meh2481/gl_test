@@ -222,3 +222,31 @@ typedef struct
     // Followed by numEntries floats for cos values
 } TrigTableHeader;
 
+//--------------------------------------------------------------
+// GLA audio data (RESOURCE_TYPE_SOUND)
+// Custom IMA ADPCM audio format for zero-decode-cost playback via AL_EXT_IMA4.
+// Fixed block parameters compatible with OpenAL Soft's AL_EXT_IMA4 default:
+//   Mono   block: 36 bytes, 65 samples per block
+//   Stereo block: 72 bytes, 65 samples per channel per block
+// Binary layout:
+//   GlaHeader
+//   IMA ADPCM blocks (each GlaHeader.blockSizeBytes bytes)
+//--------------------------------------------------------------
+#define GLA_VERSION           1
+#define GLA_SAMPLES_PER_BLOCK 65
+#define GLA_MONO_BLOCK_BYTES  36
+#define GLA_STEREO_BLOCK_BYTES 72
+
+typedef struct
+{
+    char     sig[4];            // "GLAD" (GL Audio Data)
+    Uint32   version;           // GLA_VERSION
+    Uint32   sampleRate;        // e.g. 48000
+    Uint16   channels;          // 1 (mono) or 2 (stereo)
+    Uint16   blockSizeBytes;    // GLA_MONO_BLOCK_BYTES or GLA_STEREO_BLOCK_BYTES
+    Uint32   samplesPerBlock;   // GLA_SAMPLES_PER_BLOCK
+    Uint32   totalSamples;      // Total PCM samples per channel in the file
+    Uint32   loopStart;         // Loop start in samples (0 = start of file)
+    Uint32   loopEnd;           // Loop end in samples (0 = use file end)
+    // Followed immediately by IMA ADPCM blocks
+} GlaHeader;
