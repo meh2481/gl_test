@@ -352,7 +352,7 @@ int AudioManager::loadGlaAudioFromMemory(const void* data, Uint64 size) {
     assert(ima4Supported_ && "AL_EXT_IMA4 required for GLA audio");
 
     const GlaHeader* hdr = static_cast<const GlaHeader*>(data);
-    if (memcmp(hdr->sig, "GLAD", 4) != 0) {
+    if (SDL_memcmp(hdr->sig, "GLAD", 4) != 0) {
         consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "AudioManager: loadGlaAudioFromMemory: bad magic (not GLAD)");
         assert(false);
         return -1;
@@ -839,7 +839,7 @@ int AudioManager::loadMusicTrack(
         assert(data != nullptr && size >= sizeof(GlaHeader));
 
         const GlaHeader* hdr = reinterpret_cast<const GlaHeader*>(data);
-        if (memcmp(hdr->sig, "GLAD", 4) != 0) {
+        if (SDL_memcmp(hdr->sig, "GLAD", 4) != 0) {
             consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
                 "AudioManager: layer %d of track %d has bad GLA magic", i, trackId);
             assert(false);

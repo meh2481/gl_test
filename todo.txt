@@ -2,15 +2,5 @@
 * Add textboxes, fonts, kerning, line spacing, automatic word wrapping, and text justification
 * Replace libopusfile with our own audio format
 * requestAndTryResource() in LuaInterface.cpp defeats the entire purpose of async resource loading
-
-Phone 1: (works fine, slightly low fps in large scenes, but seems fine)
-Google Pixel 10 Pro
-
-Tablet: (hard crashes)
-Galaxy Tab S11
-SM-X730
-(Stay Awake & USB Debugging enabled in developer options)
-
-Phone 2: (slightly malformed water reflections)
-Samsung Galaxy S22+
-SM-S906U1
+* Buttons tapped in lua scenes do not decrease in size after tap
+* Audio worker threads for decompressing audio in the background
