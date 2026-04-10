@@ -940,7 +940,7 @@ void VulkanRenderer::createLogicalDevice() {
         deviceFeatures.textureCompressionBC = VK_TRUE;
         m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionBC: supported and enabled");
     } else {
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionBC: NOT supported by this device - BC1/BC3 textures will fail");
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionBC: NOT supported by this device - BC/DXT textures will fail");
     }
     if (availableFeatures.textureCompressionASTC_LDR) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionASTC_LDR: supported");
@@ -948,7 +948,8 @@ void VulkanRenderer::createLogicalDevice() {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionASTC_LDR: NOT supported by this device - ASTC textures will fail");
     }
     if (availableFeatures.textureCompressionETC2) {
-        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionETC2: supported");
+        deviceFeatures.textureCompressionETC2 = VK_TRUE;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionETC2: supported and enabled");
     } else {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionETC2: NOT supported by this device - ETC2 textures will fail");
     }
