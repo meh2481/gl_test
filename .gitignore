@@ -52,3 +52,4 @@ android/.gradle/
 android/local.properties
 android/app/.cxx/
 android/app/build/
+build-test/
