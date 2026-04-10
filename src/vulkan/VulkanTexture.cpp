@@ -427,9 +427,15 @@ void VulkanTexture::loadTexture(Uint64 textureId, const ResourceData& imageData)
         } else if (format == IMAGE_FORMAT_BC3_DXT5) {
             vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
             formatStr = "BC3/DXT5";
+        } else if (format == IMAGE_FORMAT_ETC1) {
+            vkFormat = VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+            formatStr = "ETC1";
+        } else if (format == IMAGE_FORMAT_ETC2) {
+            vkFormat = VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
+            formatStr = "ETC2";
         } else {
             m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Texture %llu: unsupported format %d", (unsigned long long)textureId, format);
-            assert(false && "Unsupported image format (expected BC1/DXT1 or BC3/DXT5)");
+            assert(false && "Unsupported image format");
             return;
         }
 
@@ -469,9 +475,15 @@ void VulkanTexture::loadAtlasTexture(Uint64 atlasId, const ResourceData& atlasDa
     } else if (format == IMAGE_FORMAT_BC3_DXT5) {
         vkFormat = VK_FORMAT_BC3_UNORM_BLOCK;
         formatStr = "BC3/DXT5";
+    } else if (format == IMAGE_FORMAT_ETC1) {
+        vkFormat = VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+        formatStr = "ETC1";
+    } else if (format == IMAGE_FORMAT_ETC2) {
+        vkFormat = VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
+        formatStr = "ETC2";
     } else {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "Atlas %llu: unsupported format %d", (unsigned long long)atlasId, format);
-        assert(false && "Unsupported atlas format (expected BC1/DXT1 or BC3/DXT5)");
+        assert(false && "Unsupported atlas format");
         return;
     }
 

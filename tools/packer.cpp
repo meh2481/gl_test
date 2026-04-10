@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <json/json.h>
 #include "../src/compress/Compress.h"
+#include "etc1.h"
 
 using namespace std;
 
@@ -258,9 +259,232 @@ Uint32 getFileType(const string& filename, bool isAtlas = false) {
     return RESOURCE_TYPE_UNKNOWN;
 }
 
-// Round up to next multiple of 4 for DXT block alignment
+// Round up to next multiple of 4 for DXT/ETC block alignment
 Uint32 alignTo4(Uint32 val) {
     return (val + 3) & ~3;
+}
+
+// EAC alpha modifier tables from OpenGL ES 3.0 specification Table C.4.3
+// Used for ETC2 RGBA alpha channel compression
+static const int kEACModifiers[16][8] = {
+    { -3,  -6,  -9, -15,  2,  5,  8, 14 },
+    { -3,  -7, -10, -13,  2,  6,  9, 12 },
+    { -2,  -5,  -8, -13,  1,  4,  7, 12 },
+    { -2,  -4,  -6, -13,  1,  3,  5, 12 },
+    { -3,  -6,  -8, -15,  2,  5,  7, 14 },
+    { -4,  -7,  -8, -15,  3,  6,  7, 14 },
+    { -3,  -5,  -8, -13,  2,  4,  7, 12 },
+    { -4,  -6,  -8, -13,  3,  5,  7, 12 },
+    { -4,  -8,  -8, -15,  3,  7,  7, 14 },
+    { -2,  -5,  -8, -13,  1,  4,  7, 12 },
+    { -2,  -4,  -8, -13,  1,  3,  7, 12 },
+    { -3,  -4,  -8, -13,  2,  3,  7, 12 },
+    { -4,  -6,  -8, -15,  3,  5,  7, 14 },
+    { -4,  -8,  -8, -15,  3,  7,  7, 14 },
+    { -4,  -8,  -8, -15,  3,  7,  7, 14 },
+    { -4,  -8,  -8, -15,  3,  7,  7, 14 }
+};
+
+// Encode one 4x4 block of alpha values to EAC (8 bytes output).
+// alpha_block[y*4+x] is the alpha value at column x, row y (row-major input).
+// Pixel ordering in EAC output is column-major: pixel i is at (x=i/4, y=i%4).
+// Output is 8 bytes stored big-endian per the OpenGL ES 3.0 spec.
+static void encodeEACAlphaBlock(const uint8_t* alpha_block, uint8_t* out) {
+    // EAC uses column-major ordering: pixel i maps to row-major index (i%4)*4+(i/4)
+    auto pixelAlpha = [&](int i) -> int {
+        return alpha_block[(i % 4) * 4 + (i / 4)];
+    };
+
+    int best_error = 0x7fffffff;
+    int best_base = 0;
+    int best_mult = 0;
+    int best_table = 0;
+    uint64_t best_idx_bits = 0;
+
+    // Compute range and mean of the 16 alpha values
+    int min_a = 255, max_a = 0, sum = 0;
+    for (int i = 0; i < 16; i++) {
+        int a = pixelAlpha(i);
+        if (a < min_a) min_a = a;
+        if (a > max_a) max_a = a;
+        sum += a;
+    }
+    int range = max_a - min_a;
+    int mean = sum / 16;
+
+    for (int t = 0; t < 16; t++) {
+        // Find the range of this table's modifiers
+        int mod_min = kEACModifiers[t][0], mod_max = kEACModifiers[t][7];
+        for (int j = 0; j < 8; j++) {
+            if (kEACModifiers[t][j] < mod_min) mod_min = kEACModifiers[t][j];
+            if (kEACModifiers[t][j] > mod_max) mod_max = kEACModifiers[t][j];
+        }
+        int mod_range = mod_max - mod_min;
+
+        // Determine optimal multiplier candidates based on alpha range
+        int k_opt = (mod_range > 0) ? ((range + mod_range / 2) / mod_range) : 0;
+        if (k_opt < 0) k_opt = 0;
+        if (k_opt > 15) k_opt = 15;
+
+        for (int dk = -1; dk <= 1; dk++) {
+            int k = k_opt + dk;
+            if (k < 0) k = 0;
+            if (k > 15) k = 15;
+
+            // Initial base estimate: shift min_a to align with most negative modifier
+            int base;
+            if (k == 0) {
+                base = mean;
+            } else {
+                base = min_a - k * mod_min;
+                if (base < 0) base = 0;
+                if (base > 255) base = 255;
+            }
+
+            // Iterative refinement: assign indices then recompute base
+            for (int iter = 0; iter < 4; iter++) {
+                int base_sum = 0;
+                for (int i = 0; i < 16; i++) {
+                    int a = pixelAlpha(i);
+                    int best_j = 0;
+                    int enc = base + k * kEACModifiers[t][0];
+                    if (enc < 0) enc = 0;
+                    if (enc > 255) enc = 255;
+                    int best_d = abs(enc - a);
+                    for (int j = 1; j < 8; j++) {
+                        enc = base + k * kEACModifiers[t][j];
+                        if (enc < 0) enc = 0;
+                        if (enc > 255) enc = 255;
+                        int d = abs(enc - a);
+                        if (d < best_d) {
+                            best_d = d;
+                            best_j = j;
+                        }
+                    }
+                    base_sum += a - k * kEACModifiers[t][best_j];
+                }
+                base = base_sum / 16;
+                if (base < 0) base = 0;
+                if (base > 255) base = 255;
+            }
+
+            // Compute total error and build index bits for this (t, k, base)
+            int error = 0;
+            uint64_t idx_bits = 0;
+            for (int i = 0; i < 16; i++) {
+                int a = pixelAlpha(i);
+                int best_j = 0;
+                int enc0 = base + k * kEACModifiers[t][0];
+                if (enc0 < 0) enc0 = 0;
+                if (enc0 > 255) enc0 = 255;
+                int best_d = (enc0 - a) * (enc0 - a);
+                for (int j = 1; j < 8; j++) {
+                    int enc = base + k * kEACModifiers[t][j];
+                    if (enc < 0) enc = 0;
+                    if (enc > 255) enc = 255;
+                    int d = (enc - a) * (enc - a);
+                    if (d < best_d) {
+                        best_d = d;
+                        best_j = j;
+                    }
+                }
+                error += best_d;
+                idx_bits = (idx_bits << 3) | (uint64_t)(best_j & 0x7);
+            }
+
+            if (error < best_error) {
+                best_error = error;
+                best_base = base;
+                best_mult = k;
+                best_table = t;
+                best_idx_bits = idx_bits;
+            }
+        }
+    }
+
+    // Pack into 8 bytes (big-endian, per the OpenGL ES 3.0 EAC spec):
+    //   byte 0: base_codeword
+    //   byte 1: (multiplier << 4) | table_index
+    //   bytes 2-7: 48 bits of per-pixel indices (3 bits each, 16 pixels)
+    out[0] = (uint8_t)best_base;
+    out[1] = (uint8_t)((best_mult << 4) | (best_table & 0x0f));
+    for (int b = 0; b < 6; b++) {
+        out[2 + b] = (uint8_t)((best_idx_bits >> (40 - 8 * b)) & 0xff);
+    }
+}
+
+// Compress image data using ETC1 (RGB) or ETC2 RGBA compression.
+// imageData must be RGBA (4 bytes per pixel).
+void compressImageETC(const vector<uint8_t>& imageData, vector<char>& compressed,
+                      Uint32 width, Uint32 height, bool hasAlpha, Uint16& format) {
+    assert(width > 0 && height > 0);
+    assert(imageData.size() == (size_t)width * height * 4);
+    // Dimensions must be multiples of 4 for ETC block alignment
+    assert((width % 4) == 0 && (height % 4) == 0);
+
+    Uint32 blocksX = width / 4;
+    Uint32 blocksY = height / 4;
+
+    if (!hasAlpha) {
+        // ETC1: RGB only.  Convert RGBA -> RGB then use etc1_encode_image.
+        format = IMAGE_FORMAT_ETC1;
+        size_t rgbSize = (size_t)width * height * 3;
+        vector<uint8_t> rgb(rgbSize);
+        for (Uint32 i = 0; i < width * height; i++) {
+            rgb[i * 3 + 0] = imageData[i * 4 + 0];
+            rgb[i * 3 + 1] = imageData[i * 4 + 1];
+            rgb[i * 3 + 2] = imageData[i * 4 + 2];
+        }
+        size_t outSize = (size_t)etc1_get_encoded_data_size(width, height);
+        if (outSize == 0) {
+            cerr << "ETC1: etc1_get_encoded_data_size returned 0 for " << width << "x" << height << endl;
+        }
+        assert(outSize > 0);
+        compressed.resize(outSize);
+        int result = etc1_encode_image(rgb.data(), width, height, 3, width * 3,
+                                       (etc1_byte*)compressed.data());
+        if (result != 0) {
+            cerr << "ETC1 encoding failed with result " << result
+                 << " for " << width << "x" << height << " image" << endl;
+        }
+        assert(result == 0 && "ETC1 encoding failed");
+    } else {
+        // ETC2 RGBA: interleave [8-byte EAC alpha][8-byte ETC1 RGB] per block.
+        format = IMAGE_FORMAT_ETC2;
+        size_t outSize = (size_t)blocksX * blocksY * 16;
+        if (outSize == 0) {
+            cerr << "ETC2: computed output size is 0 for " << width << "x" << height
+                 << " (" << blocksX << "x" << blocksY << " blocks)" << endl;
+        }
+        assert(outSize > 0);
+        compressed.resize(outSize);
+
+        for (Uint32 by = 0; by < blocksY; by++) {
+            for (Uint32 bx = 0; bx < blocksX; bx++) {
+                // Extract 4x4 alpha and RGB sub-blocks from the RGBA image.
+                uint8_t alpha_block[16]; // row-major: [y*4+x]
+                uint8_t rgb_block[48];   // etc1 row-major: [3*(x+4*y)]
+                for (Uint32 py = 0; py < 4; py++) {
+                    for (Uint32 px = 0; px < 4; px++) {
+                        size_t src = ((by * 4 + py) * width + (bx * 4 + px)) * 4;
+                        alpha_block[py * 4 + px] = imageData[src + 3];
+                        size_t dst_rgb = (px + 4 * py) * 3;
+                        rgb_block[dst_rgb + 0] = imageData[src + 0];
+                        rgb_block[dst_rgb + 1] = imageData[src + 1];
+                        rgb_block[dst_rgb + 2] = imageData[src + 2];
+                    }
+                }
+
+                size_t block_offset = ((size_t)by * blocksX + bx) * 16;
+                uint8_t* dst = (uint8_t*)compressed.data() + block_offset;
+
+                // First 8 bytes: EAC-compressed alpha
+                encodeEACAlphaBlock(alpha_block, dst);
+                // Next 8 bytes: ETC1-compatible RGB
+                etc1_encode_block(rgb_block, 0xffff, dst + 8);
+            }
+        }
+    }
 }
 
 // Load PNG image and convert to RGBA
@@ -391,11 +615,30 @@ bool savePNG(const string& filename, const vector<uint8_t>& imageData, Uint32 wi
     return true;
 }
 
-// Compress image data using DXT/BC compression
-void compressImage(const vector<uint8_t>& imageData, vector<char>& compressed, Uint32 width, Uint32 height, bool hasAlpha, Uint16& format) {
+// Compress image data using DXT/BC or ETC1/ETC2 compression.
+// imageData must be RGBA (4 bytes per pixel).
+void compressImage(const vector<uint8_t>& imageData, vector<char>& compressed, Uint32 width, Uint32 height, bool hasAlpha, Uint16& format, bool useETC) {
     assert(width > 0 && height > 0);
     // imageData is always RGBA (4 bytes per pixel) at this point
     assert(imageData.size() == width * height * 4);
+
+    if (useETC) {
+        // ETC requires dimensions to be multiples of 4; pad if necessary
+        Uint32 paddedW = alignTo4(width);
+        Uint32 paddedH = alignTo4(height);
+        if (paddedW != width || paddedH != height) {
+            vector<uint8_t> padded(paddedW * paddedH * 4, 0);
+            for (Uint32 y = 0; y < height; y++) {
+                memcpy(padded.data() + y * paddedW * 4,
+                       imageData.data() + y * width * 4,
+                       width * 4);
+            }
+            compressImageETC(padded, compressed, paddedW, paddedH, hasAlpha, format);
+        } else {
+            compressImageETC(imageData, compressed, width, height, hasAlpha, format);
+        }
+        return;
+    }
 
     // Choose compression format based on alpha channel
     int flags;
@@ -417,7 +660,7 @@ void compressImage(const vector<uint8_t>& imageData, vector<char>& compressed, U
 }
 
 // Compress image data from raw format (RGB or RGBA)
-void compressImageRaw(const vector<uint8_t>& imageData, vector<char>& compressed, Uint32 width, Uint32 height, bool hasAlpha, Uint16& format) {
+void compressImageRaw(const vector<uint8_t>& imageData, vector<char>& compressed, Uint32 width, Uint32 height, bool hasAlpha, Uint16& format, bool useETC) {
     assert(width > 0 && height > 0);
     int bytesPerPixel = hasAlpha ? 4 : 3;
     assert(imageData.size() == width * height * bytesPerPixel);
@@ -432,9 +675,9 @@ void compressImageRaw(const vector<uint8_t>& imageData, vector<char>& compressed
             rgbaData[i * 4 + 2] = imageData[i * 3 + 2];  // B
             rgbaData[i * 4 + 3] = 255;                   // A (fully opaque)
         }
-        compressImage(rgbaData, compressed, width, height, false, format);
+        compressImage(rgbaData, compressed, width, height, false, format, useETC);
     } else {
-        compressImage(imageData, compressed, width, height, true, format);
+        compressImage(imageData, compressed, width, height, true, format, useETC);
     }
 }
 
@@ -664,14 +907,14 @@ Uint64 packImagesIntoAtlases(vector<PNGImageData>& images, vector<TextureAtlas>&
 }
 
 // Process atlas: compress and create output data with AtlasHeader
-bool processAtlas(TextureAtlas& atlas, vector<char>& output) {
+bool processAtlas(TextureAtlas& atlas, vector<char>& output, bool useETC) {
     assert(atlas.width > 0 && atlas.height > 0);
     assert(atlas.imageData.size() == atlas.width * atlas.height * 4);
 
     // Compress the atlas image data
     vector<char> compressedImage;
     Uint16 format;
-    compressImage(atlas.imageData, compressedImage, atlas.width, atlas.height, atlas.hasAlpha, format);
+    compressImage(atlas.imageData, compressedImage, atlas.width, atlas.height, atlas.hasAlpha, format, useETC);
 
     assert(compressedImage.size() > 0);
 
@@ -699,7 +942,7 @@ bool processAtlas(TextureAtlas& atlas, vector<char>& output) {
 }
 
 // Process PNG file: load, compress, and prepend ImageHeader
-bool processPNGFile(const string& filename, vector<char>& output) {
+bool processPNGFile(const string& filename, vector<char>& output, bool useETC) {
     vector<uint8_t> imageData;
     Uint32 width, height;
     bool hasAlpha;
@@ -715,7 +958,7 @@ bool processPNGFile(const string& filename, vector<char>& output) {
     // Compress the image data
     vector<char> compressedImage;
     Uint16 format;
-    compressImageRaw(imageData, compressedImage, width, height, hasAlpha, format);
+    compressImageRaw(imageData, compressedImage, width, height, hasAlpha, format, useETC);
 
     assert(compressedImage.size() > 0);
 
@@ -877,9 +1120,10 @@ bool processLoopFile(const string& filename, vector<char>& output) {
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases] [--max-atlas-size N]" << endl;
+        cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases] [--max-atlas-size N] [--etc]" << endl;
         cerr << "  --output-atlases: Save texture atlases as PNG files in build/ folder for review" << endl;
         cerr << "  --max-atlas-size N: Maximum atlas texture dimension (default: " << DEFAULT_ATLAS_MAX_SIZE << ")" << endl;
+        cerr << "  --etc: Use ETC1/ETC2 texture compression instead of BC1/BC3 (DXT)" << endl;
         return 1;
     }
 
@@ -887,6 +1131,7 @@ int main(int argc, char* argv[]) {
     vector<string> inputFiles;
     bool outputAtlases = false;
     Uint32 maxAtlasSize = DEFAULT_ATLAS_MAX_SIZE;
+    bool useETC = false;
 
     // Parse arguments
     for (int i = 1; i < argc; ++i) {
@@ -895,6 +1140,8 @@ int main(int argc, char* argv[]) {
             outputAtlases = true;
         } else if (arg == "--max-atlas-size" && i + 1 < argc) {
             maxAtlasSize = (Uint32)stoul(argv[++i]);
+        } else if (arg == "--etc") {
+            useETC = true;
         } else if (output.empty()) {
             output = arg;
         } else {
@@ -903,9 +1150,10 @@ int main(int argc, char* argv[]) {
     }
 
     if (output.empty() || inputFiles.empty()) {
-        cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases] [--max-atlas-size N]" << endl;
+        cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases] [--max-atlas-size N] [--etc]" << endl;
         cerr << "  --output-atlases: Save texture atlases as PNG files in build/ folder for review" << endl;
         cerr << "  --max-atlas-size N: Maximum atlas texture dimension (default: " << DEFAULT_ATLAS_MAX_SIZE << ")" << endl;
+        cerr << "  --etc: Use ETC1/ETC2 texture compression instead of BC1/BC3 (DXT)" << endl;
         return 1;
     }
 
@@ -1112,9 +1360,12 @@ int main(int argc, char* argv[]) {
 
         // Print atlas info
         for (Uint64 i = 0; i < atlases.size(); i++) {
+            const char* fmtName = useETC
+                ? (atlases[i].hasAlpha ? "RGBA/ETC2" : "RGB/ETC1")
+                : (atlases[i].hasAlpha ? "RGBA/BC3"  : "RGB/BC1");
             cout << "  Atlas " << i << ": " << atlases[i].width << "x" << atlases[i].height
                  << " (" << atlases[i].entries.size() << " images, "
-                 << (atlases[i].hasAlpha ? "RGBA/BC3" : "RGB/BC1") << ")" << endl;
+                 << fmtName << ")" << endl;
         }
 
         // Save atlases as PNG files if requested
@@ -1162,7 +1413,7 @@ int main(int argc, char* argv[]) {
 
                 vector<char> compressedImage;
                 Uint16 format;
-                compressImageRaw(img.imageData, compressedImage, img.width, img.height, img.hasAlpha, format);
+                compressImageRaw(img.imageData, compressedImage, img.width, img.height, img.hasAlpha, format, useETC);
 
                 // Create ImageHeader
                 ImageHeader header;
@@ -1234,7 +1485,7 @@ int main(int argc, char* argv[]) {
             atlasFile.mtime = time(nullptr);  // Current time
             atlasFile.changed = true;
 
-            if (!processAtlas(atlas, atlasFile.data)) {
+            if (!processAtlas(atlas, atlasFile.data, useETC)) {
                 cerr << "Failed to process atlas " << i << endl;
                 return 1;
             }

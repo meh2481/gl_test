@@ -127,6 +127,8 @@ endif()
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
     add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
     target_sources(packer PRIVATE src/compress/Compress.cpp)
+    # Bundle the ETC1 encoder/decoder source so no external android-libetc1-dev is needed.
+    target_sources(packer PRIVATE tools/etc1.cpp)
     target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB PkgConfig::SQUISH PkgConfig::JSONCPP)
 endif()
 
@@ -144,9 +146,15 @@ if(BUILD_GAME)
         if(NOT NATIVE_PACKER)
             message(FATAL_ERROR "NATIVE_PACKER must be set to a native packer executable when cross-compiling")
         endif()
+        # Determine format flags: Android uses ETC1/ETC2 (mobile-optimal), desktop uses BC1/BC3 (DXT)
+        if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+            set(PACKER_FORMAT_FLAGS "--etc")
+        else()
+            set(PACKER_FORMAT_FLAGS "")
+        endif()
         add_custom_command(
             OUTPUT ${CMAKE_BINARY_DIR}/res.pak
-            COMMAND "${NATIVE_PACKER}" ${CMAKE_BINARY_DIR}/res.pak ${SHADER_FILES} ${RES_FILES} --output-atlases --max-atlas-size 2048
+            COMMAND "${NATIVE_PACKER}" ${CMAKE_BINARY_DIR}/res.pak ${SHADER_FILES} ${RES_FILES} --output-atlases --max-atlas-size 2048 ${PACKER_FORMAT_FLAGS}
             DEPENDS ${SHADER_FILES} ${RES_FILES} shaders
         )
     else()
