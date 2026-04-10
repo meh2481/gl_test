@@ -93,6 +93,7 @@ struct HotReloadData
     SDL_AtomicInt reloadComplete;
     SDL_AtomicInt reloadSuccess;
     SDL_AtomicInt reloadRequested;
+    SDL_AtomicInt shouldExit;
 };
 
 #ifdef HAS_IMGUI
@@ -118,11 +119,15 @@ static int hotReloadThread(void *data)
     ThreadProfiler& profiler = ThreadProfiler::instance();
     profiler.registerThread("HotReloadWorker");
 
-    while (true)
+    while (SDL_GetAtomicInt(&reloadData->shouldExit) == 0)
     {
         // Wait for reload request
         while (SDL_GetAtomicInt(&reloadData->reloadRequested) == 0)
         {
+            if (SDL_GetAtomicInt(&reloadData->shouldExit) != 0)
+            {
+                return 0;
+            }
             profiler.updateThreadState(THREAD_STATE_IDLE);
             SDL_Delay(100);
         }
@@ -502,6 +507,7 @@ extern "C" int app_main()
     SDL_SetAtomicInt(&reloadData.reloadComplete, 0);
     SDL_SetAtomicInt(&reloadData.reloadSuccess, 0);
     SDL_SetAtomicInt(&reloadData.reloadRequested, 0);
+    SDL_SetAtomicInt(&reloadData.shouldExit, 0);
 
     SDL_Thread *reloadThread = SDL_CreateThread(hotReloadThread, "HotReload", &reloadData);
     assert(reloadThread != nullptr);
@@ -1011,11 +1017,9 @@ extern "C" int app_main()
     g_imguiManager = nullptr;
     imguiManager->cleanup();
 
-    // Cleanup hot-reload thread
-    // Note: We can't cleanly stop the thread since it's in an infinite loop
-    // In a production app, we'd use a flag to signal thread exit
-    // For debug builds this is acceptable as the process is exiting anyway
-    SDL_DetachThread(reloadThread);
+    // Cleanup hot-reload thread - signal exit and wait for it to finish
+    SDL_SetAtomicInt(&reloadData.shouldExit, 1);
+    SDL_WaitThread(reloadThread, nullptr);
     SDL_DestroyMutex(reloadData.mutex);
 
     // Destroy ImGuiManager
