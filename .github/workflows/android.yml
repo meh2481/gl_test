@@ -326,11 +326,6 @@ jobs:
           cp $SYSROOT/lib/libSDL3.so   $JNI_DIR/
           cp $SYSROOT/lib/libopenal.so $JNI_DIR/
 
-          # Strip debug symbols from all native libs before packaging.
-          $STRIP --strip-unneeded $JNI_DIR/libmain.so
-          $STRIP --strip-unneeded $JNI_DIR/libSDL3.so
-          $STRIP --strip-unneeded $JNI_DIR/libopenal.so
-
           # Stage packed game resources as Android assets.
           ASSETS_DIR=$GITHUB_WORKSPACE/android/app/src/main/assets
           mkdir -p $ASSETS_DIR
@@ -341,10 +336,20 @@ jobs:
           mkdir -p $JAVA_DIR
           cp -r $SYSROOT/sdl3-java/* $JAVA_DIR/
 
-          # Point Gradle at the Android SDK and build a release APK.
           echo "sdk.dir=$ANDROID_HOME" > $GITHUB_WORKSPACE/android/local.properties
+
+          # --- Debug APK: package with unstripped libmain.so for crash symbolication ---
           cd $GITHUB_WORKSPACE/android
-          ./gradlew assemble
+          ./gradlew assembleDebug
+
+          # --- Strip native libs for the release APK ---
+          $STRIP --strip-unneeded $JNI_DIR/libmain.so
+          $STRIP --strip-unneeded $JNI_DIR/libSDL3.so
+          $STRIP --strip-unneeded $JNI_DIR/libopenal.so
+
+          # --- Release APK: package with stripped libs ---
+          cd $GITHUB_WORKSPACE/android
+          ./gradlew assembleRelease
 
       - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
