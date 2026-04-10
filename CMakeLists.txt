@@ -74,8 +74,8 @@ if(BUILD_GAME)
     include_directories(${SDL3_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS} ${OPENAL_INCLUDE_DIRS} ${OPUSFILE_INCLUDE_DIRS})
     find_package(box2d CONFIG REQUIRED)
 
-    # ImGui setup for debug builds only
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # ImGui setup for debug builds only (desktop only — not available on Android)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
         # Try CMake config first (for Arch imgui-full), then pkg-config (for Ubuntu libimgui-dev), then manual for CI
         find_package(imgui QUIET)
         if(imgui_FOUND)
@@ -146,7 +146,7 @@ if(BUILD_GAME)
         endif()
         add_custom_command(
             OUTPUT ${CMAKE_BINARY_DIR}/res.pak
-            COMMAND "${NATIVE_PACKER}" ${CMAKE_BINARY_DIR}/res.pak ${SHADER_FILES} ${RES_FILES} --output-atlases
+            COMMAND "${NATIVE_PACKER}" ${CMAKE_BINARY_DIR}/res.pak ${SHADER_FILES} ${RES_FILES} --output-atlases --max-atlas-size 2048
             DEPENDS ${SHADER_FILES} ${RES_FILES} shaders
         )
     else()
@@ -184,7 +184,7 @@ if(BUILD_GAME)
         src/animation/AnimationEngine.cpp
         src/compress/Compress.cpp
     )
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
         list(APPEND GAME_SOURCES src/debug/ImGuiManager.cpp)
     endif()
 
@@ -203,7 +203,7 @@ if(BUILD_GAME)
         target_sources(shader_triangle PRIVATE "${APP_ICON_RC}")
     endif()
 
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
         target_link_libraries(shader_triangle PkgConfig::SDL3 Vulkan::Vulkan PkgConfig::LUA box2d::box2d PkgConfig::OPENAL PkgConfig::OPUSFILE ${IMGUI_LIBRARIES})
     else()
         target_link_libraries(shader_triangle PkgConfig::SDL3 Vulkan::Vulkan PkgConfig::LUA box2d::box2d PkgConfig::OPENAL PkgConfig::OPUSFILE)

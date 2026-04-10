@@ -932,7 +932,22 @@ void VulkanRenderer::createLogicalDevice() {
         queueCreateInfo.pQueuePriorities = &queuePriority;
         queueCreateInfos[i] = queueCreateInfo;
     }
+    VkPhysicalDeviceFeatures availableFeatures{};
+    vkGetPhysicalDeviceFeatures(m_physicalDevice, &availableFeatures);
+
     VkPhysicalDeviceFeatures deviceFeatures{};
+    if (availableFeatures.textureCompressionBC) {
+        deviceFeatures.textureCompressionBC = VK_TRUE;
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionBC: supported and enabled");
+    } else {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_WARN, "textureCompressionBC: NOT supported by this device - BC1/BC3 textures will fail");
+    }
+    if (availableFeatures.textureCompressionASTC_LDR) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionASTC_LDR: supported");
+    }
+    if (availableFeatures.textureCompressionETC2) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_INFO, "textureCompressionETC2: supported");
+    }
     m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
         "Selected queue families: graphics=%d present=%d",
         graphicsFamily,

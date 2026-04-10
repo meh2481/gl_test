@@ -88,6 +88,16 @@ void VulkanTexture::createTextureImage(Uint64 textureId, const void* imageData, 
         (int)format,
         (unsigned long long)dataSize);
 
+    // Check that the format is actually supported for optimal tiling
+    VkFormatProperties formatProps{};
+    vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &formatProps);
+    if (!(formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "[VulkanTexture] createTextureImage id=%llu: format %d not supported for optimal tiling (optimalTilingFeatures=0x%x) - skipping upload",
+            (unsigned long long)textureId, (int)format, (unsigned)formatProps.optimalTilingFeatures);
+        return;
+    }
+
     // Create staging buffer
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;

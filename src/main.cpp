@@ -21,8 +21,10 @@
 #include "animation/AnimationEngine.h"
 #include "debug/ThreadProfiler.h"
 
-#ifdef DEBUG
+// HAS_IMGUI: desktop debug only — ImGui is not built for Android.
+#if defined(DEBUG) && !defined(ANDROID)
 #include "debug/ImGuiManager.h"
+#define HAS_IMGUI 1
 #endif
 #include "debug/ConsoleBuffer.h"
 
@@ -83,7 +85,7 @@ static float calculateTouchDistance(const TrackedFinger& a, const TrackedFinger&
     return SDL_sqrtf(dx * dx + dy * dy);
 }
 
-#ifdef DEBUG
+#ifdef HAS_IMGUI
 // Structure to pass data to the hot-reload thread
 struct HotReloadData
 {
@@ -93,6 +95,7 @@ struct HotReloadData
     SDL_AtomicInt reloadRequested;
 };
 
+#ifdef HAS_IMGUI
 // Global ImGuiManager pointer for callback
 static ImGuiManager *g_imguiManager = nullptr;
 
@@ -104,6 +107,7 @@ static void renderImGuiCallback(VkCommandBuffer commandBuffer)
         g_imguiManager->render(commandBuffer);
     }
 }
+#endif // HAS_IMGUI
 
 // Thread function for hot-reloading resources
 // This allows F5 hot-reload to happen in the background without blocking the main thread
@@ -473,7 +477,7 @@ extern "C" int app_main()
     bool initialScenePending = true;
     bool preloadCompleteLogged = false;
 
-#ifdef DEBUG
+#ifdef HAS_IMGUI
     bool pendingHotReloadSceneApply = false;
     // Allocate ImGuiManager using large allocator
     ImGuiManager *imguiManager = static_cast<ImGuiManager *>(
@@ -519,7 +523,7 @@ extern "C" int app_main()
         lastTime = currentTime;
         while (SDL_PollEvent(&event))
         {
-#ifdef DEBUG
+#ifdef HAS_IMGUI
             // Process event for ImGui first
             imguiManager->processEvent(&event);
 #endif
@@ -556,7 +560,7 @@ extern "C" int app_main()
                     }
                     saveConfig(config);
                 }
-#ifdef DEBUG
+#ifdef HAS_IMGUI
                 // Handle special case: F5 for hot reload
                 if (event.key.key == SDLK_F5)
                 {
@@ -651,7 +655,7 @@ extern "C" int app_main()
             // Handle mouse wheel for zoom
             if (event.type == SDL_EVENT_MOUSE_WHEEL)
             {
-#ifdef DEBUG
+#ifdef HAS_IMGUI
                 // Don't zoom if ImGui wants the mouse (e.g., hovering over ImGui window)
                 if (!imguiManager->wantCaptureMouse())
                 {
@@ -836,7 +840,7 @@ extern "C" int app_main()
             initialScenePending = false;
         }
 
-#ifdef DEBUG
+#ifdef HAS_IMGUI
         if (pendingHotReloadSceneApply && pakResource->areAllResourcesReady())
         {
             sceneManager->reloadCurrentScene();
@@ -845,7 +849,7 @@ extern "C" int app_main()
         }
 #endif
 
-#ifdef DEBUG
+#ifdef HAS_IMGUI
         // Sync particle editor preview controls with camera
         if (sceneManager->isParticleEditorActive())
         {
@@ -881,7 +885,7 @@ extern "C" int app_main()
                                         sceneManager->getCameraZoom());
 
         bool waitingForResources = initialScenePending;
-    #ifdef DEBUG
+    #ifdef HAS_IMGUI
         waitingForResources = waitingForResources || pendingHotReloadSceneApply;
     #endif
 
@@ -890,7 +894,7 @@ extern "C" int app_main()
             running = false;
         }
 
-#ifdef DEBUG
+#ifdef HAS_IMGUI
         // Check if hot-reload completed
         if (SDL_GetAtomicInt(&reloadData.reloadComplete) == 1)
         {
@@ -911,7 +915,7 @@ extern "C" int app_main()
         }
 #endif
 
-#ifdef DEBUG
+#ifdef HAS_IMGUI
         // Start ImGui frame
         int width, height;
         SDL_GetWindowSize(window, &width, &height);
@@ -1002,7 +1006,7 @@ extern "C" int app_main()
         SDL_CloseGamepad(gameController);
     }
 
-#ifdef DEBUG
+#ifdef HAS_IMGUI
     // Cleanup ImGui
     g_imguiManager = nullptr;
     imguiManager->cleanup();

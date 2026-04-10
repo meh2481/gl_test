@@ -877,20 +877,24 @@ bool processLoopFile(const string& filename, vector<char>& output) {
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases]" << endl;
+        cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases] [--max-atlas-size N]" << endl;
         cerr << "  --output-atlases: Save texture atlases as PNG files in build/ folder for review" << endl;
+        cerr << "  --max-atlas-size N: Maximum atlas texture dimension (default: " << DEFAULT_ATLAS_MAX_SIZE << ")" << endl;
         return 1;
     }
 
     string output;
     vector<string> inputFiles;
     bool outputAtlases = false;
+    Uint32 maxAtlasSize = DEFAULT_ATLAS_MAX_SIZE;
 
     // Parse arguments
     for (int i = 1; i < argc; ++i) {
         string arg = argv[i];
         if (arg == "--output-atlases") {
             outputAtlases = true;
+        } else if (arg == "--max-atlas-size" && i + 1 < argc) {
+            maxAtlasSize = (Uint32)stoul(argv[++i]);
         } else if (output.empty()) {
             output = arg;
         } else {
@@ -899,8 +903,9 @@ int main(int argc, char* argv[]) {
     }
 
     if (output.empty() || inputFiles.empty()) {
-        cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases]" << endl;
+        cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases] [--max-atlas-size N]" << endl;
         cerr << "  --output-atlases: Save texture atlases as PNG files in build/ folder for review" << endl;
+        cerr << "  --max-atlas-size N: Maximum atlas texture dimension (default: " << DEFAULT_ATLAS_MAX_SIZE << ")" << endl;
         return 1;
     }
 
@@ -1102,7 +1107,7 @@ int main(int argc, char* argv[]) {
 
         // Pack images into atlases
         vector<TextureAtlas> atlases;
-        Uint64 numAtlases = packImagesIntoAtlases(pngImages, atlases, DEFAULT_ATLAS_MAX_SIZE);
+        Uint64 numAtlases = packImagesIntoAtlases(pngImages, atlases, maxAtlasSize);
         cout << "Created " << numAtlases << " texture atlas(es)" << endl;
 
         // Print atlas info
