@@ -290,6 +290,11 @@ static const int kEACModifiers[16][8] = {
 // Pixel ordering in EAC output is column-major: pixel i is at (x=i/4, y=i%4).
 // Output is 8 bytes stored big-endian per the OpenGL ES 3.0 spec.
 static void encodeEACAlphaBlock(const uint8_t* alpha_block, uint8_t* out) {
+    // EAC uses column-major ordering: pixel i maps to row-major index (i%4)*4+(i/4)
+    auto pixelAlpha = [&](int i) -> int {
+        return alpha_block[(i % 4) * 4 + (i / 4)];
+    };
+
     int best_error = 0x7fffffff;
     int best_base = 0;
     int best_mult = 0;
@@ -299,7 +304,7 @@ static void encodeEACAlphaBlock(const uint8_t* alpha_block, uint8_t* out) {
     // Compute range and mean of the 16 alpha values
     int min_a = 255, max_a = 0, sum = 0;
     for (int i = 0; i < 16; i++) {
-        int a = alpha_block[(i % 4) * 4 + (i / 4)];  // column-major: x=i/4, y=i%4
+        int a = pixelAlpha(i);
         if (a < min_a) min_a = a;
         if (a > max_a) max_a = a;
         sum += a;
@@ -340,7 +345,7 @@ static void encodeEACAlphaBlock(const uint8_t* alpha_block, uint8_t* out) {
             for (int iter = 0; iter < 4; iter++) {
                 int base_sum = 0;
                 for (int i = 0; i < 16; i++) {
-                    int a = alpha_block[(i % 4) * 4 + (i / 4)];
+                    int a = pixelAlpha(i);
                     int best_j = 0;
                     int enc = base + k * kEACModifiers[t][0];
                     if (enc < 0) enc = 0;
@@ -367,7 +372,7 @@ static void encodeEACAlphaBlock(const uint8_t* alpha_block, uint8_t* out) {
             int error = 0;
             uint64_t idx_bits = 0;
             for (int i = 0; i < 16; i++) {
-                int a = alpha_block[(i % 4) * 4 + (i / 4)];
+                int a = pixelAlpha(i);
                 int best_j = 0;
                 int enc0 = base + k * kEACModifiers[t][0];
                 if (enc0 < 0) enc0 = 0;
@@ -431,15 +436,26 @@ void compressImageETC(const vector<uint8_t>& imageData, vector<char>& compressed
             rgb[i * 3 + 2] = imageData[i * 4 + 2];
         }
         size_t outSize = (size_t)etc1_get_encoded_data_size(width, height);
+        if (outSize == 0) {
+            cerr << "ETC1: etc1_get_encoded_data_size returned 0 for " << width << "x" << height << endl;
+        }
         assert(outSize > 0);
         compressed.resize(outSize);
         int result = etc1_encode_image(rgb.data(), width, height, 3, width * 3,
                                        (etc1_byte*)compressed.data());
+        if (result != 0) {
+            cerr << "ETC1 encoding failed with result " << result
+                 << " for " << width << "x" << height << " image" << endl;
+        }
         assert(result == 0 && "ETC1 encoding failed");
     } else {
         // ETC2 RGBA: interleave [8-byte EAC alpha][8-byte ETC1 RGB] per block.
         format = IMAGE_FORMAT_ETC2;
         size_t outSize = (size_t)blocksX * blocksY * 16;
+        if (outSize == 0) {
+            cerr << "ETC2: computed output size is 0 for " << width << "x" << height
+                 << " (" << blocksX << "x" << blocksY << " blocks)" << endl;
+        }
         assert(outSize > 0);
         compressed.resize(outSize);
 
