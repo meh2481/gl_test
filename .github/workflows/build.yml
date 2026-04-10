@@ -28,7 +28,7 @@ jobs:
       - name: Install required libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev vulkan-tools glslc liblua5.4-dev libpng-dev libsquish-dev libopenal-dev libopusfile-dev libjsoncpp-dev
+          sudo apt-get install -y libvulkan-dev vulkan-tools glslc liblua5.4-dev libpng-dev libsquish-dev android-libetc1-dev libopenal-dev libopusfile-dev libjsoncpp-dev
           # Ubuntu ships libsquish.pc with an empty prefix, which causes CMake to reject
           # the imported target (includedir resolves to /include instead of /usr/include).
           sudo sed -i 's|^prefix=$|prefix=/usr|' "$(pkg-config --variable=pcfiledir libsquish)/libsquish.pc"

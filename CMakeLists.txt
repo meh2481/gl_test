@@ -127,7 +127,24 @@ endif()
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
     add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
     target_sources(packer PRIVATE src/compress/Compress.cpp)
-    target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB PkgConfig::SQUISH PkgConfig::JSONCPP)
+    # Find android-libetc1 for ETC1/ETC2 texture compression in the packer
+    find_library(ETC1_LIBRARY NAMES ETC1
+        PATHS /usr/lib/x86_64-linux-gnu/android /usr/lib/android /usr/local/lib/android
+        NO_DEFAULT_PATH)
+    if(NOT ETC1_LIBRARY)
+        find_library(ETC1_LIBRARY NAMES ETC1)
+    endif()
+    find_path(ETC1_INCLUDE_DIR ETC1/etc1.h
+        PATHS /usr/include/android /usr/local/include/android /usr/include
+        NO_DEFAULT_PATH)
+    if(NOT ETC1_INCLUDE_DIR)
+        find_path(ETC1_INCLUDE_DIR ETC1/etc1.h)
+    endif()
+    if(NOT ETC1_LIBRARY OR NOT ETC1_INCLUDE_DIR)
+        message(FATAL_ERROR "android-libetc1-dev not found. Install with: sudo apt-get install android-libetc1-dev")
+    endif()
+    target_include_directories(packer PRIVATE ${ETC1_INCLUDE_DIR})
+    target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB PkgConfig::SQUISH PkgConfig::JSONCPP ${ETC1_LIBRARY})
 endif()
 
 if(BUILD_GAME)
@@ -144,9 +161,15 @@ if(BUILD_GAME)
         if(NOT NATIVE_PACKER)
             message(FATAL_ERROR "NATIVE_PACKER must be set to a native packer executable when cross-compiling")
         endif()
+        # Determine format flags: Android uses ETC1/ETC2 (mobile-optimal), desktop uses BC1/BC3 (DXT)
+        if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+            set(PACKER_FORMAT_FLAGS "--etc")
+        else()
+            set(PACKER_FORMAT_FLAGS "")
+        endif()
         add_custom_command(
             OUTPUT ${CMAKE_BINARY_DIR}/res.pak
-            COMMAND "${NATIVE_PACKER}" ${CMAKE_BINARY_DIR}/res.pak ${SHADER_FILES} ${RES_FILES} --output-atlases --max-atlas-size 2048
+            COMMAND "${NATIVE_PACKER}" ${CMAKE_BINARY_DIR}/res.pak ${SHADER_FILES} ${RES_FILES} --output-atlases --max-atlas-size 2048 ${PACKER_FORMAT_FLAGS}
             DEPENDS ${SHADER_FILES} ${RES_FILES} shaders
         )
     else()

@@ -32,7 +32,7 @@ jobs:
           sudo apt-get install -y \
             cmake ninja-build pkg-config python3 nasm \
             libvulkan-dev vulkan-tools glslc \
-            libpng-dev libsquish-dev libjsoncpp-dev \
+            libpng-dev libsquish-dev android-libetc1-dev libjsoncpp-dev \
             openjdk-17-jdk-headless
           # Ubuntu ships libsquish.pc with an empty prefix; fix it so pkg-config resolves correctly.
           sudo sed -i 's|^prefix=$|prefix=/usr|' "$(pkg-config --variable=pcfiledir libsquish)/libsquish.pc"
