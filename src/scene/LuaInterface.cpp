@@ -377,7 +377,7 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
                                      "createForceField", "createRadialForceField", "getForceFieldBodyId", "setWaterPercentage", "setWaterRotation",
                                      "createLayer", "destroyLayer", "attachLayerToBody", "setLayerOffset", "setLayerUseLocalUV", "setLayerPosition", "setLayerParallaxDepth", "setLayerScale",
                                      "setLayerSpin", "setLayerBlink", "setLayerWave", "setLayerColor", "setLayerColorCycle",
-                                     "audioLoadOpus", "audioCreateSource", "audioPlaySource",
+                                     "audioLoadGla", "audioCreateSource", "audioPlaySource",
                                      "audioSetSourcePosition", "audioSetListenerPosition",
                                      "audioSetListenerOrientation", "audioSetGlobalVolume", "audioSetGlobalEffect",
                                      "audioLoadMusicTrack", "audioPlayMusicTrack", "audioStopMusicTrack",
@@ -1023,7 +1023,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "setShaderParameters", setShaderParameters);
 
     // Register audio functions
-    lua_register(luaState_, "audioLoadOpus", audioLoadOpus);
+    lua_register(luaState_, "audioLoadGla", audioLoadOpus);
     lua_register(luaState_, "audioCreateSource", audioCreateSource);
     lua_register(luaState_, "audioPlaySource", audioPlaySource);
     lua_register(luaState_, "audioSetSourcePosition", audioSetSourcePosition);
@@ -2968,14 +2968,14 @@ int LuaInterface::audioLoadOpus(lua_State* L) {
     ResourceData resourceData{nullptr, 0, 0};
     bool haveResource = requestAndTryResource(interface->pakResource_, resourceId, resourceData);
     if (!haveResource || !resourceData.data || resourceData.size == 0) {
-        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load OPUS resource: %s", resourceName);
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Failed to load GLA resource: %s", resourceName);
         lua_pushinteger(L, -1);
         assert(false);
         return 1;
     }
 
-    // Decode OPUS and load into audio buffer
-    int bufferId = interface->audioManager_->loadOpusAudioFromMemory(resourceData.data, resourceData.size);
+    // Load GLA (IMA ADPCM) resource into an OpenAL buffer
+    int bufferId = interface->audioManager_->loadGlaAudioFromMemory(resourceData.data, resourceData.size);
 
     lua_pushinteger(L, bufferId);
     return 1; // Return buffer ID
@@ -3126,7 +3126,7 @@ int LuaInterface::audioSetGlobalEffect(lua_State* L) {
 }
 
 // audioLoadMusicTrack(resourceName)
-// Parses a RESOURCE_TYPE_MUSIC_TRACK binary resource, loads the referenced OPUS
+// Parses a RESOURCE_TYPE_MUSIC_TRACK binary resource, loads the referenced GLA
 // layer streams, and returns a music track ID (integer >= 0) or -1 on failure.
 int LuaInterface::audioLoadMusicTrack(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
@@ -3195,7 +3195,7 @@ int LuaInterface::audioLoadMusicTrack(lua_State* L) {
     interface->consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG,
         "audioLoadMusicTrack: %d unique layers", numUniqueIds);
 
-    // Load each unique layer's OPUS data from the pak.
+    // Load each unique layer's GLA data from the pak.
     MusicLayerInitData layerData[MAX_UNIQUE];
     for (int i = 0; i < numUniqueIds; i++) {
         ResourceData resData{nullptr, 0, 0};

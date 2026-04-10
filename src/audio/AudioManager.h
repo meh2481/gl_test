@@ -5,7 +5,7 @@
 #include <AL/alc.h>
 #include <cassert>
 #include <SDL3/SDL.h>
-#include <opusfile.h>
+#include "../core/ResourceTypes.h"
 
 // Maximum number of simultaneous audio sources
 #define MAX_AUDIO_SOURCES 64
@@ -44,19 +44,32 @@ struct AudioBuffer {
 #define MAX_MUSIC_LAYERS_PER_TRACK  16   // Max unique layers per music track
 #define MAX_MUSIC_INTENSITIES       8    // Max intensities per music track
 #define MUSIC_STREAM_BUFFERS        3    // OpenAL streaming buffers per layer
-#define MUSIC_STREAM_BUFFER_FRAMES  4800 // Decoded frames per streaming buffer (100 ms at 48 kHz)
+#define MUSIC_STREAM_BUFFER_FRAMES  4745 // IMA4 frames per streaming buffer (73 blocks * 65 samples)
 #define MUSIC_DEFAULT_FADE_DURATION 0.5f // Default fade duration in seconds
 
-// One streamed OPUS layer within a music track
+// Stream state for one GLA layer (points directly into pak buffer)
+struct GlaStreamState {
+    const Uint8* blockData;      // Pointer to first IMA ADPCM block (into pak buffer)
+    Uint64       dataSize;       // Total byte size of all blocks
+    Uint64       byteOffset;     // Current read position within blockData
+    Uint32       sampleRate;
+    Uint16       channels;
+    Uint16       blockSizeBytes; // GLA_MONO_BLOCK_BYTES or GLA_STEREO_BLOCK_BYTES
+    Uint32       samplesPerBlock;// GLA_SAMPLES_PER_BLOCK
+    Uint32       totalSamples;   // Total samples per channel in file
+    Uint32       currentSample;  // Current sample position (block-granular)
+    bool         valid;
+};
+
+// One streamed GLA layer within a music track
 struct MusicLayerStream {
-    OggOpusFile* opusFile;                       // Open OPUS handle (nullptr = inactive)
-    ALuint       source;                         // Dedicated OpenAL source
-    ALuint       buffers[MUSIC_STREAM_BUFFERS];  // Buffer pool
-    float        volume;                         // Current rendered volume
-    float        targetVolume;                   // Target volume for fade
-    int          channels;                       // Channel count from OPUS file
-    bool         buffersCreated;                 // True once alGenBuffers succeeded
-    bool         active;                         // True if this slot is in use
+    GlaStreamState glaState;                     // GLA stream state (nullptr-equivalent = invalid)
+    ALuint         source;                       // Dedicated OpenAL source
+    ALuint         buffers[MUSIC_STREAM_BUFFERS];// Buffer pool
+    float          volume;                       // Current rendered volume
+    float          targetVolume;                 // Target volume for fade
+    bool           buffersCreated;               // True once alGenBuffers succeeded
+    bool           active;                       // True if this slot is in use
 };
 
 // Per-intensity descriptor within a loaded music track
@@ -69,8 +82,8 @@ struct MusicIntensityDesc {
 struct MusicTrackState {
     MusicLayerStream    layers[MAX_MUSIC_LAYERS_PER_TRACK];
     int                 numLayers;
-    Uint32              loopStartSample;  // Loop start in OPUS samples (48 kHz)
-    Uint32              loopEndSample;    // Loop end in OPUS samples (0 = end of file)
+    Uint32              loopStartSample;  // Loop start in samples
+    Uint32              loopEndSample;    // Loop end in samples (0 = end of file)
     MusicIntensityDesc  intensities[MAX_MUSIC_INTENSITIES];
     int                 numIntensities;
     int                 currentIntensity; // Index of the active intensity (-1 = none set yet)
@@ -83,9 +96,9 @@ struct MusicTrackState {
 class MemoryAllocator;
 class ConsoleBuffer;
 
-// Data needed to initialise one OPUS layer stream
+// Data needed to initialise one GLA layer stream
 struct MusicLayerInitData {
-    Uint64               resourceId;  // Resource ID of the OPUS file
+    Uint64               resourceId;  // Resource ID of the GLA file
     const unsigned char* data;        // Pointer into pak buffer (stays valid while pak is loaded)
     Uint64               size;
 };
@@ -116,9 +129,9 @@ public:
     // Returns buffer ID on success, -1 on failure
     int loadAudioBufferFromMemory(const void* data, Uint64 size, int sampleRate, int channels, int bitsPerSample);
 
-    // Load OPUS audio from memory into buffer slot
+    // Load GLA (IMA ADPCM) audio from memory into buffer slot via AL_EXT_IMA4
     // Returns buffer ID on success, -1 on failure
-    int loadOpusAudioFromMemory(const void* data, Uint64 size);
+    int loadGlaAudioFromMemory(const void* data, Uint64 size);
 
     // Create an audio source
     // Returns source ID on success, -1 on failure
@@ -181,26 +194,12 @@ public:
     // Resume audio processing (call when app returns to foreground)
     void resume();
 
-    // Async Opus decode: queue a decode job and return immediately
-    // Returns job ID for tracking
-    // Call getOpusDecodeResult() to retrieve decoded PCM
-    int decodeOpusAudioAsync(const void* data, Uint64 size);
-
-    // Wait for a decode job to complete and get result
-    // Returns ownership of decoded PCM samples in outBuffer (int16)
-    // Caller must release the returned buffer via freeDecodedBuffer()
-    // Returns channels and sample rate via output parameters
-    // Returns true on success, false on error
-    bool getOpusDecodeResult(int jobId, opus_int16*& outBuffer, Uint64& outSampleCount, int& outChannels, int& outSampleRate);
-
-    void freeDecodedBuffer(opus_int16* buffer);
-
     // ========================================================================
     // Music streaming API
     // ========================================================================
 
     // Load a music track from pre-parsed binary data.
-    // uniqueLayers    - array of all unique OPUS layers referenced by any intensity.
+    // uniqueLayers    - array of all unique GLA layers referenced by any intensity.
     // intensities     - per-intensity descriptor (name hash + which layer resource IDs are active).
     // Returns a track ID (0..MAX_MUSIC_TRACKS-1) on success, -1 on failure.
     int loadMusicTrack(Uint32 loopStartSample, Uint32 loopEndSample,
@@ -236,6 +235,9 @@ private:
     AudioEffect currentEffect;
     float currentEffectIntensity;
 
+    // AL_EXT_IMA4 extension support (required)
+    bool ima4Supported_;
+
     // Helper function to find free source slot
     int findFreeSourceSlot();
 
@@ -257,31 +259,6 @@ private:
     // Console buffer for logging (optional, may be nullptr)
     ConsoleBuffer* consoleBuffer_;
 
-    // Audio decode worker thread infrastructure
-    struct AudioDecodeJob {
-        int jobId;
-        const void* compressedData;  // Pointer to compressed Opus data
-        Uint64 compressedSize;
-        opus_int16* decodedPcm;  // Output: decoded PCM samples
-        Uint64 decodedSampleCount;
-        int channels;  // Output: channel count
-        int sampleRate;  // Output: sample rate
-        bool completed;
-        bool failed;
-    };
-
-    static int audioDecodeWorkerThread(void* data);
-    void submitDecodeJob(AudioDecodeJob* job);
-    void destroyDecodeJob(AudioDecodeJob* job);
-
-    SDL_Thread* decodeWorkerThread_;
-    SDL_Mutex* decodeMutex_;
-    SDL_Condition* decodeCondition_;
-    bool decodeWorkerRunning_;
-    int nextDecodeJobId_;
-    AudioDecodeJob* pendingDecodeJob_;  // Single job queue
-    AudioDecodeJob* completedDecodeJob_;  // Result holder
-
     // ========================================================================
     // Music streaming internals
     // ========================================================================
@@ -300,13 +277,17 @@ private:
     // dt is elapsed time in seconds since the last call.
     void streamMusicTracks(float dt);
 
-    // Fill one OpenAL buffer with up to frameCount decoded PCM frames from
-    // the given layer, handling loop wrap-around transparently.
-    // Returns the number of stereo/mono frames written (may be 0 on error).
+    // Fill one OpenAL buffer with IMA ADPCM blocks from the given layer,
+    // handling loop wrap-around.  frameCount is the desired number of PCM
+    // frames; actual delivered frames is rounded down to a block boundary.
+    // Returns the number of PCM frames written (0 on error).
     int fillStreamBuffer(MusicLayerStream& layer, ALuint alBuffer,
                          int frameCount, Uint32 loopStartSample, Uint32 loopEndSample);
 
-    // Release all OpenAL and opusfile resources held by a single layer.
+    // Seek a GLA stream to the nearest block boundary at or before targetSample.
+    void seekGlaStream(GlaStreamState& st, Uint32 targetSample);
+
+    // Release all OpenAL resources held by a single layer.
     void releaseMusicLayer(MusicLayerStream& layer);
 
     // Release all resources for one track slot and mark it invalid.
