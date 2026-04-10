@@ -127,24 +127,9 @@ endif()
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
     add_executable(packer tools/packer.cpp src/core/ResourceTypes.h)
     target_sources(packer PRIVATE src/compress/Compress.cpp)
-    # Find android-libetc1 for ETC1/ETC2 texture compression in the packer
-    find_library(ETC1_LIBRARY NAMES ETC1
-        PATHS /usr/lib/x86_64-linux-gnu/android /usr/lib/android /usr/local/lib/android
-        NO_DEFAULT_PATH)
-    if(NOT ETC1_LIBRARY)
-        find_library(ETC1_LIBRARY NAMES ETC1)
-    endif()
-    find_path(ETC1_INCLUDE_DIR ETC1/etc1.h
-        PATHS /usr/include/android /usr/local/include/android /usr/include
-        NO_DEFAULT_PATH)
-    if(NOT ETC1_INCLUDE_DIR)
-        find_path(ETC1_INCLUDE_DIR ETC1/etc1.h)
-    endif()
-    if(NOT ETC1_LIBRARY OR NOT ETC1_INCLUDE_DIR)
-        message(FATAL_ERROR "android-libetc1-dev not found. Install with: sudo apt-get install android-libetc1-dev")
-    endif()
-    target_include_directories(packer PRIVATE ${ETC1_INCLUDE_DIR})
-    target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB PkgConfig::SQUISH PkgConfig::JSONCPP ${ETC1_LIBRARY})
+    # Bundle the ETC1 encoder/decoder source so no external android-libetc1-dev is needed.
+    target_sources(packer PRIVATE tools/etc1.cpp)
+    target_link_libraries(packer PkgConfig::PNG PkgConfig::ZLIB PkgConfig::SQUISH PkgConfig::JSONCPP)
 endif()
 
 if(BUILD_GAME)

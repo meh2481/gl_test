@@ -15,7 +15,7 @@
 #include <algorithm>
 #include <json/json.h>
 #include "../src/compress/Compress.h"
-#include <android/ETC1/etc1.h>
+#include "etc1.h"
 
 using namespace std;
 
