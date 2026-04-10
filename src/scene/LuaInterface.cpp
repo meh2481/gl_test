@@ -1023,7 +1023,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "setShaderParameters", setShaderParameters);
 
     // Register audio functions
-    lua_register(luaState_, "audioLoadGla", audioLoadOpus);
+    lua_register(luaState_, "audioLoadGla", audioLoadGla);
     lua_register(luaState_, "audioCreateSource", audioCreateSource);
     lua_register(luaState_, "audioPlaySource", audioPlaySource);
     lua_register(luaState_, "audioSetSourcePosition", audioSetSourcePosition);
@@ -2950,7 +2950,7 @@ int LuaInterface::setShaderParameters(lua_State* L) {
 
 // Audio Lua bindings
 
-int LuaInterface::audioLoadOpus(lua_State* L) {
+int LuaInterface::audioLoadGla(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
