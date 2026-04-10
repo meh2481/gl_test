@@ -65,7 +65,7 @@ jobs:
         id: cache-android-deps
         with:
           path: ~/.android-arm64
-          key: android-arm64-deps-${{ runner.os }}-v4
+          key: android-arm64-deps-${{ runner.os }}-v5
 
       - name: Build Android ARM64 dependencies
         if: steps.cache-android-deps.outputs.cache-hit != 'true'
@@ -114,6 +114,34 @@ jobs:
             .
           cmake --build build -j$(nproc)
           cmake --install build
+          cd ..
+
+          # --- libsquish ---
+          curl -fsSL "https://sourceforge.net/projects/libsquish/files/libsquish-1.15.tgz/download" \
+            -o libsquish-1.15.tgz
+          mkdir squish && tar xzf libsquish-1.15.tgz -C squish
+          cd squish
+          $CXX -O2 --target=${TARGET} --sysroot=$TOOLCHAIN/sysroot \
+            -I. -fPIC -c \
+            alpha.cpp clusterfit.cpp colourblock.cpp colourfit.cpp \
+            colourset.cpp maths.cpp rangefit.cpp singlecolourfit.cpp squish.cpp
+          $AR rcu libsquish.a *.o
+          $RANLIB libsquish.a
+          cp libsquish.a $SYSROOT/lib/
+          cp squish.h $SYSROOT/include/
+          cat > $SYSROOT/lib/pkgconfig/libsquish.pc << 'EOF'
+          prefix=SYSROOT_PLACEHOLDER
+          exec_prefix=${prefix}
+          libdir=${exec_prefix}/lib
+          includedir=${prefix}/include
+          Name: libsquish
+          Description: DXT Compression Library
+          Version: 1.15
+          Libs: -L${libdir} -lsquish
+          Cflags: -I${includedir}
+          EOF
+          sed -i "s|SYSROOT_PLACEHOLDER|$SYSROOT|g" $SYSROOT/lib/pkgconfig/libsquish.pc
+          sed -i 's/^[[:space:]]*//' $SYSROOT/lib/pkgconfig/libsquish.pc
           cd ..
 
           # --- SDL3 ---
