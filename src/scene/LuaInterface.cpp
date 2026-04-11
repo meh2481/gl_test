@@ -391,6 +391,8 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
                                      "animateLayerScale", "animateLayerPosition", "animateLayerRotation", "animateLayerColor", "animateLayerOffset",
                                      "animateLightIntensity", "stopAnimation", "stopLayerAnimations", "fireAction",
                                      "loadVectorShape", "drawVectorShape",
+                                     "createVectorLayer", "setVectorLayerPosition", "setVectorLayerColor",
+                                     "setVectorLayerScale", "destroyVectorLayer",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -1090,6 +1092,11 @@ void LuaInterface::registerFunctions() {
     // Vector shape functions
     lua_register(luaState_, "loadVectorShape", loadVectorShape);
     lua_register(luaState_, "drawVectorShape", drawVectorShape);
+    lua_register(luaState_, "createVectorLayer", createVectorLayer);
+    lua_register(luaState_, "setVectorLayerPosition", setVectorLayerPosition);
+    lua_register(luaState_, "setVectorLayerColor", setVectorLayerColor);
+    lua_register(luaState_, "setVectorLayerScale", setVectorLayerScale);
+    lua_register(luaState_, "destroyVectorLayer", destroyVectorLayer);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -4845,5 +4852,83 @@ int LuaInterface::drawVectorShape(lua_State* L) {
     float a     = (float)lua_tonumber(L, 8);
 
     interface->renderer_.drawVectorShape(shapeId, x, y, scale, r, g, b, a);
+    return 0;
+}
+
+// createVectorLayer(handle, x, y, scale, r, g, b, a) -> layerId
+// Creates a persistent vector layer rendered every frame until destroyVectorLayer is called.
+// Mirrors createLayer() for scene layers.
+int LuaInterface::createVectorLayer(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 8);
+    Uint64 shapeId = (Uint64)lua_tointeger(L, 1);
+    float x     = (float)lua_tonumber(L, 2);
+    float y     = (float)lua_tonumber(L, 3);
+    float scale = (float)lua_tonumber(L, 4);
+    float r     = (float)lua_tonumber(L, 5);
+    float g     = (float)lua_tonumber(L, 6);
+    float b     = (float)lua_tonumber(L, 7);
+    float a     = (float)lua_tonumber(L, 8);
+
+    int layerId = interface->renderer_.createVectorLayer(shapeId, x, y, scale, r, g, b, a);
+    lua_pushinteger(L, (lua_Integer)layerId);
+    return 1;
+}
+
+// setVectorLayerPosition(layerId, x, y)
+int LuaInterface::setVectorLayerPosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 3);
+    int   layerId = (int)lua_tointeger(L, 1);
+    float x       = (float)lua_tonumber(L, 2);
+    float y       = (float)lua_tonumber(L, 3);
+    interface->renderer_.setVectorLayerPosition(layerId, x, y);
+    return 0;
+}
+
+// setVectorLayerColor(layerId, r, g, b, a)
+int LuaInterface::setVectorLayerColor(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 5);
+    int   layerId = (int)lua_tointeger(L, 1);
+    float r = (float)lua_tonumber(L, 2);
+    float g = (float)lua_tonumber(L, 3);
+    float b = (float)lua_tonumber(L, 4);
+    float a = (float)lua_tonumber(L, 5);
+    interface->renderer_.setVectorLayerColor(layerId, r, g, b, a);
+    return 0;
+}
+
+// setVectorLayerScale(layerId, scale)
+int LuaInterface::setVectorLayerScale(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 2);
+    int   layerId = (int)lua_tointeger(L, 1);
+    float scale   = (float)lua_tonumber(L, 2);
+    interface->renderer_.setVectorLayerScale(layerId, scale);
+    return 0;
+}
+
+// destroyVectorLayer(layerId)
+int LuaInterface::destroyVectorLayer(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    int layerId = (int)lua_tointeger(L, 1);
+    interface->renderer_.destroyVectorLayer(layerId);
     return 0;
 }

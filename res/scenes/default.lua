@@ -8,8 +8,9 @@ local btnShaderId = nil
 local physicsBtn = nil
 local audioBtn   = nil
 
--- Vector shape handle for the "OhHai" glyph demo
+-- Vector shape handle and its persistent layer id for the "OhHai" glyph demo
 local vectorShapeHandle = nil
+local vectorLayerId     = nil
 
 -- (Re)create button nodes — called from init() and onResume()
 local function createButtons()
@@ -49,6 +50,12 @@ function init()
     -- Load the vector shape for the "OhHai" glyph demo
     vectorShapeHandle = loadVectorShape("res/test.svg")
 
+    -- Create a persistent vector layer (rendered automatically every frame, no per-frame call needed).
+    -- createVectorLayer(handle, x, y, scale, r, g, b, a)
+    if vectorShapeHandle then
+        vectorLayerId = createVectorLayer(vectorShapeHandle, 0.0, 0.65, 0.35, 0.1, 0.8, 1.0, 1.0)
+    end
+
     createButtons()
 end
 
@@ -62,12 +69,8 @@ end
 function update(deltaTime)
     if physicsBtn then physicsBtn.update(deltaTime) end
     if audioBtn   then audioBtn.update(deltaTime)   end
-
-    -- Draw vector shape ("OhHai" glyphs) at the top of the screen each frame.
-    -- drawVectorShape(handle, x, y, scale, r, g, b, a)
-    if vectorShapeHandle then
-        drawVectorShape(vectorShapeHandle, 0.0, 0.65, 0.35, 0.1, 0.8, 1.0, 1.0)
-    end
+    -- The vector shape is rendered via a persistent layer set up in init();
+    -- no per-frame draw call is needed here.
 end
 
 -- Handle actions
@@ -77,6 +80,7 @@ function onAction(action)
     if audioBtn   then audioBtn.onAction(action)   end
 
     if action == ACTION_EXIT then
+        if vectorLayerId then destroyVectorLayer(vectorLayerId) end
         popScene()
     elseif action == ACTION_MENU then
         destroyButtons()

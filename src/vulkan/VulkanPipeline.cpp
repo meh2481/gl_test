@@ -31,6 +31,8 @@ VulkanPipeline::VulkanPipeline(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_fadePipeline(VK_NULL_HANDLE),
     m_vectorPipeline(VK_NULL_HANDLE),
     m_vectorPipelineLayout(VK_NULL_HANDLE),
+    m_vectorDescriptorSetLayout(VK_NULL_HANDLE),
+    m_vectorDescriptorPool(VK_NULL_HANDLE),
     m_currentPipeline(VK_NULL_HANDLE),
     m_pipelinesToDraw(*smallAllocator, "VulkanPipeline::m_pipelinesToDraw"),
     m_pipelineInfo(*smallAllocator, "VulkanPipeline::m_pipelineInfo"),
@@ -86,6 +88,14 @@ void VulkanPipeline::cleanup() {
     if (m_vectorPipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(m_device, m_vectorPipelineLayout, nullptr);
         m_vectorPipelineLayout = VK_NULL_HANDLE;
+    }
+    if (m_vectorDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(m_device, m_vectorDescriptorPool, nullptr);
+        m_vectorDescriptorPool = VK_NULL_HANDLE;
+    }
+    if (m_vectorDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_device, m_vectorDescriptorSetLayout, nullptr);
+        m_vectorDescriptorSetLayout = VK_NULL_HANDLE;
     }
     if (m_pipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
@@ -1685,35 +1695,13 @@ void VulkanPipeline::createVectorPipeline(const ResourceData& vertShader, const 
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-    // Vertex layout: VectorVertex = { float x, y, k, l, m, sign } — sizeof(VectorVertex) bytes
-    VkVertexInputBindingDescription bindingDescription{};
-    bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(VectorVertex);
-    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-    VkVertexInputAttributeDescription attributeDescriptions[3]{};
-    // location 0: vec2 inPosition
-    attributeDescriptions[0].binding = 0;
-    attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-    attributeDescriptions[0].offset = offsetof(VectorVertex, x);
-    // location 1: vec3 inKlm
-    attributeDescriptions[1].binding = 0;
-    attributeDescriptions[1].location = 1;
-    attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributeDescriptions[1].offset = offsetof(VectorVertex, k);
-    // location 2: float inSign
-    attributeDescriptions[2].binding = 0;
-    attributeDescriptions[2].location = 2;
-    attributeDescriptions[2].format = VK_FORMAT_R32_SFLOAT;
-    attributeDescriptions[2].offset = offsetof(VectorVertex, sign);
-
+    // No vertex buffer — the vertex shader generates the quad from gl_VertexIndex.
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 1;
-    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = 3;
-    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
+    vertexInputInfo.vertexBindingDescriptionCount   = 0;
+    vertexInputInfo.pVertexBindingDescriptions      = nullptr;
+    vertexInputInfo.vertexAttributeDescriptionCount = 0;
+    vertexInputInfo.pVertexAttributeDescriptions    = nullptr;
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -1771,18 +1759,61 @@ void VulkanPipeline::createVectorPipeline(const ResourceData& vertShader, const 
     colorBlending.attachmentCount = 1;
     colorBlending.pAttachments = &colorBlendAttachment;
 
-    // Push constants: 13 floats (width, height, time, cameraX, cameraY, cameraZoom,
-    //                            modelX, modelY, modelScale, r, g, b, a)
+    // Push constants: 17 floats (width, height, time, cameraX, cameraY, cameraZoom,
+    //                            modelX, modelY, modelScale, r, g, b, a,
+    //                            bboxMinX, bboxMinY, bboxMaxX, bboxMaxY) = 68 bytes
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(float) * 13;
+    pushConstantRange.size = sizeof(float) * 17;
+
+    // Descriptor set layout: binding 0 = contour SSBO, binding 1 = segment SSBO
+    VkDescriptorSetLayoutBinding bindings[2]{};
+    bindings[0].binding         = 0;
+    bindings[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[0].descriptorCount = 1;
+    bindings[0].stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bindings[1].binding         = 1;
+    bindings[1].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[1].descriptorCount = 1;
+    bindings[1].stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo dsLayoutInfo{};
+    dsLayoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    dsLayoutInfo.bindingCount = 2;
+    dsLayoutInfo.pBindings    = bindings;
+    {
+        VkResult r = vkCreateDescriptorSetLayout(m_device, &dsLayoutInfo, nullptr, &m_vectorDescriptorSetLayout);
+        if (r != VK_SUCCESS) {
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreateDescriptorSetLayout (vector SSBO) failed: %s", vkResultToString(r));
+            assert(false);
+        }
+    }
+
+    // Descriptor pool: up to 64 vector shapes, each needs 2 SSBO descriptors.
+    static const Uint32 MAX_VECTOR_SHAPES = 64;
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSize.descriptorCount = MAX_VECTOR_SHAPES * 2;
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes    = &poolSize;
+    poolInfo.maxSets       = MAX_VECTOR_SHAPES;
+    {
+        VkResult r = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_vectorDescriptorPool);
+        if (r != VK_SUCCESS) {
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkCreateDescriptorPool (vector SSBO) failed: %s", vkResultToString(r));
+            assert(false);
+        }
+    }
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
-    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-    pipelineLayoutInfo.setLayoutCount = 0;
+    pipelineLayoutInfo.pPushConstantRanges    = &pushConstantRange;
+    pipelineLayoutInfo.setLayoutCount         = 1;
+    pipelineLayoutInfo.pSetLayouts            = &m_vectorDescriptorSetLayout;
 
     VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_vectorPipelineLayout);
     if (result != VK_SUCCESS) {
@@ -1814,5 +1845,56 @@ void VulkanPipeline::createVectorPipeline(const ResourceData& vertShader, const 
     vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
 
-    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Created vector shape pipeline");
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Created vector SDF pipeline");
+}
+
+VkDescriptorSet VulkanPipeline::allocateVectorDescriptorSet() {
+    assert(m_vectorDescriptorPool != VK_NULL_HANDLE);
+    assert(m_vectorDescriptorSetLayout != VK_NULL_HANDLE);
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool     = m_vectorDescriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts        = &m_vectorDescriptorSetLayout;
+
+    VkDescriptorSet set = VK_NULL_HANDLE;
+    VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, &set);
+    if (result != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "vkAllocateDescriptorSets (vector SSBO) failed: %s", vkResultToString(result));
+        assert(false);
+    }
+    return set;
+}
+
+void VulkanPipeline::writeVectorDescriptorSet(VkDescriptorSet set,
+                                               VkBuffer contourBuf, VkDeviceSize contourSize,
+                                               VkBuffer segmentBuf, VkDeviceSize segmentSize)
+{
+    VkDescriptorBufferInfo contourInfo{};
+    contourInfo.buffer = contourBuf;
+    contourInfo.offset = 0;
+    contourInfo.range  = contourSize;
+
+    VkDescriptorBufferInfo segmentInfo{};
+    segmentInfo.buffer = segmentBuf;
+    segmentInfo.offset = 0;
+    segmentInfo.range  = segmentSize;
+
+    VkWriteDescriptorSet writes[2]{};
+    writes[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet          = set;
+    writes[0].dstBinding      = 0;
+    writes[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[0].descriptorCount = 1;
+    writes[0].pBufferInfo     = &contourInfo;
+
+    writes[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet          = set;
+    writes[1].dstBinding      = 1;
+    writes[1].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[1].descriptorCount = 1;
+    writes[1].pBufferInfo     = &segmentInfo;
+
+    vkUpdateDescriptorSets(m_device, 2, writes, 0, nullptr);
 }

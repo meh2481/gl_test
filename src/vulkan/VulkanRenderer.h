@@ -54,6 +54,11 @@ public:
     void createDescriptorSetForTextures(Uint64 descriptorId, const Vector<Uint64>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
     void drawVectorShape(Uint64 shapeId, float x, float y, float scale, float r, float g, float b, float a);
+    int  createVectorLayer(Uint64 shapeId, float x, float y, float scale, float r, float g, float b, float a);
+    void setVectorLayerPosition(int layerId, float x, float y);
+    void setVectorLayerColor(int layerId, float r, float g, float b, float a);
+    void setVectorLayerScale(int layerId, float scale);
+    void destroyVectorLayer(int layerId);
     void setPipelineParallaxDepth(int pipelineId, float depth);
     void markPipelineAsWater(int pipelineId);
     void setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples);
@@ -175,18 +180,32 @@ private:
     // Particle texture ID for rendering
     Uint64 m_particleTextureId;
 
-    // Vector shape rendering
+    // Vector shape rendering (analytic SDF)
     struct VectorShapeGPUData {
-        VulkanBuffer::IndexedBuffer buffer;
-        Uint32 indexCount;
+        VkBuffer      contourBuffer;
+        VkDeviceMemory contourMemory;
+        VkDeviceSize  contourSize;
+        VkBuffer      segmentBuffer;
+        VkDeviceMemory segmentMemory;
+        VkDeviceSize  segmentSize;
+        VkDescriptorSet descriptorSet;
+        Uint32        numContours;
+        float bboxMinX, bboxMinY, bboxMaxX, bboxMaxY;
     };
     struct VectorDrawCall {
         Uint64 shapeId;
         float x, y, scale;
         float r, g, b, a;
     };
+    struct VectorLayerEntry {
+        Uint64 shapeId;
+        float x, y, scale;
+        float r, g, b, a;
+    };
     HashTable<Uint64, VectorShapeGPUData> m_vectorShapes;
     Vector<VectorDrawCall> m_vectorDrawCalls;
+    HashTable<int, VectorLayerEntry> m_vectorLayers;
+    int m_nextVectorLayerId;
 
     // Camera transform
     float m_cameraOffsetX;

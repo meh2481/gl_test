@@ -71,6 +71,9 @@ public:
     void createWaterPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 2);
     void createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader);
     void createVectorPipeline(const ResourceData& vertShader, const ResourceData& fragShader);
+    VkDescriptorSet allocateVectorDescriptorSet();
+    void writeVectorDescriptorSet(VkDescriptorSet set, VkBuffer contourBuf, VkDeviceSize contourSize,
+                                  VkBuffer segmentBuf, VkDeviceSize segmentSize);
 
     // Pipeline access
     VkPipeline getPipeline(Uint64 id) const;
@@ -79,6 +82,7 @@ public:
     VkPipeline getFadePipeline() const { return m_fadePipeline; }
     VkPipeline getVectorPipeline() const { return m_vectorPipeline; }
     VkPipelineLayout getVectorPipelineLayout() const { return m_vectorPipelineLayout; }
+    VkDescriptorSetLayout getVectorDescriptorSetLayout() const { return m_vectorDescriptorSetLayout; }
     bool hasPipeline(Uint64 id) const;
     bool isDebugPipeline(Uint64 id) const;
 
@@ -137,6 +141,8 @@ private:
     VkPipeline m_fadePipeline;
     VkPipeline m_vectorPipeline;
     VkPipelineLayout m_vectorPipelineLayout;
+    VkDescriptorSetLayout m_vectorDescriptorSetLayout;
+    VkDescriptorPool m_vectorDescriptorPool;
     VkPipeline m_currentPipeline;
     Vector<Uint64> m_pipelinesToDraw;
 

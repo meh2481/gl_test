@@ -96,6 +96,8 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_particleTextureId(0),
     m_vectorShapes(*smallAllocator, "VulkanRenderer::m_vectorShapes"),
     m_vectorDrawCalls(*smallAllocator, "VulkanRenderer::m_vectorDrawCalls"),
+    m_vectorLayers(*smallAllocator, "VulkanRenderer::m_vectorLayers"),
+    m_nextVectorLayerId(1),
     m_cameraOffsetX(0.0f),
     m_cameraOffsetY(0.0f),
     m_cameraZoom(1.0f),
@@ -651,9 +653,22 @@ void VulkanRenderer::cleanup() {
         m_bufferManager.destroyIndexedBuffer(m_particleBuffers[i]);
     }
 
-    // Cleanup vector shape buffers
+    // Cleanup vector shape buffers (SSBO-based)
     for (auto it = m_vectorShapes.begin(); it != m_vectorShapes.end(); ++it) {
-        m_bufferManager.destroyIndexedBuffer(it.value().buffer);
+        VectorShapeGPUData& shape = it.value();
+        if (shape.contourBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(m_device, shape.contourBuffer, nullptr);
+        }
+        if (shape.contourMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(m_device, shape.contourMemory, nullptr);
+        }
+        if (shape.segmentBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(m_device, shape.segmentBuffer, nullptr);
+        }
+        if (shape.segmentMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(m_device, shape.segmentMemory, nullptr);
+        }
+        // Descriptor sets are freed with the pool in VulkanPipeline::cleanup().
     }
     m_vectorShapes.clear();
 
@@ -1505,58 +1520,88 @@ void VulkanRenderer::loadTexture(Uint64 textureId, const ResourceData& imageData
 }
 
 void VulkanRenderer::loadVectorShape(Uint64 shapeId, const ResourceData& shapeData) {
-    if (shapeData.size < sizeof(VectorShapeHeader)) {
+    if (shapeData.size < sizeof(SdfShapeHeader)) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "loadVectorShape: resource too small for header (id=%llu)",
             (unsigned long long)shapeId);
         return;
     }
 
-    const VectorShapeHeader* header = reinterpret_cast<const VectorShapeHeader*>(shapeData.data);
-    const VectorVertex* verts = reinterpret_cast<const VectorVertex*>(
-        shapeData.data + sizeof(VectorShapeHeader));
-    const Uint16* indices = reinterpret_cast<const Uint16*>(
-        shapeData.data + sizeof(VectorShapeHeader) + header->numVertices * sizeof(VectorVertex));
-
-    Uint64 requiredSize = sizeof(VectorShapeHeader)
-        + (Uint64)header->numVertices * sizeof(VectorVertex)
-        + (Uint64)header->numIndices  * sizeof(Uint16);
+    const SdfShapeHeader* header = reinterpret_cast<const SdfShapeHeader*>(shapeData.data);
+    Uint64 contourBytes = (Uint64)header->numContours   * sizeof(SdfContourHeader);
+    Uint64 segmentBytes = (Uint64)header->totalSegments * sizeof(SdfSegment);
+    Uint64 requiredSize = sizeof(SdfShapeHeader) + contourBytes + segmentBytes;
     if (shapeData.size < requiredSize) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
-            "loadVectorShape: resource too small for mesh data (id=%llu, have=%llu, need=%llu)",
-            (unsigned long long)shapeId, (unsigned long long)shapeData.size, (unsigned long long)requiredSize);
+            "loadVectorShape: resource too small (id=%llu, have=%llu, need=%llu)",
+            (unsigned long long)shapeId,
+            (unsigned long long)shapeData.size,
+            (unsigned long long)requiredSize);
         return;
     }
 
-    // Build float vertex array (x, y, k, l, m, sign)
-    Vector<float> vertexData(*m_allocator, "VulkanRenderer::loadVectorShape::vertexData");
-    vertexData.reserve((Uint64)header->numVertices * 6);
-    for (Uint32 i = 0; i < header->numVertices; ++i) {
-        vertexData.push_back(verts[i].x);
-        vertexData.push_back(verts[i].y);
-        vertexData.push_back(verts[i].k);
-        vertexData.push_back(verts[i].l);
-        vertexData.push_back(verts[i].m);
-        vertexData.push_back(verts[i].sign);
+    const char* contourPtr = shapeData.data + sizeof(SdfShapeHeader);
+    const char* segmentPtr = contourPtr + contourBytes;
+
+    // ---- Contour SSBO layout -------------------------------------------------
+    // The GLSL shader reads: uint numContours, uint[3] pad, GpuContour contours[]
+    // We store numContours + 3 padding uints before the array.
+    struct GpuContourHeader { Uint32 numContours; Uint32 pad[3]; };
+    Uint64 contourSsboSize = sizeof(GpuContourHeader) + contourBytes;
+
+    VkBuffer      contourBuf    = VK_NULL_HANDLE;
+    VkDeviceMemory contourMem   = VK_NULL_HANDLE;
+    m_bufferManager.createBuffer(contourSsboSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        contourBuf, contourMem);
+
+    void* mapped = nullptr;
+    vkMapMemory(m_device, contourMem, 0, contourSsboSize, 0, &mapped);
+    GpuContourHeader hdr{}; hdr.numContours = header->numContours;
+    memcpy(mapped, &hdr, sizeof(hdr));
+    memcpy(static_cast<char*>(mapped) + sizeof(hdr), contourPtr, contourBytes);
+    vkUnmapMemory(m_device, contourMem);
+
+    // ---- Segment SSBO ---------------------------------------------------------
+    // Always allocate at least a minimal buffer so the descriptor write is valid.
+    VkBuffer      segBuf  = VK_NULL_HANDLE;
+    VkDeviceMemory segMem = VK_NULL_HANDLE;
+    VkDeviceSize  segSsboSize = segmentBytes > 0 ? segmentBytes : 4;
+    m_bufferManager.createBuffer(segSsboSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        segBuf, segMem);
+    if (segmentBytes > 0) {
+        vkMapMemory(m_device, segMem, 0, segmentBytes, 0, &mapped);
+        memcpy(mapped, segmentPtr, segmentBytes);
+        vkUnmapMemory(m_device, segMem);
     }
 
-    Vector<Uint16> indexData(*m_allocator, "VulkanRenderer::loadVectorShape::indexData");
-    indexData.reserve(header->numIndices);
-    for (Uint32 i = 0; i < header->numIndices; ++i) {
-        indexData.push_back(indices[i]);
-    }
+    // ---- Descriptor set -------------------------------------------------------
+    VkDescriptorSet ds = m_pipelineManager.allocateVectorDescriptorSet();
+    m_pipelineManager.writeVectorDescriptorSet(ds,
+        contourBuf, contourSsboSize,
+        segBuf,     segSsboSize);
 
-    VectorShapeGPUData gpuData;
-    gpuData.indexCount = header->numIndices;
-    m_bufferManager.createIndexedBuffer(gpuData.buffer,
-        (Uint64)header->numVertices * 6 * sizeof(float),
-        (Uint64)header->numIndices  * sizeof(Uint16));
-    m_bufferManager.updateIndexedBuffer(gpuData.buffer, vertexData, indexData, 6);
+    VectorShapeGPUData gpuData{};
+    gpuData.contourBuffer  = contourBuf;
+    gpuData.contourMemory  = contourMem;
+    gpuData.contourSize    = contourSsboSize;
+    gpuData.segmentBuffer  = segBuf;
+    gpuData.segmentMemory  = segMem;
+    gpuData.segmentSize    = segSsboSize;
+    gpuData.descriptorSet  = ds;
+    gpuData.numContours    = header->numContours;
+    gpuData.bboxMinX       = header->bboxMinX;
+    gpuData.bboxMinY       = header->bboxMinY;
+    gpuData.bboxMaxX       = header->bboxMaxX;
+    gpuData.bboxMaxY       = header->bboxMaxY;
 
     m_vectorShapes.insert(shapeId, gpuData);
 
     m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
-        "Loaded vector shape id=%llu verts=%u indices=%u",
-        (unsigned long long)shapeId, header->numVertices, header->numIndices);
+        "Loaded vector shape id=%llu contours=%u segments=%u",
+        (unsigned long long)shapeId, header->numContours, header->totalSegments);
 }
 
 void VulkanRenderer::drawVectorShape(Uint64 shapeId, float x, float y, float scale,
@@ -1571,6 +1616,36 @@ void VulkanRenderer::drawVectorShape(Uint64 shapeId, float x, float y, float sca
     dc.b = b;
     dc.a = a;
     m_vectorDrawCalls.push_back(dc);
+}
+
+int VulkanRenderer::createVectorLayer(Uint64 shapeId, float x, float y, float scale,
+                                       float r, float g, float b, float a) {
+    int id = m_nextVectorLayerId++;
+    VectorLayerEntry entry{};
+    entry.shapeId = shapeId;
+    entry.x = x; entry.y = y; entry.scale = scale;
+    entry.r = r; entry.g = g; entry.b = b; entry.a = a;
+    m_vectorLayers.insert(id, entry);
+    return id;
+}
+
+void VulkanRenderer::setVectorLayerPosition(int layerId, float x, float y) {
+    VectorLayerEntry* entry = m_vectorLayers.find(layerId);
+    if (entry) { entry->x = x; entry->y = y; }
+}
+
+void VulkanRenderer::setVectorLayerColor(int layerId, float r, float g, float b, float a) {
+    VectorLayerEntry* entry = m_vectorLayers.find(layerId);
+    if (entry) { entry->r = r; entry->g = g; entry->b = b; entry->a = a; }
+}
+
+void VulkanRenderer::setVectorLayerScale(int layerId, float scale) {
+    VectorLayerEntry* entry = m_vectorLayers.find(layerId);
+    if (entry) { entry->scale = scale; }
+}
+
+void VulkanRenderer::destroyVectorLayer(int layerId) {
+    m_vectorLayers.remove(layerId);
 }
 
 void VulkanRenderer::loadAtlasTexture(Uint64 atlasId, const ResourceData& atlasData) {
@@ -2295,40 +2370,54 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
         }
     }
 
-    // Phase 2.5: Draw vector shapes
+    // Phase 2.5: Draw vector shapes (persistent layers + per-frame draw calls)
     INSERT_CHECKPOINT(commandBuffer, "phase2_5_vector");
-    if (!m_vectorDrawCalls.empty() && m_pipelineManager.getVectorPipeline() != VK_NULL_HANDLE) {
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getVectorPipeline());
-        for (Uint64 di = 0; di < m_vectorDrawCalls.size(); ++di) {
-            const VectorDrawCall& dc = m_vectorDrawCalls[di];
-            const VectorShapeGPUData* shape = m_vectorShapes.find(dc.shapeId);
-            if (!shape || shape->buffer.vertexBuffer == VK_NULL_HANDLE) {
-                continue;
-            }
-            float vectorPC[13] = {
-                static_cast<float>(m_swapchainExtent.width),
-                static_cast<float>(m_swapchainExtent.height),
-                time,
-                m_cameraOffsetX,
-                m_cameraOffsetY,
-                m_cameraZoom,
-                dc.x,
-                dc.y,
-                dc.scale,
-                dc.r,
-                dc.g,
-                dc.b,
-                dc.a
+    {
+        // Collect all draw requests from both persistent layers and per-frame calls.
+        bool anyToDraw = (!m_vectorLayers.empty() || !m_vectorDrawCalls.empty())
+                         && m_pipelineManager.getVectorPipeline() != VK_NULL_HANDLE;
+        if (anyToDraw) {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getVectorPipeline());
+
+            auto drawShape = [&](Uint64 shapeId, float mx, float my, float mscale,
+                                 float mr, float mg, float mb, float ma) {
+                const VectorShapeGPUData* shape = m_vectorShapes.find(shapeId);
+                if (!shape || shape->descriptorSet == VK_NULL_HANDLE) return;
+
+                float vectorPC[17] = {
+                    static_cast<float>(m_swapchainExtent.width),
+                    static_cast<float>(m_swapchainExtent.height),
+                    time,
+                    m_cameraOffsetX,
+                    m_cameraOffsetY,
+                    m_cameraZoom,
+                    mx, my, mscale,
+                    mr, mg, mb, ma,
+                    shape->bboxMinX, shape->bboxMinY,
+                    shape->bboxMaxX, shape->bboxMaxY
+                };
+                vkCmdPushConstants(commandBuffer,
+                                   m_pipelineManager.getVectorPipelineLayout(),
+                                   VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                                   0, sizeof(vectorPC), vectorPC);
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        m_pipelineManager.getVectorPipelineLayout(),
+                                        0, 1, &shape->descriptorSet, 0, nullptr);
+                // 6 vertices, no vertex buffer — the vertex shader generates the quad.
+                vkCmdDraw(commandBuffer, 6, 1, 0, 0);
             };
-            vkCmdPushConstants(commandBuffer,
-                               m_pipelineManager.getVectorPipelineLayout(),
-                               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                               0, sizeof(vectorPC), vectorPC);
-            VkBuffer vertexBuffers[] = {shape->buffer.vertexBuffer};
-            VkDeviceSize offsets[] = {0};
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffer, shape->buffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-            vkCmdDrawIndexed(commandBuffer, shape->indexCount, 1, 0, 0, 0);
+
+            // Persistent layers (set-once, rendered every frame)
+            for (auto it = m_vectorLayers.begin(); it != m_vectorLayers.end(); ++it) {
+                const VectorLayerEntry& e = it.value();
+                drawShape(e.shapeId, e.x, e.y, e.scale, e.r, e.g, e.b, e.a);
+            }
+
+            // Per-frame draw calls (queued by Lua drawVectorShape each frame)
+            for (Uint64 di = 0; di < m_vectorDrawCalls.size(); ++di) {
+                const VectorDrawCall& dc = m_vectorDrawCalls[di];
+                drawShape(dc.shapeId, dc.x, dc.y, dc.scale, dc.r, dc.g, dc.b, dc.a);
+            }
         }
     }
 

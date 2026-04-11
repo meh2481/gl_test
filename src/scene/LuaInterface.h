@@ -179,6 +179,11 @@ private:
     // Vector shape Lua bindings
     static int loadVectorShape(lua_State* L);
     static int drawVectorShape(lua_State* L);
+    static int createVectorLayer(lua_State* L);
+    static int setVectorLayerPosition(lua_State* L);
+    static int setVectorLayerColor(lua_State* L);
+    static int setVectorLayerScale(lua_State* L);
+    static int destroyVectorLayer(lua_State* L);
 
     // Audio Lua bindings
     static int audioLoadGla(lua_State* L);

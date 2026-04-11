@@ -1333,227 +1333,20 @@ bool generateTrigTable(vector<char>& output) {
 }
 
 // ============================================================
-// SVG → RESOURCE_TYPE_VECTOR_SHAPE tessellation
+// SVG → RESOURCE_TYPE_VECTOR_SHAPE (analytic SDF, cubic Béziers)
 // ============================================================
-// Ear-clipping triangulation for a simply-connected polygon.
-// The input may originally have contained holes that were already merged into the
-// polygon via bridgeHoleToOuter(); after bridging the polygon is simply connected.
-// Returns a list of triangle indices into the polygon vertex array.
-static void earClipTriangulate(const vector<float>& polyX, const vector<float>& polyY,
-                               vector<Uint16>& triIndices, Uint16 baseIndex)
-{
-    int n = (int)polyX.size();
-    if (n < 3) return;
-
-    // Build a working list of active indices
-    vector<int> indices(n);
-    for (int i = 0; i < n; ++i) indices[i] = i;
-
-    // Compute signed area to determine winding.
-    // The formula sum((x_j+x_i)*(y_j-y_i)) equals -2*A where A is the standard shoelace area.
-    // Standard shoelace: A > 0 = CCW in Y-up math = CW on screen (Y-down).
-    // So -2*A > 0 (area > 0) means CCW on screen (Y-down); negate the usual check:
-    float area = 0.0f;
-    for (int i = 0, j = n - 1; i < n; j = i++) {
-        area += (polyX[j] + polyX[i]) * (polyY[j] - polyY[i]);
-    }
-    bool ccw = (area > 0.0f);
-
-    auto isEar = [&](int prev, int curr, int next) -> bool {
-        float ax = polyX[prev], ay = polyY[prev];
-        float bx = polyX[curr], by = polyY[curr];
-        float cx = polyX[next], cy = polyY[next];
-
-        // Cross product to check convexity (must match polygon winding)
-        float cross = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-        if (ccw && cross > 0.0f) return false;
-        if (!ccw && cross < 0.0f) return false;
-
-        // Check no other vertex lies inside the triangle
-        for (int i = 0; i < (int)indices.size(); ++i) {
-            int vi = indices[i];
-            if (vi == prev || vi == curr || vi == next) continue;
-            float px = polyX[vi], py = polyY[vi];
-            // Also skip vertices that are geometrically coincident with a triangle corner.
-            // Bridged polygons intentionally duplicate the two bridge endpoints (same
-            // position, different index); without this check those duplicates block
-            // otherwise-valid ears and the earClipper stalls.
-            static const float kCoincidentEpsilon = 1e-7f;
-            if (fabsf(px - ax) < kCoincidentEpsilon && fabsf(py - ay) < kCoincidentEpsilon) continue;
-            if (fabsf(px - bx) < kCoincidentEpsilon && fabsf(py - by) < kCoincidentEpsilon) continue;
-            if (fabsf(px - cx) < kCoincidentEpsilon && fabsf(py - cy) < kCoincidentEpsilon) continue;
-            // Barycentric point-in-triangle test
-            float d1 = (px - ax) * (by - ay) - (py - ay) * (bx - ax);
-            float d2 = (px - bx) * (cy - by) - (py - by) * (cx - bx);
-            float d3 = (px - cx) * (ay - cy) - (py - cy) * (ax - cx);
-            bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-            bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-            if (!(hasNeg && hasPos)) return false; // inside
-        }
-        return true;
-    };
-
-    int limit = n * n + 4; // prevent infinite loops on degenerate polygons
-    while ((int)indices.size() > 2 && limit-- > 0) {
-        int m = (int)indices.size();
-        bool found = false;
-        for (int i = 0; i < m; ++i) {
-            int prev = indices[(i + m - 1) % m];
-            int curr = indices[i];
-            int next = indices[(i + 1) % m];
-            if (isEar(prev, curr, next)) {
-                triIndices.push_back(baseIndex + (Uint16)prev);
-                triIndices.push_back(baseIndex + (Uint16)curr);
-                triIndices.push_back(baseIndex + (Uint16)next);
-                indices.erase(indices.begin() + i);
-                found = true;
-                break;
-            }
-        }
-        if (!found) break; // degenerate or already fully triangulated
-    }
-}
-
-// Sample a cubic Bezier at t ∈ [0,1]
-static void sampleCubic(float p0x, float p0y, float p1x, float p1y,
-                         float p2x, float p2y, float p3x, float p3y,
-                         float t, float& outX, float& outY)
-{
-    float mt = 1.0f - t;
-    float mt2 = mt * mt, mt3 = mt2 * mt;
-    float t2 = t * t,   t3 = t2 * t;
-    outX = mt3 * p0x + 3.0f * mt2 * t * p1x + 3.0f * mt * t2 * p2x + t3 * p3x;
-    outY = mt3 * p0y + 3.0f * mt2 * t * p1y + 3.0f * mt * t2 * p2y + t3 * p3y;
-}
-
-// Point-in-polygon test using ray casting.  Returns true when (px,py) is strictly inside.
-static bool pointInPolygon(float px, float py,
-                            const vector<float>& polyX, const vector<float>& polyY)
-{
-    int n = (int)polyX.size();
-    bool inside = false;
-    for (int i = 0, j = n - 1; i < n; j = i++) {
-        float xi = polyX[i], yi = polyY[i];
-        float xj = polyX[j], yj = polyY[j];
-        if (((yi > py) != (yj > py)) &&
-            (px < (xj - xi) * (py - yi) / (yj - yi) + xi))
-            inside = !inside;
-    }
-    return inside;
-}
-
-// Check whether (px,py) lies inside (or on the boundary of) triangle ABC.
-static bool pointInTriangle(float ax, float ay, float bx, float by,
-                             float cx, float cy, float px, float py)
-{
-    float d1 = (px - ax) * (by - ay) - (py - ay) * (bx - ax);
-    float d2 = (px - bx) * (cy - by) - (py - by) * (cx - bx);
-    float d3 = (px - cx) * (ay - cy) - (py - cy) * (ax - cx);
-    bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-    bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-    return !(hasNeg && hasPos);
-}
-
-// Merge one hole polygon into the outer polygon using the mutual-visibility bridge technique.
-// poly(X,Y)  – outer (or partially merged) polygon; modified in place.
-// hole(X,Y)  – hole contour whose interior must be excluded from the triangulation.
-// The algorithm casts a rightward ray from the hole's rightmost vertex, finds the nearest
-// outer edge, chooses the visible outer vertex, and inserts a slit bridge so that the
-// resulting polygon is simply connected and can be passed directly to earClipTriangulate.
-static void bridgeHoleToOuter(vector<float>& polyX, vector<float>& polyY,
-                               const vector<float>& holeX, const vector<float>& holeY)
-{
-    int hn = (int)holeX.size();
-    int pn = (int)polyX.size();
-    if (hn == 0 || pn == 0) return;
-
-    // Step 1: rightmost vertex of the hole (break ties by smallest Y).
-    int mIdx = 0;
-    for (int i = 1; i < hn; ++i) {
-        if (holeX[i] > holeX[mIdx] ||
-            (holeX[i] == holeX[mIdx] && holeY[i] < holeY[mIdx]))
-            mIdx = i;
-    }
-    float mx = holeX[mIdx], my = holeY[mIdx];
-
-    // Step 2: cast a rightward ray from (mx,my) and find the nearest outer edge.
-    float bestIx = 1e30f;
-    int   bestEdge = -1;
-    for (int i = 0, j = pn - 1; i < pn; j = i++) {
-        float ax = polyX[j], ay = polyY[j];
-        float bx = polyX[i], by = polyY[i];
-        if ((ay <= my && by > my) || (by <= my && ay > my)) {
-            float t  = (my - ay) / (by - ay);
-            float ix = ax + t * (bx - ax);
-            if (ix >= mx && ix < bestIx) {
-                bestIx   = ix;
-                bestEdge = j;   // edge from polyX[j] to polyX[(j+1)%pn]
-            }
-        }
-    }
-    if (bestEdge < 0) return; // no intersection found; skip (degenerate)
-
-    // Step 3: of the two endpoints of the intersected edge, prefer the one with larger X.
-    int edgeB   = (bestEdge + 1) % pn;
-    int bestVert = (polyX[bestEdge] >= polyX[edgeB]) ? bestEdge : edgeB;
-    float pvx = polyX[bestVert], pvy = polyY[bestVert];
-
-    // Step 4: refine — if any outer vertex lies inside the search triangle
-    // (M, intersection, bestVert) and forms a smaller angle from the rightward ray,
-    // prefer that vertex to avoid the bridge edge crossing an ear.
-    for (int i = 0; i < pn; ++i) {
-        float vx = polyX[i], vy = polyY[i];
-        if (vx <= mx) continue;
-        if (!pointInTriangle(mx, my, bestIx, my, pvx, pvy, vx, vy)) continue;
-        // Compare polar angle from M: smaller |dy|/dx = closer to the horizontal ray.
-        float angleNew = fabsf(vy - my) / (vx - mx + 1e-9f);
-        float angleOld = fabsf(pvy - my) / (pvx - mx + 1e-9f);
-        if (angleNew < angleOld) {
-            bestVert = i;
-            pvx = vx; pvy = vy;
-        }
-    }
-
-    // Step 5: build the merged polygon.
-    // Layout: outer[0..bestVert], hole[mIdx..hn-1,0..mIdx], outer[bestVert..pn-1]
-    // Av (=outer[bestVert]) and Hm (=hole[mIdx]) are duplicated to close the slit.
-    vector<float> newX, newY;
-    newX.reserve(pn + hn + 2);
-    newY.reserve(pn + hn + 2);
-    for (int i = 0; i <= bestVert; ++i) {
-        newX.push_back(polyX[i]);
-        newY.push_back(polyY[i]);
-    }
-    // Traverse hole starting at mIdx, all the way around back to mIdx.
-    for (int i = 0; i <= hn; ++i) {
-        int idx = (mIdx + i) % hn;
-        newX.push_back(holeX[idx]);
-        newY.push_back(holeY[idx]);
-    }
-    // Bridge back to bestVert, then continue outer.
-    newX.push_back(polyX[bestVert]);
-    newY.push_back(polyY[bestVert]);
-    for (int i = bestVert + 1; i < pn; ++i) {
-        newX.push_back(polyX[i]);
-        newY.push_back(polyY[i]);
-    }
-    polyX = move(newX);
-    polyY = move(newY);
-}
-
-// Process an .svg file into a VectorShapeHeader + VectorVertex[] + Uint16[] binary blob.
-// Tessellation strategy:
+// Process an .svg file into an SdfShapeHeader + SdfContourHeader[] + SdfSegment[]
+// binary blob, suitable for resolution-independent GPU-side SDF rendering.
+//
+// Strategy:
 //   • All closed paths in a shape are collected and classified by winding:
-//       - Outer contours: standard shoelace area < 0 after Y-flip (CW in world Y-up).
-//       - Hole contours:  area > 0 (CCW in world Y-up).
-//   • Each cubic Bezier segment is sampled at BEZIER_SAMPLES evenly-spaced t values
-//     (endpoint excluded), giving a smooth polygon approximation of every curve.
-//   • Holes are merged into their enclosing outer contour with bridgeHoleToOuter(),
-//     producing a simply-connected polygon that ear-clipping can handle correctly.
-//   • The merged polygon is ear-clipped into fill triangles (k=l=m=0, sign=0).
-//   • Y coordinates are negated (SVG Y-down → world Y-up) to match the vertex
-//     shader convention (gl_Position.y = -pos.y).
-//   • All positions are normalised to [−0.5, 0.5] based on the overall bounding box.
+//       - Outer contours: shoelace area < 0 after Y-flip (CW in world Y-up).
+//       - Hole  contours: area > 0 (CCW in world Y-up).
+//   • Each cubic Bezier segment is stored directly (no tessellation).
+//   • Y coordinates are negated (SVG Y-down → world Y-up).
+//   • All control-point positions are normalised to [-0.5, 0.5] based on the
+//     global bounding box.  A small margin is added to the stored bounding box
+//     so the AA border is never clipped.
 static bool processSvgToVectorShape(const string& filename, vector<char>& output)
 {
     NSVGimage* img = nsvgParseFromFile(filename.c_str(), "px", 96.0f);
@@ -1563,6 +1356,7 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
     }
 
     // Pass 1: compute global bounding box for normalisation.
+    // Sample curves finely to get a tight bbox.
     float gMinX =  1e30f, gMinY =  1e30f;
     float gMaxX = -1e30f, gMaxY = -1e30f;
 
@@ -1571,10 +1365,14 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
             if (!path->closed) continue;
             for (int i = 0; i < path->npts - 1; i += 3) {
                 float* p = &path->pts[i * 2];
+                // Sample 17 points per segment for a tight bbox
                 for (int s = 0; s <= 16; ++s) {
-                    float t = s / 16.0f;  // 17 samples gives a tight bbox even for very curved segments
-                    float x, y;
-                    sampleCubic(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], t, x, y);
+                    float t  = s / 16.0f;
+                    float mt = 1.0f - t;
+                    float mt2 = mt * mt, mt3 = mt2 * mt;
+                    float t2  = t  * t,  t3  = t2  * t;
+                    float x = mt3*p[0] + 3*mt2*t*p[2] + 3*mt*t2*p[4] + t3*p[6];
+                    float y = mt3*p[1] + 3*mt2*t*p[3] + 3*mt*t2*p[5] + t3*p[7];
                     if (x < gMinX) gMinX = x;
                     if (y < gMinY) gMinY = y;
                     if (x > gMaxX) gMaxX = x;
@@ -1590,136 +1388,116 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
         return false;
     }
 
-    float centerX = (gMinX + gMaxX) * 0.5f;
-    float centerY = (gMinY + gMaxY) * 0.5f;
+    float centerX   = (gMinX + gMaxX) * 0.5f;
+    float centerY   = (gMinY + gMaxY) * 0.5f;
     float normScale = max(gMaxX - gMinX, gMaxY - gMinY);
     if (normScale < 1e-6f) normScale = 1.0f;
 
-    // Number of t-samples per cubic segment (endpoint excluded; the next segment
-    // starts at that point so it is naturally included as its own t=0 sample).
-    static const int BEZIER_SAMPLES = 8;
+    // Pass 2: collect contours and their raw cubic Bézier segments.
+    struct Contour {
+        vector<SdfSegment> segments;
+        float area;     // shoelace signed area in normalised Y-up coords
+        Sint32 winding; // +1 outer, -1 hole
+    };
+    vector<Contour> allContours;
 
-    vector<VectorVertex> vertices;
-    vector<Uint16> indices;
+    // Control-point bbox (normalised) — used for the stored bounding box.
+    float ctrlMinX =  1e30f, ctrlMinY =  1e30f;
+    float ctrlMaxX = -1e30f, ctrlMaxY = -1e30f;
+
+    auto normaliseX = [&](float v) { return  (v - centerX) / normScale; };
+    auto normaliseY = [&](float v) { return -(v - centerY) / normScale; }; // Y-flip
 
     for (NSVGshape* shape = img->shapes; shape; shape = shape->next) {
-
-        // ---------------------------------------------------------------
-        // 1. Sample every closed path in this shape and classify contours.
-        //    Y coordinates are negated here (SVG Y-down → world Y-up).
-        //    Standard shoelace area of the Y-flipped coordinates:
-        //      area < 0  →  outer contour (CW in world Y-up)
-        //      area > 0  →  hole contour  (CCW in world Y-up)
-        // ---------------------------------------------------------------
-        struct Contour { vector<float> x, y; float area; };
-        vector<Contour> contours;
-
         for (NSVGpath* path = shape->paths; path; path = path->next) {
             if (!path->closed) continue;
 
             Contour c;
+
+            // Accumulate signed area (shoelace, on normalised Y-up coords) while
+            // recording each cubic segment.
+            float prevX = 0.0f, prevY = 0.0f;
+            bool firstSeg = true;
             for (int i = 0; i < path->npts - 1; i += 3) {
                 float* q = &path->pts[i * 2];
-                for (int s = 0; s < BEZIER_SAMPLES; ++s) {
-                    float t = s / (float)BEZIER_SAMPLES;
-                    float sx, sy;
-                    sampleCubic(q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], t, sx, sy);
-                    c.x.push_back( (sx - centerX) / normScale);
-                    c.y.push_back(-(sy - centerY) / normScale);
+                SdfSegment seg;
+                seg.p0x = normaliseX(q[0]);  seg.p0y = normaliseY(q[1]);
+                seg.p1x = normaliseX(q[2]);  seg.p1y = normaliseY(q[3]);
+                seg.p2x = normaliseX(q[4]);  seg.p2y = normaliseY(q[5]);
+                seg.p3x = normaliseX(q[6]);  seg.p3y = normaliseY(q[7]);
+
+                // Update control-point bbox
+                float pts[8] = {seg.p0x, seg.p1x, seg.p2x, seg.p3x,
+                                seg.p0y, seg.p1y, seg.p2y, seg.p3y};
+                for (int k = 0; k < 4; ++k) {
+                    if (pts[k]   < ctrlMinX) ctrlMinX = pts[k];
+                    if (pts[k]   > ctrlMaxX) ctrlMaxX = pts[k];
+                    if (pts[k+4] < ctrlMinY) ctrlMinY = pts[k+4];
+                    if (pts[k+4] > ctrlMaxY) ctrlMaxY = pts[k+4];
                 }
+
+                // Add shoelace contributions from start and end point of each segment.
+                // This gives an approximation sufficient for winding classification.
+                if (firstSeg) {
+                    prevX = seg.p0x; prevY = seg.p0y;
+                    firstSeg = false;
+                }
+                c.area += prevX * seg.p3y - seg.p3x * prevY;
+                prevX = seg.p3x; prevY = seg.p3y;
+
+                c.segments.push_back(seg);
             }
-            if (c.x.empty()) continue;
+            if (c.segments.empty()) continue;
 
-            // Standard shoelace signed area (computed on Y-flipped coordinates).
-            int cn = (int)c.x.size();
-            c.area = 0.0f;
-            for (int i = 0, j = cn - 1; i < cn; j = i++)
-                c.area += c.x[j] * c.y[i] - c.x[i] * c.y[j];
-
-            contours.push_back(move(c));
-        }
-        if (contours.empty()) continue;
-
-        // ---------------------------------------------------------------
-        // 2. Separate outer contours (area < 0) from hole contours (area > 0).
-        // ---------------------------------------------------------------
-        vector<int> outerIdx, holeIdx;
-        for (int ci = 0; ci < (int)contours.size(); ++ci) {
-            if (contours[ci].area < 0.0f)
-                outerIdx.push_back(ci);
-            else
-                holeIdx.push_back(ci);
-        }
-
-        // Sort holes by their rightmost vertex descending so successive bridges
-        // do not cross earlier ones.
-        sort(holeIdx.begin(), holeIdx.end(), [&](int a, int b) {
-            float maxA = *max_element(contours[a].x.begin(), contours[a].x.end());
-            float maxB = *max_element(contours[b].x.begin(), contours[b].x.end());
-            return maxA > maxB;
-        });
-
-        // ---------------------------------------------------------------
-        // 3. For each outer contour, bridge its holes in and ear-clip.
-        // ---------------------------------------------------------------
-        for (int oi : outerIdx) {
-            vector<float> polyX = contours[oi].x;
-            vector<float> polyY = contours[oi].y;
-
-            // Identify holes belonging to this outer contour via point-in-polygon.
-            const vector<float>& origX = contours[oi].x;
-            const vector<float>& origY = contours[oi].y;
-            for (int hi : holeIdx) {
-                const Contour& hc = contours[hi];
-                if (hc.x.empty()) continue;
-                if (pointInPolygon(hc.x[0], hc.y[0], origX, origY))
-                    bridgeHoleToOuter(polyX, polyY, hc.x, hc.y);
-            }
-
-            int pn = (int)polyX.size();
-            if ((Uint64)vertices.size() + (Uint64)pn > 65535) {
-                cerr << "Warning: SVG shape has too many vertices, skipping contour" << endl;
-                continue;
-            }
-            Uint16 baseVtx = (Uint16)vertices.size();
-            for (int i = 0; i < pn; ++i) {
-                VectorVertex v;
-                v.x = polyX[i]; v.y = polyY[i];
-                v.k = 0.0f; v.l = 0.0f; v.m = 0.0f; v.sign = 0.0f;
-                vertices.push_back(v);
-            }
-            earClipTriangulate(polyX, polyY, indices, baseVtx);
+            c.winding = (c.area < 0.0f) ? 1 : -1;
+            allContours.push_back(move(c));
         }
     }
 
     nsvgDelete(img);
 
-    if (vertices.empty() || indices.empty()) {
-        cerr << "SVG produced no renderable geometry: " << filename << endl;
+    if (allContours.empty()) {
+        cerr << "SVG produced no renderable contours: " << filename << endl;
         return false;
     }
 
-    cout << "  SVG " << filename << ": " << vertices.size() << " verts, "
-         << indices.size() << " indices" << endl;
+    // Build flat SdfSegment array and per-contour headers.
+    vector<SdfContourHeader> contourHeaders;
+    vector<SdfSegment> flatSegments;
+    for (const Contour& c : allContours) {
+        SdfContourHeader hdr{};
+        hdr.numSegments   = (Uint32)c.segments.size();
+        hdr.winding       = c.winding;
+        hdr.segmentOffset = (Uint32)flatSegments.size();
+        hdr.pad           = 0;
+        contourHeaders.push_back(hdr);
+        for (const SdfSegment& s : c.segments)
+            flatSegments.push_back(s);
+    }
 
-    // Build binary output: VectorShapeHeader + VectorVertex[] + Uint16[]
-    VectorShapeHeader hdr{};
-    hdr.numVertices = (Uint32)vertices.size();
-    hdr.numIndices  = (Uint32)indices.size();
-    hdr.bboxMinX = -0.5f;
-    hdr.bboxMinY = -0.5f;
-    hdr.bboxMaxX =  0.5f;
-    hdr.bboxMaxY =  0.5f;
+    // Stored bounding box with a small margin so the AA border is never clipped.
+    static const float BBOX_MARGIN = 0.02f;
+    SdfShapeHeader shapeHdr{};
+    shapeHdr.numContours   = (Uint32)contourHeaders.size();
+    shapeHdr.bboxMinX      = ctrlMinX - BBOX_MARGIN;
+    shapeHdr.bboxMinY      = ctrlMinY - BBOX_MARGIN;
+    shapeHdr.bboxMaxX      = ctrlMaxX + BBOX_MARGIN;
+    shapeHdr.bboxMaxY      = ctrlMaxY + BBOX_MARGIN;
+    shapeHdr.totalSegments = (Uint32)flatSegments.size();
 
-    output.resize(sizeof(VectorShapeHeader)
-                  + vertices.size() * sizeof(VectorVertex)
-                  + indices.size()  * sizeof(Uint16));
+    cout << "  SVG " << filename << ": " << contourHeaders.size() << " contours, "
+         << flatSegments.size() << " segments" << endl;
+
+    // Write binary output: SdfShapeHeader + SdfContourHeader[] + SdfSegment[]
+    output.resize(sizeof(SdfShapeHeader)
+                + contourHeaders.size() * sizeof(SdfContourHeader)
+                + flatSegments.size()   * sizeof(SdfSegment));
     char* dst = output.data();
-    memcpy(dst, &hdr, sizeof(hdr));
-    dst += sizeof(hdr);
-    memcpy(dst, vertices.data(), vertices.size() * sizeof(VectorVertex));
-    dst += vertices.size() * sizeof(VectorVertex);
-    memcpy(dst, indices.data(), indices.size() * sizeof(Uint16));
+    memcpy(dst, &shapeHdr, sizeof(shapeHdr));
+    dst += sizeof(shapeHdr);
+    memcpy(dst, contourHeaders.data(), contourHeaders.size() * sizeof(SdfContourHeader));
+    dst += contourHeaders.size() * sizeof(SdfContourHeader);
+    memcpy(dst, flatSegments.data(), flatSegments.size() * sizeof(SdfSegment));
 
     return true;
 }

@@ -61,7 +61,7 @@ typedef struct
 #define RESOURCE_TYPE_IMAGE_NO_ATLAS 11  //Icon image or other image without atlas
 #define RESOURCE_TYPE_SHADER        12
 #define RESOURCE_TYPE_TRIG_TABLE    13  //Trig lookup table (sin/cos)
-#define RESOURCE_TYPE_VECTOR_SHAPE  14  //Vector shape (Loop-Blinn tessellated mesh)
+#define RESOURCE_TYPE_VECTOR_SHAPE  14  //Vector shape (analytic SDF, cubic Bezier curves)
 //#define RESOURCE_TYPE_
 //etc
 
@@ -254,31 +254,46 @@ typedef struct
 
 //--------------------------------------------------------------
 // Vector shape data (RESOURCE_TYPE_VECTOR_SHAPE)
-// Loop-Blinn tessellated mesh for GPU-side vector rendering.
+// Analytic SDF representation of cubic Bézier curves for resolution-
+// independent GPU rendering.
+//
 // Binary layout:
-//   VectorShapeHeader
-//   VectorVertex[numVertices]
-//   Uint16[numIndices]
+//   SdfShapeHeader
+//   SdfContourHeader[numContours]
+//   SdfSegment[totalSegments]
+//
+// All X,Y coordinates are normalised so the largest dimension spans
+// [-0.5, 0.5].  Y is negated (SVG Y-down → world Y-up).
 //--------------------------------------------------------------
+
+// One cubic Bézier segment stored as its four control points.
 typedef struct
 {
-    float x;      // World position X
-    float y;      // World position Y
-    float k;      // Loop-Blinn k coordinate (0 = fill triangle)
-    float l;      // Loop-Blinn l coordinate (0 = fill triangle)
-    float m;      // Loop-Blinn m coordinate (0 = fill triangle)
-    float sign;   // 0 = fill; +1 = convex curve (keep inside parabola); -1 = concave curve
-} VectorVertex;
+    float p0x, p0y;   // Start point
+    float p1x, p1y;   // First control point
+    float p2x, p2y;   // Second control point
+    float p3x, p3y;   // End point
+} SdfSegment;
+
+// Per-contour metadata; followed by numSegments SdfSegments in the flat
+// segment array starting at segmentOffset.
+typedef struct
+{
+    Uint32 numSegments;    // Number of SdfSegment entries for this contour
+    Sint32 winding;        // +1 = outer contour, -1 = hole
+    Uint32 segmentOffset;  // Index of first segment in the flat SdfSegment array
+    Uint32 pad;
+} SdfContourHeader;
 
 typedef struct
 {
-    Uint32 numVertices;   // Number of VectorVertex entries following header
-    Uint32 numIndices;    // Number of Uint16 index entries following vertices
-    float  bboxMinX;      // Bounding box in NORMALISED [-0.5, 0.5] coordinates
+    Uint32 numContours;     // Number of SdfContourHeader entries
+    float  bboxMinX;        // Tight bounding box of control points (normalised coords)
     float  bboxMinY;
     float  bboxMaxX;
     float  bboxMaxY;
+    Uint32 totalSegments;   // Total SdfSegment entries across all contours
     Uint32 pad[2];
-    // Followed by numVertices * VectorVertex (already in normalised coordinates)
-    // Followed by numIndices  * Uint16
-} VectorShapeHeader;
+    // Followed by numContours * SdfContourHeader
+    // Followed by totalSegments * SdfSegment
+} SdfShapeHeader;
