@@ -2040,9 +2040,9 @@ int main(int argc, char* argv[]) {
                     return 1;
                 }
             } else if (ft == RESOURCE_TYPE_VECTOR_SHAPE) {
-                // .svg -> VectorShapeHeader + VectorVertex[] + Uint16[]
+                // .svg -> SdfShapeHeader + SdfContourHeader[] + SdfSegment[]
                 if (!processSvgToVectorShape(file.filename, file.data)) {
-                    cerr << "Failed to tessellate SVG file " << file.filename << endl;
+                    cerr << "Failed to process SVG file " << file.filename << endl;
                     return 1;
                 }
             } else {

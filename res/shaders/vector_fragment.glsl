@@ -141,6 +141,10 @@ void main() {
         for (uint si = 0; si < c.numSegments; si++) {
             GpuSegment seg = segBuf.segments[c.segmentOffset + si];
             // Approximate cubic as quadratic by averaging the two interior control points.
+            // Trade-off: the midpoint approximation introduces a slight bulge/pinch on
+            // high-curvature cubics (inflection-point curves), but is visually
+            // indistinguishable at typical display sizes and avoids solving a degree-6
+            // polynomial. A Newton-step refinement can be added in a future pass.
             vec2 A = seg.p0;
             vec2 B = (seg.p1 + seg.p2) * 0.5;
             vec2 C = seg.p3;
