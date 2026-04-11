@@ -1332,8 +1332,6 @@ bool generateTrigTable(vector<char>& output) {
     return true;
 }
 
-}
-
 // ============================================================
 // SVG → RESOURCE_TYPE_VECTOR_SHAPE tessellation
 // ============================================================
