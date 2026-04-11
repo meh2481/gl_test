@@ -1,4 +1,5 @@
 #include "TextLayout.h"
+#include "TextLayer.h"
 #include "FontManager.h"
 #include "../core/ResourceTypes.h"
 
@@ -69,11 +70,19 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
     if (spaceAdv <= 0.0f) spaceAdv = params.pointSize * 0.25f;
     float tabStop = spaceAdv * 4.0f;
 
-    // --- Pre-scan to collect word boundaries for word-wrap ---
-    // We do a two-pass approach:
-    //   Pass 1: compute all glyph positions on a single infinite line.
-    //   Pass 2: insert line breaks for wrap, then handle alignment.
-    // For simplicity we do a single greedy word-wrap pass inline.
+    // Helper: resolve effective font handle for a character index.
+    // Font-override spans use MARKUP_EFFECT_FONT (effect id 6) in the span array.
+    auto getEffectiveFont = [&](int charIdx) -> int {
+        if (params.fontSpans && params.numFontSpans > 0) {
+            for (int si = 0; si < params.numFontSpans; si++) {
+                const MarkupSpan& fs = params.fontSpans[si];
+                if (charIdx >= fs.startChar && charIdx < fs.endChar) {
+                    return fs.fontHandle;
+                }
+            }
+        }
+        return fontHandle;
+    };
 
     // Each glyph placed on the current line; line starts are tracked for alignment.
     struct LineStart { int glyphIdx; float startX; };
@@ -92,27 +101,33 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
             float wordW = 0.0f;
             const char* ws = src;
             Uint32 prevWIdx = prevGlyphIndex;
+            int    wcharIdx = charIdx;
             bool inWord = false;
             while (*ws) {
                 unsigned char b = (unsigned char)*ws;
                 if (b == ' ' || b == '\t' || b == '\n') {
                     if (inWord) break;      // found end of word
                     ws++;                   // skip leading whitespace
+                    wcharIdx++;
                     prevWIdx = 0xFFFFFFFF;
                     continue;
                 }
                 inWord = true;
                 const char* tmp = ws;
                 Uint32 cp = decodeUtf8(&tmp);
-                const FontGlyphEntry* ge = fontManager_->lookupGlyph(fontHandle, cp);
+                int ef = getEffectiveFont(wcharIdx);
+                const FontGlyphEntry* ge = fontManager_->lookupGlyph(ef, cp);
+                if (!ge) ge = fontManager_->lookupGlyph(ef, 0xFFFD);
                 if (ge) {
                     Sint32 kern = 0;
                     if (prevWIdx != 0xFFFFFFFF)
-                        kern = fontManager_->getKern(fontHandle, prevWIdx, ge->glyphIndex);
+                        kern = fontManager_->getKern(ef, prevWIdx, ge->glyphIndex);
+                    // Use base scale for wrap measurement (approximate; sufficient for variants)
                     wordW += ((float)ge->advanceWidth + (float)kern) * scale;
                     prevWIdx = ge->glyphIndex;
                 }
                 ws = tmp;
+                wcharIdx++;
             }
             // If word would overflow current line, wrap first.
             float lineWidth = cursorX - lineStarts.back().startX;
@@ -148,10 +163,16 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
             continue;
         }
 
-        const FontGlyphEntry* ge = fontManager_->lookupGlyph(fontHandle, cp);
+        // Resolve effective font for this character
+        int ef = getEffectiveFont(charIdx);
+        Sint32 efUnitsPerEM = fontManager_->getUnitsPerEM(ef);
+        if (efUnitsPerEM <= 0) efUnitsPerEM = unitsPerEM;
+        float efScale = params.pointSize / (float)efUnitsPerEM;
+
+        const FontGlyphEntry* ge = fontManager_->lookupGlyph(ef, cp);
         if (!ge) {
             // Try the replacement character
-            ge = fontManager_->lookupGlyph(fontHandle, 0xFFFD);
+            ge = fontManager_->lookupGlyph(ef, 0xFFFD);
         }
         if (!ge) {
             charIdx++;
@@ -159,26 +180,26 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
         }
 
         // Apply kerning with previous glyph in same font
-        if (prevGlyphIndex != 0xFFFFFFFF && prevFontHandle == fontHandle) {
-            Sint32 kern = fontManager_->getKern(fontHandle, prevGlyphIndex, ge->glyphIndex);
-            cursorX += (float)kern * scale;
+        if (prevGlyphIndex != 0xFFFFFFFF && prevFontHandle == ef) {
+            Sint32 kern = fontManager_->getKern(ef, prevGlyphIndex, ge->glyphIndex);
+            cursorX += (float)kern * efScale;
         }
 
         GlyphInstance gi{};
         gi.codepoint   = cp;
         gi.glyphIndex  = ge->glyphIndex;
-        gi.fontHandle  = fontHandle;
+        gi.fontHandle  = ef;
         gi.x           = cursorX;
         gi.y           = cursorY;
-        gi.scale       = scale;
+        gi.scale       = efScale;
         gi.charIndex   = charIdx;
         gi.hasOutline  = (ge->sdfSize > 0);
 
         glyphs_.push_back(gi);
 
-        cursorX += (float)ge->advanceWidth * scale;
+        cursorX += (float)ge->advanceWidth * efScale;
         prevGlyphIndex = ge->glyphIndex;
-        prevFontHandle = fontHandle;
+        prevFontHandle = ef;
         charIdx++;
     }
 

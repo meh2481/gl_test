@@ -18,6 +18,7 @@ enum MarkupEffect {
     MARKUP_EFFECT_SHAKE   = 3,  // params: mag, 0, 0, 0
     MARKUP_EFFECT_RAINBOW = 4,  // params: speed, 0, 0, 0
     MARKUP_EFFECT_SCALE   = 5,  // params: scale, 0, 0, 0
+    MARKUP_EFFECT_FONT    = 6,  // fontHandle stored in fontHandle field
 };
 
 struct MarkupSpan {
@@ -25,6 +26,7 @@ struct MarkupSpan {
     int          endChar;    // exclusive, in the plain text
     MarkupEffect effect;
     float        params[4];
+    int          fontHandle; // for MARKUP_EFFECT_FONT; 0 otherwise
 };
 
 // TextLayer owns a laid-out string and one VectorLayer per glyph.
@@ -52,6 +54,10 @@ public:
     void setWrapWidth(float width);
     void setLineSpacing(float mult);
     void setAlignment(int align);
+
+    // Set the font family for [font=bold/italic/bolditalic] markup resolution.
+    // Pass -1 for any variant that is not available.
+    void setFontFamily(int boldHandle, int italicHandle, int boldItalicHandle);
 
     // Set the string (parses markup, runs layout, rebuilds VectorLayers).
     // Must be called with the active sceneId.
@@ -112,6 +118,11 @@ private:
     float  wrapWidth_;
     float  lineSpacingMult_;
     int    alignment_;
+
+    // Font family for [font=bold/italic/bolditalic] markup (M6)
+    int    fontFamilyBold_;
+    int    fontFamilyItalic_;
+    int    fontFamilyBoldItalic_;
 
     // Owned copy of the plain (markup-stripped) text.
     char*  plainText_;

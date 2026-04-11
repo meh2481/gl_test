@@ -39,7 +39,9 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       particleManager_(particleManager), waterEffectManager_(waterEffectManager), consoleBuffer_(consoleBuffer),
       animationEngine_(animationEngine),
       textLayers_(*allocator, "LuaInterface::textLayers_"),
-      nextTextLayerId_(1)
+      nextTextLayerId_(1),
+      dialogueBoxes_(*allocator, "LuaInterface::dialogueBoxes_"),
+      nextDialogueId_(1)
 {
     assert(stringAllocator_ != nullptr);
     assert(physics_ != nullptr);
@@ -617,6 +619,7 @@ void LuaInterface::updateScene(Uint64 sceneId, float deltaTime) {
 
     // Update text layers (reveal animation and per-character effects)
     updateTextLayers(deltaTime);
+    updateDialogueBoxes(deltaTime);
 
     // Update water effects and detect splashes
     waterEffectManager_->update(deltaTime);
@@ -870,6 +873,7 @@ void LuaInterface::cleanupScene(Uint64 sceneId) {
 
     // Destroy all text layers before clearing vector layers
     clearTextLayers();
+    clearDialogueBoxes();
 
     // Destroy all vector layers created by this scene
     renderer_.clearVectorLayersForScene(sceneId);
@@ -1140,6 +1144,17 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "textLayerSetAlignment", textLayerSetAlignment);
     lua_register(luaState_, "textLayerSetOnRevealComplete", textLayerSetOnRevealComplete);
     lua_register(luaState_, "textLayerSetOnCharRevealed", textLayerSetOnCharRevealed);
+    lua_register(luaState_, "textLayerSetFontFamily", textLayerSetFontFamily);
+
+    // Dialogue box Lua API (M7)
+    lua_register(luaState_, "createDialogueBox",     createDialogueBox);
+    lua_register(luaState_, "destroyDialogueBox",    destroyDialogueBox);
+    lua_register(luaState_, "dialogueLoad",          dialogueLoad);
+    lua_register(luaState_, "dialogueStart",         dialogueStart);
+    lua_register(luaState_, "dialogueAdvance",       dialogueAdvance);
+    lua_register(luaState_, "dialogueSetRevealSound",dialogueSetRevealSound);
+    lua_register(luaState_, "dialogueIsRevealing",   dialogueIsRevealing);
+    lua_register(luaState_, "dialogueGetCurrentLine",dialogueGetCurrentLine);
 
     // Text alignment constants
     lua_pushinteger(luaState_, TEXT_ALIGN_LEFT);
@@ -5211,8 +5226,23 @@ int LuaInterface::textLayerSetOnCharRevealed(lua_State* L) {
     return 0;
 }
 
-// =============================================================================
-// TextLayer per-frame update and lifecycle helpers
+// textLayerSetFontFamily(textLayerId, boldHandle, italicHandle, boldItalicHandle)
+// Pass -1 for any variant that is not available.
+int LuaInterface::textLayerSetFontFamily(lua_State* L) {
+    int id             = (int)luaL_checkinteger(L, 1);
+    int boldHandle     = (int)luaL_optinteger(L, 2, -1);
+    int italicHandle   = (int)luaL_optinteger(L, 3, -1);
+    int boldItHandle   = (int)luaL_optinteger(L, 4, -1);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) (*ptr)->setFontFamily(boldHandle, italicHandle, boldItHandle);
+    return 0;
+}
+
 // =============================================================================
 
 void LuaInterface::updateTextLayers(float dt) {
@@ -5233,3 +5263,210 @@ void LuaInterface::clearTextLayers() {
     }
     textLayers_.clear();
 }
+
+// =============================================================================
+// DialogueManager lifecycle helpers
+// =============================================================================
+
+void LuaInterface::updateDialogueBoxes(float dt) {
+    for (auto it = dialogueBoxes_.begin(); it != dialogueBoxes_.end(); ++it) {
+        DialogueManager* dlg = it.value();
+        assert(dlg != nullptr);
+        dlg->update(dt, currentSceneId_);
+    }
+}
+
+void LuaInterface::clearDialogueBoxes() {
+    for (auto it = dialogueBoxes_.begin(); it != dialogueBoxes_.end(); ++it) {
+        DialogueManager* dlg = it.value();
+        assert(dlg != nullptr);
+        dlg->destroyLayers();
+        dlg->~DialogueManager();
+        stringAllocator_->free(dlg);
+    }
+    dialogueBoxes_.clear();
+}
+
+// =============================================================================
+// Dialogue Lua bindings (M7)
+// =============================================================================
+
+// createDialogueBox({ font=fh, boldFont=bh, italicFont=ih,
+//                     x=N, y=N, width=N, height=N, textSize=N,
+//                     speakerTextSize=N, revealSpeed=N })
+// Returns a dialogue box ID (integer).
+int LuaInterface::createDialogueBox(lua_State* L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueBoxConfig cfg{};
+    // Required: font
+    lua_getfield(L, 1, "font");
+    cfg.fontHandle = (int)luaL_checkinteger(L, -1);
+    lua_pop(L, 1);
+
+    // Optional fields
+    lua_getfield(L, 1, "boldFont");
+    cfg.boldFontHandle = lua_isinteger(L, -1) ? (int)lua_tointeger(L, -1) : -1;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "italicFont");
+    cfg.italicFontHandle = lua_isinteger(L, -1) ? (int)lua_tointeger(L, -1) : -1;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "x");
+    cfg.x = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "y");
+    cfg.y = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "width");
+    cfg.width = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "height");
+    cfg.height = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "textSize");
+    cfg.textSize = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 24.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "speakerTextSize");
+    cfg.speakerTextSize = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "revealSpeed");
+    cfg.defaultRevealSpeed = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 20.0f;
+    lua_pop(L, 1);
+
+    void* mem = iface->stringAllocator_->allocate(sizeof(DialogueManager), "DialogueManager");
+    assert(mem != nullptr);
+    DialogueManager* dlg = new (mem) DialogueManager(
+        iface->stringAllocator_,
+        iface->fontManager_,
+        &iface->renderer_,
+        iface->audioManager_,
+        iface->consoleBuffer_,
+        &iface->pakResource_);
+    dlg->configure(cfg);
+
+    int id = iface->nextDialogueId_++;
+    iface->dialogueBoxes_.insertNew(id, dlg);
+    lua_pushinteger(L, id);
+    return 1;
+}
+
+// destroyDialogueBox(dlgId)
+int LuaInterface::destroyDialogueBox(lua_State* L) {
+    int id = (int)luaL_checkinteger(L, 1);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    if (ptr) {
+        DialogueManager* dlg = *ptr;
+        dlg->destroyLayers();
+        dlg->~DialogueManager();
+        iface->stringAllocator_->free(dlg);
+        iface->dialogueBoxes_.remove(id);
+    }
+    return 0;
+}
+
+// dialogueLoad(dlgId, resourcePath)
+// Returns true on success.
+int LuaInterface::dialogueLoad(lua_State* L) {
+    int         id   = (int)luaL_checkinteger(L, 1);
+    const char* path = luaL_checkstring(L, 2);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    if (!ptr) { lua_pushboolean(L, 0); return 1; }
+    lua_pushboolean(L, (*ptr)->loadDialogue(path) ? 1 : 0);
+    return 1;
+}
+
+// dialogueStart(dlgId [, onCompleteCallback])
+int LuaInterface::dialogueStart(lua_State* L) {
+    int id = (int)luaL_checkinteger(L, 1);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int onCompleteRef = LUA_NOREF;
+    if (lua_isfunction(L, 2)) {
+        lua_pushvalue(L, 2);
+        onCompleteRef = luaL_ref(L, LUA_REGISTRYINDEX);
+    }
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    if (ptr) (*ptr)->start(L, onCompleteRef, iface->currentSceneId_);
+    else if (onCompleteRef != LUA_NOREF) luaL_unref(L, LUA_REGISTRYINDEX, onCompleteRef);
+    return 0;
+}
+
+// dialogueAdvance(dlgId)
+int LuaInterface::dialogueAdvance(lua_State* L) {
+    int id = (int)luaL_checkinteger(L, 1);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    if (ptr) (*ptr)->advance(iface->currentSceneId_);
+    return 0;
+}
+
+// dialogueSetRevealSound(dlgId, sourceId)
+int LuaInterface::dialogueSetRevealSound(lua_State* L) {
+    int id       = (int)luaL_checkinteger(L, 1);
+    int sourceId = (int)luaL_checkinteger(L, 2);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    if (ptr) (*ptr)->setRevealSoundSourceId(sourceId);
+    return 0;
+}
+
+// dialogueIsRevealing(dlgId) → boolean
+int LuaInterface::dialogueIsRevealing(lua_State* L) {
+    int id = (int)luaL_checkinteger(L, 1);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    lua_pushboolean(L, ptr && (*ptr)->isRevealing() ? 1 : 0);
+    return 1;
+}
+
+// dialogueGetCurrentLine(dlgId) → integer (0-based, or -1 if idle)
+int LuaInterface::dialogueGetCurrentLine(lua_State* L) {
+    int id = (int)luaL_checkinteger(L, 1);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    lua_pushinteger(L, ptr ? (*ptr)->getCurrentLine() : -1);
+    return 1;
+}
+

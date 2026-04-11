@@ -16,6 +16,7 @@
 #include "../memory/MemoryAllocator.h"
 #include "../text/FontManager.h"
 #include "../text/TextLayer.h"
+#include "DialogueManager.h"
 
 class SceneManager;
 class ConsoleBuffer;
@@ -203,6 +204,17 @@ private:
     static int textLayerSetAlignment(lua_State* L);
     static int textLayerSetOnRevealComplete(lua_State* L);
     static int textLayerSetOnCharRevealed(lua_State* L);
+    static int textLayerSetFontFamily(lua_State* L);
+
+    // Dialogue Lua bindings (M7)
+    static int createDialogueBox(lua_State* L);
+    static int destroyDialogueBox(lua_State* L);
+    static int dialogueLoad(lua_State* L);
+    static int dialogueStart(lua_State* L);
+    static int dialogueAdvance(lua_State* L);
+    static int dialogueSetRevealSound(lua_State* L);
+    static int dialogueIsRevealing(lua_State* L);
+    static int dialogueGetCurrentLine(lua_State* L);
 
     // Audio Lua bindings
     static int audioLoadGla(lua_State* L);
@@ -344,12 +356,18 @@ private:
     MemoryAllocator* stringAllocator_;
 
     // Font and text layer management
-    FontManager*                   fontManager_;
-    HashTable<int, TextLayer*>     textLayers_;  // textLayerId → TextLayer*
-    int                            nextTextLayerId_;
+    FontManager*                        fontManager_;
+    HashTable<int, TextLayer*>          textLayers_;  // textLayerId → TextLayer*
+    int                                 nextTextLayerId_;
+
+    // Dialogue box management (M7)
+    HashTable<int, DialogueManager*>    dialogueBoxes_;  // dlgId → DialogueManager*
+    int                                 nextDialogueId_;
 
     void updateTextLayers(float dt);
     void clearTextLayers();
+    void updateDialogueBoxes(float dt);
+    void clearDialogueBoxes();
 
     void updateNodes(float deltaTime);
     void handleNodeSensorEvent(const SensorEvent& event);

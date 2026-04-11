@@ -6,6 +6,9 @@
 
 class FontManager;
 
+// Forward declaration (defined in TextLayer.h)
+struct MarkupSpan;
+
 // Alignment constants for textLayerSetAlignment
 enum TextAlignment {
     TEXT_ALIGN_LEFT   = 0,
@@ -32,6 +35,12 @@ struct TextLayoutParams {
     float wrapWidth;        // 0 = no wrapping
     float lineSpacingMult;  // line spacing multiplier (1.0 = default metrics)
     int   alignment;        // TextAlignment enum value
+
+    // M6: Optional per-character font overrides (nullptr = none).
+    // Points to MarkupSpan entries with effect == MARKUP_EFFECT_FONT; fontHandle
+    // field gives the replacement font handle for [startChar, endChar).
+    const struct MarkupSpan* fontSpans;
+    int                      numFontSpans;
 };
 
 // Lays out a UTF-8 string into a flat array of GlyphInstances.

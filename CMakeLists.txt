@@ -192,6 +192,7 @@ if(BUILD_GAME)
         src/text/FontManager.cpp
         src/text/TextLayout.cpp
         src/text/TextLayer.cpp
+        src/scene/DialogueManager.cpp
     )
     if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
         list(APPEND GAME_SOURCES src/debug/ImGuiManager.cpp)

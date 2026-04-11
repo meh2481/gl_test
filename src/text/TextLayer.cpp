@@ -24,6 +24,9 @@ TextLayer::TextLayer(MemoryAllocator* allocator,
     , wrapWidth_(0.0f)
     , lineSpacingMult_(1.0f)
     , alignment_(TEXT_ALIGN_LEFT)
+    , fontFamilyBold_(-1)
+    , fontFamilyItalic_(-1)
+    , fontFamilyBoldItalic_(-1)
     , plainText_(nullptr)
     , sceneId_(0)
     , revealSpeed_(0.0f)
@@ -94,6 +97,12 @@ void TextLayer::setLineSpacing(float mult) {
 
 void TextLayer::setAlignment(int align) {
     alignment_ = align;
+}
+
+void TextLayer::setFontFamily(int boldHandle, int italicHandle, int boldItalicHandle) {
+    fontFamilyBold_       = boldHandle;
+    fontFamilyItalic_     = italicHandle;
+    fontFamilyBoldItalic_ = boldItalicHandle;
 }
 
 // ---------------------------------------------------------------------------
@@ -179,7 +188,7 @@ void TextLayer::parseMarkup(const char* raw) {
     int    plainLen = 0;
     const char* p  = raw;
 
-    struct OpenSpan { int startChar; MarkupEffect effect; float params[4]; };
+    struct OpenSpan { int startChar; MarkupEffect effect; float params[4]; int fontHandle; };
     // Use a small fixed stack (8 nested tags is more than enough)
     OpenSpan stack[8];
     int stackTop = 0;
@@ -206,6 +215,7 @@ void TextLayer::parseMarkup(const char* raw) {
 
         MarkupEffect effect = MARKUP_EFFECT_NONE;
         float        params[4] = {1.0f, 1.0f, 0.0f, 1.0f};
+        int          spanFontHandle = 0; // for MARKUP_EFFECT_FONT
 
         // --- Identify effect type ---
         if (iTagMatch(t, "color")) {
@@ -251,6 +261,34 @@ void TextLayer::parseMarkup(const char* raw) {
                 while (*eq == ' ') eq++;
                 if (*eq == '=') { eq++; params[0] = parseFloat(eq); }
             }
+        } else if (iTagMatch(t, "font")) {
+            effect = MARKUP_EFFECT_FONT;
+            if (!isClose) {
+                // [font=bold], [font=italic], [font=bolditalic], or [font=N] (direct handle)
+                const char* eq = t + 4; // skip "font"
+                while (*eq == ' ') eq++;
+                if (*eq == '=') {
+                    eq++;
+                    while (*eq == ' ') eq++;
+                    if (SDL_strncasecmp(eq, "bold", 4) == 0 &&
+                        (eq[4] == ']' || eq[4] == ' ')) {
+                        spanFontHandle = fontFamilyBold_;
+                    } else if (SDL_strncasecmp(eq, "italic", 6) == 0 &&
+                               (eq[6] == ']' || eq[6] == ' ')) {
+                        spanFontHandle = fontFamilyItalic_;
+                    } else if (SDL_strncasecmp(eq, "bolditalic", 10) == 0 &&
+                               (eq[10] == ']' || eq[10] == ' ')) {
+                        spanFontHandle = fontFamilyBoldItalic_;
+                    } else {
+                        // Numeric font handle
+                        spanFontHandle = (int)parseFloat(eq);
+                    }
+                    // Fall back to base font if the variant handle is invalid
+                    if (spanFontHandle < 0 || !fontManager_->isValid(spanFontHandle)) {
+                        spanFontHandle = fontHandle_;
+                    }
+                }
+            }
         } else {
             // Unknown tag — treat as literal text
             buf[plainLen++] = '[';
@@ -260,8 +298,9 @@ void TextLayer::parseMarkup(const char* raw) {
 
         if (!isClose) {
             if (stackTop < 8) {
-                stack[stackTop].startChar = plainLen;
-                stack[stackTop].effect    = effect;
+                stack[stackTop].startChar  = plainLen;
+                stack[stackTop].effect     = effect;
+                stack[stackTop].fontHandle = spanFontHandle;
                 for (int i = 0; i < 4; i++) stack[stackTop].params[i] = params[i];
                 stackTop++;
             }
@@ -270,9 +309,10 @@ void TextLayer::parseMarkup(const char* raw) {
             for (int si = stackTop - 1; si >= 0; si--) {
                 if (stack[si].effect == effect) {
                     MarkupSpan span{};
-                    span.startChar = stack[si].startChar;
-                    span.endChar   = plainLen;
-                    span.effect    = effect;
+                    span.startChar  = stack[si].startChar;
+                    span.endChar    = plainLen;
+                    span.effect     = effect;
+                    span.fontHandle = stack[si].fontHandle;
                     for (int i = 0; i < 4; i++) span.params[i] = stack[si].params[i];
                     spans_.push_back(span);
                     // Remove from stack
@@ -332,6 +372,17 @@ void TextLayer::rebuild(Uint64 sceneId) {
     p.wrapWidth       = wrapWidth_;
     p.lineSpacingMult = lineSpacingMult_;
     p.alignment       = alignment_;
+
+    // Collect MARKUP_EFFECT_FONT spans to pass to the layout engine (M6)
+    Vector<MarkupSpan> fontSpans(*allocator_, "TextLayer::rebuild::fontSpans");
+    for (int si = 0; si < (int)spans_.size(); si++) {
+        if (spans_[si].effect == MARKUP_EFFECT_FONT) {
+            fontSpans.push_back(spans_[si]);
+        }
+    }
+    p.fontSpans    = fontSpans.size() > 0 ? fontSpans.data() : nullptr;
+    p.numFontSpans = (int)fontSpans.size();
+
     layout.layout(plainText_, p);
 
     int n = layout.getGlyphCount();
@@ -574,7 +625,8 @@ void TextLayer::applyEffects(float /*dt*/) {
         const MarkupSpan& sp = spans_[si];
         if (sp.effect == MARKUP_EFFECT_NONE ||
             sp.effect == MARKUP_EFFECT_COLOR ||
-            sp.effect == MARKUP_EFFECT_SCALE) continue;  // static, set at rebuild
+            sp.effect == MARKUP_EFFECT_SCALE  ||
+            sp.effect == MARKUP_EFFECT_FONT) continue;  // static, set at rebuild
 
         for (int gi = 0; gi < (int)glyphLayers_.size(); gi++) {
             GlyphLayerInfo& gl = glyphLayers_[gi];
