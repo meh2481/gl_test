@@ -61,6 +61,7 @@ typedef struct
 #define RESOURCE_TYPE_IMAGE_NO_ATLAS 11  //Icon image or other image without atlas
 #define RESOURCE_TYPE_SHADER        12
 #define RESOURCE_TYPE_TRIG_TABLE    13  //Trig lookup table (sin/cos)
+#define RESOURCE_TYPE_VECTOR_SHAPE  14  //Vector shape (Loop-Blinn tessellated mesh)
 //#define RESOURCE_TYPE_
 //etc
 
@@ -250,3 +251,34 @@ typedef struct
     Uint32   loopEnd;           // Loop end in samples (0 = use file end)
     // Followed immediately by IMA ADPCM blocks
 } GlaHeader;
+
+//--------------------------------------------------------------
+// Vector shape data (RESOURCE_TYPE_VECTOR_SHAPE)
+// Loop-Blinn tessellated mesh for GPU-side vector rendering.
+// Binary layout:
+//   VectorShapeHeader
+//   VectorVertex[numVertices]
+//   Uint16[numIndices]
+//--------------------------------------------------------------
+typedef struct
+{
+    float x;      // World position X
+    float y;      // World position Y
+    float k;      // Loop-Blinn k coordinate (0 = fill triangle)
+    float l;      // Loop-Blinn l coordinate (0 = fill triangle)
+    float m;      // Loop-Blinn m coordinate (0 = fill triangle)
+    float sign;   // 0 = fill; +1 = convex curve (keep inside parabola); -1 = concave curve
+} VectorVertex;
+
+typedef struct
+{
+    Uint32 numVertices;   // Number of VectorVertex entries following header
+    Uint32 numIndices;    // Number of Uint16 index entries following vertices
+    float  bboxMinX;      // Bounding box in NORMALISED [-0.5, 0.5] coordinates
+    float  bboxMinY;
+    float  bboxMaxX;
+    float  bboxMaxY;
+    Uint32 pad[2];
+    // Followed by numVertices * VectorVertex (already in normalised coordinates)
+    // Followed by numIndices  * Uint16
+} VectorShapeHeader;

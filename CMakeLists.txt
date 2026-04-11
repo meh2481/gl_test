@@ -130,6 +130,7 @@ if(BUILD_GAME)
         "${CMAKE_SOURCE_DIR}/res/*.wav"
         "${CMAKE_SOURCE_DIR}/res/*.lua"
         "${CMAKE_SOURCE_DIR}/res/*.loop"
+        "${CMAKE_SOURCE_DIR}/res/*.svg"
     )
 
     # When cross-compiling, the built packer is a foreign executable and cannot run

@@ -390,6 +390,7 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
                                      "openParticleEditor", "loadParticleConfig", "loadObject", "createNode", "getNode", "destroyNode", "getNodePosition",
                                      "animateLayerScale", "animateLayerPosition", "animateLayerRotation", "animateLayerColor", "animateLayerOffset",
                                      "animateLightIntensity", "stopAnimation", "stopLayerAnimations", "fireAction",
+                                     "loadVectorShape", "drawVectorShape",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -1085,6 +1086,10 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "stopAnimation", stopAnimation);
     lua_register(luaState_, "stopLayerAnimations", stopLayerAnimations);
     lua_register(luaState_, "fireAction", fireAction);
+
+    // Vector shape functions
+    lua_register(luaState_, "loadVectorShape", loadVectorShape);
+    lua_register(luaState_, "drawVectorShape", drawVectorShape);
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -4769,5 +4774,76 @@ int LuaInterface::stopLayerAnimations(lua_State* L) {
 
     interface->animationEngine_->stopAnimationsForTarget(layerId, (AnimationPropertyType)propertyType);
 
+    return 0;
+}
+
+// loadVectorShape(resourcePath)
+// Loads a vector shape from the pak file.
+// On first call, also creates the vector pipeline using the bundled vector shaders.
+// Returns the shape handle (integer resource ID).
+int LuaInterface::loadVectorShape(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_isstring(L, 1));
+    const char* shapePath = lua_tostring(L, 1);
+
+    Uint64 shapeId = hashCString(shapePath);
+
+    // Lazily create the vector pipeline on first call
+    static const char* VECTOR_VERT = "res/shaders/vector_vertex.spv";
+    static const char* VECTOR_FRAG = "res/shaders/vector_fragment.spv";
+    Uint64 vertId = hashCString(VECTOR_VERT);
+    Uint64 fragId = hashCString(VECTOR_FRAG);
+
+    interface->pakResource_.requestResourceAsync(vertId);
+    interface->pakResource_.requestResourceAsync(fragId);
+    ResourceData vertShader{nullptr, 0, 0};
+    ResourceData fragShader{nullptr, 0, 0};
+    bool haveVert = interface->pakResource_.tryGetResource(vertId, vertShader);
+    bool haveFrag = interface->pakResource_.tryGetResource(fragId, fragShader);
+    if (haveVert && haveFrag) {
+        interface->renderer_.createVectorPipeline(vertShader, fragShader);
+    } else {
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_WARN,
+            "loadVectorShape: vector shaders not yet available, pipeline creation deferred");
+    }
+
+    // Load the shape resource
+    interface->pakResource_.requestResourceAsync(shapeId);
+    ResourceData shapeData{nullptr, 0, 0};
+    bool haveShape = interface->pakResource_.tryGetResource(shapeId, shapeData);
+    if (!haveShape || shapeData.data == nullptr) {
+        interface->consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR,
+            "loadVectorShape: shape resource not found in pak: %s", shapePath);
+        assert(false);
+    }
+
+    interface->renderer_.loadVectorShape(shapeId, shapeData);
+
+    lua_pushinteger(L, (lua_Integer)shapeId);
+    return 1;
+}
+
+// drawVectorShape(handle, x, y, scale, r, g, b, a)
+// Queues a vector shape draw call for the current frame.
+int LuaInterface::drawVectorShape(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* interface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    assert(lua_gettop(L) == 8);
+    Uint64 shapeId = (Uint64)lua_tointeger(L, 1);
+    float x     = (float)lua_tonumber(L, 2);
+    float y     = (float)lua_tonumber(L, 3);
+    float scale = (float)lua_tonumber(L, 4);
+    float r     = (float)lua_tonumber(L, 5);
+    float g     = (float)lua_tonumber(L, 6);
+    float b     = (float)lua_tonumber(L, 7);
+    float a     = (float)lua_tonumber(L, 8);
+
+    interface->renderer_.drawVectorShape(shapeId, x, y, scale, r, g, b, a);
     return 0;
 }

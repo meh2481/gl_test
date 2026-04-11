@@ -70,12 +70,15 @@ public:
     void createAnimTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 1);
     void createWaterPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 2);
     void createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader);
+    void createVectorPipeline(const ResourceData& vertShader, const ResourceData& fragShader);
 
     // Pipeline access
     VkPipeline getPipeline(Uint64 id) const;
     VkPipeline getDebugLinePipeline() const { return m_debugLinePipeline; }
     VkPipeline getDebugTrianglePipeline() const { return m_debugTrianglePipeline; }
     VkPipeline getFadePipeline() const { return m_fadePipeline; }
+    VkPipeline getVectorPipeline() const { return m_vectorPipeline; }
+    VkPipelineLayout getVectorPipelineLayout() const { return m_vectorPipelineLayout; }
     bool hasPipeline(Uint64 id) const;
     bool isDebugPipeline(Uint64 id) const;
 
@@ -132,6 +135,8 @@ private:
     VkPipeline m_debugLinePipeline;
     VkPipeline m_debugTrianglePipeline;
     VkPipeline m_fadePipeline;
+    VkPipeline m_vectorPipeline;
+    VkPipelineLayout m_vectorPipelineLayout;
     VkPipeline m_currentPipeline;
     Vector<Uint64> m_pipelinesToDraw;
 

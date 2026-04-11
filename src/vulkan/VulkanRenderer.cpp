@@ -71,6 +71,7 @@ inline Uint32 clamp(Uint32 value, Uint32 min, Uint32 max) {
 }
 
 VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator* largeAllocator, ConsoleBuffer* consoleBuffer) :
+    m_bufferManager(),
     m_textureManager(smallAllocator, consoleBuffer),
     m_descriptorManager(smallAllocator),
     m_pipelineManager(smallAllocator, largeAllocator),
@@ -93,6 +94,8 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_vertexBuffer(VK_NULL_HANDLE),
     m_vertexBufferMemory(VK_NULL_HANDLE),
     m_particleTextureId(0),
+    m_vectorShapes(*smallAllocator, "VulkanRenderer::m_vectorShapes"),
+    m_vectorDrawCalls(*smallAllocator, "VulkanRenderer::m_vectorDrawCalls"),
     m_cameraOffsetX(0.0f),
     m_cameraOffsetY(0.0f),
     m_cameraZoom(1.0f),
@@ -237,6 +240,10 @@ void VulkanRenderer::createPipeline(Uint64 id, const ResourceData& vertShader, c
 
 void VulkanRenderer::createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader) {
     m_pipelineManager.createFadePipeline(vertShader, fragShader);
+}
+
+void VulkanRenderer::createVectorPipeline(const ResourceData& vertShader, const ResourceData& fragShader) {
+    m_pipelineManager.createVectorPipeline(vertShader, fragShader);
 }
 
 void VulkanRenderer::setCurrentPipeline(Uint64 id) {
@@ -514,6 +521,9 @@ void VulkanRenderer::render(float time) {
         "[Vulkan][Frame %llu] end nextCurrentFrame=%llu",
         (unsigned long long)m_frameCount,
         (unsigned long long)m_currentFrame);
+
+    // Clear per-frame vector draw calls (Lua will re-queue them next update)
+    m_vectorDrawCalls.clear();
 }
 
 void VulkanRenderer::recreateSwapchain(SDL_Window* window) {
@@ -640,6 +650,12 @@ void VulkanRenderer::cleanup() {
         m_bufferManager.destroyIndexedBuffer(m_spriteBuffers[i]);
         m_bufferManager.destroyIndexedBuffer(m_particleBuffers[i]);
     }
+
+    // Cleanup vector shape buffers
+    for (auto it = m_vectorShapes.begin(); it != m_vectorShapes.end(); ++it) {
+        m_bufferManager.destroyIndexedBuffer(it.value().buffer);
+    }
+    m_vectorShapes.clear();
 
     if (m_swapchainFramebuffers != nullptr) {
         for (Uint64 i = 0; i < m_swapchainImageCount; i++) {
@@ -1488,6 +1504,75 @@ void VulkanRenderer::loadTexture(Uint64 textureId, const ResourceData& imageData
     }
 }
 
+void VulkanRenderer::loadVectorShape(Uint64 shapeId, const ResourceData& shapeData) {
+    if (shapeData.size < sizeof(VectorShapeHeader)) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "loadVectorShape: resource too small for header (id=%llu)",
+            (unsigned long long)shapeId);
+        return;
+    }
+
+    const VectorShapeHeader* header = reinterpret_cast<const VectorShapeHeader*>(shapeData.data);
+    const VectorVertex* verts = reinterpret_cast<const VectorVertex*>(
+        shapeData.data + sizeof(VectorShapeHeader));
+    const Uint16* indices = reinterpret_cast<const Uint16*>(
+        shapeData.data + sizeof(VectorShapeHeader) + header->numVertices * sizeof(VectorVertex));
+
+    Uint64 requiredSize = sizeof(VectorShapeHeader)
+        + (Uint64)header->numVertices * sizeof(VectorVertex)
+        + (Uint64)header->numIndices  * sizeof(Uint16);
+    if (shapeData.size < requiredSize) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "loadVectorShape: resource too small for mesh data (id=%llu, have=%llu, need=%llu)",
+            (unsigned long long)shapeId, (unsigned long long)shapeData.size, (unsigned long long)requiredSize);
+        return;
+    }
+
+    // Build float vertex array (x, y, k, l, m, sign)
+    Vector<float> vertexData(*m_allocator, "VulkanRenderer::loadVectorShape::vertexData");
+    vertexData.reserve((Uint64)header->numVertices * 6);
+    for (Uint32 i = 0; i < header->numVertices; ++i) {
+        vertexData.push_back(verts[i].x);
+        vertexData.push_back(verts[i].y);
+        vertexData.push_back(verts[i].k);
+        vertexData.push_back(verts[i].l);
+        vertexData.push_back(verts[i].m);
+        vertexData.push_back(verts[i].sign);
+    }
+
+    Vector<Uint16> indexData(*m_allocator, "VulkanRenderer::loadVectorShape::indexData");
+    indexData.reserve(header->numIndices);
+    for (Uint32 i = 0; i < header->numIndices; ++i) {
+        indexData.push_back(indices[i]);
+    }
+
+    VectorShapeGPUData gpuData;
+    gpuData.indexCount = header->numIndices;
+    m_bufferManager.createIndexedBuffer(gpuData.buffer,
+        (Uint64)header->numVertices * 6 * sizeof(float),
+        (Uint64)header->numIndices  * sizeof(Uint16));
+    m_bufferManager.updateIndexedBuffer(gpuData.buffer, vertexData, indexData, 6);
+
+    m_vectorShapes.insert(shapeId, gpuData);
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE,
+        "Loaded vector shape id=%llu verts=%u indices=%u",
+        (unsigned long long)shapeId, header->numVertices, header->numIndices);
+}
+
+void VulkanRenderer::drawVectorShape(Uint64 shapeId, float x, float y, float scale,
+                                      float r, float g, float b, float a) {
+    VectorDrawCall dc;
+    dc.shapeId = shapeId;
+    dc.x = x;
+    dc.y = y;
+    dc.scale = scale;
+    dc.r = r;
+    dc.g = g;
+    dc.b = b;
+    dc.a = a;
+    m_vectorDrawCalls.push_back(dc);
+}
+
 void VulkanRenderer::loadAtlasTexture(Uint64 atlasId, const ResourceData& atlasData) {
     m_textureManager.loadAtlasTexture(atlasId, atlasData);
     // Create descriptor set for the atlas
@@ -2207,6 +2292,43 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
                         (unsigned long long)batch.descriptorId);
                 }
             }
+        }
+    }
+
+    // Phase 2.5: Draw vector shapes
+    INSERT_CHECKPOINT(commandBuffer, "phase2_5_vector");
+    if (!m_vectorDrawCalls.empty() && m_pipelineManager.getVectorPipeline() != VK_NULL_HANDLE) {
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.getVectorPipeline());
+        for (Uint64 di = 0; di < m_vectorDrawCalls.size(); ++di) {
+            const VectorDrawCall& dc = m_vectorDrawCalls[di];
+            const VectorShapeGPUData* shape = m_vectorShapes.find(dc.shapeId);
+            if (!shape || shape->buffer.vertexBuffer == VK_NULL_HANDLE) {
+                continue;
+            }
+            float vectorPC[13] = {
+                static_cast<float>(m_swapchainExtent.width),
+                static_cast<float>(m_swapchainExtent.height),
+                time,
+                m_cameraOffsetX,
+                m_cameraOffsetY,
+                m_cameraZoom,
+                dc.x,
+                dc.y,
+                dc.scale,
+                dc.r,
+                dc.g,
+                dc.b,
+                dc.a
+            };
+            vkCmdPushConstants(commandBuffer,
+                               m_pipelineManager.getVectorPipelineLayout(),
+                               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                               0, sizeof(vectorPC), vectorPC);
+            VkBuffer vertexBuffers[] = {shape->buffer.vertexBuffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, shape->buffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+            vkCmdDrawIndexed(commandBuffer, shape->indexCount, 1, 0, 0, 0);
         }
     }
 

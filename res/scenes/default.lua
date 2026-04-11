@@ -8,6 +8,9 @@ local btnShaderId = nil
 local physicsBtn = nil
 local audioBtn   = nil
 
+-- Vector shape handle for the "OhHai" glyph demo
+local vectorShapeHandle = nil
+
 -- (Re)create button nodes — called from init() and onResume()
 local function createButtons()
     physicsBtn = loadObject("res/nodes/button.lua", {
@@ -43,6 +46,9 @@ function init()
     btnTexId    = loadTexture("res/objects/rock/rock.png")
     btnShaderId = loadAnimTexturedShaders("res/shaders/anim_sprite_vertex.spv", "res/shaders/anim_sprite_fragment.spv", 1, 1)
 
+    -- Load the vector shape for the "OhHai" glyph demo
+    vectorShapeHandle = loadVectorShape("res/test.svg")
+
     createButtons()
 end
 
@@ -56,6 +62,11 @@ end
 function update(deltaTime)
     if physicsBtn then physicsBtn.update(deltaTime) end
     if audioBtn   then audioBtn.update(deltaTime)   end
+
+    -- Draw vector shape ("OhHai" glyphs) at the top of the screen each frame
+    if vectorShapeHandle then
+        drawVectorShape(vectorShapeHandle, 0.0, 0.65, 0.35, 0.1, 0.8, 1.0, 1.0)
+    end
 end
 
 -- Handle actions

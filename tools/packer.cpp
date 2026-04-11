@@ -19,6 +19,10 @@
 #include <android/ETC1/etc1.h>
 #endif
 
+// nanosvg: vendor-included SVG parser (packer-only, no runtime linkage)
+#define NANOSVG_IMPLEMENTATION
+#include "nanosvg.h"
+
 using namespace std;
 
 // Extract relative path from full path for resource identification
@@ -564,6 +568,7 @@ Uint32 getFileType(const string& filename, bool isAtlas = false) {
     if (ext == ".png") return RESOURCE_TYPE_IMAGE;
     if (ext == ".wav") return RESOURCE_TYPE_SOUND;
     if (ext == ".loop") return RESOURCE_TYPE_MUSIC_TRACK;
+    if (ext == ".svg") return RESOURCE_TYPE_VECTOR_SHAPE;
     // Add more extensions as needed
     return RESOURCE_TYPE_UNKNOWN;
 }
@@ -1327,10 +1332,287 @@ bool generateTrigTable(vector<char>& output) {
     return true;
 }
 
+}
+
+// ============================================================
+// SVG → RESOURCE_TYPE_VECTOR_SHAPE tessellation
+// ============================================================
+// Ear-clipping triangulation for a simple polygon (no holes).
+// Returns a list of triangle indices into the polygon vertex array.
+static void earClipTriangulate(const vector<float>& polyX, const vector<float>& polyY,
+                               vector<Uint16>& triIndices, Uint16 baseIndex)
+{
+    int n = (int)polyX.size();
+    if (n < 3) return;
+
+    // Build a working list of active indices
+    vector<int> indices(n);
+    for (int i = 0; i < n; ++i) indices[i] = i;
+
+    // Compute signed area to determine winding
+    float area = 0.0f;
+    for (int i = 0, j = n - 1; i < n; j = i++) {
+        area += (polyX[j] + polyX[i]) * (polyY[j] - polyY[i]);
+    }
+    // If area < 0 (CCW in screen coords with Y-down), we need the polygon in the right winding
+    // The test below checks isEar() with a dot-product; we just need the correct sign:
+    bool ccw = (area < 0.0f);
+
+    auto isEar = [&](int prev, int curr, int next) -> bool {
+        float ax = polyX[prev], ay = polyY[prev];
+        float bx = polyX[curr], by = polyY[curr];
+        float cx = polyX[next], cy = polyY[next];
+
+        // Cross product to check convexity (must match polygon winding)
+        float cross = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+        if (ccw && cross > 0.0f) return false;
+        if (!ccw && cross < 0.0f) return false;
+
+        // Check no other vertex lies inside the triangle
+        for (int i = 0; i < (int)indices.size(); ++i) {
+            int vi = indices[i];
+            if (vi == prev || vi == curr || vi == next) continue;
+            float px = polyX[vi], py = polyY[vi];
+            // Barycentric point-in-triangle test
+            float d1 = (px - ax) * (by - ay) - (py - ay) * (bx - ax);
+            float d2 = (px - bx) * (cy - by) - (py - by) * (cx - bx);
+            float d3 = (px - cx) * (ay - cy) - (py - cy) * (ax - cx);
+            bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+            bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+            if (!(hasNeg && hasPos)) return false; // inside
+        }
+        return true;
+    };
+
+    int limit = n * n + 4; // prevent infinite loops on degenerate polygons
+    while ((int)indices.size() > 2 && limit-- > 0) {
+        int m = (int)indices.size();
+        bool found = false;
+        for (int i = 0; i < m; ++i) {
+            int prev = indices[(i + m - 1) % m];
+            int curr = indices[i];
+            int next = indices[(i + 1) % m];
+            if (isEar(prev, curr, next)) {
+                triIndices.push_back(baseIndex + (Uint16)prev);
+                triIndices.push_back(baseIndex + (Uint16)curr);
+                triIndices.push_back(baseIndex + (Uint16)next);
+                indices.erase(indices.begin() + i);
+                found = true;
+                break;
+            }
+        }
+        if (!found) break; // degenerate or already fully triangulated
+    }
+}
+
+// Sample a cubic Bezier at t ∈ [0,1]
+static void sampleCubic(float p0x, float p0y, float p1x, float p1y,
+                         float p2x, float p2y, float p3x, float p3y,
+                         float t, float& outX, float& outY)
+{
+    float mt = 1.0f - t;
+    float mt2 = mt * mt, mt3 = mt2 * mt;
+    float t2 = t * t,   t3 = t2 * t;
+    outX = mt3 * p0x + 3.0f * mt2 * t * p1x + 3.0f * mt * t2 * p2x + t3 * p3x;
+    outY = mt3 * p0y + 3.0f * mt2 * t * p1y + 3.0f * mt * t2 * p2y + t3 * p3y;
+}
+
+// Process an .svg file into a VectorShapeHeader + VectorVertex[] + Uint16[] binary blob.
+// Tessellation strategy:
+//   • Each closed subpath uses ONLY the cubic-segment endpoints as the chord polygon,
+//     which is then ear-clipped into fill triangles (k=l=m=0, sign=0).
+//   • For CONVEX cubic segments (where the midpoint Q=(P1+P2)/2 bulges outside the chord
+//     polygon), a Loop–Blinn edge triangle is added with vertices
+//     (0,0,0), (0.5,0,0.5), (1,1,1) and sign=+1.  This fills the crescent area between
+//     the straight chord and the true curve boundary, making convex edges perfectly crisp.
+//   • For CONCAVE segments the chord slightly over-fills; those edges are left as-is,
+//     which gives acceptable quality for typical glyph contours.
+//   • All positions are normalised to [−0.5, 0.5] based on the overall bounding box.
+static bool processSvgToVectorShape(const string& filename, vector<char>& output)
+{
+    NSVGimage* img = nsvgParseFromFile(filename.c_str(), "px", 96.0f);
+    if (!img) {
+        cerr << "nanosvg: failed to parse " << filename << endl;
+        return false;
+    }
+
+    // Pass 1: compute global bounding box for normalisation.
+    float gMinX =  1e30f, gMinY =  1e30f;
+    float gMaxX = -1e30f, gMaxY = -1e30f;
+
+    for (NSVGshape* shape = img->shapes; shape; shape = shape->next) {
+        for (NSVGpath* path = shape->paths; path; path = path->next) {
+            if (!path->closed) continue;
+            for (int i = 0; i < path->npts - 1; i += 3) {
+                float* p = &path->pts[i * 2];
+                for (int s = 0; s <= 16; ++s) {
+                    float t = s / 16.0f;
+                    float x, y;
+                    sampleCubic(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], t, x, y);
+                    if (x < gMinX) gMinX = x;
+                    if (y < gMinY) gMinY = y;
+                    if (x > gMaxX) gMaxX = x;
+                    if (y > gMaxY) gMaxY = y;
+                }
+            }
+        }
+    }
+
+    if (gMaxX <= gMinX || gMaxY <= gMinY) {
+        cerr << "SVG has no renderable closed paths: " << filename << endl;
+        nsvgDelete(img);
+        return false;
+    }
+
+    float centerX = (gMinX + gMaxX) * 0.5f;
+    float centerY = (gMinY + gMaxY) * 0.5f;
+    float normScale = max(gMaxX - gMinX, gMaxY - gMinY);
+    if (normScale < 1e-6f) normScale = 1.0f;
+
+    vector<VectorVertex> vertices;
+    vector<Uint16> indices;
+
+    for (NSVGshape* shape = img->shapes; shape; shape = shape->next) {
+        for (NSVGpath* path = shape->paths; path; path = path->next) {
+            if (!path->closed) continue;
+
+            // Collect cubic segments
+            struct CubicSeg { float p[8]; }; // p0x,p0y, p1x,p1y, p2x,p2y, p3x,p3y
+            vector<CubicSeg> segs;
+            for (int i = 0; i < path->npts - 1; i += 3) {
+                float* q = &path->pts[i * 2];
+                CubicSeg cs;
+                cs.p[0]=q[0]; cs.p[1]=q[1];
+                cs.p[2]=q[2]; cs.p[3]=q[3];
+                cs.p[4]=q[4]; cs.p[5]=q[5];
+                cs.p[6]=q[6]; cs.p[7]=q[7];
+                segs.push_back(cs);
+            }
+            if (segs.empty()) continue;
+
+            // -------------------------------------------------------
+            // 1. Build chord polygon (one point per segment endpoint)
+            // -------------------------------------------------------
+            vector<float> polyX, polyY;
+            for (const auto& cs : segs) {
+                polyX.push_back((cs.p[0] - centerX) / normScale);
+                polyY.push_back((cs.p[1] - centerY) / normScale);
+            }
+            // The closing P3 of the last segment equals P0 of the first, so no extra point.
+
+            // Compute signed polygon area to determine winding
+            float polyArea = 0.0f;
+            int pn = (int)polyX.size();
+            for (int i = 0, j = pn - 1; i < pn; j = i++) {
+                polyArea += polyX[j] * polyY[i] - polyX[i] * polyY[j];
+            }
+            bool ccw = (polyArea < 0.0f);
+
+            // -------------------------------------------------------
+            // 2. Ear-clip the chord polygon → fill triangles
+            // -------------------------------------------------------
+            if ((Uint64)vertices.size() + (Uint64)polyX.size() > 65535) {
+                cerr << "Warning: SVG shape has too many vertices, skipping subpath" << endl;
+                continue;
+            }
+            Uint16 baseVtx = (Uint16)vertices.size();
+            for (int i = 0; i < pn; ++i) {
+                VectorVertex v;
+                v.x = polyX[i]; v.y = polyY[i];
+                v.k = 0.0f; v.l = 0.0f; v.m = 0.0f; v.sign = 0.0f;
+                vertices.push_back(v);
+            }
+            earClipTriangulate(polyX, polyY, indices, baseVtx);
+
+            // -------------------------------------------------------
+            // 3. Loop–Blinn edge triangles for CONVEX segments only
+            //    (fills the crescent between chord and actual curve)
+            // -------------------------------------------------------
+            for (const auto& cs : segs) {
+                float p0x = (cs.p[0] - centerX) / normScale;
+                float p0y = (cs.p[1] - centerY) / normScale;
+                float p3x = (cs.p[6] - centerX) / normScale;
+                float p3y = (cs.p[7] - centerY) / normScale;
+                // Quadratic approximation: midpoint of the two interior control points
+                float qx = ((cs.p[2] + cs.p[4]) * 0.5f - centerX) / normScale;
+                float qy = ((cs.p[3] + cs.p[5]) * 0.5f - centerY) / normScale;
+
+                // Cross product: which side of the chord (P0→P3) does Q lie on?
+                float cross = (qx - p0x) * (p3y - p0y) - (qy - p0y) * (p3x - p0x);
+
+                // For CCW outer contour (Y-down: polyArea < 0):
+                //   Q outside chord → convex outward bump → cross < 0 → sign = +1
+                // For CW inner contour (Y-down: polyArea > 0):
+                //   Q outside chord → cross > 0 → sign = +1
+                bool isConvex = ccw ? (cross < 0.0f) : (cross > 0.0f);
+                if (!isConvex) {
+                    // Concave segment: chord already covers (slightly over-fills). Skip.
+                    continue;
+                }
+
+                if ((Uint64)vertices.size() + 3 > 65535) {
+                    cerr << "Warning: SVG shape has too many vertices, skipping Loop-Blinn triangle" << endl;
+                    break;
+                }
+
+                Uint16 vi = (Uint16)vertices.size();
+                // V0: P0 — (k,l,m) = (0, 0, 0)
+                VectorVertex v0; v0.x=p0x; v0.y=p0y; v0.k=0.0f; v0.l=0.0f; v0.m=0.0f; v0.sign=1.0f;
+                // V1: Q  — (k,l,m) = (0.5, 0, 0.5)
+                VectorVertex v1; v1.x=qx;  v1.y=qy;  v1.k=0.5f; v1.l=0.0f; v1.m=0.5f; v1.sign=1.0f;
+                // V2: P3 — (k,l,m) = (1, 1, 1)
+                VectorVertex v2; v2.x=p3x; v2.y=p3y; v2.k=1.0f; v2.l=1.0f; v2.m=1.0f; v2.sign=1.0f;
+                vertices.push_back(v0);
+                vertices.push_back(v1);
+                vertices.push_back(v2);
+
+                // Wind the triangle so Vulkan (with Y-flipped clip space) sees the correct face
+                if (ccw) {
+                    indices.push_back(vi);
+                    indices.push_back(vi + 2);
+                    indices.push_back(vi + 1);
+                } else {
+                    indices.push_back(vi);
+                    indices.push_back(vi + 1);
+                    indices.push_back(vi + 2);
+                }
+            }
+        }
+    }
+
+    nsvgDelete(img);
+
+    if (vertices.empty() || indices.empty()) {
+        cerr << "SVG produced no renderable geometry: " << filename << endl;
+        return false;
+    }
+
+    cout << "  SVG " << filename << ": " << vertices.size() << " verts, "
+         << indices.size() << " indices" << endl;
+
+    // Build binary output: VectorShapeHeader + VectorVertex[] + Uint16[]
+    VectorShapeHeader hdr{};
+    hdr.numVertices = (Uint32)vertices.size();
+    hdr.numIndices  = (Uint32)indices.size();
+    hdr.bboxMinX = -0.5f;
+    hdr.bboxMinY = -0.5f;
+    hdr.bboxMaxX =  0.5f;
+    hdr.bboxMaxY =  0.5f;
+
+    output.resize(sizeof(VectorShapeHeader)
+                  + vertices.size() * sizeof(VectorVertex)
+                  + indices.size()  * sizeof(Uint16));
+    char* dst = output.data();
+    memcpy(dst, &hdr, sizeof(hdr));
+    dst += sizeof(hdr);
+    memcpy(dst, vertices.data(), vertices.size() * sizeof(VectorVertex));
+    dst += vertices.size() * sizeof(VectorVertex);
+    memcpy(dst, indices.data(), indices.size() * sizeof(Uint16));
+
+    return true;
+}
+
 // Process a .loop JSON file into a binary MusicTrackHeader resource.
-// layerDir is the directory portion of the .loop file's path used to resolve
-// relative OPUS layer filenames.  loopRelDir is the corresponding "res/..."
-// prefix used when computing resource IDs (e.g., "res/music/").
 bool processLoopFile(const string& filename, vector<char>& output) {
     ifstream f(filename);
     if (!f) {
@@ -1865,6 +2147,12 @@ int main(int argc, char* argv[]) {
                 // .wav -> GLA (IMA ADPCM) encoded sound resource
                 if (!processWavToGla(file.filename, file.data)) {
                     cerr << "Failed to encode WAV file " << file.filename << endl;
+                    return 1;
+                }
+            } else if (ft == RESOURCE_TYPE_VECTOR_SHAPE) {
+                // .svg -> VectorShapeHeader + VectorVertex[] + Uint16[]
+                if (!processSvgToVectorShape(file.filename, file.data)) {
+                    cerr << "Failed to tessellate SVG file " << file.filename << endl;
                     return 1;
                 }
             } else {

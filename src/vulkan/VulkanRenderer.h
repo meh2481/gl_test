@@ -5,6 +5,7 @@
 #include <vulkan/vulkan.h>
 #include "../resources/resource.h"
 #include "../core/Vector.h"
+#include "../core/HashTable.h"
 #include "VulkanBuffer.h"
 #include "VulkanTexture.h"
 #include "VulkanDescriptor.h"
@@ -28,6 +29,7 @@ public:
     VkPresentModeKHR getActivePresentMode() const;
 
     void createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader);
+    void createVectorPipeline(const ResourceData& vertShader, const ResourceData& fragShader);
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
     void createTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 1);
@@ -48,8 +50,10 @@ public:
     void setParticleDrawData(const Vector<float>& vertexData, const Vector<Uint16>& indices, Uint64 textureId = 0);
     void loadTexture(Uint64 textureId, const ResourceData& imageData);
     void loadAtlasTexture(Uint64 atlasId, const ResourceData& atlasData);
+    void loadVectorShape(Uint64 shapeId, const ResourceData& shapeData);
     void createDescriptorSetForTextures(Uint64 descriptorId, const Vector<Uint64>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
+    void drawVectorShape(Uint64 shapeId, float x, float y, float scale, float r, float g, float b, float a);
     void setPipelineParallaxDepth(int pipelineId, float depth);
     void markPipelineAsWater(int pipelineId);
     void setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples);
@@ -170,6 +174,19 @@ private:
 
     // Particle texture ID for rendering
     Uint64 m_particleTextureId;
+
+    // Vector shape rendering
+    struct VectorShapeGPUData {
+        VulkanBuffer::IndexedBuffer buffer;
+        Uint32 indexCount;
+    };
+    struct VectorDrawCall {
+        Uint64 shapeId;
+        float x, y, scale;
+        float r, g, b, a;
+    };
+    HashTable<Uint64, VectorShapeGPUData> m_vectorShapes;
+    Vector<VectorDrawCall> m_vectorDrawCalls;
 
     // Camera transform
     float m_cameraOffsetX;

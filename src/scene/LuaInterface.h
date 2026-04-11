@@ -176,6 +176,10 @@ private:
     static int loadAnimTexturedShaders(lua_State* L);
     static int setShaderParameters(lua_State* L);
 
+    // Vector shape Lua bindings
+    static int loadVectorShape(lua_State* L);
+    static int drawVectorShape(lua_State* L);
+
     // Audio Lua bindings
     static int audioLoadGla(lua_State* L);
     static int audioCreateSource(lua_State* L);
