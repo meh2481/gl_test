@@ -45,9 +45,9 @@ end
 -- ---------------------------------------------------------------------------
 local function createTextDemo()
     -- M1/M2: Load fonts from the binary .font resources produced by font_extractor.
-    local fontReg    = loadFont("res/fonts/aileron/Aileron-Regular")
-    local fontBold   = loadFont("res/fonts/aileron/Aileron-Bold")
-    local fontItalic = loadFont("res/fonts/aileron/Aileron-Italic")
+    local fontReg    = loadFont("res/fonts/aileron/Aileron-Regular.font")
+    local fontBold   = loadFont("res/fonts/aileron/Aileron-Bold.font")
+    local fontItalic = loadFont("res/fonts/aileron/Aileron-Italic.font")
 
     if not fontReg then return end   -- font not yet packed; skip demo gracefully
 

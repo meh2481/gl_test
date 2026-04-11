@@ -150,7 +150,7 @@ static bool buildGlyphSdfBlob(FT_Face face, float normScale,
         sub.n_contours = 1;
         sub.points     = outline.points + ptStart;
         sub.tags       = outline.tags   + ptStart;
-        FT_Short relEnd = static_cast<FT_Short>(nPts - 1);
+        FT_UShort relEnd = static_cast<FT_UShort>(nPts - 1);
         sub.contours   = &relEnd;
         sub.flags      = outline.flags;
 

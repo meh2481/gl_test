@@ -410,6 +410,16 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
                                      "loadVectorShape", "drawVectorShape",
                                      "createVectorLayer", "setVectorLayerPosition", "setVectorLayerColor",
                                      "setVectorLayerScale", "destroyVectorLayer",
+                                     "loadFont", "unloadFont",
+                                     "createTextLayer", "destroyTextLayer",
+                                     "textLayerSetString", "textLayerSetPosition", "textLayerSetSize", "textLayerSetColor",
+                                     "textLayerSetRevealSpeed", "textLayerSetRevealCount", "textLayerSetWrapWidth",
+                                     "textLayerSetLineSpacing", "textLayerSetAlignment",
+                                     "textLayerSetOnRevealComplete", "textLayerSetOnCharRevealed",
+                                     "textLayerSetFontFamily", "textLayerSetShadow", "textLayerClearShadow",
+                                     "createDialogueBox", "destroyDialogueBox",
+                                     "dialogueLoad", "dialogueStart", "dialogueAdvance",
+                                     "dialogueSetRevealSound", "dialogueIsRevealing", "dialogueGetCurrentLine",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
