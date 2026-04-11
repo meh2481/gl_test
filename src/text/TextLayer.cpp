@@ -27,6 +27,9 @@ TextLayer::TextLayer(MemoryAllocator* allocator,
     , fontFamilyBold_(-1)
     , fontFamilyItalic_(-1)
     , fontFamilyBoldItalic_(-1)
+    , shadowEnabled_(false)
+    , shadowDX_(0.0f), shadowDY_(0.0f)
+    , shadowR_(0.0f), shadowG_(0.0f), shadowB_(0.0f), shadowA_(0.8f)
     , plainText_(nullptr)
     , sceneId_(0)
     , revealSpeed_(0.0f)
@@ -103,6 +106,16 @@ void TextLayer::setFontFamily(int boldHandle, int italicHandle, int boldItalicHa
     fontFamilyBold_       = boldHandle;
     fontFamilyItalic_     = italicHandle;
     fontFamilyBoldItalic_ = boldItalicHandle;
+}
+
+void TextLayer::setShadow(float dx, float dy, float r, float g, float b, float a) {
+    shadowEnabled_ = true;
+    shadowDX_ = dx; shadowDY_ = dy;
+    shadowR_ = r; shadowG_ = g; shadowB_ = b; shadowA_ = a;
+}
+
+void TextLayer::clearShadow() {
+    shadowEnabled_ = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -402,6 +415,7 @@ void TextLayer::rebuild(Uint64 sceneId) {
         const GlyphInstance& gi = layout.getGlyph(i);
 
         GlyphLayerInfo info{};
+        info.shadowVectorLayerId = -1;
         info.baseX = gi.x;
         info.baseY = gi.y;
         info.baseR = colorR_;
@@ -423,16 +437,18 @@ void TextLayer::rebuild(Uint64 sceneId) {
                 info.baseA = sp.params[3];
             }
         }        if (!gi.hasOutline) {
-            info.vectorLayerId = -1;
-            info.revealed      = true;  // invisible anyway
+            info.vectorLayerId       = -1;
+            info.shadowVectorLayerId = -1;
+            info.revealed            = true;  // invisible anyway
             glyphLayers_.push_back(info);
             continue;
         }
 
         Uint64 shapeId = fontManager_->getGlyphShapeId(gi.fontHandle, gi.glyphIndex);
         if (shapeId == 0) {
-            info.vectorLayerId = -1;
-            info.revealed      = true;
+            info.vectorLayerId       = -1;
+            info.shadowVectorLayerId = -1;
+            info.revealed            = true;
             glyphLayers_.push_back(info);
             continue;
         }
@@ -451,6 +467,17 @@ void TextLayer::rebuild(Uint64 sceneId) {
         float initA = (i < revealCount_) ? info.baseA : 0.0f;
         info.revealed = (i < revealCount_);
         if (info.revealed) info.revealTimer = FADE_IN_TIME + 1.0f;
+
+        // M8: Shadow layer (created first so it renders behind the main glyph)
+        if (shadowEnabled_) {
+            float shadowInitA = initA > 0.0f ? shadowA_ : 0.0f;
+            int slid = renderer_->createVectorLayer(
+                shapeId, sceneId,
+                gi.x + shadowDX_, gi.y + shadowDY_,
+                layerScale * (float)fontManager_->getUnitsPerEM(gi.fontHandle),
+                shadowR_, shadowG_, shadowB_, shadowInitA);
+            info.shadowVectorLayerId = slid;
+        }
 
         int lid = renderer_->createVectorLayer(shapeId, sceneId,
                                                gi.x, gi.y,
@@ -536,6 +563,10 @@ void TextLayer::updateReveal(float dt, Uint64 /*sceneId*/) {
                     : 1.0f;
                 renderer_->setVectorLayerColor(gl.vectorLayerId,
                     gl.baseR, gl.baseG, gl.baseB, gl.baseA * alpha);
+                if (gl.shadowVectorLayerId >= 0) {
+                    renderer_->setVectorLayerColor(gl.shadowVectorLayerId,
+                        shadowR_, shadowG_, shadowB_, shadowA_ * alpha);
+                }
             }
         }
         return;
@@ -552,6 +583,10 @@ void TextLayer::updateReveal(float dt, Uint64 /*sceneId*/) {
         if (gl.vectorLayerId >= 0) {
             renderer_->setVectorLayerColor(gl.vectorLayerId,
                 gl.baseR, gl.baseG, gl.baseB, 0.0f);  // start transparent
+        }
+        if (gl.shadowVectorLayerId >= 0) {
+            renderer_->setVectorLayerColor(gl.shadowVectorLayerId,
+                shadowR_, shadowG_, shadowB_, 0.0f);  // start transparent
         }
         if (lua_ && onCharRevealedRef_ != LUA_NOREF) {
             lua_rawgeti(lua_, LUA_REGISTRYINDEX, onCharRevealedRef_);
@@ -582,6 +617,10 @@ void TextLayer::updateReveal(float dt, Uint64 /*sceneId*/) {
                 : 1.0f;
             renderer_->setVectorLayerColor(gl.vectorLayerId,
                 gl.baseR, gl.baseG, gl.baseB, gl.baseA * alpha);
+            if (gl.shadowVectorLayerId >= 0) {
+                renderer_->setVectorLayerColor(gl.shadowVectorLayerId,
+                    shadowR_, shadowG_, shadowB_, shadowA_ * alpha);
+            }
         }
     }
 }
@@ -642,6 +681,10 @@ void TextLayer::applyEffects(float /*dt*/) {
                 float yOff = amp * SDL_sinf(time_ * freq + (float)charIdx * (SDL_PI_F / 4.0f));
                 renderer_->setVectorLayerPosition(gl.vectorLayerId,
                     gl.baseX, gl.baseY + yOff);
+                if (gl.shadowVectorLayerId >= 0) {
+                    renderer_->setVectorLayerPosition(gl.shadowVectorLayerId,
+                        gl.baseX + shadowDX_, gl.baseY + yOff + shadowDY_);
+                }
 
             } else if (sp.effect == MARKUP_EFFECT_SHAKE) {
                 float mag = sp.params[0];
@@ -649,6 +692,10 @@ void TextLayer::applyEffects(float /*dt*/) {
                 float yOff = mag * stableRand(charIdx, 2, time_);
                 renderer_->setVectorLayerPosition(gl.vectorLayerId,
                     gl.baseX + xOff, gl.baseY + yOff);
+                if (gl.shadowVectorLayerId >= 0) {
+                    renderer_->setVectorLayerPosition(gl.shadowVectorLayerId,
+                        gl.baseX + xOff + shadowDX_, gl.baseY + yOff + shadowDY_);
+                }
 
             } else if (sp.effect == MARKUP_EFFECT_RAINBOW) {
                 float speed = sp.params[0];
@@ -668,6 +715,10 @@ void TextLayer::applyEffects(float /*dt*/) {
 
 void TextLayer::destroyGlyphLayers() {
     for (auto& gl : glyphLayers_) {
+        if (gl.shadowVectorLayerId >= 0) {
+            renderer_->destroyVectorLayer(gl.shadowVectorLayerId);
+            gl.shadowVectorLayerId = -1;
+        }
         if (gl.vectorLayerId >= 0) {
             renderer_->destroyVectorLayer(gl.vectorLayerId);
             gl.vectorLayerId = -1;

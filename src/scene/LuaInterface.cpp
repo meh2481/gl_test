@@ -1145,6 +1145,8 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "textLayerSetOnRevealComplete", textLayerSetOnRevealComplete);
     lua_register(luaState_, "textLayerSetOnCharRevealed", textLayerSetOnCharRevealed);
     lua_register(luaState_, "textLayerSetFontFamily", textLayerSetFontFamily);
+    lua_register(luaState_, "textLayerSetShadow",     textLayerSetShadow);
+    lua_register(luaState_, "textLayerClearShadow",   textLayerClearShadow);
 
     // Dialogue box Lua API (M7)
     lua_register(luaState_, "createDialogueBox",     createDialogueBox);
@@ -5240,6 +5242,38 @@ int LuaInterface::textLayerSetFontFamily(lua_State* L) {
 
     TextLayer** ptr = iface->textLayers_.find(id);
     if (ptr) (*ptr)->setFontFamily(boldHandle, italicHandle, boldItHandle);
+    return 0;
+}
+
+// M8: textLayerSetShadow(textLayerId, dx, dy, r, g, b, a)
+int LuaInterface::textLayerSetShadow(lua_State* L) {
+    int   id = (int)luaL_checkinteger(L, 1);
+    float dx = (float)luaL_checknumber(L, 2);
+    float dy = (float)luaL_checknumber(L, 3);
+    float r  = (float)luaL_optnumber(L, 4, 0.0);
+    float g  = (float)luaL_optnumber(L, 5, 0.0);
+    float b  = (float)luaL_optnumber(L, 6, 0.0);
+    float a  = (float)luaL_optnumber(L, 7, 0.7);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) (*ptr)->setShadow(dx, dy, r, g, b, a);
+    return 0;
+}
+
+// M8: textLayerClearShadow(textLayerId)
+int LuaInterface::textLayerClearShadow(lua_State* L) {
+    int id = (int)luaL_checkinteger(L, 1);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) (*ptr)->clearShadow();
     return 0;
 }
 

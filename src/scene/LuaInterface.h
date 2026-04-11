@@ -205,6 +205,8 @@ private:
     static int textLayerSetOnRevealComplete(lua_State* L);
     static int textLayerSetOnCharRevealed(lua_State* L);
     static int textLayerSetFontFamily(lua_State* L);
+    static int textLayerSetShadow(lua_State* L);
+    static int textLayerClearShadow(lua_State* L);
 
     // Dialogue Lua bindings (M7)
     static int createDialogueBox(lua_State* L);

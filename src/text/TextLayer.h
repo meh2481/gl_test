@@ -59,6 +59,11 @@ public:
     // Pass -1 for any variant that is not available.
     void setFontFamily(int boldHandle, int italicHandle, int boldItalicHandle);
 
+    // M8: Drop shadow.  Offset is in the same world-space units as position/scale.
+    // Call with a=0 (or clearShadow) to disable.
+    void setShadow(float dx, float dy, float r, float g, float b, float a);
+    void clearShadow();
+
     // Set the string (parses markup, runs layout, rebuilds VectorLayers).
     // Must be called with the active sceneId.
     void setString(const char* text, Uint64 sceneId);
@@ -92,7 +97,8 @@ public:
 private:
     // Per-glyph runtime state
     struct GlyphLayerInfo {
-        int   vectorLayerId;  // -1 if glyph has no outline (space, etc.)
+        int   vectorLayerId;        // -1 if glyph has no outline (space, etc.)
+        int   shadowVectorLayerId;  // -1 if no shadow or no outline; M8
         float baseX, baseY;   // layout position (before effects)
         float baseR, baseG, baseB, baseA;  // base colour
         float revealTimer;    // 0..FADE_IN_TIME during fade-in, <0 = not yet revealed
@@ -123,6 +129,11 @@ private:
     int    fontFamilyBold_;
     int    fontFamilyItalic_;
     int    fontFamilyBoldItalic_;
+
+    // M8: Drop shadow
+    bool   shadowEnabled_;
+    float  shadowDX_, shadowDY_;
+    float  shadowR_, shadowG_, shadowB_, shadowA_;
 
     // Owned copy of the plain (markup-stripped) text.
     char*  plainText_;
