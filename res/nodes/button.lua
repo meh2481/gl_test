@@ -111,6 +111,11 @@ function Btn.onAction(action)
             isPress = false
             local cx, cy = getCursorPosition()
             local inB = inBounds(cx, cy)
+            -- Sync isHov so that update() detects a change if the cursor moves away
+            -- (e.g. on touch where the cursor is parked off-screen after release).
+            -- Without this, a fast tap leaves isHov=false and update() never fires
+            -- the scale-to-normal animation, leaving the button stuck at SCALE_HOVER.
+            isHov = inB
             animScale(inB and SCALE_HOVER or SCALE_NORMAL, 0.1)
             if inB then
                 if isCheckbox then
