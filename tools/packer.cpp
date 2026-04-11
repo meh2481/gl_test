@@ -1349,14 +1349,15 @@ static void earClipTriangulate(const vector<float>& polyX, const vector<float>& 
     vector<int> indices(n);
     for (int i = 0; i < n; ++i) indices[i] = i;
 
-    // Compute signed area to determine winding
+    // Compute signed area to determine winding.
+    // The formula sum((x_j+x_i)*(y_j-y_i)) equals -2*A where A is the standard shoelace area.
+    // Standard shoelace: A > 0 = CCW in Y-up math = CW on screen (Y-down).
+    // So -2*A > 0 (area > 0) means CCW on screen (Y-down); negate the usual check:
     float area = 0.0f;
     for (int i = 0, j = n - 1; i < n; j = i++) {
         area += (polyX[j] + polyX[i]) * (polyY[j] - polyY[i]);
     }
-    // If area < 0 (CCW in screen coords with Y-down), we need the polygon in the right winding
-    // The test below checks isEar() with a dot-product; we just need the correct sign:
-    bool ccw = (area < 0.0f);
+    bool ccw = (area > 0.0f);
 
     auto isEar = [&](int prev, int curr, int next) -> bool {
         float ax = polyX[prev], ay = polyY[prev];
@@ -1425,8 +1426,9 @@ static void sampleCubic(float p0x, float p0y, float p1x, float p1y,
 //     polygon), a Loop–Blinn edge triangle is added with vertices
 //     (0,0,0), (0.5,0,0.5), (1,1,1) and sign=+1.  This fills the crescent area between
 //     the straight chord and the true curve boundary, making convex edges perfectly crisp.
-//   • For CONCAVE segments the chord slightly over-fills; those edges are left as-is,
-//     which gives acceptable quality for typical glyph contours.
+//   • For CONCAVE segments the chord slightly over-fills; those edges are left as-is.
+//   • Y coordinates are negated (SVG Y-down → world Y-up) so the vertex shader's
+//     gl_Position.y = -pos.y produces a right-side-up image.
 //   • All positions are normalised to [−0.5, 0.5] based on the overall bounding box.
 static bool processSvgToVectorShape(const string& filename, vector<char>& output)
 {
@@ -1492,20 +1494,23 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
 
             // -------------------------------------------------------
             // 1. Build chord polygon (one point per segment endpoint)
+            //    Y is negated here to convert from SVG Y-down to world Y-up,
+            //    matching the vertex shader convention (gl_Position.y = -pos.y).
             // -------------------------------------------------------
             vector<float> polyX, polyY;
             for (const auto& cs : segs) {
-                polyX.push_back((cs.p[0] - centerX) / normScale);
-                polyY.push_back((cs.p[1] - centerY) / normScale);
+                polyX.push_back( (cs.p[0] - centerX) / normScale);
+                polyY.push_back(-(cs.p[1] - centerY) / normScale);
             }
             // The closing P3 of the last segment equals P0 of the first, so no extra point.
 
-            // Compute signed polygon area to determine winding
+            // Compute signed polygon area to determine winding (standard shoelace = -2A; see earClip comment)
             float polyArea = 0.0f;
             int pn = (int)polyX.size();
             for (int i = 0, j = pn - 1; i < pn; j = i++) {
                 polyArea += polyX[j] * polyY[i] - polyX[i] * polyY[j];
             }
+            // polyArea = -2*A: negative means CCW in Y-up math (outer contour); positive means CW (hole).
             bool ccw = (polyArea < 0.0f);
 
             // -------------------------------------------------------
@@ -1529,21 +1534,22 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
             //    (fills the crescent between chord and actual curve)
             // -------------------------------------------------------
             for (const auto& cs : segs) {
-                float p0x = (cs.p[0] - centerX) / normScale;
-                float p0y = (cs.p[1] - centerY) / normScale;
-                float p3x = (cs.p[6] - centerX) / normScale;
-                float p3y = (cs.p[7] - centerY) / normScale;
+                float p0x =  (cs.p[0] - centerX) / normScale;
+                float p0y = -(cs.p[1] - centerY) / normScale;
+                float p3x =  (cs.p[6] - centerX) / normScale;
+                float p3y = -(cs.p[7] - centerY) / normScale;
                 // Quadratic approximation: midpoint of the two interior control points
-                float qx = ((cs.p[2] + cs.p[4]) * 0.5f - centerX) / normScale;
-                float qy = ((cs.p[3] + cs.p[5]) * 0.5f - centerY) / normScale;
+                float qx =  ((cs.p[2] + cs.p[4]) * 0.5f - centerX) / normScale;
+                float qy = -((cs.p[3] + cs.p[5]) * 0.5f - centerY) / normScale;
 
                 // Cross product: which side of the chord (P0→P3) does Q lie on?
+                // In Y-up math coordinates (after the Y-flip above):
+                //   CCW outer contour (ccw=true): Q outside chord has cross(Q-P0, P3-P0) < 0
+                //   CW hole contour (ccw=false):  Q outside chord has cross > 0
                 float cross = (qx - p0x) * (p3y - p0y) - (qy - p0y) * (p3x - p0x);
 
-                // For CCW outer contour (Y-down: polyArea < 0):
-                //   Q outside chord → convex outward bump → cross < 0 → sign = +1
-                // For CW inner contour (Y-down: polyArea > 0):
-                //   Q outside chord → cross > 0 → sign = +1
+                // In Y-up math: CCW outer contour has Q-outside-chord with cross < 0.
+                // CW hole: Q-outside-chord has cross > 0.
                 bool isConvex = ccw ? (cross < 0.0f) : (cross > 0.0f);
                 if (!isConvex) {
                     // Concave segment: chord already covers (slightly over-fills). Skip.
