@@ -54,11 +54,13 @@ public:
     void createDescriptorSetForTextures(Uint64 descriptorId, const Vector<Uint64>& textureIds);
     void setShaderParameters(int pipelineId, int paramCount, const float* params);
     void drawVectorShape(Uint64 shapeId, float x, float y, float scale, float r, float g, float b, float a);
-    int  createVectorLayer(Uint64 shapeId, float x, float y, float scale, float r, float g, float b, float a);
+    int  createVectorLayer(Uint64 shapeId, Uint64 sceneId, float x, float y, float scale, float r, float g, float b, float a);
     void setVectorLayerPosition(int layerId, float x, float y);
     void setVectorLayerColor(int layerId, float r, float g, float b, float a);
     void setVectorLayerScale(int layerId, float scale);
     void destroyVectorLayer(int layerId);
+    void setActiveVectorSceneId(Uint64 sceneId);
+    void clearVectorLayersForScene(Uint64 sceneId);
     void setPipelineParallaxDepth(int pipelineId, float depth);
     void markPipelineAsWater(int pipelineId);
     void setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples);
@@ -199,6 +201,7 @@ private:
     };
     struct VectorLayerEntry {
         Uint64 shapeId;
+        Uint64 sceneId;
         float x, y, scale;
         float r, g, b, a;
     };
@@ -206,6 +209,7 @@ private:
     Vector<VectorDrawCall> m_vectorDrawCalls;
     HashTable<int, VectorLayerEntry> m_vectorLayers;
     int m_nextVectorLayerId;
+    Uint64 m_activeVectorSceneId;
 
     // Camera transform
     float m_cameraOffsetX;

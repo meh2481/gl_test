@@ -98,6 +98,7 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_vectorDrawCalls(*smallAllocator, "VulkanRenderer::m_vectorDrawCalls"),
     m_vectorLayers(*smallAllocator, "VulkanRenderer::m_vectorLayers"),
     m_nextVectorLayerId(1),
+    m_activeVectorSceneId(0),
     m_cameraOffsetX(0.0f),
     m_cameraOffsetY(0.0f),
     m_cameraZoom(1.0f),
@@ -1618,15 +1619,32 @@ void VulkanRenderer::drawVectorShape(Uint64 shapeId, float x, float y, float sca
     m_vectorDrawCalls.push_back(dc);
 }
 
-int VulkanRenderer::createVectorLayer(Uint64 shapeId, float x, float y, float scale,
+int VulkanRenderer::createVectorLayer(Uint64 shapeId, Uint64 sceneId, float x, float y, float scale,
                                        float r, float g, float b, float a) {
     int id = m_nextVectorLayerId++;
     VectorLayerEntry entry{};
     entry.shapeId = shapeId;
+    entry.sceneId = sceneId;
     entry.x = x; entry.y = y; entry.scale = scale;
     entry.r = r; entry.g = g; entry.b = b; entry.a = a;
     m_vectorLayers.insert(id, entry);
     return id;
+}
+
+void VulkanRenderer::setActiveVectorSceneId(Uint64 sceneId) {
+    m_activeVectorSceneId = sceneId;
+}
+
+void VulkanRenderer::clearVectorLayersForScene(Uint64 sceneId) {
+    Vector<int> toRemove(*m_allocator, "VulkanRenderer::clearVectorLayersForScene::toRemove");
+    for (auto it = m_vectorLayers.begin(); it != m_vectorLayers.end(); ++it) {
+        if (it.value().sceneId == sceneId) {
+            toRemove.push_back(it.key());
+        }
+    }
+    for (int id : toRemove) {
+        m_vectorLayers.remove(id);
+    }
 }
 
 void VulkanRenderer::setVectorLayerPosition(int layerId, float x, float y) {
@@ -2410,6 +2428,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
             // Persistent layers (set-once, rendered every frame)
             for (auto it = m_vectorLayers.begin(); it != m_vectorLayers.end(); ++it) {
                 const VectorLayerEntry& e = it.value();
+                if (e.sceneId != m_activeVectorSceneId) continue;
                 drawShape(e.shapeId, e.x, e.y, e.scale, e.r, e.g, e.b, e.a);
             }
 

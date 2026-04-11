@@ -849,6 +849,9 @@ void LuaInterface::cleanupScene(Uint64 sceneId) {
     // Clear all lights
     renderer_.clearLights();
 
+    // Destroy all vector layers created by this scene
+    renderer_.clearVectorLayersForScene(sceneId);
+
     // Destroy all pipelines created by this scene
     Vector<IntPair>** pipelinesPtr = scenePipelines_.find(sceneId);
     if (pipelinesPtr != nullptr) {
@@ -925,6 +928,7 @@ void LuaInterface::switchToScenePipeline(Uint64 sceneId) {
         renderer_.setPipelinesToDraw(pipelineIds);
         consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::switchToScenePipeline: set %zu pipelines", pipelineIds.size());
     }
+    renderer_.setActiveVectorSceneId(sceneId);
 }
 
 void LuaInterface::clearScenePipelines(Uint64 sceneId) {
@@ -4873,7 +4877,7 @@ int LuaInterface::createVectorLayer(lua_State* L) {
     float b     = (float)lua_tonumber(L, 7);
     float a     = (float)lua_tonumber(L, 8);
 
-    int layerId = interface->renderer_.createVectorLayer(shapeId, x, y, scale, r, g, b, a);
+    int layerId = interface->renderer_.createVectorLayer(shapeId, interface->currentSceneId_, x, y, scale, r, g, b, a);
     lua_pushinteger(L, (lua_Integer)layerId);
     return 1;
 }
