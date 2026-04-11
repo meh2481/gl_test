@@ -30,6 +30,8 @@ void main() {
     float aspect = pc.width / pc.height;
     vec2 pos = (worldPos - vec2(pc.cameraX, pc.cameraY)) * pc.cameraZoom;
     gl_Position = vec4(pos.x / aspect, -pos.y, 0.0, 1.0);
+    // Note: Y is negated because Vulkan clip space has +Y downward, but world
+    // coordinates treat +Y as upward (consistent with sprite rendering).
     fragKlm  = inKlm;
     fragSign = inSign;
 }

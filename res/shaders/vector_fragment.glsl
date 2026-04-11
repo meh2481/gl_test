@@ -29,13 +29,14 @@ void main() {
     }
 
     // Loop-Blinn implicit surface test: f = k^3 - l*m
-    // For quadratic approximation (m set to k for homogeneous coord):
-    //   vertices carry (k,l,m) = (0,0,0), (0.5,0,0.5), (1,1,1)
-    //   so f interpolates as k^3 - l*m
+    // Vertices carry (k,l,m) = (0,0,0), (0.5,0,0.5), (1,1,1) for quadratic approximation.
+    // f = 0 on the parabola boundary; f < 0 is inside, f > 0 is outside.
     float f = fragKlm.x * fragKlm.x * fragKlm.x - fragKlm.y * fragKlm.z;
     float fw = fwidth(f);
-    // fragSign > 0: keep where f <= 0 (inside parabola, adds convex bump)
-    // fragSign < 0: keep where f >= 0 (outside parabola, concave notch)
+    // fragSign = +1: keep f <= 0 region (convex outward bump added to fill)
+    // fragSign = -1: keep f >= 0 region (concave notch removed from fill)
+    // The 0.5 offset centres the smoothstep transition on the boundary f=0.
+    // The 1e-6 guard prevents division-by-zero when fwidth returns 0.
     float alpha = clamp(0.5 - fragSign * f / (fw + 1e-6), 0.0, 1.0);
     if (alpha < 0.001) discard;
     outColor = vec4(pc.r, pc.g, pc.b, pc.a * alpha);

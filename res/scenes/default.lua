@@ -63,7 +63,8 @@ function update(deltaTime)
     if physicsBtn then physicsBtn.update(deltaTime) end
     if audioBtn   then audioBtn.update(deltaTime)   end
 
-    -- Draw vector shape ("OhHai" glyphs) at the top of the screen each frame
+    -- Draw vector shape ("OhHai" glyphs) at the top of the screen each frame.
+    -- drawVectorShape(handle, x, y, scale, r, g, b, a)
     if vectorShapeHandle then
         drawVectorShape(vectorShapeHandle, 0.0, 0.65, 0.35, 0.1, 0.8, 1.0, 1.0)
     end

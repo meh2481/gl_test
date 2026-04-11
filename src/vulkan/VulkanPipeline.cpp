@@ -2,6 +2,7 @@
 #include "../debug/ConsoleBuffer.h"
 #include "VulkanDescriptor.h"
 #include "../core/Vector.h"
+#include "../core/ResourceTypes.h"
 #include <cassert>
 
 // Helper function to convert VkResult to readable string for error logging
@@ -1684,28 +1685,28 @@ void VulkanPipeline::createVectorPipeline(const ResourceData& vertShader, const 
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-    // Vertex layout: VectorVertex = { float x, y, k, l, m, sign } = 6 floats = 24 bytes
+    // Vertex layout: VectorVertex = { float x, y, k, l, m, sign } — sizeof(VectorVertex) bytes
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(float) * 6;
+    bindingDescription.stride = sizeof(VectorVertex);
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     VkVertexInputAttributeDescription attributeDescriptions[3]{};
-    // location 0: vec2 inPosition @ offset 0
+    // location 0: vec2 inPosition
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
     attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-    attributeDescriptions[0].offset = 0;
-    // location 1: vec3 inKlm @ offset 8
+    attributeDescriptions[0].offset = offsetof(VectorVertex, x);
+    // location 1: vec3 inKlm
     attributeDescriptions[1].binding = 0;
     attributeDescriptions[1].location = 1;
     attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributeDescriptions[1].offset = sizeof(float) * 2;
-    // location 2: float inSign @ offset 20
+    attributeDescriptions[1].offset = offsetof(VectorVertex, k);
+    // location 2: float inSign
     attributeDescriptions[2].binding = 0;
     attributeDescriptions[2].location = 2;
     attributeDescriptions[2].format = VK_FORMAT_R32_SFLOAT;
-    attributeDescriptions[2].offset = sizeof(float) * 5;
+    attributeDescriptions[2].offset = offsetof(VectorVertex, sign);
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
