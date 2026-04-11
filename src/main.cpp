@@ -784,6 +784,10 @@ extern "C" int app_main()
                                   sceneManager->getCameraZoom(), &worldX, &worldY);
                     sceneManager->setCursorPosition(worldX, worldY);
                     sceneManager->handleAction(ACTION_DRAG_END);
+                    // Move cursor off-screen so no button remains in hover state after the finger lifts.
+                    // Without this, the cursor sits on the button and the hover scale (SCALE_HOVER > 1)
+                    // persists until the next tap.
+                    sceneManager->setCursorPosition(-9999.0f, -9999.0f);
                     singleFingerDragging = false;
                 }
                 // Two-finger tap: both fingers released quickly (<300 ms) with little movement
