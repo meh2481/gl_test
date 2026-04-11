@@ -2401,6 +2401,7 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
                                  float mr, float mg, float mb, float ma) {
                 const VectorShapeGPUData* shape = m_vectorShapes.find(shapeId);
                 if (!shape || shape->descriptorSet == VK_NULL_HANDLE) return;
+                if (shape->numContours == 0) return; // empty glyph (e.g. space) – nothing to draw
 
                 float vectorPC[17] = {
                     static_cast<float>(m_swapchainExtent.width),

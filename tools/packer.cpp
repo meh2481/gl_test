@@ -1383,9 +1383,13 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
     }
 
     if (gMaxX <= gMinX || gMaxY <= gMinY) {
-        cerr << "SVG has no renderable closed paths: " << filename << endl;
+        // Empty glyph (e.g. U+0020 space) – valid, just nothing to render.
+        cout << "  SVG " << filename << ": empty glyph (0 contours, 0 segments)" << endl;
         nsvgDelete(img);
-        return false;
+        SdfShapeHeader emptyHdr{};
+        output.resize(sizeof(SdfShapeHeader));
+        memcpy(output.data(), &emptyHdr, sizeof(emptyHdr));
+        return true;
     }
 
     float centerX   = (gMinX + gMaxX) * 0.5f;
@@ -1457,8 +1461,12 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
     nsvgDelete(img);
 
     if (allContours.empty()) {
-        cerr << "SVG produced no renderable contours: " << filename << endl;
-        return false;
+        // Empty glyph after path collection – emit a valid zero-contour shape.
+        cout << "  SVG " << filename << ": empty glyph (0 contours, 0 segments)" << endl;
+        SdfShapeHeader emptyHdr{};
+        output.resize(sizeof(SdfShapeHeader));
+        memcpy(output.data(), &emptyHdr, sizeof(emptyHdr));
+        return true;
     }
 
     // Build flat SdfSegment array and per-contour headers.

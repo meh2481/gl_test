@@ -74,27 +74,9 @@ static std::string glyphFilename(FT_ULong codepoint, FT_UInt glyphIndex, bool ha
         snprintf(buf, sizeof(buf), "glyph%04u.svg", static_cast<unsigned>(glyphIndex));
         return std::string(buf);
     }
-    // Printable ASCII (0x20–0x7E): use the character itself, escaping FS-unsafe ones.
-    if (codepoint >= 0x20 && codepoint <= 0x7E) {
-        // Characters that are invalid in filenames on common filesystems.
-        const char unsafe[] = "/\\:*?\"<>|";
-        char c = static_cast<char>(codepoint);
-        bool safe = true;
-        for (size_t i = 0; unsafe[i]; ++i) {
-            if (c == unsafe[i]) { safe = false; break; }
-        }
-        if (safe) {
-            char buf[8];
-            snprintf(buf, sizeof(buf), "%c.svg", c);
-            return std::string(buf);
-        }
-    }
-    // Everything else: U+XXXX or U+XXXXXX hex.
+    // Everything else (including printable ascii): U+XXXXXX hex.
     char buf[32];
-    if (codepoint <= 0xFFFF)
-        snprintf(buf, sizeof(buf), "U+%04lX.svg", static_cast<unsigned long>(codepoint));
-    else
-        snprintf(buf, sizeof(buf), "U+%06lX.svg", static_cast<unsigned long>(codepoint));
+    snprintf(buf, sizeof(buf), "U+%06lX.svg", static_cast<unsigned long>(codepoint));
     return std::string(buf);
 }
 
@@ -127,7 +109,7 @@ static void writeGlyphSvg(const std::filesystem::path& outDir,
         sub.points     = outline.points  + ptStart;
         sub.tags       = outline.tags    + ptStart;
         // Contour's end index must be relative to the sub-outline's point array.
-        short relEnd = static_cast<short>(nPts - 1);
+        unsigned short relEnd = static_cast<unsigned short>(nPts - 1);
         sub.contours = &relEnd;
         sub.flags    = outline.flags;
 
