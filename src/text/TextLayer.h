@@ -90,6 +90,7 @@ private:
         float baseX, baseY;   // layout position (before effects)
         float baseR, baseG, baseB, baseA;  // base colour
         float revealTimer;    // 0..FADE_IN_TIME during fade-in, <0 = not yet revealed
+        int   charIndex;      // position in the plain text (for markup range checks)
         bool  revealed;
     };
 

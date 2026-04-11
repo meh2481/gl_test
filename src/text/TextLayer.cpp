@@ -358,6 +358,7 @@ void TextLayer::rebuild(Uint64 sceneId) {
         info.baseB = colorB_;
         info.baseA = colorA_;
         info.revealTimer = -1.0f;  // not yet revealed
+        info.charIndex   = gi.charIndex;
         info.revealed    = false;
 
         // Apply static markup effects (COLOR, SCALE)
@@ -370,9 +371,7 @@ void TextLayer::rebuild(Uint64 sceneId) {
                 info.baseB = sp.params[2];
                 info.baseA = sp.params[3];
             }
-        }
-
-        if (!gi.hasOutline) {
+        }        if (!gi.hasOutline) {
             info.vectorLayerId = -1;
             info.revealed      = true;  // invisible anyway
             glyphLayers_.push_back(info);
@@ -582,9 +581,7 @@ void TextLayer::applyEffects(float /*dt*/) {
             if (gl.vectorLayerId < 0) continue;
             if (!gl.revealed) continue;
 
-            // Identify charIndex for this glyph layer
-            // (layout order = charIndex order; gi == charIndex in the layout)
-            int charIdx = gi;
+            int charIdx = gl.charIndex;
             if (charIdx < sp.startChar || charIdx >= sp.endChar) continue;
 
             if (sp.effect == MARKUP_EFFECT_WAVE) {
