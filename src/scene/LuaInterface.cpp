@@ -768,6 +768,7 @@ void LuaInterface::handleAction(Uint64 sceneId, Action action) {
 }
 
 void LuaInterface::cleanupScene(Uint64 sceneId) {
+    consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::cleanupScene: Cleaning up sceneId %llu", (unsigned long long)sceneId);
     // Ensure no async physics work is in flight before scene teardown/reset.
     physics_->waitForStepComplete();
     physics_->dispatchDeferredCallbacks();
