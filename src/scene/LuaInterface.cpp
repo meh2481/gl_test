@@ -4602,6 +4602,7 @@ int LuaInterface::animateLayerScale(lua_State* L) {
     float startValues[2] = {startX, startY};
     float endValues[2] = {endX, endY};
 
+    interface->animationEngine_->stopAnimationsForTarget(layerId, PROPERTY_LAYER_SCALE);
     int animId = interface->animationEngine_->startAnimation(
         layerId, PROPERTY_LAYER_SCALE, (InterpolationType)interpolationType,
         startValues, endValues, 2, duration);
@@ -4628,6 +4629,7 @@ int LuaInterface::animateLayerPosition(lua_State* L) {
     float startValues[2] = {startX, startY};
     float endValues[2] = {endX, endY};
 
+    interface->animationEngine_->stopAnimationsForTarget(layerId, PROPERTY_LAYER_POSITION);
     int animId = interface->animationEngine_->startAnimation(
         layerId, PROPERTY_LAYER_POSITION, (InterpolationType)interpolationType,
         startValues, endValues, 2, duration);
@@ -4652,6 +4654,7 @@ int LuaInterface::animateLayerRotation(lua_State* L) {
     float startValues[1] = {startAngle};
     float endValues[1] = {endAngle};
 
+    interface->animationEngine_->stopAnimationsForTarget(layerId, PROPERTY_LAYER_ROTATION);
     int animId = interface->animationEngine_->startAnimation(
         layerId, PROPERTY_LAYER_ROTATION, (InterpolationType)interpolationType,
         startValues, endValues, 1, duration);
@@ -4682,6 +4685,7 @@ int LuaInterface::animateLayerColor(lua_State* L) {
     float startValues[4] = {startR, startG, startB, startA};
     float endValues[4] = {endR, endG, endB, endA};
 
+    interface->animationEngine_->stopAnimationsForTarget(layerId, PROPERTY_LAYER_COLOR);
     int animId = interface->animationEngine_->startAnimation(
         layerId, PROPERTY_LAYER_COLOR, (InterpolationType)interpolationType,
         startValues, endValues, 4, duration);
@@ -4708,6 +4712,7 @@ int LuaInterface::animateLayerOffset(lua_State* L) {
     float startValues[2] = {startX, startY};
     float endValues[2] = {endX, endY};
 
+    interface->animationEngine_->stopAnimationsForTarget(layerId, PROPERTY_LAYER_OFFSET);
     int animId = interface->animationEngine_->startAnimation(
         layerId, PROPERTY_LAYER_OFFSET, (InterpolationType)interpolationType,
         startValues, endValues, 2, duration);
