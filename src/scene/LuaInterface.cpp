@@ -37,7 +37,9 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
       nextNodeId_(1), stringAllocator_(allocator), sceneObjects_(*allocator, "LuaInterface::sceneObjects_"),
       physics_(physics), layerManager_(layerManager), audioManager_(audioManager),
       particleManager_(particleManager), waterEffectManager_(waterEffectManager), consoleBuffer_(consoleBuffer),
-      animationEngine_(animationEngine)
+      animationEngine_(animationEngine),
+      textLayers_(*allocator, "LuaInterface::textLayers_"),
+      nextTextLayerId_(1)
 {
     assert(stringAllocator_ != nullptr);
     assert(physics_ != nullptr);
@@ -50,6 +52,12 @@ LuaInterface::LuaInterface(PakResource& pakResource, VulkanRenderer& renderer, M
     particleEditorPipelineIds_[0] = -1;
     particleEditorPipelineIds_[1] = -1;
     particleEditorPipelineIds_[2] = -1;
+
+    // Create FontManager
+    fontManager_ = static_cast<FontManager*>(
+        allocator->allocate(sizeof(FontManager), "FontManager"));
+    assert(fontManager_ != nullptr);
+    new (fontManager_) FontManager(allocator, &renderer_, consoleBuffer_);
     luaState_ = luaL_newstate();
     luaL_openlibs(luaState_);
 
@@ -92,6 +100,13 @@ LuaInterface::~LuaInterface() {
 
     // Don't delete stringAllocator_ - we don't own it anymore
     stringAllocator_ = nullptr;
+
+    if (fontManager_) {
+        fontManager_->~FontManager();
+        // fontManager_ memory comes from stringAllocator_ which is already null here;
+        // the arena allocator will clean it up when it is destroyed.
+        fontManager_ = nullptr;
+    }
 }
 
 void LuaInterface::onPhysicsSensorEvent(const SensorEvent& event, void* userData) {
@@ -600,6 +615,9 @@ void LuaInterface::updateScene(Uint64 sceneId, float deltaTime) {
     // Update audio manager (cleanup finished sources)
     audioManager_->update();
 
+    // Update text layers (reveal animation and per-character effects)
+    updateTextLayers(deltaTime);
+
     // Update water effects and detect splashes
     waterEffectManager_->update(deltaTime);
 
@@ -849,6 +867,9 @@ void LuaInterface::cleanupScene(Uint64 sceneId) {
 
     // Clear all lights
     renderer_.clearLights();
+
+    // Destroy all text layers before clearing vector layers
+    clearTextLayers();
 
     // Destroy all vector layers created by this scene
     renderer_.clearVectorLayersForScene(sceneId);
@@ -1102,6 +1123,31 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "setVectorLayerColor", setVectorLayerColor);
     lua_register(luaState_, "setVectorLayerScale", setVectorLayerScale);
     lua_register(luaState_, "destroyVectorLayer", destroyVectorLayer);
+
+    // Font / text functions
+    lua_register(luaState_, "loadFont", loadFont);
+    lua_register(luaState_, "unloadFont", unloadFont);
+    lua_register(luaState_, "createTextLayer", createTextLayer);
+    lua_register(luaState_, "destroyTextLayer", destroyTextLayer);
+    lua_register(luaState_, "textLayerSetString", textLayerSetString);
+    lua_register(luaState_, "textLayerSetPosition", textLayerSetPosition);
+    lua_register(luaState_, "textLayerSetSize", textLayerSetSize);
+    lua_register(luaState_, "textLayerSetColor", textLayerSetColor);
+    lua_register(luaState_, "textLayerSetRevealSpeed", textLayerSetRevealSpeed);
+    lua_register(luaState_, "textLayerSetRevealCount", textLayerSetRevealCount);
+    lua_register(luaState_, "textLayerSetWrapWidth", textLayerSetWrapWidth);
+    lua_register(luaState_, "textLayerSetLineSpacing", textLayerSetLineSpacing);
+    lua_register(luaState_, "textLayerSetAlignment", textLayerSetAlignment);
+    lua_register(luaState_, "textLayerSetOnRevealComplete", textLayerSetOnRevealComplete);
+    lua_register(luaState_, "textLayerSetOnCharRevealed", textLayerSetOnCharRevealed);
+
+    // Text alignment constants
+    lua_pushinteger(luaState_, TEXT_ALIGN_LEFT);
+    lua_setglobal(luaState_, "TEXT_ALIGN_LEFT");
+    lua_pushinteger(luaState_, TEXT_ALIGN_CENTER);
+    lua_setglobal(luaState_, "TEXT_ALIGN_CENTER");
+    lua_pushinteger(luaState_, TEXT_ALIGN_RIGHT);
+    lua_setglobal(luaState_, "TEXT_ALIGN_RIGHT");
 
     // Register Box2D body type constants
     lua_pushinteger(luaState_, 0);
@@ -4936,4 +4982,254 @@ int LuaInterface::destroyVectorLayer(lua_State* L) {
     int layerId = (int)lua_tointeger(L, 1);
     interface->renderer_.destroyVectorLayer(layerId);
     return 0;
+}
+
+// =============================================================================
+// Font / TextLayer Lua bindings
+// =============================================================================
+
+// loadFont(resourcePath) -> fontHandle
+int LuaInterface::loadFont(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    const char* path = luaL_checkstring(L, 1);
+    int handle = iface->fontManager_->loadFont(iface->pakResource_, path);
+    lua_pushinteger(L, handle);
+    return 1;
+}
+
+// unloadFont(fontHandle)
+int LuaInterface::unloadFont(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int handle = (int)luaL_checkinteger(L, 1);
+    iface->fontManager_->unloadFont(handle);
+    return 0;
+}
+
+// createTextLayer(fontHandle, x, y, pointSize) -> textLayerId
+int LuaInterface::createTextLayer(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int   fontHandle = (int)luaL_checkinteger(L, 1);
+    float x          = (float)luaL_checknumber(L, 2);
+    float y          = (float)luaL_checknumber(L, 3);
+    float pointSize  = (float)luaL_checknumber(L, 4);
+
+    TextLayer* tl = static_cast<TextLayer*>(
+        iface->stringAllocator_->allocate(sizeof(TextLayer), "TextLayer"));
+    assert(tl != nullptr);
+    new (tl) TextLayer(iface->stringAllocator_, iface->fontManager_,
+                       &iface->renderer_, iface->consoleBuffer_);
+
+    tl->setFont(fontHandle);
+    tl->setPosition(x, y);
+    tl->setSize(pointSize);
+
+    int id = iface->nextTextLayerId_++;
+    iface->textLayers_.insert(id, tl);
+    lua_pushinteger(L, id);
+    return 1;
+}
+
+// destroyTextLayer(textLayerId)
+int LuaInterface::destroyTextLayer(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int id = (int)luaL_checkinteger(L, 1);
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) {
+        TextLayer* tl = *ptr;
+        tl->destroyGlyphLayers();
+        tl->~TextLayer();
+        iface->stringAllocator_->free(tl);
+        iface->textLayers_.remove(id);
+    }
+    return 0;
+}
+
+// textLayerSetString(textLayerId, str)
+int LuaInterface::textLayerSetString(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int         id  = (int)luaL_checkinteger(L, 1);
+    const char* str = luaL_checkstring(L, 2);
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) (*ptr)->setString(str, iface->currentSceneId_);
+    return 0;
+}
+
+// textLayerSetPosition(textLayerId, x, y)
+int LuaInterface::textLayerSetPosition(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int   id = (int)luaL_checkinteger(L, 1);
+    float x  = (float)luaL_checknumber(L, 2);
+    float y  = (float)luaL_checknumber(L, 3);
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) { (*ptr)->setPosition(x, y); (*ptr)->rebuild(iface->currentSceneId_); }
+    return 0;
+}
+
+// textLayerSetSize(textLayerId, pointSize)
+int LuaInterface::textLayerSetSize(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int   id        = (int)luaL_checkinteger(L, 1);
+    float pointSize = (float)luaL_checknumber(L, 2);
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) { (*ptr)->setSize(pointSize); (*ptr)->rebuild(iface->currentSceneId_); }
+    return 0;
+}
+
+// textLayerSetColor(textLayerId, r, g, b, a)
+int LuaInterface::textLayerSetColor(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int   id = (int)luaL_checkinteger(L, 1);
+    float r  = (float)luaL_checknumber(L, 2);
+    float g  = (float)luaL_checknumber(L, 3);
+    float b  = (float)luaL_checknumber(L, 4);
+    float a  = (float)luaL_checknumber(L, 5);
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) (*ptr)->setColor(r, g, b, a);
+    return 0;
+}
+
+// textLayerSetRevealSpeed(textLayerId, charsPerSecond)
+int LuaInterface::textLayerSetRevealSpeed(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int   id  = (int)luaL_checkinteger(L, 1);
+    float cps = (float)luaL_checknumber(L, 2);
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) (*ptr)->setRevealSpeed(cps);
+    return 0;
+}
+
+// textLayerSetRevealCount(textLayerId, n)
+int LuaInterface::textLayerSetRevealCount(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int id = (int)luaL_checkinteger(L, 1);
+    int n  = (int)luaL_checkinteger(L, 2);
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) (*ptr)->setRevealCount(n);
+    return 0;
+}
+
+// textLayerSetWrapWidth(textLayerId, width)
+int LuaInterface::textLayerSetWrapWidth(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int   id    = (int)luaL_checkinteger(L, 1);
+    float width = (float)luaL_checknumber(L, 2);
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) { (*ptr)->setWrapWidth(width); (*ptr)->rebuild(iface->currentSceneId_); }
+    return 0;
+}
+
+// textLayerSetLineSpacing(textLayerId, mult)
+int LuaInterface::textLayerSetLineSpacing(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int   id   = (int)luaL_checkinteger(L, 1);
+    float mult = (float)luaL_checknumber(L, 2);
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) { (*ptr)->setLineSpacing(mult); (*ptr)->rebuild(iface->currentSceneId_); }
+    return 0;
+}
+
+// textLayerSetAlignment(textLayerId, alignment)
+int LuaInterface::textLayerSetAlignment(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    int id    = (int)luaL_checkinteger(L, 1);
+    int align = (int)luaL_checkinteger(L, 2);
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) { (*ptr)->setAlignment(align); (*ptr)->rebuild(iface->currentSceneId_); }
+    return 0;
+}
+
+// textLayerSetOnRevealComplete(textLayerId, callback)
+int LuaInterface::textLayerSetOnRevealComplete(lua_State* L) {
+    int id = (int)luaL_checkinteger(L, 1);
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    lua_pushvalue(L, 2);
+    int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) (*ptr)->setOnRevealComplete(L, ref);
+    else luaL_unref(L, LUA_REGISTRYINDEX, ref);
+    return 0;
+}
+
+// textLayerSetOnCharRevealed(textLayerId, callback)
+int LuaInterface::textLayerSetOnCharRevealed(lua_State* L) {
+    int id = (int)luaL_checkinteger(L, 1);
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    lua_pushvalue(L, 2);
+    int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    TextLayer** ptr = iface->textLayers_.find(id);
+    if (ptr) (*ptr)->setOnCharRevealed(L, ref);
+    else luaL_unref(L, LUA_REGISTRYINDEX, ref);
+    return 0;
+}
+
+// =============================================================================
+// TextLayer per-frame update and lifecycle helpers
+// =============================================================================
+
+void LuaInterface::updateTextLayers(float dt) {
+    for (auto it = textLayers_.begin(); it != textLayers_.end(); ++it) {
+        TextLayer* tl = it.value();
+        assert(tl != nullptr);
+        tl->update(dt, currentSceneId_);
+    }
+}
+
+void LuaInterface::clearTextLayers() {
+    for (auto it = textLayers_.begin(); it != textLayers_.end(); ++it) {
+        TextLayer* tl = it.value();
+        assert(tl != nullptr);
+        tl->destroyGlyphLayers();
+        tl->~TextLayer();
+        stringAllocator_->free(tl);
+    }
+    textLayers_.clear();
 }

@@ -122,6 +122,8 @@ typedef struct //Structure for (non-atlased) image data
 // Fonts
 //--------------------------------------------------------------
 
+// Legacy UV-atlas font header (RESOURCE_TYPE_FONT < version 2, never shipped).
+// Kept for reference only; replaced by FontBinaryHeader below.
 typedef struct
 {
     Uint32 numChars;
@@ -129,7 +131,55 @@ typedef struct
     Uint32 pad;
     //Followed by numChars Uint32's (aka 32-bit UTF-8 codepoints), sorted from lowest to highest
     //Followed by numChars * 8 floats (the UV coordinate rectangles for the characters, each float in range [0..1])
-} FontHeader;
+} FontAtlasHeader;
+
+// Binary analytic-SDF font resource (RESOURCE_TYPE_FONT, produced by font_extractor).
+//
+// Binary layout:
+//   FontBinaryHeader
+//   FontGlyphEntry[numGlyphs]   -- sorted by codepoint ascending (0 = uncoded glyph)
+//   FontKernPair[numKernPairs]  -- sorted by (leftGlyphIndex, rightGlyphIndex)
+//   [SDF data section]          -- referenced by FontGlyphEntry.sdfOffset
+//
+// Each glyph's SDF blob (SdfShapeHeader + SdfContourHeader[] + SdfSegment[]) is
+// stored contiguously in the SDF section.  FontGlyphEntry.sdfOffset is the byte
+// offset from the *start of the SDF section* to that glyph's SdfShapeHeader.
+// sdfSize == 0 means the glyph has no outline (e.g. space, newline).
+//
+// All glyph outline coordinates are normalised by unitsPerEM: a design-unit value
+// of V maps to the normalised float V / unitsPerEM.  The baseline is at y=0 and
+// Y is up (FreeType convention, no flip required).
+#define FONT_BINARY_MAGIC    0x544E4F46u  // 'F','O','N','T'
+#define FONT_BINARY_VERSION  1u
+
+typedef struct
+{
+    Uint32 magic;           // FONT_BINARY_MAGIC
+    Uint32 version;         // FONT_BINARY_VERSION
+    Uint32 numGlyphs;       // number of FontGlyphEntry records that follow
+    Uint32 numKernPairs;    // number of FontKernPair records that follow
+    Sint32 unitsPerEM;      // font design units per em square
+    Sint32 ascender;        // typical ascender height in design units (positive)
+    Sint32 descender;       // typical descender depth in design units (negative)
+    Sint32 lineGap;         // extra leading between lines in design units
+} FontBinaryHeader;
+
+typedef struct
+{
+    Uint32 codepoint;       // Unicode codepoint (0 for glyphs not in any charmap)
+    Uint32 glyphIndex;      // font-internal glyph index
+    Sint32 advanceWidth;    // horizontal advance in design units
+    Sint32 leftBearing;     // left-side bearing in design units
+    Uint32 sdfOffset;       // byte offset into SDF section (0 if sdfSize == 0)
+    Uint32 sdfSize;         // byte size of SDF blob (0 = glyph has no outline)
+} FontGlyphEntry;
+
+typedef struct
+{
+    Uint32 leftGlyphIndex;
+    Uint32 rightGlyphIndex;
+    Sint32 kernValue;       // kern adjustment in design units (negative = tighten)
+} FontKernPair;
 
 //--------------------------------------------------------------
 // Text data

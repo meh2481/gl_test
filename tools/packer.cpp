@@ -569,6 +569,7 @@ Uint32 getFileType(const string& filename, bool isAtlas = false) {
     if (ext == ".wav") return RESOURCE_TYPE_SOUND;
     if (ext == ".loop") return RESOURCE_TYPE_MUSIC_TRACK;
     if (ext == ".svg") return RESOURCE_TYPE_VECTOR_SHAPE;
+    if (ext == ".font") return RESOURCE_TYPE_FONT;
     // Add more extensions as needed
     return RESOURCE_TYPE_UNKNOWN;
 }

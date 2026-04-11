@@ -14,6 +14,8 @@
 #include "../core/Vector.h"
 #include "../core/HashTable.h"
 #include "../memory/MemoryAllocator.h"
+#include "../text/FontManager.h"
+#include "../text/TextLayer.h"
 
 class SceneManager;
 class ConsoleBuffer;
@@ -185,6 +187,23 @@ private:
     static int setVectorLayerScale(lua_State* L);
     static int destroyVectorLayer(lua_State* L);
 
+    // Font / text Lua bindings
+    static int loadFont(lua_State* L);
+    static int unloadFont(lua_State* L);
+    static int createTextLayer(lua_State* L);
+    static int destroyTextLayer(lua_State* L);
+    static int textLayerSetString(lua_State* L);
+    static int textLayerSetPosition(lua_State* L);
+    static int textLayerSetSize(lua_State* L);
+    static int textLayerSetColor(lua_State* L);
+    static int textLayerSetRevealSpeed(lua_State* L);
+    static int textLayerSetRevealCount(lua_State* L);
+    static int textLayerSetWrapWidth(lua_State* L);
+    static int textLayerSetLineSpacing(lua_State* L);
+    static int textLayerSetAlignment(lua_State* L);
+    static int textLayerSetOnRevealComplete(lua_State* L);
+    static int textLayerSetOnCharRevealed(lua_State* L);
+
     // Audio Lua bindings
     static int audioLoadGla(lua_State* L);
     static int audioCreateSource(lua_State* L);
@@ -323,6 +342,14 @@ private:
 
     // Memory allocator for string operations
     MemoryAllocator* stringAllocator_;
+
+    // Font and text layer management
+    FontManager*                   fontManager_;
+    HashTable<int, TextLayer*>     textLayers_;  // textLayerId → TextLayer*
+    int                            nextTextLayerId_;
+
+    void updateTextLayers(float dt);
+    void clearTextLayers();
 
     void updateNodes(float deltaTime);
     void handleNodeSensorEvent(const SensorEvent& event);
