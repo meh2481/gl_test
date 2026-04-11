@@ -87,6 +87,32 @@ float sdQuadBezier(vec2 pos, vec2 A, vec2 B, vec2 C) {
 }
 
 // ---------------------------------------------------------------------------
+// Tangent-preserving quadratic control point for a cubic p0-p1-p2-p3.
+//
+// The simple midpoint average B=(p1+p2)/2 does NOT preserve tangent directions
+// at the endpoints, causing C1 discontinuities (visible kinks) where adjacent
+// segments share a join.  The correct approach is to find the intersection of
+// the two endpoint tangent lines:
+//   - at p0: direction d0 = p1 - p0
+//   - at p3: direction d1 = p2 - p3   (backward tangent at p3)
+// The intersection B satisfies  p0 + s*d0 = p3 + t*d1, giving a quadratic
+// Q(t) = (1-t)²p0 + 2(1-t)t·B + t²p3  whose tangent at p0 is ∥(p1-p0) and
+// whose tangent at p3 is ∥(p2-p3).  This removes kinks at all segment joins.
+// Falls back to the midpoint average when the tangent lines are parallel.
+// ---------------------------------------------------------------------------
+vec2 cubicQuadB(vec2 p0, vec2 p1, vec2 p2, vec2 p3) {
+    vec2 d0  = p1 - p0;                  // tangent direction at p0
+    vec2 d1  = p2 - p3;                  // tangent direction at p3 (toward p2)
+    // Solve s*d0 - t*d1 = p3 - p0  (2×2 linear system)
+    // det = d0.y*d1.x - d0.x*d1.y
+    float det = d0.y * d1.x - d0.x * d1.y;
+    if (abs(det) < 1e-6) return (p1 + p2) * 0.5;  // parallel tangents: fall back
+    vec2  r = p3 - p0;
+    float s = (r.y * d1.x - r.x * d1.y) / det;
+    return p0 + s * d0;
+}
+
+// ---------------------------------------------------------------------------
 // Signed winding-number contribution of one quadratic Bézier arc A-B-C
 // for a rightward (+x) ray from point P.
 // Returns +1 (upward crossing), -1 (downward crossing), or 0.
@@ -129,6 +155,38 @@ int windingQuad(vec2 pos, vec2 A, vec2 B, vec2 C) {
     return w;
 }
 
+// ---------------------------------------------------------------------------
+// Evaluate SDF + winding for a cubic Bézier by:
+//   1. Splitting at t=0.5 via de Casteljau (two sub-cubics).
+//   2. Approximating each sub-cubic as a tangent-preserving quadratic.
+//
+// Benefits over a single midpoint quadratic:
+//   • At every segment join the two adjacent quadratics share the same tangent
+//     direction → no kinks at control points.
+//   • The sub-cubic deviation from a quadratic is ≈1/4 of the full cubic's,
+//     giving much better mid-segment shape accuracy.
+// ---------------------------------------------------------------------------
+void evalCubicSDF(vec2 pos, vec2 p0, vec2 p1, vec2 p2, vec2 p3,
+                  inout float minDist, inout int winding) {
+    // de Casteljau at t = 0.5
+    vec2 m01  = (p0  + p1)  * 0.5;
+    vec2 m12  = (p1  + p2)  * 0.5;
+    vec2 m23  = (p2  + p3)  * 0.5;
+    vec2 m012 = (m01 + m12) * 0.5;
+    vec2 m123 = (m12 + m23) * 0.5;
+    vec2 mid  = (m012 + m123) * 0.5;
+
+    // First half: sub-cubic (p0, m01, m012, mid) → quadratic (p0, B1, mid)
+    vec2 B1 = cubicQuadB(p0, m01, m012, mid);
+    minDist = min(minDist, sdQuadBezier(pos, p0, B1, mid));
+    winding += windingQuad(pos, p0, B1, mid);
+
+    // Second half: sub-cubic (mid, m123, m23, p3) → quadratic (mid, B2, p3)
+    vec2 B2 = cubicQuadB(mid, m123, m23, p3);
+    minDist = min(minDist, sdQuadBezier(pos, mid, B2, p3));
+    winding += windingQuad(pos, mid, B2, p3);
+}
+
 void main() {
     vec2 pos = fragLocalPos;
 
@@ -140,19 +198,7 @@ void main() {
         GpuContour c = contourBuf.contours[ci];
         for (uint si = 0; si < c.numSegments; si++) {
             GpuSegment seg = segBuf.segments[c.segmentOffset + si];
-            // Approximate cubic as quadratic by averaging the two interior control points.
-            // Trade-off: the midpoint approximation introduces a slight bulge/pinch on
-            // high-curvature cubics (inflection-point curves), but is visually
-            // indistinguishable at typical display sizes and avoids solving a degree-6
-            // polynomial. A Newton-step refinement can be added in a future pass.
-            vec2 A = seg.p0;
-            vec2 B = (seg.p1 + seg.p2) * 0.5;
-            vec2 C = seg.p3;
-
-            float d = sdQuadBezier(pos, A, B, C);
-            if (d < minDist) minDist = d;
-
-            totalWinding += windingQuad(pos, A, B, C);
+            evalCubicSDF(pos, seg.p0, seg.p1, seg.p2, seg.p3, minDist, totalWinding);
         }
     }
 
