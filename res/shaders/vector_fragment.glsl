@@ -55,7 +55,20 @@ float sdQuadBezier(vec2 pos, vec2 A, vec2 B, vec2 C) {
     vec2 b = A - 2.0*B + C;
     vec2 d = A - pos;
 
-    float kk = 1.0 / dot(b, b);
+    float bb = dot(b, b);
+    float aa = dot(a, a);
+    // Guard: when b ≈ 0 the quadratic degenerates to a line (B is the midpoint of
+    // A-C).  kk = 1/dot(b,b) would be Inf, propagating NaN into every formula and
+    // producing random spikes on straight-line segments.  Use an analytic
+    // line-segment distance instead (relative threshold |b| < 1e-4 |a|).
+    if (bb < 1e-8 * (aa + 1e-4)) {
+        if (aa < 1e-10) return length(d);
+        // Q(t) = A + 2*a*t  (linear in t), t in [0,1]; closest t minimises |d + 2at|²
+        float t = clamp(-dot(d, a) / (2.0 * aa), 0.0, 1.0);
+        return length(d + 2.0 * a * t);
+    }
+
+    float kk = 1.0 / bb;
     float kx = kk * dot(a, b);
     float ky = kk * (2.0*dot(a,a) + dot(d,b)) / 3.0;
     float kz = kk * dot(d, a);
