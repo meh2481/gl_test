@@ -813,6 +813,17 @@ extern "C" int app_main()
                     twoFingerDownTime = 0;
                 }
             }
+            if (event.type == SDL_EVENT_FINGER_MOTION && activeTouchCount == 1 && singleFingerDragging)
+            {
+                // Update cursor position for single-finger drag so the mouse joint target follows the finger
+                int ww, wh;
+                float worldX, worldY;
+                SDL_GetWindowSize(window, &ww, &wh);
+                screenToWorld(event.tfinger.x * ww, event.tfinger.y * wh, ww, wh,
+                              sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                              sceneManager->getCameraZoom(), &worldX, &worldY);
+                sceneManager->setCursorPosition(worldX, worldY);
+            }
             if (event.type == SDL_EVENT_FINGER_MOTION && activeTouchCount == 2)
             {
                 // Update position for the moving finger
