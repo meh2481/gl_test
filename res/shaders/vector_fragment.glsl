@@ -106,7 +106,13 @@ vec2 cubicQuadB(vec2 p0, vec2 p1, vec2 p2, vec2 p3) {
     // Solve s*d0 - t*d1 = p3 - p0  (2×2 linear system)
     // det = d0.y*d1.x - d0.x*d1.y
     float det = d0.y * d1.x - d0.x * d1.y;
-    if (abs(det) < 1e-6) return (p1 + p2) * 0.5;  // parallel tangents: fall back
+    // Relative parallel test: det² = |d0|²|d1|²sin²θ.
+    // An absolute threshold doesn't scale with coordinate magnitudes, so nearly-
+    // parallel tangents on small sub-cubics (e.g. straight lines after de Casteljau)
+    // can pass the absolute test while still producing a huge intersection distance
+    // (s ∝ 1/sinθ), placing B far off the curve and causing visible spikes.
+    // Use a relative threshold |sinθ| < 0.01 instead.
+    if (det * det <= 1e-4 * dot(d0, d0) * dot(d1, d1)) return (p1 + p2) * 0.5;
     vec2  r = p3 - p0;
     float s = (r.y * d1.x - r.x * d1.y) / det;
     return p0 + s * d0;
