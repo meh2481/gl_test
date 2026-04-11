@@ -621,7 +621,11 @@ extern "C" int app_main()
                 }
             }
             // Handle mouse button press for drag actions
-            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_LEFT)
+            // Skip events synthesized from touch (SDL_TOUCH_MOUSEID): those are already
+            // handled by the SDL_EVENT_FINGER_DOWN path, and processing them here too
+            // would fire ACTION_DRAG_START twice, leaking a mouse joint.
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_LEFT
+                && event.button.which != SDL_TOUCH_MOUSEID)
             {
                 int windowWidth, windowHeight;
                 float worldX, worldY;
@@ -633,7 +637,8 @@ extern "C" int app_main()
                 sceneManager->handleAction(ACTION_DRAG_START);
             }
             // Handle mouse button release for drag actions
-            if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_LEFT)
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_LEFT
+                && event.button.which != SDL_TOUCH_MOUSEID)
             {
                 sceneManager->handleAction(ACTION_DRAG_END);
             }
@@ -812,6 +817,27 @@ extern "C" int app_main()
                     }
                     twoFingerDownTime = 0;
                 }
+            }
+            if (event.type == SDL_EVENT_FINGER_MOTION && activeTouchCount == 1)
+            {
+                // Single-finger motion: update cursor position so drag targets stay in sync
+                // even on platforms where touch-to-mouse synthesis is disabled.
+                for (int i = 0; i < MAX_TRACKED_FINGERS; i++)
+                {
+                    if (trackedFingers[i].active && trackedFingers[i].id == event.tfinger.fingerID)
+                    {
+                        trackedFingers[i].x = event.tfinger.x;
+                        trackedFingers[i].y = event.tfinger.y;
+                        break;
+                    }
+                }
+                int ww, wh;
+                float worldX, worldY;
+                SDL_GetWindowSize(window, &ww, &wh);
+                screenToWorld(event.tfinger.x * ww, event.tfinger.y * wh, ww, wh,
+                              sceneManager->getCameraOffsetX(), sceneManager->getCameraOffsetY(),
+                              sceneManager->getCameraZoom(), &worldX, &worldY);
+                sceneManager->setCursorPosition(worldX, worldY);
             }
             if (event.type == SDL_EVENT_FINGER_MOTION && activeTouchCount == 2)
             {
