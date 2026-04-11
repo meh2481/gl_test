@@ -29,7 +29,10 @@ void main() {
     }
 
     // Loop-Blinn implicit surface test: f = k^3 - l*m
-    // Vertices carry (k,l,m) = (0,0,0), (0.5,0,0.5), (1,1,1) for quadratic approximation.
+    // Currently all vertices are emitted with sign=0 (solid-fill polygons), so this
+    // branch is not reached in normal use.  It is kept here for future use if the
+    // tessellator is extended to emit Loop-Blinn curve triangles (sign != 0).
+    // For reference: vertices would carry (k,l,m) = (0,0,0), (0.5,0,0.5), (1,1,1).
     // f = 0 on the parabola boundary; f < 0 is inside, f > 0 is outside.
     float f = fragKlm.x * fragKlm.x * fragKlm.x - fragKlm.y * fragKlm.z;
     float fw = fwidth(f);

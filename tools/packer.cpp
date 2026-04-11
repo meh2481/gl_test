@@ -1335,7 +1335,9 @@ bool generateTrigTable(vector<char>& output) {
 // ============================================================
 // SVG → RESOURCE_TYPE_VECTOR_SHAPE tessellation
 // ============================================================
-// Ear-clipping triangulation for a simple polygon (no holes).
+// Ear-clipping triangulation for a simply-connected polygon.
+// The input may originally have contained holes that were already merged into the
+// polygon via bridgeHoleToOuter(); after bridging the polygon is simply connected.
 // Returns a list of triangle indices into the polygon vertex array.
 static void earClipTriangulate(const vector<float>& polyX, const vector<float>& polyY,
                                vector<Uint16>& triIndices, Uint16 baseIndex)
@@ -1372,6 +1374,14 @@ static void earClipTriangulate(const vector<float>& polyX, const vector<float>& 
             int vi = indices[i];
             if (vi == prev || vi == curr || vi == next) continue;
             float px = polyX[vi], py = polyY[vi];
+            // Also skip vertices that are geometrically coincident with a triangle corner.
+            // Bridged polygons intentionally duplicate the two bridge endpoints (same
+            // position, different index); without this check those duplicates block
+            // otherwise-valid ears and the earClipper stalls.
+            static const float kCoincidentEpsilon = 1e-7f;
+            if (fabsf(px - ax) < kCoincidentEpsilon && fabsf(py - ay) < kCoincidentEpsilon) continue;
+            if (fabsf(px - bx) < kCoincidentEpsilon && fabsf(py - by) < kCoincidentEpsilon) continue;
+            if (fabsf(px - cx) < kCoincidentEpsilon && fabsf(py - cy) < kCoincidentEpsilon) continue;
             // Barycentric point-in-triangle test
             float d1 = (px - ax) * (by - ay) - (py - ay) * (bx - ax);
             float d2 = (px - bx) * (cy - by) - (py - by) * (cx - bx);
@@ -1416,17 +1426,133 @@ static void sampleCubic(float p0x, float p0y, float p1x, float p1y,
     outY = mt3 * p0y + 3.0f * mt2 * t * p1y + 3.0f * mt * t2 * p2y + t3 * p3y;
 }
 
+// Point-in-polygon test using ray casting.  Returns true when (px,py) is strictly inside.
+static bool pointInPolygon(float px, float py,
+                            const vector<float>& polyX, const vector<float>& polyY)
+{
+    int n = (int)polyX.size();
+    bool inside = false;
+    for (int i = 0, j = n - 1; i < n; j = i++) {
+        float xi = polyX[i], yi = polyY[i];
+        float xj = polyX[j], yj = polyY[j];
+        if (((yi > py) != (yj > py)) &&
+            (px < (xj - xi) * (py - yi) / (yj - yi) + xi))
+            inside = !inside;
+    }
+    return inside;
+}
+
+// Check whether (px,py) lies inside (or on the boundary of) triangle ABC.
+static bool pointInTriangle(float ax, float ay, float bx, float by,
+                             float cx, float cy, float px, float py)
+{
+    float d1 = (px - ax) * (by - ay) - (py - ay) * (bx - ax);
+    float d2 = (px - bx) * (cy - by) - (py - by) * (cx - bx);
+    float d3 = (px - cx) * (ay - cy) - (py - cy) * (ax - cx);
+    bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+    bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+    return !(hasNeg && hasPos);
+}
+
+// Merge one hole polygon into the outer polygon using the mutual-visibility bridge technique.
+// poly(X,Y)  – outer (or partially merged) polygon; modified in place.
+// hole(X,Y)  – hole contour whose interior must be excluded from the triangulation.
+// The algorithm casts a rightward ray from the hole's rightmost vertex, finds the nearest
+// outer edge, chooses the visible outer vertex, and inserts a slit bridge so that the
+// resulting polygon is simply connected and can be passed directly to earClipTriangulate.
+static void bridgeHoleToOuter(vector<float>& polyX, vector<float>& polyY,
+                               const vector<float>& holeX, const vector<float>& holeY)
+{
+    int hn = (int)holeX.size();
+    int pn = (int)polyX.size();
+    if (hn == 0 || pn == 0) return;
+
+    // Step 1: rightmost vertex of the hole (break ties by smallest Y).
+    int mIdx = 0;
+    for (int i = 1; i < hn; ++i) {
+        if (holeX[i] > holeX[mIdx] ||
+            (holeX[i] == holeX[mIdx] && holeY[i] < holeY[mIdx]))
+            mIdx = i;
+    }
+    float mx = holeX[mIdx], my = holeY[mIdx];
+
+    // Step 2: cast a rightward ray from (mx,my) and find the nearest outer edge.
+    float bestIx = 1e30f;
+    int   bestEdge = -1;
+    for (int i = 0, j = pn - 1; i < pn; j = i++) {
+        float ax = polyX[j], ay = polyY[j];
+        float bx = polyX[i], by = polyY[i];
+        if ((ay <= my && by > my) || (by <= my && ay > my)) {
+            float t  = (my - ay) / (by - ay);
+            float ix = ax + t * (bx - ax);
+            if (ix >= mx && ix < bestIx) {
+                bestIx   = ix;
+                bestEdge = j;   // edge from polyX[j] to polyX[(j+1)%pn]
+            }
+        }
+    }
+    if (bestEdge < 0) return; // no intersection found; skip (degenerate)
+
+    // Step 3: of the two endpoints of the intersected edge, prefer the one with larger X.
+    int edgeB   = (bestEdge + 1) % pn;
+    int bestVert = (polyX[bestEdge] >= polyX[edgeB]) ? bestEdge : edgeB;
+    float pvx = polyX[bestVert], pvy = polyY[bestVert];
+
+    // Step 4: refine — if any outer vertex lies inside the search triangle
+    // (M, intersection, bestVert) and forms a smaller angle from the rightward ray,
+    // prefer that vertex to avoid the bridge edge crossing an ear.
+    for (int i = 0; i < pn; ++i) {
+        float vx = polyX[i], vy = polyY[i];
+        if (vx <= mx) continue;
+        if (!pointInTriangle(mx, my, bestIx, my, pvx, pvy, vx, vy)) continue;
+        // Compare polar angle from M: smaller |dy|/dx = closer to the horizontal ray.
+        float angleNew = fabsf(vy - my) / (vx - mx + 1e-9f);
+        float angleOld = fabsf(pvy - my) / (pvx - mx + 1e-9f);
+        if (angleNew < angleOld) {
+            bestVert = i;
+            pvx = vx; pvy = vy;
+        }
+    }
+
+    // Step 5: build the merged polygon.
+    // Layout: outer[0..bestVert], hole[mIdx..hn-1,0..mIdx], outer[bestVert..pn-1]
+    // Av (=outer[bestVert]) and Hm (=hole[mIdx]) are duplicated to close the slit.
+    vector<float> newX, newY;
+    newX.reserve(pn + hn + 2);
+    newY.reserve(pn + hn + 2);
+    for (int i = 0; i <= bestVert; ++i) {
+        newX.push_back(polyX[i]);
+        newY.push_back(polyY[i]);
+    }
+    // Traverse hole starting at mIdx, all the way around back to mIdx.
+    for (int i = 0; i <= hn; ++i) {
+        int idx = (mIdx + i) % hn;
+        newX.push_back(holeX[idx]);
+        newY.push_back(holeY[idx]);
+    }
+    // Bridge back to bestVert, then continue outer.
+    newX.push_back(polyX[bestVert]);
+    newY.push_back(polyY[bestVert]);
+    for (int i = bestVert + 1; i < pn; ++i) {
+        newX.push_back(polyX[i]);
+        newY.push_back(polyY[i]);
+    }
+    polyX = move(newX);
+    polyY = move(newY);
+}
+
 // Process an .svg file into a VectorShapeHeader + VectorVertex[] + Uint16[] binary blob.
 // Tessellation strategy:
-//   • Each closed subpath uses ONLY the cubic-segment endpoints as the chord polygon,
-//     which is then ear-clipped into fill triangles (k=l=m=0, sign=0).
-//   • For CONVEX cubic segments (where the midpoint Q=(P1+P2)/2 bulges outside the chord
-//     polygon), a Loop–Blinn edge triangle is added with vertices
-//     (0,0,0), (0.5,0,0.5), (1,1,1) and sign=+1.  This fills the crescent area between
-//     the straight chord and the true curve boundary, making convex edges perfectly crisp.
-//   • For CONCAVE segments the chord slightly over-fills; those edges are left as-is.
-//   • Y coordinates are negated (SVG Y-down → world Y-up) so the vertex shader's
-//     gl_Position.y = -pos.y produces a right-side-up image.
+//   • All closed paths in a shape are collected and classified by winding:
+//       - Outer contours: standard shoelace area < 0 after Y-flip (CW in world Y-up).
+//       - Hole contours:  area > 0 (CCW in world Y-up).
+//   • Each cubic Bezier segment is sampled at BEZIER_SAMPLES evenly-spaced t values
+//     (endpoint excluded), giving a smooth polygon approximation of every curve.
+//   • Holes are merged into their enclosing outer contour with bridgeHoleToOuter(),
+//     producing a simply-connected polygon that ear-clipping can handle correctly.
+//   • The merged polygon is ear-clipped into fill triangles (k=l=m=0, sign=0).
+//   • Y coordinates are negated (SVG Y-down → world Y-up) to match the vertex
+//     shader convention (gl_Position.y = -pos.y).
 //   • All positions are normalised to [−0.5, 0.5] based on the overall bounding box.
 static bool processSvgToVectorShape(const string& filename, vector<char>& output)
 {
@@ -1446,7 +1572,7 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
             for (int i = 0; i < path->npts - 1; i += 3) {
                 float* p = &path->pts[i * 2];
                 for (int s = 0; s <= 16; ++s) {
-                    float t = s / 16.0f;
+                    float t = s / 16.0f;  // 17 samples gives a tight bbox even for very curved segments
                     float x, y;
                     sampleCubic(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], t, x, y);
                     if (x < gMinX) gMinX = x;
@@ -1469,53 +1595,90 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
     float normScale = max(gMaxX - gMinX, gMaxY - gMinY);
     if (normScale < 1e-6f) normScale = 1.0f;
 
+    // Number of t-samples per cubic segment (endpoint excluded; the next segment
+    // starts at that point so it is naturally included as its own t=0 sample).
+    static const int BEZIER_SAMPLES = 8;
+
     vector<VectorVertex> vertices;
     vector<Uint16> indices;
 
     for (NSVGshape* shape = img->shapes; shape; shape = shape->next) {
+
+        // ---------------------------------------------------------------
+        // 1. Sample every closed path in this shape and classify contours.
+        //    Y coordinates are negated here (SVG Y-down → world Y-up).
+        //    Standard shoelace area of the Y-flipped coordinates:
+        //      area < 0  →  outer contour (CW in world Y-up)
+        //      area > 0  →  hole contour  (CCW in world Y-up)
+        // ---------------------------------------------------------------
+        struct Contour { vector<float> x, y; float area; };
+        vector<Contour> contours;
+
         for (NSVGpath* path = shape->paths; path; path = path->next) {
             if (!path->closed) continue;
 
-            // Collect cubic segments
-            struct CubicSeg { float p[8]; }; // p0x,p0y, p1x,p1y, p2x,p2y, p3x,p3y
-            vector<CubicSeg> segs;
+            Contour c;
             for (int i = 0; i < path->npts - 1; i += 3) {
                 float* q = &path->pts[i * 2];
-                CubicSeg cs;
-                cs.p[0]=q[0]; cs.p[1]=q[1];
-                cs.p[2]=q[2]; cs.p[3]=q[3];
-                cs.p[4]=q[4]; cs.p[5]=q[5];
-                cs.p[6]=q[6]; cs.p[7]=q[7];
-                segs.push_back(cs);
+                for (int s = 0; s < BEZIER_SAMPLES; ++s) {
+                    float t = s / (float)BEZIER_SAMPLES;
+                    float sx, sy;
+                    sampleCubic(q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], t, sx, sy);
+                    c.x.push_back( (sx - centerX) / normScale);
+                    c.y.push_back(-(sy - centerY) / normScale);
+                }
             }
-            if (segs.empty()) continue;
+            if (c.x.empty()) continue;
 
-            // -------------------------------------------------------
-            // 1. Build chord polygon (one point per segment endpoint)
-            //    Y is negated here to convert from SVG Y-down to world Y-up,
-            //    matching the vertex shader convention (gl_Position.y = -pos.y).
-            // -------------------------------------------------------
-            vector<float> polyX, polyY;
-            for (const auto& cs : segs) {
-                polyX.push_back( (cs.p[0] - centerX) / normScale);
-                polyY.push_back(-(cs.p[1] - centerY) / normScale);
+            // Standard shoelace signed area (computed on Y-flipped coordinates).
+            int cn = (int)c.x.size();
+            c.area = 0.0f;
+            for (int i = 0, j = cn - 1; i < cn; j = i++)
+                c.area += c.x[j] * c.y[i] - c.x[i] * c.y[j];
+
+            contours.push_back(move(c));
+        }
+        if (contours.empty()) continue;
+
+        // ---------------------------------------------------------------
+        // 2. Separate outer contours (area < 0) from hole contours (area > 0).
+        // ---------------------------------------------------------------
+        vector<int> outerIdx, holeIdx;
+        for (int ci = 0; ci < (int)contours.size(); ++ci) {
+            if (contours[ci].area < 0.0f)
+                outerIdx.push_back(ci);
+            else
+                holeIdx.push_back(ci);
+        }
+
+        // Sort holes by their rightmost vertex descending so successive bridges
+        // do not cross earlier ones.
+        sort(holeIdx.begin(), holeIdx.end(), [&](int a, int b) {
+            float maxA = *max_element(contours[a].x.begin(), contours[a].x.end());
+            float maxB = *max_element(contours[b].x.begin(), contours[b].x.end());
+            return maxA > maxB;
+        });
+
+        // ---------------------------------------------------------------
+        // 3. For each outer contour, bridge its holes in and ear-clip.
+        // ---------------------------------------------------------------
+        for (int oi : outerIdx) {
+            vector<float> polyX = contours[oi].x;
+            vector<float> polyY = contours[oi].y;
+
+            // Identify holes belonging to this outer contour via point-in-polygon.
+            const vector<float>& origX = contours[oi].x;
+            const vector<float>& origY = contours[oi].y;
+            for (int hi : holeIdx) {
+                const Contour& hc = contours[hi];
+                if (hc.x.empty()) continue;
+                if (pointInPolygon(hc.x[0], hc.y[0], origX, origY))
+                    bridgeHoleToOuter(polyX, polyY, hc.x, hc.y);
             }
-            // The closing P3 of the last segment equals P0 of the first, so no extra point.
 
-            // Compute signed polygon area to determine winding (standard shoelace = -2A; see earClip comment)
-            float polyArea = 0.0f;
             int pn = (int)polyX.size();
-            for (int i = 0, j = pn - 1; i < pn; j = i++) {
-                polyArea += polyX[j] * polyY[i] - polyX[i] * polyY[j];
-            }
-            // polyArea = -2*A: negative means CCW in Y-up math (outer contour); positive means CW (hole).
-            bool ccw = (polyArea < 0.0f);
-
-            // -------------------------------------------------------
-            // 2. Ear-clip the chord polygon → fill triangles
-            // -------------------------------------------------------
-            if ((Uint64)vertices.size() + (Uint64)polyX.size() > 65535) {
-                cerr << "Warning: SVG shape has too many vertices, skipping subpath" << endl;
+            if ((Uint64)vertices.size() + (Uint64)pn > 65535) {
+                cerr << "Warning: SVG shape has too many vertices, skipping contour" << endl;
                 continue;
             }
             Uint16 baseVtx = (Uint16)vertices.size();
@@ -1526,61 +1689,6 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
                 vertices.push_back(v);
             }
             earClipTriangulate(polyX, polyY, indices, baseVtx);
-
-            // -------------------------------------------------------
-            // 3. Loop–Blinn edge triangles for CONVEX segments only
-            //    (fills the crescent between chord and actual curve)
-            // -------------------------------------------------------
-            for (const auto& cs : segs) {
-                float p0x =  (cs.p[0] - centerX) / normScale;
-                float p0y = -(cs.p[1] - centerY) / normScale;
-                float p3x =  (cs.p[6] - centerX) / normScale;
-                float p3y = -(cs.p[7] - centerY) / normScale;
-                // Quadratic approximation: midpoint of the two interior control points
-                float qx =  ((cs.p[2] + cs.p[4]) * 0.5f - centerX) / normScale;
-                float qy = -((cs.p[3] + cs.p[5]) * 0.5f - centerY) / normScale;
-
-                // Cross product: which side of the chord (P0→P3) does Q lie on?
-                // In Y-up math coordinates (after the Y-flip above):
-                //   CCW outer contour (ccw=true): Q outside chord has cross(Q-P0, P3-P0) < 0
-                //   CW hole contour (ccw=false):  Q outside chord has cross > 0
-                float cross = (qx - p0x) * (p3y - p0y) - (qy - p0y) * (p3x - p0x);
-
-                // In Y-up math: CCW outer contour has Q-outside-chord with cross < 0.
-                // CW hole: Q-outside-chord has cross > 0.
-                bool isConvex = ccw ? (cross < 0.0f) : (cross > 0.0f);
-                if (!isConvex) {
-                    // Concave segment: chord already covers (slightly over-fills). Skip.
-                    continue;
-                }
-
-                if ((Uint64)vertices.size() + 3 > 65535) {
-                    cerr << "Warning: SVG shape has too many vertices, skipping Loop-Blinn triangle" << endl;
-                    break;
-                }
-
-                Uint16 vi = (Uint16)vertices.size();
-                // V0: P0 — (k,l,m) = (0, 0, 0)
-                VectorVertex v0; v0.x=p0x; v0.y=p0y; v0.k=0.0f; v0.l=0.0f; v0.m=0.0f; v0.sign=1.0f;
-                // V1: Q  — (k,l,m) = (0.5, 0, 0.5)
-                VectorVertex v1; v1.x=qx;  v1.y=qy;  v1.k=0.5f; v1.l=0.0f; v1.m=0.5f; v1.sign=1.0f;
-                // V2: P3 — (k,l,m) = (1, 1, 1)
-                VectorVertex v2; v2.x=p3x; v2.y=p3y; v2.k=1.0f; v2.l=1.0f; v2.m=1.0f; v2.sign=1.0f;
-                vertices.push_back(v0);
-                vertices.push_back(v1);
-                vertices.push_back(v2);
-
-                // Wind the triangle so Vulkan (with Y-flipped clip space) sees the correct face
-                if (ccw) {
-                    indices.push_back(vi);
-                    indices.push_back(vi + 2);
-                    indices.push_back(vi + 1);
-                } else {
-                    indices.push_back(vi);
-                    indices.push_back(vi + 1);
-                    indices.push_back(vi + 2);
-                }
-            }
         }
     }
 
