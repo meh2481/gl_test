@@ -122,6 +122,10 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
         target_compile_definitions(packer PRIVATE ENABLE_ETC)
         target_link_libraries(packer ${ETC1_LIBRARY})
     endif()
+
+    pkg_check_modules(FREETYPE REQUIRED IMPORTED_TARGET freetype2)
+    add_executable(font_extractor tools/font_extractor.cpp)
+    target_link_libraries(font_extractor PkgConfig::FREETYPE)
 endif()
 
 if(BUILD_GAME)

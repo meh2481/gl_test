@@ -47,6 +47,9 @@ _codeql_detected_source_root
 box2d/
 *.pak
 
+# font_extractor output: generated SVG glyph directories inside res/fonts/
+res/fonts/*/*/
+
 # Android Gradle cache
 android/.gradle/
 android/local.properties
