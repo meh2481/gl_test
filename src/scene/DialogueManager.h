@@ -13,7 +13,7 @@ class ConsoleBuffer;
 class PakResource;
 
 // ============================================================================
-// DialogueManager — M7: JSON-driven dialogue system
+// DialogueManager — M7: binary-driven dialogue system
 //
 // Usage (Lua):
 //   local dlg = createDialogueBox({ font=fh, x=100, y=500, width=600, textSize=24 })
@@ -23,7 +23,7 @@ class PakResource;
 //   destroyDialogueBox(dlg)
 // ============================================================================
 
-// One line of dialogue loaded from JSON.
+// One line of dialogue loaded from a binary dialogue resource.
 struct DialogueLine {
     static const int MAX_TEXT   = 1024;
     static const int MAX_SHORT  = 256;
@@ -34,7 +34,6 @@ struct DialogueLine {
     char  revealSoundPath[MAX_SHORT];  // optional per-char reveal sound path
     char  voicePath[MAX_SHORT];        // optional voiced line audio path
     float revealSpeed;                 // chars per second (0 = inherit from box)
-    float pauseAfter;                  // seconds to pause after reveal finishes
 };
 
 // Dialogue box configuration.
@@ -63,7 +62,7 @@ public:
     // Configure the dialogue box parameters.
     void configure(const DialogueBoxConfig& cfg);
 
-    // Load dialogue lines from a JSON resource in the pak.
+    // Load dialogue lines from a binary dialogue resource in the pak.
     // resourcePath is the path used to compute the resource ID.
     // Returns true on success.
     bool loadDialogue(const char* resourcePath);
@@ -96,7 +95,6 @@ private:
         STATE_IDLE,
         STATE_REVEALING,
         STATE_WAITING,   // reveal complete, waiting for advance()
-        STATE_PAUSING,   // post-line pause timer
     };
 
     void showLine(int lineIndex, Uint64 sceneId);
@@ -118,7 +116,6 @@ private:
 
     State  state_;
     int    currentLine_;
-    float  pauseTimer_;   // countdown after line reveal
 
     int    lastRevealCount_;       // to detect new characters revealed
     int    revealSoundSourceId_;   // -1 = none

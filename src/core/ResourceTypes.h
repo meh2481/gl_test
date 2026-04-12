@@ -62,6 +62,7 @@ typedef struct
 #define RESOURCE_TYPE_SHADER        12
 #define RESOURCE_TYPE_TRIG_TABLE    13  //Trig lookup table (sin/cos)
 #define RESOURCE_TYPE_VECTOR_SHAPE  14  //Vector shape (analytic SDF, cubic Bezier curves)
+#define RESOURCE_TYPE_DIALOGUE      15  //Binary dialogue resource
 //#define RESOURCE_TYPE_
 //etc
 
@@ -347,3 +348,36 @@ typedef struct
     // Followed by numContours * SdfContourHeader
     // Followed by totalSegments * SdfSegment
 } SdfShapeHeader;
+
+//--------------------------------------------------------------
+// Dialogue data (RESOURCE_TYPE_DIALOGUE)
+// Binary dialogue resource with optional multi-language support.
+// The pak file CompressionHeader provides type validation;
+// no magic number or version field is needed here.
+//
+// Binary layout:
+//   DialogueBinaryHeader
+//   DialogueLineRecord[lineCount * languageCount]
+//     -- ordered language-major: all lines for language 0,
+//        then all lines for language 1, etc.
+//--------------------------------------------------------------
+typedef struct
+{
+    Uint32 lineCount;      // number of dialogue lines per language
+    Uint32 languageCount;  // number of language variants (>= 1)
+} DialogueBinaryHeader;
+
+// Maximum field sizes for dialogue line string data.
+#define DIALOGUE_MAX_TEXT      1024
+#define DIALOGUE_MAX_SHORT      256
+
+typedef struct
+{
+    char   speaker[DIALOGUE_MAX_SHORT];         // speaker name (may be empty)
+    char   text[DIALOGUE_MAX_TEXT];             // body text (may contain markup)
+    char   portraitPath[DIALOGUE_MAX_SHORT];    // optional portrait resource path
+    char   revealSoundPath[DIALOGUE_MAX_SHORT]; // optional per-char reveal sound path
+    char   voicePath[DIALOGUE_MAX_SHORT];       // optional voiced line audio path
+    float  revealSpeed;                         // chars per second (0 = inherit from box)
+    Uint32 pad;                                 // alignment padding
+} DialogueLineRecord;

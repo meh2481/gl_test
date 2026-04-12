@@ -1160,7 +1160,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "textLayerSetShadow",     textLayerSetShadow);
     lua_register(luaState_, "textLayerClearShadow",   textLayerClearShadow);
 
-    // Dialogue box Lua API (M7)
+    // Dialogue box Lua API (M7 — binary dialogue)
     lua_register(luaState_, "createDialogueBox",     createDialogueBox);
     lua_register(luaState_, "destroyDialogueBox",    destroyDialogueBox);
     lua_register(luaState_, "dialogueLoad",          dialogueLoad);
@@ -5363,7 +5363,7 @@ void LuaInterface::clearDialogueBoxes() {
 }
 
 // =============================================================================
-// Dialogue Lua bindings (M7)
+// Dialogue Lua bindings (M7 — binary dialogue)
 // =============================================================================
 
 // createDialogueBox({ font=fh, boldFont=bh, italicFont=ih,

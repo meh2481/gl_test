@@ -10,216 +10,6 @@
 #include <cstring>
 
 // ============================================================================
-// Minimal JSON parser — handles the dialogue JSON format:
-//   { "lines": [ { "key": "value", "num": 1.0, ... }, ... ] }
-// No heap allocation: uses fixed-size char arrays in DialogueLine.
-// ============================================================================
-
-static const char* jsonSkipWS(const char* p) {
-    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
-    return p;
-}
-
-// Parse a JSON string value starting at '"'.
-// Returns pointer after the closing '"', or p on error.
-// Writes at most maxLen-1 characters into out and null-terminates.
-static const char* jsonParseString(const char* p, char* out, int maxLen) {
-    if (*p != '"') { if (out && maxLen > 0) out[0] = '\0'; return p; }
-    p++;
-    int i = 0;
-    while (*p && *p != '"') {
-        char c = *p++;
-        if (c == '\\' && *p) {
-            char e = *p++;
-            switch (e) {
-            case 'n': c = '\n'; break;
-            case 't': c = '\t'; break;
-            case 'r': c = '\r'; break;
-            default:  c = e;    break;
-            }
-        }
-        if (out && i < maxLen - 1) out[i++] = c;
-    }
-    if (out) out[i] = '\0';
-    if (*p == '"') p++;
-    return p;
-}
-
-// Parse a JSON number (float).
-static const char* jsonParseNumber(const char* p, float* out) {
-    bool neg = false;
-    if (*p == '-') { neg = true; p++; }
-    float v = 0.0f;
-    while (*p >= '0' && *p <= '9') v = v * 10.0f + (float)(*p++ - '0');
-    if (*p == '.') {
-        p++;
-        float f = 0.1f;
-        while (*p >= '0' && *p <= '9') { v += (float)(*p++ - '0') * f; f *= 0.1f; }
-    }
-    if (*p == 'e' || *p == 'E') {
-        p++;
-        bool eNeg = false;
-        if (*p == '-') { eNeg = true; p++; } else if (*p == '+') p++;
-        int exp = 0;
-        while (*p >= '0' && *p <= '9') exp = exp * 10 + (*p++ - '0');
-        float mult = 1.0f;
-        for (int i = 0; i < exp; i++) mult *= 10.0f;
-        if (eNeg) v /= mult; else v *= mult;
-    }
-    if (out) *out = neg ? -v : v;
-    return p;
-}
-
-// Skip past the end of the current JSON value (string, number, bool, null,
-// object, or array).  Used to skip unknown fields.
-static const char* jsonSkipValue(const char* p);
-static const char* jsonSkipValue(const char* p) {
-    p = jsonSkipWS(p);
-    if (*p == '"') {
-        p++;
-        while (*p && *p != '"') {
-            if (*p == '\\') { p++; if (*p) p++; } else p++;
-        }
-        if (*p == '"') p++;
-        return p;
-    }
-    if (*p == '{') {
-        p++;
-        p = jsonSkipWS(p);
-        if (*p == '}') return p + 1;
-        while (*p) {
-            if (*p == '"') p = jsonSkipValue(p); // key
-            p = jsonSkipWS(p);
-            if (*p == ':') p++;
-            p = jsonSkipValue(p); // value
-            p = jsonSkipWS(p);
-            if (*p == ',') { p++; p = jsonSkipWS(p); continue; }
-            if (*p == '}') { p++; break; }
-            break;
-        }
-        return p;
-    }
-    if (*p == '[') {
-        p++;
-        p = jsonSkipWS(p);
-        if (*p == ']') return p + 1;
-        while (*p) {
-            p = jsonSkipValue(p);
-            p = jsonSkipWS(p);
-            if (*p == ',') { p++; p = jsonSkipWS(p); continue; }
-            if (*p == ']') { p++; break; }
-            break;
-        }
-        return p;
-    }
-    // number / true / false / null
-    while (*p && *p != ',' && *p != '}' && *p != ']' && *p != '\n') p++;
-    return p;
-}
-
-// Parse the JSON key at *p (assumes *p == '"'), copy into keyBuf.
-// Returns pointer after the closing '"'.
-static const char* jsonParseKey(const char* p, char* keyBuf, int keyBufLen) {
-    return jsonParseString(p, keyBuf, keyBufLen);
-}
-
-// Parse one dialogue line object starting at *p (assumes *p == '{').
-// Returns pointer after '}', or nullptr on error.
-static const char* parseDialogueLine(const char* p, DialogueLine& line) {
-    if (*p != '{') return nullptr;
-    p++;
-
-    // Set defaults
-    line.speaker[0]         = '\0';
-    line.text[0]            = '\0';
-    line.portraitPath[0]    = '\0';
-    line.revealSoundPath[0] = '\0';
-    line.voicePath[0]       = '\0';
-    line.revealSpeed        = 0.0f;
-    line.pauseAfter         = 0.0f;
-
-    char key[64];
-    while (true) {
-        p = jsonSkipWS(p);
-        if (*p == '}') { p++; break; }
-        if (*p == ',') { p++; continue; }
-        if (*p == '"') {
-            p = jsonParseKey(p, key, (int)sizeof(key));
-            p = jsonSkipWS(p);
-            if (*p == ':') p++;
-            p = jsonSkipWS(p);
-
-            if (SDL_strcmp(key, "speaker") == 0) {
-                p = jsonParseString(p, line.speaker, DialogueLine::MAX_SHORT);
-            } else if (SDL_strcmp(key, "text") == 0) {
-                p = jsonParseString(p, line.text, DialogueLine::MAX_TEXT);
-            } else if (SDL_strcmp(key, "portrait") == 0) {
-                p = jsonParseString(p, line.portraitPath, DialogueLine::MAX_SHORT);
-            } else if (SDL_strcmp(key, "revealSound") == 0) {
-                p = jsonParseString(p, line.revealSoundPath, DialogueLine::MAX_SHORT);
-            } else if (SDL_strcmp(key, "voice") == 0) {
-                p = jsonParseString(p, line.voicePath, DialogueLine::MAX_SHORT);
-            } else if (SDL_strcmp(key, "revealSpeed") == 0) {
-                p = jsonParseNumber(p, &line.revealSpeed);
-            } else if (SDL_strcmp(key, "pauseAfter") == 0) {
-                p = jsonParseNumber(p, &line.pauseAfter);
-            } else {
-                p = jsonSkipValue(p);
-            }
-        } else {
-            p++;  // skip unexpected chars
-        }
-    }
-    return p;
-}
-
-// Parse the top-level JSON object and fill the lines vector.
-// Returns the number of lines parsed, or -1 on error.
-static int parseDialogueJson(const char* json, Vector<DialogueLine>& linesOut) {
-    const char* p = jsonSkipWS(json);
-    if (*p != '{') return -1;
-    p++;
-
-    char key[64];
-    while (true) {
-        p = jsonSkipWS(p);
-        if (*p == '}') break;
-        if (*p == ',') { p++; continue; }
-        if (*p != '"') { p++; continue; }
-
-        p = jsonParseKey(p, key, (int)sizeof(key));
-        p = jsonSkipWS(p);
-        if (*p == ':') p++;
-        p = jsonSkipWS(p);
-
-        if (SDL_strcmp(key, "lines") == 0) {
-            if (*p != '[') { p = jsonSkipValue(p); continue; }
-            p++;  // skip '['
-            while (true) {
-                p = jsonSkipWS(p);
-                if (*p == ']') { p++; break; }
-                if (*p == ',') { p++; continue; }
-                if (*p == '{') {
-                    DialogueLine line;
-                    const char* after = parseDialogueLine(p, line);
-                    if (after) {
-                        linesOut.push_back(line);
-                        p = after;
-                    } else {
-                        p = jsonSkipValue(p);
-                    }
-                } else {
-                    p = jsonSkipValue(p);
-                }
-            }
-        } else {
-            p = jsonSkipValue(p);
-        }
-    }
-    return (int)linesOut.size();
-}
-
-// ============================================================================
 // DialogueManager implementation
 // ============================================================================
 
@@ -240,7 +30,6 @@ DialogueManager::DialogueManager(MemoryAllocator* allocator,
     , speakerText_(nullptr)
     , state_(STATE_IDLE)
     , currentLine_(-1)
-    , pauseTimer_(0.0f)
     , lastRevealCount_(0)
     , revealSoundSourceId_(-1)
     , lua_(nullptr)
@@ -277,21 +66,45 @@ bool DialogueManager::loadDialogue(const char* resourcePath) {
         return false;
     }
 
-    // The JSON resource may not be null-terminated; make a null-terminated copy.
-    char* jsonBuf = static_cast<char*>(
-        allocator_->allocate(resData.size + 1, "DialogueManager::jsonBuf"));
-    if (!jsonBuf) return false;
-    SDL_memcpy(jsonBuf, resData.data, resData.size);
-    jsonBuf[resData.size] = '\0';
-
-    int count = parseDialogueJson(jsonBuf, lines_);
-    allocator_->free(jsonBuf);
-
-    if (count <= 0) {
-        console_->log(SDL_LOG_PRIORITY_WARN, "DialogueManager: no lines parsed from '%s'", resourcePath);
+    if (resData.size < sizeof(DialogueBinaryHeader)) {
+        console_->log(SDL_LOG_PRIORITY_ERROR, "DialogueManager: resource too small '%s'", resourcePath);
         return false;
     }
-    console_->log(SDL_LOG_PRIORITY_INFO, "DialogueManager: loaded %d lines from '%s'", count, resourcePath);
+
+    const DialogueBinaryHeader* hdr =
+        reinterpret_cast<const DialogueBinaryHeader*>(resData.data);
+
+    if (hdr->lineCount == 0 || hdr->languageCount == 0) {
+        console_->log(SDL_LOG_PRIORITY_WARN, "DialogueManager: no lines in '%s'", resourcePath);
+        return false;
+    }
+
+    // Validate that the resource contains enough data for at least language 0.
+    Uint64 expectedMin = sizeof(DialogueBinaryHeader) +
+        (Uint64)hdr->lineCount * sizeof(DialogueLineRecord);
+    if (resData.size < expectedMin) {
+        console_->log(SDL_LOG_PRIORITY_ERROR, "DialogueManager: truncated data in '%s'", resourcePath);
+        return false;
+    }
+
+    // Load language 0 (first language variant).
+    const DialogueLineRecord* records =
+        reinterpret_cast<const DialogueLineRecord*>(resData.data + sizeof(DialogueBinaryHeader));
+
+    lines_.reserve(hdr->lineCount);
+    for (Uint32 i = 0; i < hdr->lineCount; i++) {
+        DialogueLine line;
+        SDL_strlcpy(line.speaker,         records[i].speaker,         DialogueLine::MAX_SHORT);
+        SDL_strlcpy(line.text,            records[i].text,            DialogueLine::MAX_TEXT);
+        SDL_strlcpy(line.portraitPath,    records[i].portraitPath,    DialogueLine::MAX_SHORT);
+        SDL_strlcpy(line.revealSoundPath, records[i].revealSoundPath, DialogueLine::MAX_SHORT);
+        SDL_strlcpy(line.voicePath,       records[i].voicePath,       DialogueLine::MAX_SHORT);
+        line.revealSpeed = records[i].revealSpeed;
+        lines_.push_back(line);
+    }
+
+    console_->log(SDL_LOG_PRIORITY_INFO,
+        "DialogueManager: loaded %d lines from '%s'", (int)lines_.size(), resourcePath);
     return true;
 }
 
@@ -369,7 +182,6 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
     }
 
     state_      = STATE_REVEALING;
-    pauseTimer_ = 0.0f;
 }
 
 void DialogueManager::advance(Uint64 sceneId) {
@@ -384,7 +196,7 @@ void DialogueManager::advance(Uint64 sceneId) {
         return;
     }
 
-    if (state_ == STATE_WAITING || state_ == STATE_PAUSING) {
+    if (state_ == STATE_WAITING) {
         int nextLine = currentLine_ + 1;
         if (nextLine < (int)lines_.size()) {
             showLine(nextLine, sceneId);
@@ -414,21 +226,6 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
 
         // Check if reveal is complete
         if (newReveal >= bodyText_->getTotalChars() && bodyText_->getTotalChars() > 0) {
-            state_ = STATE_WAITING;
-
-            // If pauseAfter > 0, start the pause timer and switch to PAUSING
-            float pa = (currentLine_ >= 0 && currentLine_ < (int)lines_.size())
-                ? lines_[currentLine_].pauseAfter : 0.0f;
-            if (pa > 0.0f) {
-                state_      = STATE_PAUSING;
-                pauseTimer_ = pa;
-            }
-        }
-    }
-
-    if (state_ == STATE_PAUSING) {
-        pauseTimer_ -= dt;
-        if (pauseTimer_ <= 0.0f) {
             state_ = STATE_WAITING;
         }
     }
