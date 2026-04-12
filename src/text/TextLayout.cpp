@@ -223,26 +223,41 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
 
     // --- Alignment pass ---
     if (params.alignment != TEXT_ALIGN_LEFT && lineStarts.size() > 0) {
-        // Determine end index for each line
         int numLines = (int)lineStarts.size();
+        Vector<float> lineWidths(*allocator_, "TextLayout::lineWidths");
+        lineWidths.resize((Uint64)numLines, 0.0f);
+
+        float maxLineWidth = 0.0f;
         for (int li = 0; li < numLines; li++) {
             int startGlyph = lineStarts[li].glyphIdx;
             int endGlyph   = (li + 1 < numLines) ? lineStarts[li + 1].glyphIdx : (int)glyphs_.size();
             if (endGlyph <= startGlyph) continue;
 
             float lineEndX = glyphs_[endGlyph - 1].x;
-            // Add the last glyph's advance width
             const FontGlyphEntry* lastGe =
                 fontManager_->lookupGlyph(glyphs_[endGlyph - 1].fontHandle,
                                           glyphs_[endGlyph - 1].codepoint);
             if (lastGe) lineEndX += (float)lastGe->advanceWidth * glyphs_[endGlyph - 1].scale;
 
             float lineWidth = lineEndX - lineStarts[li].startX;
+            if (lineWidth < 0.0f) lineWidth = 0.0f;
+            lineWidths[li] = lineWidth;
+            if (lineWidth > maxLineWidth) maxLineWidth = lineWidth;
+        }
+
+        float alignWidth = params.wrapWidth > 0.0f ? params.wrapWidth : maxLineWidth;
+
+        for (int li = 0; li < numLines; li++) {
+            int startGlyph = lineStarts[li].glyphIdx;
+            int endGlyph   = (li + 1 < numLines) ? lineStarts[li + 1].glyphIdx : (int)glyphs_.size();
+            if (endGlyph <= startGlyph) continue;
+
+            float lineWidth = lineWidths[li];
             float shift = 0.0f;
             if (params.alignment == TEXT_ALIGN_CENTER) {
-                shift = -lineWidth * 0.5f;
+                shift = (alignWidth - lineWidth) * 0.5f;
             } else if (params.alignment == TEXT_ALIGN_RIGHT) {
-                shift = -lineWidth;
+                shift = (alignWidth - lineWidth);
             }
 
             for (int gi = startGlyph; gi < endGlyph; gi++) {

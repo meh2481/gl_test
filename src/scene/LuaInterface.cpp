@@ -473,6 +473,16 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
         lua_setfield(luaState_, -2, *constant);
     }
 
+    // Copy text alignment constants
+    const char* textAlignConstants[] = {
+        "TEXT_ALIGN_LEFT", "TEXT_ALIGN_CENTER", "TEXT_ALIGN_RIGHT",
+        nullptr
+    };
+    for (const char** constant = textAlignConstants; *constant; ++constant) {
+        lua_getglobal(luaState_, *constant);
+        lua_setfield(luaState_, -2, *constant);
+    }
+
     // Copy interpolation type constants
     const char* interpConstants[] = {
         "INTERPOLATION_LINEAR", "INTERPOLATION_EASE_IN", "INTERPOLATION_EASE_OUT",
