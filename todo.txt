@@ -20,4 +20,4 @@
 * Add global text scale
 * Add global language setting in config
 * Convert dialogue layout to lua instead of hardcoded C
-* Add dialogue backgrounds
+* Add dialogue backgrounds - different per character

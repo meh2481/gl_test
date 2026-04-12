@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <ft2build.h>
@@ -150,7 +151,8 @@ static bool buildGlyphSdfBlob(FT_Face face, float normScale,
         sub.n_contours = 1;
         sub.points     = outline.points + ptStart;
         sub.tags       = outline.tags   + ptStart;
-        FT_UShort relEnd = static_cast<FT_UShort>(nPts - 1);
+        using ContourIndex = std::remove_pointer<decltype(outline.contours)>::type;
+        ContourIndex relEnd = static_cast<ContourIndex>(nPts - 1);
         sub.contours   = &relEnd;
         sub.flags      = outline.flags;
 
