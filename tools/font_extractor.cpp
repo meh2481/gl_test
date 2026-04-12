@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -13,14 +14,14 @@
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
 
-// ResourceTypes gives us FontBinaryHeader, FontGlyphEntry, FontKernPair,
-// SdfShapeHeader, SdfContourHeader, and SdfSegment.
+// ResourceTypes gives us FontBinaryHeader, FontGlyphEntryDisk, FontKernPairDisk,
+// CompactShapeHeader, CompactContourHeader, and the FONT_* constants.
 // SDL_stdinc.h (pulled in by ResourceTypes.h) provides Uint32, Sint32, etc.
 #include "../src/core/ResourceTypes.h"
 
 // ---------------------------------------------------------------------------
-// Binary SDF glyph builder -- builds SdfShapeHeader+SdfContourHeader[]+SdfSegment[]
-// from a FreeType outline, normalised by the font's unitsPerEM.
+// Compact SDF glyph builder -- builds a CompactShapeHeader + CompactContourHeader[]
+// + variable-length segment stream from a FreeType outline, normalised by unitsPerEM.
 // ---------------------------------------------------------------------------
 
 struct BinarySegment { float p0x,p0y, p1x,p1y, p2x,p2y, p3x,p3y; };
@@ -120,19 +121,44 @@ struct BinaryGlyphBuilder {
     }
 };
 
-// Build the SDF binary blob for the currently loaded glyph slot.
+// Encode a normalised float coordinate as a Sint16 using FONT_COORD_SCALE.
+static Sint16 encodeCoord(float v) {
+    float scaled = v * FONT_COORD_SCALE;
+    if (scaled >  32767.0f) scaled =  32767.0f;
+    if (scaled < -32768.0f) scaled = -32768.0f;
+    return static_cast<Sint16>(static_cast<int>(roundf(scaled)));
+}
+
+// Returns true if the segment is a degenerate cubic (i.e. a straight line).
+// Straight lines are stored by lineToCallback with p1==p0 and p2==p3.
+static bool segIsLine(const BinarySegment& s) {
+    float d1x = s.p1x - s.p0x, d1y = s.p1y - s.p0y;
+    float d2x = s.p2x - s.p3x, d2y = s.p2y - s.p3y;
+    return (d1x*d1x + d1y*d1y < 1e-12f) && (d2x*d2x + d2y*d2y < 1e-12f);
+}
+
+// Write a 16-bit little-endian value into a byte vector.
+static void writeS16(std::vector<uint8_t>& buf, Sint16 v) {
+    buf.push_back(static_cast<uint8_t>(v & 0xFF));
+    buf.push_back(static_cast<uint8_t>((v >> 8) & 0xFF));
+}
+static void writeU16(std::vector<uint8_t>& buf, Uint16 v) {
+    buf.push_back(static_cast<uint8_t>(v & 0xFF));
+    buf.push_back(static_cast<uint8_t>((v >> 8) & 0xFF));
+}
+
+// Build the compact SDF blob for the currently loaded glyph slot.
 // normScale should be face->units_per_EM (so all glyphs use consistent normalisation).
-// Returns false only on internal error; an empty glyph (no outline) returns true
-// with an empty SdfShapeHeader blob.
-static bool buildGlyphSdfBlob(FT_Face face, float normScale,
-                               std::vector<char>& output) {
-    FT_GlyphSlot slot   = face->glyph;
+// On success, output contains CompactShapeHeader + CompactContourHeader[] + segment stream.
+// An empty glyph (no outline) returns an output with numContours==0 and totalSegments==0.
+static bool buildCompactSdfBlob(FT_Face face, float normScale,
+                                 std::vector<uint8_t>& output) {
+    FT_GlyphSlot slot    = face->glyph;
     FT_Outline&  outline = slot->outline;
 
     if (outline.n_contours == 0 || outline.n_points == 0) {
-        SdfShapeHeader emptyHdr{};
-        output.resize(sizeof(SdfShapeHeader));
-        memcpy(output.data(), &emptyHdr, sizeof(emptyHdr));
+        // Empty glyph — write a zero CompactShapeHeader so caller can detect it.
+        output.resize(sizeof(CompactShapeHeader), 0);
         return true;
     }
 
@@ -140,7 +166,7 @@ static bool buildGlyphSdfBlob(FT_Face face, float normScale,
     builder.normScale = normScale;
     FT_Outline_Funcs funcs = builder.funcs();
 
-    // Process each contour separately so we can inject a Z close.
+    // Process each contour separately so we can inject a closing segment if needed.
     int ptStart = 0;
     for (int c = 0; c < outline.n_contours; c++) {
         int ptEnd = outline.contours[c];
@@ -161,12 +187,11 @@ static bool buildGlyphSdfBlob(FT_Face face, float normScale,
 
         // Close the contour if the last point does not coincide with the first.
         if (!builder.contours.empty() && !builder.contours.back().segs.empty()) {
-            const BinarySegment& last = builder.contours.back().segs.back();
+            const BinarySegment& last  = builder.contours.back().segs.back();
             const BinarySegment& first = builder.contours.back().segs.front();
             float dx = last.p3x - first.p0x;
             float dy = last.p3y - first.p0y;
             if (dx * dx + dy * dy > 1e-10f) {
-                // Add a degenerate cubic closing segment
                 BinarySegment cs;
                 cs.p0x = last.p3x;  cs.p0y = last.p3y;
                 cs.p1x = last.p3x;  cs.p1y = last.p3y;
@@ -181,7 +206,7 @@ static bool buildGlyphSdfBlob(FT_Face face, float normScale,
         ptStart = ptEnd + 1;
     }
 
-    // Remove empty contours
+    // Remove empty contours.
     builder.contours.erase(
         std::remove_if(builder.contours.begin(), builder.contours.end(),
                        [](const BinaryContour& c){ return c.segs.empty(); }),
@@ -190,50 +215,63 @@ static bool buildGlyphSdfBlob(FT_Face face, float normScale,
     if (builder.contours.empty() ||
         builder.ctrlMaxX <= builder.ctrlMinX ||
         builder.ctrlMaxY <= builder.ctrlMinY) {
-        SdfShapeHeader emptyHdr{};
-        output.resize(sizeof(SdfShapeHeader));
-        memcpy(output.data(), &emptyHdr, sizeof(emptyHdr));
+        output.resize(sizeof(CompactShapeHeader), 0);
         return true;
     }
 
-    // Build flat arrays
-    std::vector<SdfContourHeader> contourHdrs;
-    std::vector<SdfSegment>       flatSegs;
-    for (const BinaryContour& c : builder.contours) {
-        SdfContourHeader hdr{};
-        hdr.numSegments   = static_cast<Uint32>(c.segs.size());
-        hdr.winding       = 1;  // not used by shader; set +1 as placeholder
-        hdr.segmentOffset = static_cast<Uint32>(flatSegs.size());
-        hdr.pad           = 0;
-        contourHdrs.push_back(hdr);
-        for (const BinarySegment& s : c.segs) {
-            SdfSegment seg;
-            seg.p0x = s.p0x; seg.p0y = s.p0y;
-            seg.p1x = s.p1x; seg.p1y = s.p1y;
-            seg.p2x = s.p2x; seg.p2y = s.p2y;
-            seg.p3x = s.p3x; seg.p3y = s.p3y;
-            flatSegs.push_back(seg);
+    // Count total segments.
+    Uint32 totalSegs = 0;
+    for (const BinaryContour& bc : builder.contours)
+        totalSegs += static_cast<Uint32>(bc.segs.size());
+
+    assert(builder.contours.size() <= 65535u);
+    assert(totalSegs <= 65535u);
+
+    // --- Build output buffer ---
+    // 1. CompactShapeHeader placeholder (filled in after encoding).
+    output.clear();
+    output.resize(sizeof(CompactShapeHeader));
+
+    // 2. CompactContourHeader[numContours].
+    for (const BinaryContour& bc : builder.contours) {
+        assert(bc.segs.size() <= 65535u);
+        writeU16(output, static_cast<Uint16>(bc.segs.size()));
+    }
+
+    // 3. Segment stream: for each contour, write start point then typed segments.
+    for (const BinaryContour& bc : builder.contours) {
+        assert(!bc.segs.empty());
+        // Explicit start point p0 of the first segment.
+        writeS16(output, encodeCoord(bc.segs[0].p0x));
+        writeS16(output, encodeCoord(bc.segs[0].p0y));
+        // Segments.
+        for (const BinarySegment& s : bc.segs) {
+            if (segIsLine(s)) {
+                output.push_back(static_cast<uint8_t>(FONT_SEG_LINE));
+                writeS16(output, encodeCoord(s.p3x));
+                writeS16(output, encodeCoord(s.p3y));
+            } else {
+                output.push_back(static_cast<uint8_t>(FONT_SEG_CUBIC));
+                writeS16(output, encodeCoord(s.p1x));
+                writeS16(output, encodeCoord(s.p1y));
+                writeS16(output, encodeCoord(s.p2x));
+                writeS16(output, encodeCoord(s.p2y));
+                writeS16(output, encodeCoord(s.p3x));
+                writeS16(output, encodeCoord(s.p3y));
+            }
         }
     }
 
+    // Fill in CompactShapeHeader.
     static const float BBOX_MARGIN = 0.02f;
-    SdfShapeHeader shapeHdr{};
-    shapeHdr.numContours   = static_cast<Uint32>(contourHdrs.size());
-    shapeHdr.bboxMinX      = builder.ctrlMinX - BBOX_MARGIN;
-    shapeHdr.bboxMinY      = builder.ctrlMinY - BBOX_MARGIN;
-    shapeHdr.bboxMaxX      = builder.ctrlMaxX + BBOX_MARGIN;
-    shapeHdr.bboxMaxY      = builder.ctrlMaxY + BBOX_MARGIN;
-    shapeHdr.totalSegments = static_cast<Uint32>(flatSegs.size());
-
-    output.resize(sizeof(SdfShapeHeader)
-                + contourHdrs.size() * sizeof(SdfContourHeader)
-                + flatSegs.size()    * sizeof(SdfSegment));
-    char* dst = output.data();
-    memcpy(dst, &shapeHdr, sizeof(shapeHdr));
-    dst += sizeof(shapeHdr);
-    memcpy(dst, contourHdrs.data(), contourHdrs.size() * sizeof(SdfContourHeader));
-    dst += contourHdrs.size() * sizeof(SdfContourHeader);
-    memcpy(dst, flatSegs.data(), flatSegs.size() * sizeof(SdfSegment));
+    CompactShapeHeader csh{};
+    csh.numContours   = static_cast<Uint16>(builder.contours.size());
+    csh.totalSegments = static_cast<Uint16>(totalSegs);
+    csh.bboxMinX      = encodeCoord(builder.ctrlMinX - BBOX_MARGIN);
+    csh.bboxMinY      = encodeCoord(builder.ctrlMinY - BBOX_MARGIN);
+    csh.bboxMaxX      = encodeCoord(builder.ctrlMaxX + BBOX_MARGIN);
+    csh.bboxMaxY      = encodeCoord(builder.ctrlMaxY + BBOX_MARGIN);
+    memcpy(output.data(), &csh, sizeof(csh));
 
     return true;
 }
@@ -246,58 +284,53 @@ static bool writeFontBinary(FT_Face face,
                              const std::filesystem::path& outPath) {
     const float normScale = static_cast<float>(face->units_per_EM);
 
-    // --- Collect glyph entries and SDF blobs ---
-    std::vector<FontGlyphEntry> glyphEntries;
-    std::vector<std::vector<char>> sdfBlobs;  // parallel to glyphEntries
+    // --- Build one entry per glyph index in order (0..face->num_glyphs-1) ---
+    // Storing in glyph-index order means array position == font-internal glyph index,
+    // so the on-disk FontGlyphEntryDisk does not need to store the index explicitly.
+    std::vector<FontGlyphEntryDisk>    glyphEntries;
+    std::vector<std::vector<uint8_t>>  sdfBlobs;
+
+    glyphEntries.reserve(static_cast<size_t>(face->num_glyphs));
+    sdfBlobs.reserve(static_cast<size_t>(face->num_glyphs));
 
     for (FT_Long gi = 0; gi < face->num_glyphs; gi++) {
         FT_UInt gidx = static_cast<FT_UInt>(gi);
 
-        FT_Error err = FT_Load_Glyph(face, gidx,
-                                     FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
-        if (err != 0) continue;
-        if (face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) continue;
+        FontGlyphEntryDisk entry{};
+        entry.codepoint = hasCp[gidx] ? static_cast<Uint32>(indexToCodepoint[gidx]) : 0u;
 
-        std::vector<char> blob;
-        if (!buildGlyphSdfBlob(face, normScale, blob)) continue;
+        std::vector<uint8_t> blob;
 
-        FontGlyphEntry entry{};
-        entry.codepoint   = hasCp[gidx] ? static_cast<Uint32>(indexToCodepoint[gidx]) : 0u;
-        entry.glyphIndex  = static_cast<Uint32>(gidx);
-        entry.advanceWidth = static_cast<Sint32>(face->glyph->metrics.horiAdvance);
-        entry.leftBearing  = static_cast<Sint32>(face->glyph->metrics.horiBearingX);
-        // sdfOffset / sdfSize filled in below
-        entry.sdfOffset = 0;
-        entry.sdfSize   = 0;
-
-        const SdfShapeHeader* shdr =
-            reinterpret_cast<const SdfShapeHeader*>(blob.data());
-        if (shdr->numContours > 0) {
-            entry.sdfSize = static_cast<Uint32>(blob.size());
+        FT_Error err = FT_Load_Glyph(face, gidx, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
+        if (err == 0 && face->glyph->format == FT_GLYPH_FORMAT_OUTLINE) {
+            if (!buildCompactSdfBlob(face, normScale, blob)) {
+                // Internal error — treat as empty glyph.
+                blob.clear();
+                blob.resize(sizeof(CompactShapeHeader), 0);
+            }
+            // Detect non-empty SDF blob: check numContours in CompactShapeHeader.
+            assert(blob.size() >= sizeof(CompactShapeHeader));
+            const CompactShapeHeader* csh =
+                reinterpret_cast<const CompactShapeHeader*>(blob.data());
+            if (csh->numContours > 0) {
+                entry.sdfSize = static_cast<Uint32>(blob.size());
+            }
+            entry.advanceWidth =
+                static_cast<Sint16>(face->glyph->metrics.horiAdvance);
+            entry.leftBearing  =
+                static_cast<Sint16>(face->glyph->metrics.horiBearingX);
+        } else {
+            // Glyph index not loadable or not outline — write an empty placeholder.
+            blob.resize(sizeof(CompactShapeHeader), 0);
         }
 
+        // sdfOffset filled in below.
         glyphEntries.push_back(entry);
         sdfBlobs.push_back(std::move(blob));
     }
 
-    // Sort glyph entries by codepoint (0 = uncoded glyphs come first)
-    // Keep blobs parallel by sorting an index array then permuting.
-    std::vector<size_t> order(glyphEntries.size());
-    for (size_t i = 0; i < order.size(); i++) order[i] = i;
-    std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
-        return glyphEntries[a].codepoint < glyphEntries[b].codepoint;
-    });
-
-    std::vector<FontGlyphEntry>      sortedEntries(glyphEntries.size());
-    std::vector<std::vector<char>>   sortedBlobs  (glyphEntries.size());
-    for (size_t i = 0; i < order.size(); i++) {
-        sortedEntries[i] = glyphEntries[order[i]];
-        sortedBlobs[i]   = std::move(sdfBlobs[order[i]]);
-    }
-    glyphEntries = std::move(sortedEntries);
-    sdfBlobs     = std::move(sortedBlobs);
-
-    // Compute SDF offsets (relative to start of SDF section)
+    // Compute compact SDF offsets (relative to start of SDF section).
+    // Only glyphs with sdfSize > 0 get a blob written to the SDF section.
     Uint32 sdfOffset = 0;
     for (size_t i = 0; i < glyphEntries.size(); i++) {
         if (glyphEntries[i].sdfSize > 0) {
@@ -307,7 +340,7 @@ static bool writeFontBinary(FT_Face face,
     }
 
     // --- Collect kerning pairs ---
-    std::vector<FontKernPair> kernPairs;
+    std::vector<FontKernPairDisk> kernPairs;
     if (FT_HAS_KERNING(face)) {
         for (FT_Long li = 0; li < face->num_glyphs; li++) {
             for (FT_Long ri = 0; ri < face->num_glyphs; ri++) {
@@ -317,16 +350,17 @@ static bool writeFontBinary(FT_Face face,
                                                static_cast<FT_UInt>(ri),
                                                FT_KERNING_UNSCALED, &kern);
                 if (kerr == 0 && kern.x != 0) {
-                    FontKernPair kp{};
-                    kp.leftGlyphIndex  = static_cast<Uint32>(li);
-                    kp.rightGlyphIndex = static_cast<Uint32>(ri);
+                    FontKernPairDisk kp{};
+                    assert(li <= 65535 && ri <= 65535);
+                    kp.leftGlyphIndex  = static_cast<Uint16>(li);
+                    kp.rightGlyphIndex = static_cast<Uint16>(ri);
                     kp.kernValue       = static_cast<Sint32>(kern.x);
                     kernPairs.push_back(kp);
                 }
             }
         }
         std::sort(kernPairs.begin(), kernPairs.end(),
-                  [](const FontKernPair& a, const FontKernPair& b) {
+                  [](const FontKernPairDisk& a, const FontKernPairDisk& b) {
                       if (a.leftGlyphIndex != b.leftGlyphIndex)
                           return a.leftGlyphIndex < b.leftGlyphIndex;
                       return a.rightGlyphIndex < b.rightGlyphIndex;
@@ -353,21 +387,50 @@ static bool writeFontBinary(FT_Face face,
     out.write(reinterpret_cast<const char*>(&hdr), sizeof(hdr));
     if (!glyphEntries.empty())
         out.write(reinterpret_cast<const char*>(glyphEntries.data()),
-                  static_cast<std::streamsize>(glyphEntries.size() * sizeof(FontGlyphEntry)));
+                  static_cast<std::streamsize>(glyphEntries.size() * sizeof(FontGlyphEntryDisk)));
     if (!kernPairs.empty())
         out.write(reinterpret_cast<const char*>(kernPairs.data()),
-                  static_cast<std::streamsize>(kernPairs.size() * sizeof(FontKernPair)));
+                  static_cast<std::streamsize>(kernPairs.size() * sizeof(FontKernPairDisk)));
 
-    // Write SDF blobs (in codepoint-sorted order; skip empty glyphs)
+    // Write compact SDF blobs in glyph-index order; skip empty glyphs.
     for (size_t i = 0; i < sdfBlobs.size(); i++) {
         if (glyphEntries[i].sdfSize > 0) {
-            out.write(sdfBlobs[i].data(),
+            out.write(reinterpret_cast<const char*>(sdfBlobs[i].data()),
                       static_cast<std::streamsize>(sdfBlobs[i].size()));
         }
     }
 
-    printf("  Binary font: %zu glyphs, %zu kern pairs -> %s\n",
-           glyphEntries.size(), kernPairs.size(), outPath.string().c_str());
+    size_t lineSegs = 0, cubicSegs = 0;
+    for (size_t i = 0; i < sdfBlobs.size(); i++) {
+        if (glyphEntries[i].sdfSize > 0) {
+            const CompactShapeHeader* csh =
+                reinterpret_cast<const CompactShapeHeader*>(sdfBlobs[i].data());
+            Uint32 nc = csh->numContours;
+            const uint8_t* p = sdfBlobs[i].data()
+                             + sizeof(CompactShapeHeader)
+                             + nc * sizeof(CompactContourHeader);
+            const CompactContourHeader* cchs =
+                reinterpret_cast<const CompactContourHeader*>(
+                    sdfBlobs[i].data() + sizeof(CompactShapeHeader));
+            for (Uint32 ci = 0; ci < nc; ci++) {
+                p += 4;  // skip start point Sint16[2]
+                for (Uint16 si = 0; si < cchs[ci].numSegments; si++) {
+                    Uint8 type = *p++;
+                    if (type == FONT_SEG_LINE) {
+                        p += 4;  // Sint16[2]
+                        lineSegs++;
+                    } else {
+                        p += 12; // Sint16[6]
+                        cubicSegs++;
+                    }
+                }
+            }
+        }
+    }
+
+    printf("  v2 font: %zu glyphs, %zu kern pairs, %zu line + %zu cubic segs -> %s\n",
+           glyphEntries.size(), kernPairs.size(), lineSegs, cubicSegs,
+           outPath.string().c_str());
     return true;
 }
 
