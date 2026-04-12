@@ -1,5 +1,6 @@
 * Add sprite animations
-* requestAndTryResource() in LuaInterface.cpp defeats the entire purpose of async resource loading
+* Add a build step that fails if any STL
+* requestAndTryResource() in LuaInterface.cpp defeats the entire purpose of async resource loading. If res.pak is preloaded in its entirety, remove that also
 * OpenAL has some effects built in, worth looking into:
     [45/96] Building CXX object CMakeFiles/OpenAL.dir/alc/effects/autowah.cpp.o
     [46/96] Building CXX object CMakeFiles/OpenAL.dir/alc/effects/compressor.cpp.o
@@ -21,7 +22,7 @@ M7 — Dialogue System
 
 Goal: A full dialogue system driven from Lua/JSON with all the existing text features.
 
-Dialogue script format (JSON, converted and packed as binary with a new resource type):
+Dialogue script format (JSON, converted and packed as binary with a new resource type) example (will likely need modification):
 
 JSON
 
@@ -47,14 +48,14 @@ JSON
             "text": "Ah, un [wave]călător[/wave]! Bine ați venit în [color=FFD700FF]Goldenvale[/color]."
         }
       ],
-      "portrait": "res/portraits/guide.png",
-      "revealSpeed": 22,
-      "revealSound": "res/sfx/typing_soft.wav",
-      "pauseAfter": 0.0,
-      "voice": "res/sfx/guide_welcome.wav"
+      "portrait": "wave",
+      "portraitSide": "left",
+      "vox": "guide_hey" 
     }
   ]
 }
+
+There also needs to be a speaker definition file, that sets the character's default name, the default color for a speaker's name, what different portraits they have, their default revealSound (voice loop/typewriter sound for that character), the styling for their textboxes, etc. This can be res/characters/guide/guide.json or similar. 
 
 
 DialogueManager (src/scene/DialogueManager.h/cpp):
@@ -84,10 +85,9 @@ local dlg = createDialogueBox({
     textSize=24
 })
 destroyDialogueBox(dlg)
-dialogueLoad(dlg, "res/dialogue/intro.json")  -- or binary format, whatever extension
+dialogueLoad(dlg, "res/dialogue/intro.json")  -- or whatever extension for binary format
 dialogueStart(dlg, onComplete)
 dialogueAdvance(dlg)
-dialogueSetRevealSound(dlg, soundHandle)
 dialogueIsRevealing(dlg)   -- returns bool
 dialogueGetCurrentLine(dlg)
 
