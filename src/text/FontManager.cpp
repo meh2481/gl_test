@@ -186,20 +186,6 @@ int FontManager::loadFont(PakResource& pakResource, const char* resourcePath) {
     const FontBinaryHeader* hdr =
         reinterpret_cast<const FontBinaryHeader*>(rd.data);
 
-    if (hdr->magic != FONT_BINARY_MAGIC) {
-        console_->log(SDL_LOG_PRIORITY_ERROR,
-            "FontManager: bad magic in %s (got 0x%08X, expected 0x%08X)",
-            resourcePath, hdr->magic, FONT_BINARY_MAGIC);
-        return -1;
-    }
-
-    if (hdr->version != FONT_BINARY_VERSION) {
-        console_->log(SDL_LOG_PRIORITY_ERROR,
-            "FontManager: unsupported version in %s (got %u, expected %u)",
-            resourcePath, hdr->version, FONT_BINARY_VERSION);
-        return -1;
-    }
-
     // Validate that disk glyph/kern tables fit within the resource.
     Uint64 diskGlyphBytes = (Uint64)hdr->numGlyphs    * sizeof(FontGlyphEntryDisk);
     Uint64 diskKernBytes  = (Uint64)hdr->numKernPairs * sizeof(FontKernPairDisk);

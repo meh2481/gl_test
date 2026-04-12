@@ -149,8 +149,6 @@ typedef struct //Structure for (non-atlased) image data
 //
 // At load time FontManager decodes these back to SdfShapeHeader + SdfContourHeader[]
 // + SdfSegment[] so the GPU upload path (VulkanRenderer::loadVectorShape) is unchanged.
-#define FONT_BINARY_MAGIC    0x544E4F46u  // 'F','O','N','T'
-#define FONT_BINARY_VERSION  2u
 
 // Scale factor for encoding normalised glyph coordinates as Sint16.
 // Sint16 range [-32768, 32767] covers normalised values in [-2.0, ~2.0], which is
@@ -163,8 +161,6 @@ typedef struct //Structure for (non-atlased) image data
 
 typedef struct
 {
-    Uint32 magic;           // FONT_BINARY_MAGIC
-    Uint32 version;         // FONT_BINARY_VERSION
     Uint32 numGlyphs;       // number of FontGlyphEntryDisk records (== face->num_glyphs)
     Uint32 numKernPairs;    // number of FontKernPairDisk records
     Sint32 unitsPerEM;      // font design units per em square

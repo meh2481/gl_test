@@ -369,8 +369,6 @@ static bool writeFontBinary(FT_Face face,
 
     // --- Write binary file ---
     FontBinaryHeader hdr{};
-    hdr.magic        = FONT_BINARY_MAGIC;
-    hdr.version      = FONT_BINARY_VERSION;
     hdr.numGlyphs    = static_cast<Uint32>(glyphEntries.size());
     hdr.numKernPairs = static_cast<Uint32>(kernPairs.size());
     hdr.unitsPerEM   = static_cast<Sint32>(face->units_per_EM);
@@ -428,7 +426,7 @@ static bool writeFontBinary(FT_Face face,
         }
     }
 
-    printf("  v2 font: %zu glyphs, %zu kern pairs, %zu line + %zu cubic segs -> %s\n",
+    printf("Font: %zu glyphs, %zu kern pairs, %zu line + %zu cubic segs -> %s\n",
            glyphEntries.size(), kernPairs.size(), lineSegs, cubicSegs,
            outPath.string().c_str());
     return true;
