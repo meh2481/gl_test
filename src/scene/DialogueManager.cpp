@@ -387,11 +387,31 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
     if (lineIndex < 0 || lineIndex >= (int)lines_.size()) return;
     if (!bodyText_) return;
 
-    currentLine_ = lineIndex;
     const DialogueLine& line = lines_[lineIndex];
 
-    // Look up character definition.
+    // Look up character definition (needed for both the early portrait check
+    // and the full line setup below).
     const CharacterDef* charDef = loadCharacter(line.characterId);
+
+    // *** Portrait transition check BEFORE any text setup ***
+    // If the portrait is changing and a crossfade is configured, we enter
+    // TRANSITIONING state immediately — without touching bodyText_ or
+    // speakerText_ — so the OLD line's text keeps showing during the fade.
+    // When the timer expires, update() clears activePortraitTex_ and calls
+    // showLine() again; at that point no transition is triggered and the new
+    // line is set up normally.
+    if (layerManager_ && cfg_.portraitWidth > 0.0f &&
+        cfg_.transitionDuration > 0.0f && activePortraitTex_ != 0) {
+        Uint64 newTex = resolvePortrait(charDef, line.portraitTag);
+        if (newTex != activePortraitTex_) {
+            state_                = STATE_TRANSITIONING;
+            transitionTimer_      = cfg_.transitionDuration;
+            transitionTargetLine_ = lineIndex;
+            return; // text setup deferred until transition completes
+        }
+    }
+
+    currentLine_ = lineIndex;
 
     // Determine reveal speed.
     float speed = line.revealSpeed;
@@ -451,20 +471,7 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
     if (layerManager_ && cfg_.portraitWidth > 0.0f) {
         Uint64 newTex = resolvePortrait(charDef, line.portraitTag);
 
-        bool portraitChanged = (newTex != activePortraitTex_);
-        if (portraitChanged && cfg_.transitionDuration > 0.0f && activePortraitTex_ != 0) {
-            // Begin transition: fade old portrait out, then swap and fade in.
-            // We enter TRANSITIONING state and let update() advance it.
-            state_                = STATE_TRANSITIONING;
-            transitionTimer_      = cfg_.transitionDuration;
-            transitionTargetLine_ = lineIndex;
-            // Store the new texture so update() can pick it up when the timer expires.
-            // We overwrite activePortraitTex_ in update() after the fade.
-            // Keep activePortraitTex_ at the OLD value for now so the fade-out is correct.
-            return; // do not yet set STATE_REVEALING
-        }
-
-        // Apply portrait immediately (no transition needed).
+        // Apply portrait immediately (transition was already handled above).
         activePortraitTex_ = newTex;
         if (newTex != 0 && layerManager_) {
             float px = (line.portraitSide == 0)
@@ -600,13 +607,12 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
         return;
     }
 
-    // Active pause countdown: pass dt=0 so the reveal accumulator and effects
-    // are frozen. (Fades for the most recently-revealed chars are already done
-    // because we waited for them before starting this timer.)
+    // Active pause countdown: use updateFadesOnly so the reveal accumulator is
+    // frozen but wave/shake effects and any remaining fade-ins keep running.
     if (pauseTimer_ > 0.0f) {
         pauseTimer_ -= dt;
         if (pauseTimer_ > 0.0f) {
-            bodyText_->update(0.0f, sceneId); // freeze reveal + effects
+            bodyText_->updateFadesOnly(dt, sceneId); // freeze reveal, keep effects
             return;
         }
         pauseTimer_ = 0.0f; // just expired; fall through to normal reveal
