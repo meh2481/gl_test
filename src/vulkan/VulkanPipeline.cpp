@@ -33,6 +33,10 @@ VulkanPipeline::VulkanPipeline(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_vectorPipelineLayout(VK_NULL_HANDLE),
     m_vectorDescriptorSetLayout(VK_NULL_HANDLE),
     m_vectorDescriptorPool(VK_NULL_HANDLE),
+    m_textPipeline(VK_NULL_HANDLE),
+    m_textPipelineLayout(VK_NULL_HANDLE),
+    m_textDescriptorSetLayout(VK_NULL_HANDLE),
+    m_textDescriptorPool(VK_NULL_HANDLE),
     m_currentPipeline(VK_NULL_HANDLE),
     m_pipelinesToDraw(*smallAllocator, "VulkanPipeline::m_pipelinesToDraw"),
     m_pipelineInfo(*smallAllocator, "VulkanPipeline::m_pipelineInfo"),
@@ -96,6 +100,22 @@ void VulkanPipeline::cleanup() {
     if (m_vectorDescriptorSetLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(m_device, m_vectorDescriptorSetLayout, nullptr);
         m_vectorDescriptorSetLayout = VK_NULL_HANDLE;
+    }
+    if (m_textPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(m_device, m_textPipeline, nullptr);
+        m_textPipeline = VK_NULL_HANDLE;
+    }
+    if (m_textPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(m_device, m_textPipelineLayout, nullptr);
+        m_textPipelineLayout = VK_NULL_HANDLE;
+    }
+    if (m_textDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(m_device, m_textDescriptorPool, nullptr);
+        m_textDescriptorPool = VK_NULL_HANDLE;
+    }
+    if (m_textDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_device, m_textDescriptorSetLayout, nullptr);
+        m_textDescriptorSetLayout = VK_NULL_HANDLE;
     }
     if (m_pipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
@@ -1898,4 +1918,262 @@ void VulkanPipeline::writeVectorDescriptorSet(VkDescriptorSet set,
     writes[1].pBufferInfo     = &segmentInfo;
 
     vkUpdateDescriptorSets(m_device, 2, writes, 0, nullptr);
+}
+
+void VulkanPipeline::createTextPipeline(const ResourceData& vertShader, const ResourceData& fragShader) {
+    if (m_textPipeline != VK_NULL_HANDLE) {
+        return;
+    }
+
+    Vector<char> vertData(*m_allocator, "VulkanPipeline::createTextPipeline::vertData");
+    Vector<char> fragData(*m_allocator, "VulkanPipeline::createTextPipeline::fragData");
+    for (Uint64 i = 0; i < vertShader.size; ++i) vertData.push_back(vertShader.data[i]);
+    for (Uint64 i = 0; i < fragShader.size; ++i) fragData.push_back(fragShader.data[i]);
+
+    VkShaderModule vertShaderModule = createShaderModule(vertData);
+    VkShaderModule fragShaderModule = createShaderModule(fragData);
+
+    VkPipelineShaderStageCreateInfo vertStageInfo{};
+    vertStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertStageInfo.stage  = VK_SHADER_STAGE_VERTEX_BIT;
+    vertStageInfo.module = vertShaderModule;
+    vertStageInfo.pName  = "main";
+
+    VkPipelineShaderStageCreateInfo fragStageInfo{};
+    fragStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragStageInfo.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragStageInfo.module = fragShaderModule;
+    fragStageInfo.pName  = "main";
+
+    VkPipelineShaderStageCreateInfo shaderStages[] = { vertStageInfo, fragStageInfo };
+
+    // Vertex format: 11 floats per vertex (44 bytes)
+    //   location 0: vec2  pos       (offset  0)  world-space quad corner
+    //   location 1: vec2  localPos  (offset  8)  shape-local position for SDF
+    //   location 2: float glyphIdx  (offset 16)  glyph descriptor index
+    //   location 3: vec4  color     (offset 20)  r,g,b,a
+    //   location 4: vec2  offset    (offset 36)  per-char effect offsets
+    static const Uint32 STRIDE = 11 * sizeof(float);
+
+    VkVertexInputBindingDescription binding{};
+    binding.binding   = 0;
+    binding.stride    = STRIDE;
+    binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription attrs[5]{};
+    attrs[0].location = 0; attrs[0].binding = 0; attrs[0].format = VK_FORMAT_R32G32_SFLOAT;       attrs[0].offset =  0;
+    attrs[1].location = 1; attrs[1].binding = 0; attrs[1].format = VK_FORMAT_R32G32_SFLOAT;       attrs[1].offset =  8;
+    attrs[2].location = 2; attrs[2].binding = 0; attrs[2].format = VK_FORMAT_R32_SFLOAT;          attrs[2].offset = 16;
+    attrs[3].location = 3; attrs[3].binding = 0; attrs[3].format = VK_FORMAT_R32G32B32A32_SFLOAT; attrs[3].offset = 20;
+    attrs[4].location = 4; attrs[4].binding = 0; attrs[4].format = VK_FORMAT_R32G32_SFLOAT;       attrs[4].offset = 36;
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount   = 1;
+    vertexInputInfo.pVertexBindingDescriptions      = &binding;
+    vertexInputInfo.vertexAttributeDescriptionCount = 5;
+    vertexInputInfo.pVertexAttributeDescriptions    = attrs;
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType    = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkViewport viewport{};
+    viewport.width    = (float)m_swapchainExtent.width;
+    viewport.height   = (float)m_swapchainExtent.height;
+    viewport.maxDepth = 1.0f;
+
+    VkRect2D scissor{};
+    scissor.extent = m_swapchainExtent;
+
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.pViewports    = &viewport;
+    viewportState.scissorCount  = 1;
+    viewportState.pScissors     = &scissor;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType       = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth   = 1.0f;
+    rasterizer.cullMode    = VK_CULL_MODE_NONE;
+    rasterizer.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.rasterizationSamples = m_msaaSamples;
+
+    VkPipelineColorBlendAttachmentState blendAttachment{};
+    blendAttachment.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    blendAttachment.blendEnable         = VK_TRUE;
+    blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    blendAttachment.colorBlendOp        = VK_BLEND_OP_ADD;
+    blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blendAttachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments    = &blendAttachment;
+
+    // Push constants: 6 floats (width, height, time, cameraX, cameraY, cameraZoom)
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset     = 0;
+    pushConstantRange.size       = sizeof(float) * 6;
+
+    // Descriptor set layout: 3 SSBOs
+    //   binding 0: GlyphDescBuffer   (per-string glyph descriptors)
+    //   binding 1: TextContourBuffer  (per-string flat contour array)
+    //   binding 2: TextSegmentBuffer  (per-string flat segment array)
+    VkDescriptorSetLayoutBinding ssbos[3]{};
+    for (int bi = 0; bi < 3; ++bi) {
+        ssbos[bi].binding         = (Uint32)bi;
+        ssbos[bi].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        ssbos[bi].descriptorCount = 1;
+        ssbos[bi].stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+
+    VkDescriptorSetLayoutCreateInfo dsLayoutInfo{};
+    dsLayoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    dsLayoutInfo.bindingCount = 3;
+    dsLayoutInfo.pBindings    = ssbos;
+    {
+        VkResult r = vkCreateDescriptorSetLayout(m_device, &dsLayoutInfo, nullptr, &m_textDescriptorSetLayout);
+        if (r != VK_SUCCESS) {
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+                "vkCreateDescriptorSetLayout (text) failed: %s", vkResultToString(r));
+            assert(false);
+        }
+    }
+
+    // Descriptor pool: allow for many text layers (e.g. 512 strings on screen).
+    static const Uint32 MAX_TEXT_LAYERS = 512;
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSize.descriptorCount = MAX_TEXT_LAYERS * 3; // 3 SSBOs per text layer
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes    = &poolSize;
+    poolInfo.maxSets       = MAX_TEXT_LAYERS;
+    {
+        VkResult r = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_textDescriptorPool);
+        if (r != VK_SUCCESS) {
+            m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+                "vkCreateDescriptorPool (text) failed: %s", vkResultToString(r));
+            assert(false);
+        }
+    }
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges    = &pushConstantRange;
+    pipelineLayoutInfo.setLayoutCount         = 1;
+    pipelineLayoutInfo.pSetLayouts            = &m_textDescriptorSetLayout;
+
+    VkResult result = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_textPipelineLayout);
+    if (result != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "vkCreatePipelineLayout (text) failed: %s", vkResultToString(result));
+        assert(false);
+    }
+
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount          = 2;
+    pipelineInfo.pStages             = shaderStages;
+    pipelineInfo.pVertexInputState   = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState      = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState   = &multisampling;
+    pipelineInfo.pColorBlendState    = &colorBlending;
+    pipelineInfo.layout              = m_textPipelineLayout;
+    pipelineInfo.renderPass          = m_renderPass;
+    pipelineInfo.subpass             = 0;
+    pipelineInfo.basePipelineHandle  = VK_NULL_HANDLE;
+
+    result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_textPipeline);
+    if (result != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "vkCreateGraphicsPipelines (text) failed: %s", vkResultToString(result));
+        assert(false);
+    }
+
+    vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
+    vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
+
+    m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Created text SDF pipeline (M8)");
+}
+
+VkDescriptorSet VulkanPipeline::allocateTextDescriptorSet() {
+    assert(m_textDescriptorPool != VK_NULL_HANDLE);
+    assert(m_textDescriptorSetLayout != VK_NULL_HANDLE);
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool     = m_textDescriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts        = &m_textDescriptorSetLayout;
+
+    VkDescriptorSet set = VK_NULL_HANDLE;
+    VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, &set);
+    if (result != VK_SUCCESS) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "vkAllocateDescriptorSets (text) failed: %s", vkResultToString(result));
+        assert(false);
+    }
+    return set;
+}
+
+void VulkanPipeline::writeTextDescriptorSet(VkDescriptorSet set,
+                                             VkBuffer glyphDescBuf, VkDeviceSize glyphDescSize,
+                                             VkBuffer contourBuf,   VkDeviceSize contourSize,
+                                             VkBuffer segmentBuf,   VkDeviceSize segmentSize)
+{
+    VkDescriptorBufferInfo glyphDescInfo{};
+    glyphDescInfo.buffer = glyphDescBuf;
+    glyphDescInfo.offset = 0;
+    glyphDescInfo.range  = glyphDescSize;
+
+    VkDescriptorBufferInfo contourInfo{};
+    contourInfo.buffer = contourBuf;
+    contourInfo.offset = 0;
+    contourInfo.range  = contourSize;
+
+    VkDescriptorBufferInfo segmentInfo{};
+    segmentInfo.buffer = segmentBuf;
+    segmentInfo.offset = 0;
+    segmentInfo.range  = segmentSize;
+
+    VkWriteDescriptorSet writes[3]{};
+    writes[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet          = set;
+    writes[0].dstBinding      = 0;
+    writes[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[0].descriptorCount = 1;
+    writes[0].pBufferInfo     = &glyphDescInfo;
+
+    writes[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet          = set;
+    writes[1].dstBinding      = 1;
+    writes[1].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[1].descriptorCount = 1;
+    writes[1].pBufferInfo     = &contourInfo;
+
+    writes[2].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[2].dstSet          = set;
+    writes[2].dstBinding      = 2;
+    writes[2].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[2].descriptorCount = 1;
+    writes[2].pBufferInfo     = &segmentInfo;
+
+    vkUpdateDescriptorSets(m_device, 3, writes, 0, nullptr);
 }

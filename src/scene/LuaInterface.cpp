@@ -964,6 +964,7 @@ void LuaInterface::switchToScenePipeline(Uint64 sceneId) {
         consoleBuffer_->log(SDL_LOG_PRIORITY_VERBOSE, "LuaInterface::switchToScenePipeline: set %zu pipelines", pipelineIds.size());
     }
     renderer_.setActiveVectorSceneId(sceneId);
+    renderer_.setActiveTextSceneId(sceneId);
 }
 
 void LuaInterface::clearScenePipelines(Uint64 sceneId) {
@@ -5019,6 +5020,24 @@ int LuaInterface::loadFont(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
+
+    // Lazily create the text pipeline on first font load (M8).
+    static const char* TEXT_VERT = "res/shaders/text_vertex.spv";
+    static const char* TEXT_FRAG = "res/shaders/text_fragment.spv";
+    Uint64 textVertId = hashCString(TEXT_VERT);
+    Uint64 textFragId = hashCString(TEXT_FRAG);
+    iface->pakResource_.requestResourceAsync(textVertId);
+    iface->pakResource_.requestResourceAsync(textFragId);
+    ResourceData textVertShader{nullptr, 0, 0};
+    ResourceData textFragShader{nullptr, 0, 0};
+    bool haveTextVert = iface->pakResource_.tryGetResource(textVertId, textVertShader);
+    bool haveTextFrag = iface->pakResource_.tryGetResource(textFragId, textFragShader);
+    if (haveTextVert && haveTextFrag) {
+        iface->renderer_.createTextPipeline(textVertShader, textFragShader);
+    } else {
+        iface->consoleBuffer_->log(SDL_LOG_PRIORITY_WARN,
+            "loadFont: text shaders not yet available, text pipeline creation deferred");
+    }
 
     const char* path = luaL_checkstring(L, 1);
     int handle = iface->fontManager_->loadFont(iface->pakResource_, path);

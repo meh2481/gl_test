@@ -29,15 +29,15 @@ struct MarkupSpan {
     int          fontHandle; // for MARKUP_EFFECT_FONT; 0 otherwise
 };
 
-// TextLayer owns a laid-out string and one VectorLayer per glyph.
+// TextLayer owns a laid-out string and one batched GPU draw call (M8 text pipeline).
 // It supports typewriter reveal, per-character effects, and markup tags.
 //
 // Lifecycle:
 //   createTextLayer → setString (triggers rebuild) → update each frame
 //   destroyTextLayer → destroyGlyphLayers + free
 //
-// Rebuild must be called with the active sceneId so newly created VectorLayers
-// are associated with the correct scene (for automatic cleanup).
+// Rebuild must be called with the active sceneId so the GPU resources are
+// associated with the correct scene (for automatic cleanup).
 class TextLayer {
 public:
     TextLayer(MemoryAllocator* allocator,
@@ -64,7 +64,7 @@ public:
     void setShadow(float dx, float dy, float r, float g, float b, float a);
     void clearShadow();
 
-    // Set the string (parses markup, runs layout, rebuilds VectorLayers).
+    // Set the string (parses markup, runs layout, uploads GPU resources).
     // Must be called with the active sceneId.
     void setString(const char* text, Uint64 sceneId);
 
@@ -76,41 +76,57 @@ public:
     void setOnRevealComplete(lua_State* L, int funcRef);
     void setOnCharRevealed(lua_State* L, int funcRef);
 
-    // --- Per-frame update (advance reveal, apply effects) ---
+    // --- Per-frame update (advance reveal, apply effects, upload vertex data) ---
     void update(float dt, Uint64 sceneId);
 
-    // Destroy all owned VectorLayers.  Call before scene cleanup if you want
-    // explicit teardown; the scene cleanup will also wipe them via
-    // renderer_.clearVectorLayersForScene.
+    // Destroy all owned GPU resources.  Call before scene cleanup for explicit
+    // teardown; scene cleanup also wipes them via renderer_.clearTextLayersForScene.
     void destroyGlyphLayers();
 
-    // Rebuild VectorLayers from current params.  Called internally by setString.
+    // Rebuild GPU resources from current params.  Called internally by setString.
     void rebuild(Uint64 sceneId);
 
     // Parsed markup spans (built by setString).
-    int           getSpanCount() const { return (int)spans_.size(); }
+    int               getSpanCount() const { return (int)spans_.size(); }
     const MarkupSpan& getSpan(int i) const { return spans_[i]; }
 
     int getTotalChars() const { return totalChars_; }
     int getRevealCount() const { return revealCount_; }
 
 private:
-    // Per-glyph runtime state
+    // Per-glyph runtime state (M8: no per-glyph VectorLayer IDs)
     struct GlyphLayerInfo {
-        int   vectorLayerId;        // -1 if glyph has no outline (space, etc.)
-        int   shadowVectorLayerId;  // -1 if no shadow or no outline; M8
         float baseX, baseY;   // layout position (before effects)
         float baseR, baseG, baseB, baseA;  // base colour
         float revealTimer;    // 0..FADE_IN_TIME during fade-in, <0 = not yet revealed
         int   charIndex;      // position in the plain text (for markup range checks)
         bool  revealed;
+        bool  hasOutline;     // false for space, newline, or glyphs with no SDF blob
+
+        // M8 text-pipeline fields (valid only when hasOutline)
+        int   sdfGlyphIdx;    // index in GlyphDesc SSBO / vertex buffer (-1 if !hasOutline)
+        float bboxMinX, bboxMinY, bboxMaxX, bboxMaxY;  // shape-local bbox from SdfShapeHeader
+        float glyphScale;     // = layerScale * unitsPerEM (world units per shape-local unit)
     };
 
-    // Parse markup from raw text; fills plains_ and spans_.
+    // Parse markup from raw text; fills plainText_ and spans_.
     void parseMarkup(const char* raw);
 
     void applyEffects(float dt);
     void updateReveal(float dt, Uint64 sceneId);
+
+    // Helpers that write into / update cpuVertices_.
+    // vertIdx is the index of the first of 6 vertices for this glyph (in units of 11 floats).
+    static void writeGlyphQuad(float* buf, int vertStartIdx, int glyphDescIdx,
+                               float worldOriginX, float worldOriginY,
+                               float bboxMinX, float bboxMinY,
+                               float bboxMaxX, float bboxMaxY,
+                               float glyphScale,
+                               float r, float g, float b, float a);
+    static void updateGlyphQuadColor(float* buf, int vertStartIdx,
+                                     float r, float g, float b, float a);
+    static void updateGlyphQuadOffset(float* buf, int vertStartIdx,
+                                      float xOff, float yOff);
 
     MemoryAllocator* allocator_;
     FontManager*     fontManager_;
@@ -137,7 +153,7 @@ private:
 
     // Owned copy of the plain (markup-stripped) text.
     char*  plainText_;
-    Uint64 sceneId_;   // scene this layer belongs to (for createVectorLayer)
+    Uint64 sceneId_;   // scene this layer belongs to
 
     float  revealSpeed_;    // chars/s (0 = instant)
     float  revealAccum_;    // fractional accumulator
@@ -150,9 +166,17 @@ private:
     Vector<GlyphLayerInfo> glyphLayers_;
     Vector<MarkupSpan>     spans_;
 
+    // M8 GPU resources
+    int              textLayerGpuId_;   // -1 if no GPU resources exist
+    int              numSdfGlyphs_;     // SDF glyph count (outline glyphs only)
+    int              totalSdfVertices_; // numSdfGlyphs_ * 6 * (shadow ? 2 : 1)
+    int              mainVertOffset_;   // start index (in glyphs) of main quads in vertex buf
+    Vector<float>    cpuVertices_;      // CPU copy of the vertex buffer (11 floats/vertex)
+    bool             verticesDirty_;    // true when cpuVertices_ has unsent changes
+
     lua_State* lua_;
     int  onRevealCompleteRef_;
     int  onCharRevealedRef_;
 
-    static const float FADE_IN_TIME;  // seconds for per-char fade-in (0 = instant)
+    static const float FADE_IN_TIME;  // seconds for per-char fade-in
 };

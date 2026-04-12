@@ -30,6 +30,7 @@ public:
 
     void createFadePipeline(const ResourceData& vertShader, const ResourceData& fragShader);
     void createVectorPipeline(const ResourceData& vertShader, const ResourceData& fragShader);
+    void createTextPipeline(const ResourceData& vertShader, const ResourceData& fragShader);
     void setShaders(const ResourceData& vertShader, const ResourceData& fragShader);
     void createPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, bool isDebugPipeline = false);
     void createTexturedPipeline(Uint64 id, const ResourceData& vertShader, const ResourceData& fragShader, Uint32 numTextures = 1);
@@ -61,6 +62,25 @@ public:
     void destroyVectorLayer(int layerId);
     void setActiveVectorSceneId(Uint64 sceneId);
     void clearVectorLayersForScene(Uint64 sceneId);
+
+    // Text layer GPU management (M8 — batched GPU text rendering).
+    // Creates GPU resources for one TextLayer string.  vertexData contains
+    // totalVertices * 11 floats; glyphDescData is 4 uint32s per SDF glyph;
+    // contourData / segmentData are the per-string flat SDF arrays.
+    // Returns a non-negative textLayerGpuId on success.
+    int  createTextLayerGpu(Uint64 sceneId,
+                            const float*    vertexData,    int totalVertices,
+                            const void*     glyphDescData, VkDeviceSize glyphDescSize,
+                            const void*     contourData,   VkDeviceSize contourSize,
+                            const void*     segmentData,   VkDeviceSize segmentSize);
+    // Upload fresh vertex data to a previously created text layer GPU object.
+    void updateTextLayerVertices(int gpuId, const float* data, int totalVertices);
+    // Destroy all GPU resources for a text layer.
+    void destroyTextLayerGpu(int gpuId);
+    // Clear all text layer GPU objects associated with a scene.
+    void clearTextLayersForScene(Uint64 sceneId);
+    // Set which scene's text layers are drawn this frame.
+    void setActiveTextSceneId(Uint64 sceneId);
     void setPipelineParallaxDepth(int pipelineId, float depth);
     void markPipelineAsWater(int pipelineId);
     void setWaterRipples(int pipelineId, int rippleCount, const ShaderRippleData* ripples);
@@ -210,6 +230,28 @@ private:
     HashTable<int, VectorLayerEntry> m_vectorLayers;
     int m_nextVectorLayerId;
     Uint64 m_activeVectorSceneId;
+
+    // Batched GPU text rendering (M8)
+    struct TextLayerGPUData {
+        VkBuffer        vertexBuffer;
+        VkDeviceMemory  vertexMemory;
+        VkDeviceSize    vertexBufferSize;   // allocated capacity in bytes
+        VkBuffer        glyphDescBuffer;
+        VkDeviceMemory  glyphDescMemory;
+        VkDeviceSize    glyphDescSize;
+        VkBuffer        contourBuffer;
+        VkDeviceMemory  contourMemory;
+        VkDeviceSize    contourSize;
+        VkBuffer        segmentBuffer;
+        VkDeviceMemory  segmentMemory;
+        VkDeviceSize    segmentSize;
+        VkDescriptorSet descriptorSet;
+        int             totalVertices;
+        Uint64          sceneId;
+    };
+    HashTable<int, TextLayerGPUData> m_textLayers;
+    int    m_nextTextLayerId;
+    Uint64 m_activeTextSceneId;
 
     // Camera transform
     float m_cameraOffsetX;

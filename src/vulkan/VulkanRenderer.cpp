@@ -99,6 +99,9 @@ VulkanRenderer::VulkanRenderer(MemoryAllocator* smallAllocator, MemoryAllocator*
     m_vectorLayers(*smallAllocator, "VulkanRenderer::m_vectorLayers"),
     m_nextVectorLayerId(1),
     m_activeVectorSceneId(0),
+    m_textLayers(*smallAllocator, "VulkanRenderer::m_textLayers"),
+    m_nextTextLayerId(1),
+    m_activeTextSceneId(0),
     m_cameraOffsetX(0.0f),
     m_cameraOffsetY(0.0f),
     m_cameraZoom(1.0f),
@@ -247,6 +250,10 @@ void VulkanRenderer::createFadePipeline(const ResourceData& vertShader, const Re
 
 void VulkanRenderer::createVectorPipeline(const ResourceData& vertShader, const ResourceData& fragShader) {
     m_pipelineManager.createVectorPipeline(vertShader, fragShader);
+}
+
+void VulkanRenderer::createTextPipeline(const ResourceData& vertShader, const ResourceData& fragShader) {
+    m_pipelineManager.createTextPipeline(vertShader, fragShader);
 }
 
 void VulkanRenderer::setCurrentPipeline(Uint64 id) {
@@ -1671,6 +1678,151 @@ void VulkanRenderer::destroyVectorLayer(int layerId) {
     m_vectorLayers.remove(layerId);
 }
 
+// ============================================================================
+// Text layer GPU management (M8)
+// ============================================================================
+
+int VulkanRenderer::createTextLayerGpu(Uint64 sceneId,
+                                        const float*    vertexData,    int totalVertices,
+                                        const void*     glyphDescData, VkDeviceSize glyphDescSize,
+                                        const void*     contourData,   VkDeviceSize contourSize,
+                                        const void*     segmentData,   VkDeviceSize segmentSize)
+{
+    if (m_pipelineManager.getTextPipeline() == VK_NULL_HANDLE) {
+        m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR,
+            "createTextLayerGpu: text pipeline not yet created");
+        return -1;
+    }
+
+    TextLayerGPUData tl{};
+    tl.sceneId      = sceneId;
+    tl.totalVertices = totalVertices;
+
+    // ---- vertex buffer (host-visible for per-frame updates) ----
+    tl.vertexBufferSize = (VkDeviceSize)totalVertices * 11 * sizeof(float);
+    if (tl.vertexBufferSize == 0) tl.vertexBufferSize = 4; // avoid zero-size allocation
+    m_bufferManager.createBuffer(tl.vertexBufferSize,
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        tl.vertexBuffer, tl.vertexMemory);
+    if (vertexData && totalVertices > 0) {
+        void* mapped = nullptr;
+        vkMapMemory(m_device, tl.vertexMemory, 0, tl.vertexBufferSize, 0, &mapped);
+        memcpy(mapped, vertexData, (size_t)tl.vertexBufferSize);
+        vkUnmapMemory(m_device, tl.vertexMemory);
+    }
+
+    // ---- glyph descriptor SSBO ----
+    tl.glyphDescSize = glyphDescSize > 0 ? glyphDescSize : 4;
+    m_bufferManager.createBuffer(tl.glyphDescSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        tl.glyphDescBuffer, tl.glyphDescMemory);
+    if (glyphDescData && glyphDescSize > 0) {
+        void* mapped = nullptr;
+        vkMapMemory(m_device, tl.glyphDescMemory, 0, tl.glyphDescSize, 0, &mapped);
+        memcpy(mapped, glyphDescData, (size_t)glyphDescSize);
+        vkUnmapMemory(m_device, tl.glyphDescMemory);
+    }
+
+    // ---- per-string flat contour SSBO ----
+    tl.contourSize = contourSize > 0 ? contourSize : 4;
+    m_bufferManager.createBuffer(tl.contourSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        tl.contourBuffer, tl.contourMemory);
+    if (contourData && contourSize > 0) {
+        void* mapped = nullptr;
+        vkMapMemory(m_device, tl.contourMemory, 0, tl.contourSize, 0, &mapped);
+        memcpy(mapped, contourData, (size_t)contourSize);
+        vkUnmapMemory(m_device, tl.contourMemory);
+    }
+
+    // ---- per-string flat segment SSBO ----
+    tl.segmentSize = segmentSize > 0 ? segmentSize : 4;
+    m_bufferManager.createBuffer(tl.segmentSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        tl.segmentBuffer, tl.segmentMemory);
+    if (segmentData && segmentSize > 0) {
+        void* mapped = nullptr;
+        vkMapMemory(m_device, tl.segmentMemory, 0, tl.segmentSize, 0, &mapped);
+        memcpy(mapped, segmentData, (size_t)segmentSize);
+        vkUnmapMemory(m_device, tl.segmentMemory);
+    }
+
+    // ---- descriptor set ----
+    tl.descriptorSet = m_pipelineManager.allocateTextDescriptorSet();
+    m_pipelineManager.writeTextDescriptorSet(tl.descriptorSet,
+        tl.glyphDescBuffer, tl.glyphDescSize,
+        tl.contourBuffer,   tl.contourSize,
+        tl.segmentBuffer,   tl.segmentSize);
+
+    int id = m_nextTextLayerId++;
+    m_textLayers.insert(id, tl);
+    return id;
+}
+
+void VulkanRenderer::updateTextLayerVertices(int gpuId, const float* data, int totalVertices) {
+    TextLayerGPUData* tl = m_textLayers.find(gpuId);
+    if (!tl) return;
+
+    VkDeviceSize needed = (VkDeviceSize)totalVertices * 11 * sizeof(float);
+    if (needed == 0) needed = 4;
+
+    if (needed > tl->vertexBufferSize) {
+        // Buffer too small — destroy old and reallocate.
+        vkDeviceWaitIdle(m_device);
+        vkDestroyBuffer(m_device, tl->vertexBuffer, nullptr);
+        vkFreeMemory(m_device, tl->vertexMemory, nullptr);
+        tl->vertexBufferSize = needed;
+        m_bufferManager.createBuffer(tl->vertexBufferSize,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            tl->vertexBuffer, tl->vertexMemory);
+    }
+
+    tl->totalVertices = totalVertices;
+    if (data && totalVertices > 0) {
+        void* mapped = nullptr;
+        vkMapMemory(m_device, tl->vertexMemory, 0, needed, 0, &mapped);
+        memcpy(mapped, data, (size_t)needed);
+        vkUnmapMemory(m_device, tl->vertexMemory);
+    }
+}
+
+void VulkanRenderer::destroyTextLayerGpu(int gpuId) {
+    TextLayerGPUData* tl = m_textLayers.find(gpuId);
+    if (!tl) return;
+
+    vkDeviceWaitIdle(m_device);
+    if (tl->vertexBuffer  != VK_NULL_HANDLE) { vkDestroyBuffer(m_device, tl->vertexBuffer,  nullptr); }
+    if (tl->vertexMemory  != VK_NULL_HANDLE) { vkFreeMemory   (m_device, tl->vertexMemory,  nullptr); }
+    if (tl->glyphDescBuffer != VK_NULL_HANDLE) { vkDestroyBuffer(m_device, tl->glyphDescBuffer, nullptr); }
+    if (tl->glyphDescMemory != VK_NULL_HANDLE) { vkFreeMemory   (m_device, tl->glyphDescMemory, nullptr); }
+    if (tl->contourBuffer != VK_NULL_HANDLE) { vkDestroyBuffer(m_device, tl->contourBuffer, nullptr); }
+    if (tl->contourMemory != VK_NULL_HANDLE) { vkFreeMemory   (m_device, tl->contourMemory, nullptr); }
+    if (tl->segmentBuffer != VK_NULL_HANDLE) { vkDestroyBuffer(m_device, tl->segmentBuffer, nullptr); }
+    if (tl->segmentMemory != VK_NULL_HANDLE) { vkFreeMemory   (m_device, tl->segmentMemory, nullptr); }
+    m_textLayers.remove(gpuId);
+}
+
+void VulkanRenderer::clearTextLayersForScene(Uint64 sceneId) {
+    Vector<int> toRemove(*m_allocator, "VulkanRenderer::clearTextLayersForScene::toRemove");
+    for (auto it = m_textLayers.begin(); it != m_textLayers.end(); ++it) {
+        if (it.value().sceneId == sceneId) {
+            toRemove.push_back(it.key());
+        }
+    }
+    for (int id : toRemove) {
+        destroyTextLayerGpu(id);
+    }
+}
+
+void VulkanRenderer::setActiveTextSceneId(Uint64 sceneId) {
+    m_activeTextSceneId = sceneId;
+}
+
 void VulkanRenderer::loadAtlasTexture(Uint64 atlasId, const ResourceData& atlasData) {
     m_textureManager.loadAtlasTexture(atlasId, atlasData);
     // Create descriptor set for the atlas
@@ -2455,6 +2607,56 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
             for (Uint64 di = 0; di < m_vectorDrawCalls.size(); ++di) {
                 const VectorDrawCall& dc = m_vectorDrawCalls[di];
                 drawShape(dc.shapeId, dc.x, dc.y, dc.scale, dc.r, dc.g, dc.b, dc.a);
+            }
+        }
+    }
+
+    // Phase 2.75: Draw text layers (M8 — batched GPU text rendering)
+    INSERT_CHECKPOINT(commandBuffer, "phase2_75_text");
+    {
+        bool anyText = !m_textLayers.empty()
+                       && m_pipelineManager.getTextPipeline() != VK_NULL_HANDLE;
+        if (anyText) {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              m_pipelineManager.getTextPipeline());
+
+            float textPC[6] = {
+                static_cast<float>(m_swapchainExtent.width),
+                static_cast<float>(m_swapchainExtent.height),
+                time,
+                m_cameraOffsetX,
+                m_cameraOffsetY,
+                m_cameraZoom
+            };
+            vkCmdPushConstants(commandBuffer,
+                               m_pipelineManager.getTextPipelineLayout(),
+                               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                               0, sizeof(textPC), textPC);
+
+            // Draw text layers in ascending ID order to preserve creation order
+            // (shadow layers always have lower IDs than their corresponding main layers).
+            Vector<int> sortedTextLayerIds(*m_allocator,
+                "VulkanRenderer::recordCommandBuffer::sortedTextLayerIds");
+            sortedTextLayerIds.reserve(m_textLayers.size());
+            for (auto it = m_textLayers.begin(); it != m_textLayers.end(); ++it) {
+                if (it.value().sceneId == m_activeTextSceneId &&
+                    it.value().totalVertices > 0) {
+                    sortedTextLayerIds.push_back(it.key());
+                }
+            }
+            sortedTextLayerIds.sort([](const int& a, const int& b) { return a < b; });
+
+            for (Uint64 ti = 0; ti < sortedTextLayerIds.size(); ++ti) {
+                const TextLayerGPUData* tl = m_textLayers.find(sortedTextLayerIds[ti]);
+                if (!tl) continue;
+
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        m_pipelineManager.getTextPipelineLayout(),
+                                        0, 1, &tl->descriptorSet, 0, nullptr);
+                VkBuffer vbuf = tl->vertexBuffer;
+                VkDeviceSize voff = 0;
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vbuf, &voff);
+                vkCmdDraw(commandBuffer, (Uint32)tl->totalVertices, 1, 0, 0);
             }
         }
     }

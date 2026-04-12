@@ -50,6 +50,12 @@ public:
     // Returns 0 if the glyph has no outline or the handle is invalid.
     Uint64 getGlyphShapeId(int handle, Uint32 glyphIndex) const;
 
+    // Return a pointer to the raw SDF blob (SdfShapeHeader + contours + segments)
+    // for the glyph identified by glyphIndex.  *outSize is set to the blob byte length.
+    // Returns nullptr if the glyph has no outline, the handle is invalid, or the
+    // glyph is not found.  The pointer is valid as long as the font remains loaded.
+    const char* getGlyphSdfData(int handle, Uint32 glyphIndex, Uint32* outSize) const;
+
     bool isValid(int handle) const;
 
     // Destroy all loaded fonts and their GPU resources.

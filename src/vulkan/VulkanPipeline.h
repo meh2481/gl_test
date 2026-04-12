@@ -75,6 +75,19 @@ public:
     void writeVectorDescriptorSet(VkDescriptorSet set, VkBuffer contourBuf, VkDeviceSize contourSize,
                                   VkBuffer segmentBuf, VkDeviceSize segmentSize);
 
+    // Text pipeline (M8 — batched GPU text rendering).
+    // Vertex format: 11 floats per vertex (pos, localPos, glyphIdx, color, offset).
+    // Descriptor set layout: 3 SSBOs — glyph descriptors, flat contours, flat segments.
+    // Push constants: 6 floats (width, height, time, cameraX, cameraY, cameraZoom).
+    void createTextPipeline(const ResourceData& vertShader, const ResourceData& fragShader);
+    VkDescriptorSet allocateTextDescriptorSet();
+    void writeTextDescriptorSet(VkDescriptorSet set,
+                                VkBuffer glyphDescBuf, VkDeviceSize glyphDescSize,
+                                VkBuffer contourBuf,   VkDeviceSize contourSize,
+                                VkBuffer segmentBuf,   VkDeviceSize segmentSize);
+    VkPipeline       getTextPipeline()       const { return m_textPipeline; }
+    VkPipelineLayout getTextPipelineLayout() const { return m_textPipelineLayout; }
+
     // Pipeline access
     VkPipeline getPipeline(Uint64 id) const;
     VkPipeline getDebugLinePipeline() const { return m_debugLinePipeline; }
@@ -143,6 +156,10 @@ private:
     VkPipelineLayout m_vectorPipelineLayout;
     VkDescriptorSetLayout m_vectorDescriptorSetLayout;
     VkDescriptorPool m_vectorDescriptorPool;
+    VkPipeline m_textPipeline;
+    VkPipelineLayout m_textPipelineLayout;
+    VkDescriptorSetLayout m_textDescriptorSetLayout;
+    VkDescriptorPool m_textDescriptorPool;
     VkPipeline m_currentPipeline;
     Vector<Uint64> m_pipelinesToDraw;
 

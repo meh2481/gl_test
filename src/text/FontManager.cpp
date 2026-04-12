@@ -239,6 +239,25 @@ Uint64 FontManager::getGlyphShapeId(int handle, Uint32 glyphIndex) const {
     return 0;
 }
 
+const char* FontManager::getGlyphSdfData(int handle, Uint32 glyphIndex, Uint32* outSize) const {
+    assert(outSize != nullptr);
+    *outSize = 0;
+
+    const LoadedFont* const* ptr = fonts_.find(handle);
+    if (ptr == nullptr) return nullptr;
+    const LoadedFont* font = *ptr;
+
+    for (Uint32 i = 0; i < font->header.numGlyphs; i++) {
+        if (font->glyphs[i].glyphIndex == glyphIndex) {
+            const FontGlyphEntry& ge = font->glyphs[i];
+            if (ge.sdfSize == 0) return nullptr;
+            *outSize = ge.sdfSize;
+            return font->sdfSection + ge.sdfOffset;
+        }
+    }
+    return nullptr;
+}
+
 bool FontManager::isValid(int handle) const {
     return fonts_.find(handle) != nullptr;
 }
