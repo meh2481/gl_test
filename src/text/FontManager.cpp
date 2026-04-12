@@ -164,6 +164,20 @@ int FontManager::loadFont(PakResource& pakResource, const char* resourcePath) {
     assert(resourcePath != nullptr);
 
     Uint64 resourceId = hashCString(resourcePath);
+
+    // If this resource is already loaded, bump ref-count and reuse handle.
+    for (auto it = fonts_.begin(); it != fonts_.end(); ++it) {
+        LoadedFont* existing = it.value();
+        assert(existing != nullptr);
+        if (existing->resourceId == resourceId) {
+            existing->refCount++;
+            console_->log(SDL_LOG_PRIORITY_VERBOSE,
+                "FontManager: reused %s handle=%d refCount=%u",
+                resourcePath, it.key(), existing->refCount);
+            return it.key();
+        }
+    }
+
     ResourceData rd{};
     if (!pakResource.tryGetResource(resourceId, rd)) {
         console_->log(SDL_LOG_PRIORITY_ERROR,
@@ -349,6 +363,8 @@ int FontManager::loadFont(PakResource& pakResource, const char* resourcePath) {
     assert(font != nullptr);
     new (font) LoadedFont();
 
+    font->resourceId    = resourceId;
+    font->refCount      = 1;
     font->header        = *hdr;
     font->glyphs        = glyphs;
     font->kernPairs     = kernPairs;
@@ -362,8 +378,8 @@ int FontManager::loadFont(PakResource& pakResource, const char* resourcePath) {
     fonts_.insert(handle, font);
 
     console_->log(SDL_LOG_PRIORITY_VERBOSE,
-        "FontManager: loaded %s handle=%d glyphs=%u kern=%u",
-        resourcePath, handle, hdr->numGlyphs, hdr->numKernPairs);
+        "FontManager: loaded %s handle=%d glyphs=%u kern=%u refCount=%u",
+        resourcePath, handle, hdr->numGlyphs, hdr->numKernPairs, font->refCount);
 
     return handle;
 }
@@ -373,6 +389,15 @@ void FontManager::unloadFont(int handle) {
     if (ptr == nullptr) return;
     LoadedFont* font = *ptr;
     assert(font != nullptr);
+
+    if (font->refCount > 1) {
+        font->refCount--;
+        console_->log(SDL_LOG_PRIORITY_VERBOSE,
+            "FontManager: decremented handle=%d refCount=%u",
+            handle, font->refCount);
+        return;
+    }
+
     destroyFont(font);
     fonts_.remove(handle);
 }

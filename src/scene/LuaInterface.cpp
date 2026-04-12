@@ -896,6 +896,13 @@ void LuaInterface::cleanupScene(Uint64 sceneId) {
     clearTextLayers();
     clearDialogueBoxes();
 
+    // Fonts are typically scene-scoped Lua resources.
+    // Ensure all loaded font data is released when the scene is torn down,
+    // otherwise repeated enter/exit cycles accumulate FontManager allocations.
+    if (fontManager_) {
+        fontManager_->clear();
+    }
+
     // Destroy all vector layers created by this scene
     renderer_.clearVectorLayersForScene(sceneId);
 

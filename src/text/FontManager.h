@@ -63,6 +63,8 @@ public:
 
 private:
     struct LoadedFont {
+        Uint64 resourceId;
+        Uint32 refCount;
         FontBinaryHeader header;
         // Pointers into decoded glyph/kern arrays (owned, allocated with allocator_).
         FontGlyphEntry* glyphs;      // decoded glyph entries (numGlyphs elements, indexed by glyphIndex)
