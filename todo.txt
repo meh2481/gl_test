@@ -20,4 +20,3 @@
 * Add dialogue backgrounds - different per character
 * Add drop shadow text option to dialogue
 * Add support for underline text
-* Codepoint lookup should be O(1), not O(log N), as codepoints are constant - double-check

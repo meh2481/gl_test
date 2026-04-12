@@ -69,9 +69,11 @@ private:
         FontKernPair*   kernPairs;   // decoded kern pairs (numKernPairs elements)
         // Decoded SDF section: array of fully-expanded SdfShapeHeader blobs owned by this font.
         char*           sdfSection;  // base of decoded SDF buffer; sdfSection + ge.sdfOffset = blob
-        // Index for O(log N) codepoint lookup: cpSortedIndex[i] is the glyphIndex of
-        // the i-th glyph in codepoint-ascending order.  Built at load time.
-        Uint32*         cpSortedIndex;
+        // Sparse O(1) codepoint lookup table.
+        // cpLutPages[page] is either nullptr (no glyphs in that page) or a 256-entry
+        // array mapping low-byte codepoint slots to glyphIndex (0xFFFFFFFF = missing).
+        Uint32**        cpLutPages;
+        Uint32          numCpLutPages;
 
         // Per-glyph shape IDs (index matches glyphs[] index, 0 = no outline).
         Uint64*  glyphShapeIds;

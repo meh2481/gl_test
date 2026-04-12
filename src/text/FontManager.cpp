@@ -5,6 +5,15 @@
 #include "../core/hash.h"
 #include <cassert>
 
+namespace {
+constexpr Uint32 kUnicodeMaxCodepoint = 0x10FFFFu;
+constexpr Uint32 kCpLutPageShift      = 8u;
+constexpr Uint32 kCpLutPageSize       = 1u << kCpLutPageShift; // 256 entries
+constexpr Uint32 kCpLutPageMask       = kCpLutPageSize - 1u;
+constexpr Uint32 kCpLutMissingGlyph   = 0xFFFFFFFFu;
+constexpr Uint32 kCpLutNumPages       = (kUnicodeMaxCodepoint + 1u + kCpLutPageMask) >> kCpLutPageShift;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers for reading little-endian values from a byte stream.
 // ---------------------------------------------------------------------------
@@ -131,21 +140,6 @@ static Uint32 decodedSdfBlobSize(const Uint8* compactData, Uint32 compactSize) {
         sizeof(SdfShapeHeader)
         + static_cast<Uint32>(csh->numContours)   * sizeof(SdfContourHeader)
         + static_cast<Uint32>(csh->totalSegments) * sizeof(SdfSegment));
-}
-
-// Simple insertion sort for the codepoint-sorted index array.
-// Sorts cpIdx[0..n-1] by glyphs[cpIdx[i]].codepoint ascending.
-static void sortCpIndex(Uint32* cpIdx, Uint32 n, const FontGlyphEntry* glyphs) {
-    for (Uint32 i = 1; i < n; i++) {
-        Uint32 key = cpIdx[i];
-        Uint32 keycp = glyphs[key].codepoint;
-        Sint32 j = static_cast<Sint32>(i) - 1;
-        while (j >= 0 && glyphs[cpIdx[j]].codepoint > keycp) {
-            cpIdx[j + 1] = cpIdx[j];
-            j--;
-        }
-        cpIdx[j + 1] = key;
-    }
 }
 
 FontManager::FontManager(MemoryAllocator* allocator,
@@ -290,15 +284,33 @@ int FontManager::loadFont(PakResource& pakResource, const char* resourcePath) {
     }
     assert(decodedOffset == totalDecodedSdfBytes);
 
-    // --- Build codepoint-sorted index for O(log N) lookupGlyph ---
-    Uint32* cpSortedIndex = nullptr;
+    // --- Build sparse O(1) codepoint lookup LUT ---
+    Uint32** cpLutPages = static_cast<Uint32**>(
+        allocator_->allocate(sizeof(Uint32*) * kCpLutNumPages,
+                             "FontManager::cpLutPages"));
+    assert(cpLutPages != nullptr);
+    for (Uint32 pi = 0; pi < kCpLutNumPages; pi++) cpLutPages[pi] = nullptr;
+
     if (hdr->numGlyphs > 0) {
-        cpSortedIndex = static_cast<Uint32*>(
-            allocator_->allocate(sizeof(Uint32) * hdr->numGlyphs,
-                                 "FontManager::cpSortedIndex"));
-        assert(cpSortedIndex != nullptr);
-        for (Uint32 i = 0; i < hdr->numGlyphs; i++) cpSortedIndex[i] = i;
-        sortCpIndex(cpSortedIndex, hdr->numGlyphs, glyphs);
+        for (Uint32 i = 0; i < hdr->numGlyphs; i++) {
+            Uint32 cp = glyphs[i].codepoint;
+            if (cp > kUnicodeMaxCodepoint) continue;
+
+            Uint32 page = cp >> kCpLutPageShift;
+            Uint32 slot = cp & kCpLutPageMask;
+
+            if (cpLutPages[page] == nullptr) {
+                cpLutPages[page] = static_cast<Uint32*>(
+                    allocator_->allocate(sizeof(Uint32) * kCpLutPageSize,
+                                         "FontManager::cpLutPage"));
+                assert(cpLutPages[page] != nullptr);
+                for (Uint32 s = 0; s < kCpLutPageSize; s++) {
+                    cpLutPages[page][s] = kCpLutMissingGlyph;
+                }
+            }
+
+            cpLutPages[page][slot] = i;
+        }
     }
 
     // --- Allocate per-glyph shape ID array ---
@@ -341,7 +353,8 @@ int FontManager::loadFont(PakResource& pakResource, const char* resourcePath) {
     font->glyphs        = glyphs;
     font->kernPairs     = kernPairs;
     font->sdfSection    = decodedSdfBuf;
-    font->cpSortedIndex = cpSortedIndex;
+    font->cpLutPages    = cpLutPages;
+    font->numCpLutPages = kCpLutNumPages;
     font->glyphShapeIds = glyphShapeIds;
     font->numShapeIds   = hdr->numGlyphs;
 
@@ -369,21 +382,15 @@ const FontGlyphEntry* FontManager::lookupGlyph(int handle, Uint32 codepoint) con
     if (ptr == nullptr) return nullptr;
     const LoadedFont* font = *ptr;
 
-    // Binary search using codepoint-sorted index.
-    Uint32 lo = 0, hi = font->header.numGlyphs;
-    while (lo < hi) {
-        Uint32 mid = lo + (hi - lo) / 2;
-        Uint32 idx = font->cpSortedIndex[mid];
-        Uint32 cp  = font->glyphs[idx].codepoint;
-        if (cp < codepoint) {
-            lo = mid + 1;
-        } else if (cp > codepoint) {
-            hi = mid;
-        } else {
-            return &font->glyphs[idx];
-        }
-    }
-    return nullptr;
+    if (codepoint > kUnicodeMaxCodepoint) return nullptr;
+    Uint32 page = codepoint >> kCpLutPageShift;
+    if (page >= font->numCpLutPages) return nullptr;
+    Uint32* pageLut = font->cpLutPages[page];
+    if (pageLut == nullptr) return nullptr;
+    Uint32 slot = codepoint & kCpLutPageMask;
+    Uint32 glyphIndex = pageLut[slot];
+    if (glyphIndex == kCpLutMissingGlyph) return nullptr;
+    return &font->glyphs[glyphIndex];
 }
 
 const FontGlyphEntry* FontManager::lookupGlyphByIndex(int handle, Uint32 glyphIndex) const {
@@ -493,9 +500,16 @@ void FontManager::destroyFont(LoadedFont* font) {
         allocator_->free(font->glyphShapeIds);
         font->glyphShapeIds = nullptr;
     }
-    if (font->cpSortedIndex) {
-        allocator_->free(font->cpSortedIndex);
-        font->cpSortedIndex = nullptr;
+    if (font->cpLutPages) {
+        for (Uint32 pi = 0; pi < font->numCpLutPages; pi++) {
+            if (font->cpLutPages[pi]) {
+                allocator_->free(font->cpLutPages[pi]);
+                font->cpLutPages[pi] = nullptr;
+            }
+        }
+        allocator_->free(font->cpLutPages);
+        font->cpLutPages = nullptr;
+        font->numCpLutPages = 0;
     }
     if (font->sdfSection) {
         allocator_->free(font->sdfSection);
