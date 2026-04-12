@@ -594,10 +594,9 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
 
     // Pause-anim-waiting: a [pause=N] threshold was crossed; let the fade-in
     // animations of the already-revealed characters finish before we freeze.
-    // We call updateFadesOnly so the reveal accumulator does NOT advance.
+    // We call updateFadesAndEffects so the reveal accumulator does NOT advance.
     if (pauseAnimWaiting_) {
-        bodyText_->updateFadesOnly(dt, sceneId);
-        if (bodyText_->isRevealAnimComplete(pauseWaitCharIndex_)) {
+        bodyText_->updateFadesAndEffects(dt, sceneId);
             // All fades done — now start the actual pause.
             pauseTimer_         = pauseWaitDuration_;
             pauseAnimWaiting_   = false;
@@ -607,12 +606,12 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
         return;
     }
 
-    // Active pause countdown: use updateFadesOnly so the reveal accumulator is
+    // Active pause countdown: use updateFadesAndEffects so the reveal accumulator is
     // frozen but wave/shake effects and any remaining fade-ins keep running.
     if (pauseTimer_ > 0.0f) {
         pauseTimer_ -= dt;
         if (pauseTimer_ > 0.0f) {
-            bodyText_->updateFadesOnly(dt, sceneId); // freeze reveal, keep effects
+            bodyText_->updateFadesAndEffects(dt, sceneId); // freeze reveal, keep effects
             return;
         }
         pauseTimer_ = 0.0f; // just expired; fall through to normal reveal

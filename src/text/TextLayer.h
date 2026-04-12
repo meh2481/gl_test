@@ -102,7 +102,7 @@ public:
     // already-revealed glyphs — does NOT advance the reveal accumulator.
     // Use this when you want characters to finish fading in without revealing
     // additional characters (e.g. while waiting before starting a pause).
-    void updateFadesOnly(float dt, Uint64 sceneId);
+    void updateFadesAndEffects(float dt, Uint64 sceneId);
 
 private:
     // Per-glyph runtime state (M8: no per-glyph VectorLayer IDs)

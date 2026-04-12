@@ -957,7 +957,7 @@ bool TextLayer::isRevealAnimComplete(int upToCharIndex) const {
     return true;
 }
 
-void TextLayer::updateFadesOnly(float dt, Uint64 sceneId) {
+void TextLayer::updateFadesAndEffects(float dt, Uint64 sceneId) {
     (void)sceneId;
     time_ += dt;
     // Advance fade-in timers for already-revealed glyphs without touching
