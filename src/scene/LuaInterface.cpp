@@ -913,6 +913,8 @@ void LuaInterface::cleanupScene(Uint64 sceneId) {
 }
 
 void LuaInterface::resumeScene(Uint64 sceneId) {
+    currentSceneId_ = sceneId;
+
     // Get the scene table from registry
     lua_pushinteger(luaState_, sceneId);
     lua_gettable(luaState_, LUA_REGISTRYINDEX);
