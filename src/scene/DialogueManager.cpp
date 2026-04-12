@@ -213,10 +213,27 @@ const CharacterDef* DialogueManager::loadCharacter(Uint64 characterId) {
                 resData.data + sizeof(CharacterBinaryHeader));
         for (int p = 0; p < def.numPortraits; p++) {
             SDL_strlcpy(def.portraits[p].tag, entries[p].tag, CHARACTER_MAX_TAG);
-            // Load the texture now so it's ready at showLine time.
             Uint64 texId = hashCString(entries[p].resourcePath);
             pakResource_->requestResourceAsync(texId);
             def.portraits[p].textureId = texId;
+
+            // Upload the portrait texture to the GPU so the sprite pipeline can
+            // render it.  Mirror what LuaInterface::loadTexture() does: handle
+            // the atlas case (packer packs small images into atlases).
+            ResourceData texResData{nullptr, 0, 0};
+            if (pakResource_->tryGetResource(texId, texResData) && texResData.data) {
+                AtlasUV atlasUV;
+                if (pakResource_->tryGetAtlasUV(texId, atlasUV)) {
+                    // Atlas-packed: load the atlas image into the GPU.
+                    pakResource_->requestResourceAsync(atlasUV.atlasId);
+                    ResourceData atlasData{nullptr, 0, 0};
+                    if (pakResource_->tryGetResource(atlasUV.atlasId, atlasData) && atlasData.data) {
+                        renderer_->loadAtlasTexture(atlasUV.atlasId, atlasData);
+                    }
+                } else {
+                    renderer_->loadTexture(texId, texResData);
+                }
+            }
         }
     }
 
@@ -444,27 +461,31 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
         // Apply portrait immediately (no transition needed).
         activePortraitTex_ = newTex;
         if (newTex != 0 && layerManager_) {
+            float px = (line.portraitSide == 0)
+                ? (cfg_.x - cfg_.portraitWidth * 0.6f)
+                : (cfg_.x + cfg_.width + cfg_.portraitWidth * 0.1f);
+            float py = cfg_.y;
+
             if (portraitLayerId_ < 0) {
                 // Create the portrait layer on first use.
                 portraitLayerId_ = layerManager_->createLayer(
                     newTex, cfg_.portraitWidth, cfg_.portraitHeight, 0, portraitPipelineId_);
-                // Position: left or right of the text box.
-                float px = (line.portraitSide == 0)
-                    ? (cfg_.x - cfg_.portraitWidth * 0.6f)
-                    : (cfg_.x + cfg_.width + cfg_.portraitWidth * 0.1f);
-                float py = cfg_.y;
-                layerManager_->setLayerPosition(portraitLayerId_, px, py);
             } else {
                 // Update existing layer's texture by destroying and recreating.
                 layerManager_->destroyLayer(portraitLayerId_);
                 portraitLayerId_ = layerManager_->createLayer(
                     newTex, cfg_.portraitWidth, cfg_.portraitHeight, 0, portraitPipelineId_);
-                float px = (line.portraitSide == 0)
-                    ? (cfg_.x - cfg_.portraitWidth * 0.6f)
-                    : (cfg_.x + cfg_.width + cfg_.portraitWidth * 0.1f);
-                float py = cfg_.y;
-                layerManager_->setLayerPosition(portraitLayerId_, px, py);
             }
+
+            // Atlas-packed textures: set UV coordinates so the renderer uses the
+            // correct sub-region of the atlas and the correct descriptor set.
+            AtlasUV atlasUV;
+            if (pakResource_->tryGetAtlasUV(newTex, atlasUV)) {
+                layerManager_->setLayerAtlasUV(portraitLayerId_,
+                    atlasUV.atlasId, atlasUV.u0, atlasUV.v0, atlasUV.u1, atlasUV.v1);
+            }
+
+            layerManager_->setLayerPosition(portraitLayerId_, px, py);
         } else if (portraitLayerId_ >= 0) {
             // No portrait for this line — hide.
             layerManager_->setLayerEnabled(portraitLayerId_, false);
@@ -527,8 +548,22 @@ void DialogueManager::advance(Uint64 sceneId) {
 void DialogueManager::update(float dt, Uint64 sceneId) {
     if (state_ == STATE_IDLE) return;
 
+    // While a pause point is active the body text must not advance its reveal.
+    // TextLayer::setRevealSpeed(0) means "instant reveal all" — so we instead
+    // pass dt=0 to bodyText_->update() to freeze the accumulator without
+    // changing the configured reveal speed.
+    float bodyDt = dt;
+    if (state_ == STATE_REVEALING && pauseTimer_ > 0.0f) {
+        pauseTimer_ -= dt;
+        if (pauseTimer_ > 0.0f) {
+            bodyDt = 0.0f; // still paused
+        } else {
+            pauseTimer_ = 0.0f; // just expired; resume this frame
+        }
+    }
+
     // Update text layers.
-    if (bodyText_)    bodyText_->update(dt, sceneId);
+    if (bodyText_)    bodyText_->update(bodyDt, sceneId);
     if (speakerText_) speakerText_->update(dt, sceneId);
 
     if (state_ == STATE_TRANSITIONING) {
@@ -548,23 +583,8 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
     }
 
     if (state_ == STATE_REVEALING && bodyText_) {
-        // Handle [pause=N] points.
-        if (pauseTimer_ > 0.0f) {
-            pauseTimer_ -= dt;
-            if (pauseTimer_ > 0.0f) {
-                // Still paused: keep reveal frozen.
-                bodyText_->setRevealSpeed(0.0f);
-                return;
-            }
-            // Timer just expired: restore reveal speed and let the frame continue.
-            pauseTimer_ = 0.0f;
-            float speed = cfg_.defaultRevealSpeed;
-            if (currentLine_ >= 0 && currentLine_ < (int)lines_.size()) {
-                const DialogueLine& line = lines_[currentLine_];
-                if (line.revealSpeed > 0.0f) speed = line.revealSpeed;
-            }
-            bodyText_->setRevealSpeed(speed);
-        }
+        // If still paused this frame, skip pause-point detection and completion check.
+        if (bodyDt == 0.0f) return;
 
         int newReveal = bodyText_->getRevealCount();
 
@@ -575,7 +595,6 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
                 lastRevealCount_ < pausePoints_[i].charIndex) {
                 pauseTimer_ = pausePoints_[i].duration;
                 pausePoints_[i].duration = 0.0f; // consume it
-                bodyText_->setRevealSpeed(0.0f);
                 lastRevealCount_ = newReveal;
                 return;
             }
