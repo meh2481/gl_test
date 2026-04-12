@@ -63,6 +63,7 @@ typedef struct
 #define RESOURCE_TYPE_TRIG_TABLE    13  //Trig lookup table (sin/cos)
 #define RESOURCE_TYPE_VECTOR_SHAPE  14  //Vector shape (analytic SDF, cubic Bezier curves)
 #define RESOURCE_TYPE_DIALOGUE      15  //Binary dialogue resource
+#define RESOURCE_TYPE_CHARACTER     16  //Binary character definition resource
 //#define RESOURCE_TYPE_
 //etc
 
@@ -357,6 +358,7 @@ typedef struct
 //
 // Binary layout:
 //   DialogueBinaryHeader
+//   DialogueLanguageEntry[languageCount]   -- ISO language code table
 //   DialogueLineRecord[lineCount * languageCount]
 //     -- ordered language-major: all lines for language 0,
 //        then all lines for language 1, etc.
@@ -370,14 +372,52 @@ typedef struct
 // Maximum field sizes for dialogue line string data.
 #define DIALOGUE_MAX_TEXT      1024
 #define DIALOGUE_MAX_SHORT      256
+#define DIALOGUE_LANG_CODE_LEN    8   // ISO code buffer (e.g. "en", "es")
+#define DIALOGUE_PORTRAIT_TAG_LEN 64  // portrait identifier (e.g. "wave")
+
+// One entry per language, immediately after DialogueBinaryHeader.
+typedef struct
+{
+    char code[DIALOGUE_LANG_CODE_LEN]; // null-terminated ISO code, e.g. "en"
+} DialogueLanguageEntry;
 
 typedef struct
 {
-    char   speaker[DIALOGUE_MAX_SHORT];         // speaker name (may be empty)
-    char   text[DIALOGUE_MAX_TEXT];             // body text (may contain markup)
-    char   portraitPath[DIALOGUE_MAX_SHORT];    // optional portrait resource path
-    char   revealSoundPath[DIALOGUE_MAX_SHORT]; // optional per-char reveal sound path
-    char   voicePath[DIALOGUE_MAX_SHORT];       // optional voiced line audio path
-    float  revealSpeed;                         // chars per second (0 = inherit from box)
-    Uint32 pad;                                 // alignment padding
+    Uint64 characterId;                          // resource ID of character def (0 = anonymous)
+    char   portraitTag[DIALOGUE_PORTRAIT_TAG_LEN]; // which portrait to show (matches CharacterPortraitEntry.tag)
+    Uint8  portraitSide;                         // 0 = left, 1 = right
+    Uint8  pad0[3];                              // alignment padding
+    char   text[DIALOGUE_MAX_TEXT];              // body text (may contain markup)
+    char   revealSoundPath[DIALOGUE_MAX_SHORT];  // optional per-char reveal sound override (empty = use character default)
+    char   voicePath[DIALOGUE_MAX_SHORT];        // optional voiced line audio path
+    float  revealSpeed;                          // chars per second (0 = inherit from box)
+    Uint32 pad1;                                 // alignment padding
 } DialogueLineRecord;
+
+//--------------------------------------------------------------
+// Character definition data (RESOURCE_TYPE_CHARACTER)
+// Binary character definition resource.
+//
+// Binary layout:
+//   CharacterBinaryHeader
+//   CharacterPortraitEntry[numPortraits]
+//--------------------------------------------------------------
+
+#define CHARACTER_MAX_NAME    256  // display name buffer
+#define CHARACTER_MAX_PATH    256  // resource path buffer
+#define CHARACTER_MAX_TAG      64  // portrait tag buffer
+
+typedef struct
+{
+    Uint32 numPortraits;                   // number of CharacterPortraitEntry entries that follow
+    Uint32 nameColor;                      // RGBA packed default name colour (0xRRGGBBAA)
+    float  revealSpeed;                    // default reveal speed in chars/sec (0 = inherit from box)
+    char   revealSoundPath[CHARACTER_MAX_PATH]; // default per-char reveal sound resource path
+    char   speakerName[CHARACTER_MAX_NAME];     // display name for this character
+} CharacterBinaryHeader;
+
+typedef struct
+{
+    char tag[CHARACTER_MAX_TAG];           // portrait identifier (e.g. "wave", "smile")
+    char resourcePath[CHARACTER_MAX_PATH]; // image resource path
+} CharacterPortraitEntry;

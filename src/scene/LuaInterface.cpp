@@ -418,7 +418,8 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
                                      "textLayerSetFontFamily", "textLayerSetShadow", "textLayerClearShadow",
                                      "createDialogueBox", "destroyDialogueBox",
                                      "dialogueLoad", "dialogueStart", "dialogueAdvance",
-                                     "dialogueSetRevealSound", "dialogueIsRevealing", "dialogueGetCurrentLine",
+                                     "dialogueSetLanguage", "dialogueIsRevealing", "dialogueGetCurrentLine",
+                                     "dialogueGetTotalLines", "dialogueSetBackdrop",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -1166,9 +1167,11 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "dialogueLoad",          dialogueLoad);
     lua_register(luaState_, "dialogueStart",         dialogueStart);
     lua_register(luaState_, "dialogueAdvance",       dialogueAdvance);
-    lua_register(luaState_, "dialogueSetRevealSound",dialogueSetRevealSound);
+    lua_register(luaState_, "dialogueSetLanguage",   dialogueSetLanguage);
     lua_register(luaState_, "dialogueIsRevealing",   dialogueIsRevealing);
     lua_register(luaState_, "dialogueGetCurrentLine",dialogueGetCurrentLine);
+    lua_register(luaState_, "dialogueGetTotalLines", dialogueGetTotalLines);
+    lua_register(luaState_, "dialogueSetBackdrop",   dialogueSetBackdrop);
 
     // Text alignment constants
     lua_pushinteger(luaState_, TEXT_ALIGN_LEFT);
@@ -5368,7 +5371,8 @@ void LuaInterface::clearDialogueBoxes() {
 
 // createDialogueBox({ font=fh, boldFont=bh, italicFont=ih,
 //                     x=N, y=N, width=N, height=N, textSize=N,
-//                     speakerTextSize=N, revealSpeed=N })
+//                     speakerTextSize=N, revealSpeed=N,
+//                     portraitWidth=N, portraitHeight=N, transitionDuration=N })
 // Returns a dialogue box ID (integer).
 int LuaInterface::createDialogueBox(lua_State* L) {
     luaL_checktype(L, 1, LUA_TTABLE);
@@ -5420,6 +5424,18 @@ int LuaInterface::createDialogueBox(lua_State* L) {
     cfg.defaultRevealSpeed = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 20.0f;
     lua_pop(L, 1);
 
+    lua_getfield(L, 1, "portraitWidth");
+    cfg.portraitWidth = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "portraitHeight");
+    cfg.portraitHeight = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "transitionDuration");
+    cfg.transitionDuration = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.2f;
+    lua_pop(L, 1);
+
     void* mem = iface->stringAllocator_->allocate(sizeof(DialogueManager), "DialogueManager");
     assert(mem != nullptr);
     DialogueManager* dlg = new (mem) DialogueManager(
@@ -5428,7 +5444,8 @@ int LuaInterface::createDialogueBox(lua_State* L) {
         &iface->renderer_,
         iface->audioManager_,
         iface->consoleBuffer_,
-        &iface->pakResource_);
+        &iface->pakResource_,
+        iface->layerManager_);
     dlg->configure(cfg);
 
     int id = iface->nextDialogueId_++;
@@ -5456,7 +5473,7 @@ int LuaInterface::destroyDialogueBox(lua_State* L) {
     return 0;
 }
 
-// dialogueLoad(dlgId, resourcePath)
+// dialogueLoad(dlgId, resourcePath [, languageCode])
 // Returns true on success.
 int LuaInterface::dialogueLoad(lua_State* L) {
     int         id   = (int)luaL_checkinteger(L, 1);
@@ -5468,6 +5485,12 @@ int LuaInterface::dialogueLoad(lua_State* L) {
 
     DialogueManager** ptr = iface->dialogueBoxes_.find(id);
     if (!ptr) { lua_pushboolean(L, 0); return 1; }
+
+    // Optional language code (arg 3).
+    if (lua_isstring(L, 3)) {
+        (*ptr)->setLanguage(lua_tostring(L, 3));
+    }
+
     lua_pushboolean(L, (*ptr)->loadDialogue(path) ? 1 : 0);
     return 1;
 }
@@ -5505,17 +5528,18 @@ int LuaInterface::dialogueAdvance(lua_State* L) {
     return 0;
 }
 
-// dialogueSetRevealSound(dlgId, sourceId)
-int LuaInterface::dialogueSetRevealSound(lua_State* L) {
-    int id       = (int)luaL_checkinteger(L, 1);
-    int sourceId = (int)luaL_checkinteger(L, 2);
+// dialogueSetLanguage(dlgId, langCode)
+// Sets the language used on the next dialogueLoad() call.
+int LuaInterface::dialogueSetLanguage(lua_State* L) {
+    int         id   = (int)luaL_checkinteger(L, 1);
+    const char* code = luaL_checkstring(L, 2);
 
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
     DialogueManager** ptr = iface->dialogueBoxes_.find(id);
-    if (ptr) (*ptr)->setRevealSoundSourceId(sourceId);
+    if (ptr) (*ptr)->setLanguage(code);
     return 0;
 }
 
@@ -5543,5 +5567,34 @@ int LuaInterface::dialogueGetCurrentLine(lua_State* L) {
     DialogueManager** ptr = iface->dialogueBoxes_.find(id);
     lua_pushinteger(L, ptr ? (*ptr)->getCurrentLine() : -1);
     return 1;
+}
+
+// dialogueGetTotalLines(dlgId) → integer
+int LuaInterface::dialogueGetTotalLines(lua_State* L) {
+    int id = (int)luaL_checkinteger(L, 1);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    lua_pushinteger(L, ptr ? (*ptr)->getTotalLines() : 0);
+    return 1;
+}
+
+// dialogueSetBackdrop(dlgId, textureId, pipelineId)
+// textureId: integer returned by loadTexture(); pipelineId: integer from loadTexturedShaders()
+int LuaInterface::dialogueSetBackdrop(lua_State* L) {
+    int    id         = (int)luaL_checkinteger(L, 1);
+    Uint64 textureId  = (Uint64)luaL_checkinteger(L, 2);
+    int    pipelineId = (int)luaL_checkinteger(L, 3);
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    if (ptr) (*ptr)->setBackdrop(textureId, pipelineId);
+    return 0;
 }
 

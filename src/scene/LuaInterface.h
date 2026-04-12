@@ -208,15 +208,17 @@ private:
     static int textLayerSetShadow(lua_State* L);
     static int textLayerClearShadow(lua_State* L);
 
-    // Dialogue Lua bindings (M7)
+    // Dialogue Lua bindings
     static int createDialogueBox(lua_State* L);
     static int destroyDialogueBox(lua_State* L);
     static int dialogueLoad(lua_State* L);
     static int dialogueStart(lua_State* L);
     static int dialogueAdvance(lua_State* L);
-    static int dialogueSetRevealSound(lua_State* L);
+    static int dialogueSetLanguage(lua_State* L);
     static int dialogueIsRevealing(lua_State* L);
     static int dialogueGetCurrentLine(lua_State* L);
+    static int dialogueGetTotalLines(lua_State* L);
+    static int dialogueSetBackdrop(lua_State* L);
 
     // Audio Lua bindings
     static int audioLoadGla(lua_State* L);

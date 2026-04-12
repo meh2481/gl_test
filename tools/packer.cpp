@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <cstring>
 #include <cmath>
+#include <cctype>
 #include <filesystem>
 #include <functional>
 #include <png.h>
@@ -563,6 +564,11 @@ static bool processWavToGla(const string& filename, vector<char>& output) {
 Uint32 getFileType(const string& filename, bool isAtlas = false) {
     if (isAtlas) return RESOURCE_TYPE_IMAGE_ATLAS;
     string ext = filesystem::path(filename).extension().string();
+    // Check compound extensions first.
+    if (filename.size() > 8 && filename.substr(filename.size() - 8) == ".dlg.json")
+        return RESOURCE_TYPE_DIALOGUE;
+    if (filename.size() > 8 && filename.substr(filename.size() - 8) == ".chr.json")
+        return RESOURCE_TYPE_CHARACTER;
     if (ext == ".lua") return RESOURCE_TYPE_LUA;
     if (ext == ".spv") return RESOURCE_TYPE_SHADER;
     if (ext == ".png") return RESOURCE_TYPE_IMAGE;
@@ -571,6 +577,7 @@ Uint32 getFileType(const string& filename, bool isAtlas = false) {
     if (ext == ".svg") return RESOURCE_TYPE_VECTOR_SHAPE;
     if (ext == ".font") return RESOURCE_TYPE_FONT;
     if (ext == ".dlg") return RESOURCE_TYPE_DIALOGUE;
+    if (ext == ".chr") return RESOURCE_TYPE_CHARACTER;
     // Add more extensions as needed
     return RESOURCE_TYPE_UNKNOWN;
 }
@@ -1615,8 +1622,212 @@ bool processLoopFile(const string& filename, vector<char>& output) {
     return true;
 }
 
+// ============================================================================
+// Process a .dlg.json file into a binary dialogue resource.
+// ============================================================================
+bool processDialogueFile(const string& filename, vector<char>& output) {
+    ifstream f(filename);
+    if (!f) {
+        cerr << "Failed to open dialogue file: " << filename << endl;
+        return false;
+    }
+    Json::Value root;
+    Json::CharReaderBuilder rbuilder;
+    string errs;
+    if (!Json::parseFromStream(rbuilder, f, &root, &errs)) {
+        cerr << "Failed to parse dialogue JSON '" << filename << "': " << errs << endl;
+        return false;
+    }
 
-int main(int argc, char* argv[]) {
+    const Json::Value& linesArr = root["lines"];
+    if (!linesArr.isArray() || linesArr.empty()) {
+        cerr << "Dialogue file '" << filename << "' has no lines array" << endl;
+        return false;
+    }
+
+    // Collect language codes in order of first appearance.
+    vector<string> langs;
+    auto getOrAddLang = [&](const string& code) -> Uint32 {
+        for (Uint32 i = 0; i < (Uint32)langs.size(); i++) {
+            if (langs[i] == code) return i;
+        }
+        langs.push_back(code);
+        return (Uint32)langs.size() - 1;
+    };
+
+    // First pass: gather all languages from all lines.
+    for (const auto& lineVal : linesArr) {
+        const Json::Value& textArr = lineVal["text"];
+        if (textArr.isArray()) {
+            for (const auto& entry : textArr) {
+                if (entry.isMember("language"))
+                    getOrAddLang(entry["language"].asString());
+            }
+        }
+    }
+    if (langs.empty()) langs.push_back("en"); // fallback
+
+    Uint32 lineCount     = (Uint32)linesArr.size();
+    Uint32 languageCount = (Uint32)langs.size();
+
+    // Build all records: language-major order.
+    vector<DialogueLineRecord> allRecords(lineCount * languageCount);
+    memset(allRecords.data(), 0, allRecords.size() * sizeof(DialogueLineRecord));
+
+    // Determine character resource ID for the "speaker" field.
+    // Convention: speaker name maps to res/characters/<name>/<name>.chr
+    // (lower-case). characterId is the hash of that path; 0 if speaker is empty.
+    auto speakerToCharId = [&](const string& speaker) -> Uint64 {
+        if (speaker.empty()) return 0;
+        string lower = speaker;
+        for (char& c : lower) c = (char)tolower((unsigned char)c);
+        string path = "res/characters/" + lower + "/" + lower + ".chr";
+        return hashCString(path.c_str());
+    };
+
+    for (Uint32 lang = 0; lang < languageCount; lang++) {
+        for (Uint32 li = 0; li < lineCount; li++) {
+            const Json::Value& lineVal = linesArr[li];
+            DialogueLineRecord& rec = allRecords[lang * lineCount + li];
+
+            // characterId derived from speaker field.
+            string speaker = lineVal.get("speaker", "").asString();
+            rec.characterId = speakerToCharId(speaker);
+
+            // portraitTag and portraitSide.
+            string portraitTag = lineVal.get("portrait", "").asString();
+            strncpy(rec.portraitTag, portraitTag.c_str(), DIALOGUE_PORTRAIT_TAG_LEN - 1);
+
+            string portraitSide = lineVal.get("portraitSide", "left").asString();
+            rec.portraitSide = (portraitSide == "right") ? 1 : 0;
+
+            // voicePath.
+            string vox = lineVal.get("vox", "").asString();
+            strncpy(rec.voicePath, vox.c_str(), DIALOGUE_MAX_SHORT - 1);
+
+            // revealSpeed.
+            rec.revealSpeed = lineVal.get("revealSpeed", 0.0f).asFloat();
+
+            // revealSoundPath (optional per-line override).
+            string revealSound = lineVal.get("revealSound", "").asString();
+            strncpy(rec.revealSoundPath, revealSound.c_str(), DIALOGUE_MAX_SHORT - 1);
+
+            // Find text for this language; fall back to first text entry.
+            string text;
+            const Json::Value& textArr = lineVal["text"];
+            if (textArr.isArray() && !textArr.empty()) {
+                text = textArr[0].get("text", "").asString(); // default: first entry
+                for (const auto& entry : textArr) {
+                    if (entry.get("language", "").asString() == langs[lang]) {
+                        text = entry.get("text", "").asString();
+                        break;
+                    }
+                }
+            } else if (textArr.isString()) {
+                text = textArr.asString();
+            }
+            strncpy(rec.text, text.c_str(), DIALOGUE_MAX_TEXT - 1);
+        }
+    }
+
+    // Assemble binary output.
+    DialogueBinaryHeader hdr;
+    hdr.lineCount     = lineCount;
+    hdr.languageCount = languageCount;
+
+    size_t totalSize = sizeof(DialogueBinaryHeader)
+                     + languageCount * sizeof(DialogueLanguageEntry)
+                     + allRecords.size() * sizeof(DialogueLineRecord);
+    output.resize(totalSize);
+    char* ptr = output.data();
+
+    memcpy(ptr, &hdr, sizeof(hdr));
+    ptr += sizeof(hdr);
+
+    for (Uint32 i = 0; i < languageCount; i++) {
+        DialogueLanguageEntry entry{};
+        strncpy(entry.code, langs[i].c_str(), DIALOGUE_LANG_CODE_LEN - 1);
+        memcpy(ptr, &entry, sizeof(entry));
+        ptr += sizeof(entry);
+    }
+
+    memcpy(ptr, allRecords.data(), allRecords.size() * sizeof(DialogueLineRecord));
+
+    cout << "Dialogue file " << filename << " -> " << lineCount
+         << " lines, " << languageCount << " language(s), "
+         << output.size() << " bytes" << endl;
+    return true;
+}
+
+// ============================================================================
+// Process a .chr.json file into a binary character definition resource.
+// ============================================================================
+bool processCharacterFile(const string& filename, vector<char>& output) {
+    ifstream f(filename);
+    if (!f) {
+        cerr << "Failed to open character file: " << filename << endl;
+        return false;
+    }
+    Json::Value root;
+    Json::CharReaderBuilder rbuilder;
+    string errs;
+    if (!Json::parseFromStream(rbuilder, f, &root, &errs)) {
+        cerr << "Failed to parse character JSON '" << filename << "': " << errs << endl;
+        return false;
+    }
+
+    string name       = root.get("name", "").asString();
+    string nameColor  = root.get("nameColor", "FFFFFFFF").asString();
+    float  revSpeed   = root.get("revealSpeed", 0.0f).asFloat();
+    string revSound   = root.get("revealSound", "").asString();
+
+    // Parse nameColor from 8-hex-digit RRGGBBAA string.
+    Uint32 nameColorPacked = 0xFFFFFFFFu;
+    if (nameColor.size() == 8) {
+        nameColorPacked = (Uint32)strtoul(nameColor.c_str(), nullptr, 16);
+    }
+
+    const Json::Value& portraits = root["portraits"];
+    Uint32 numPortraits = 0;
+    vector<CharacterPortraitEntry> portEntries;
+    if (portraits.isArray()) {
+        for (const auto& p : portraits) {
+            if (numPortraits >= 64) break; // safety cap
+            CharacterPortraitEntry entry{};
+            string tag  = p.get("tag", "").asString();
+            string path = p.get("path", "").asString();
+            strncpy(entry.tag,          tag.c_str(),  CHARACTER_MAX_TAG  - 1);
+            strncpy(entry.resourcePath, path.c_str(), CHARACTER_MAX_PATH - 1);
+            portEntries.push_back(entry);
+            numPortraits++;
+        }
+    }
+
+    CharacterBinaryHeader hdr{};
+    hdr.numPortraits = numPortraits;
+    hdr.nameColor    = nameColorPacked;
+    hdr.revealSpeed  = revSpeed;
+    strncpy(hdr.revealSoundPath, revSound.c_str(), CHARACTER_MAX_PATH - 1);
+    strncpy(hdr.speakerName,     name.c_str(),     CHARACTER_MAX_NAME - 1);
+
+    size_t totalSize = sizeof(CharacterBinaryHeader)
+                     + numPortraits * sizeof(CharacterPortraitEntry);
+    output.resize(totalSize);
+    char* ptr = output.data();
+    memcpy(ptr, &hdr, sizeof(hdr));
+    ptr += sizeof(hdr);
+    if (numPortraits > 0) {
+        memcpy(ptr, portEntries.data(), numPortraits * sizeof(CharacterPortraitEntry));
+    }
+
+    cout << "Character file " << filename << " -> '" << name << "', "
+         << numPortraits << " portrait(s), "
+         << output.size() << " bytes" << endl;
+    return true;
+}
+
+
+
     if (argc < 3) {
         cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases] [--max-atlas-size N] [--etc]" << endl;
         cerr << "  --output-atlases: Save texture atlases as PNG files in build/ folder for review" << endl;
@@ -2041,6 +2252,22 @@ int main(int argc, char* argv[]) {
                 // .loop JSON -> binary MusicTrackHeader
                 if (!processLoopFile(file.filename, file.data)) {
                     cerr << "Failed to process loop file " << file.filename << endl;
+                    return 1;
+                }
+            } else if (ft == RESOURCE_TYPE_DIALOGUE &&
+                       file.filename.size() > 8 &&
+                       file.filename.substr(file.filename.size() - 8) == ".dlg.json") {
+                // .dlg.json -> binary dialogue resource
+                if (!processDialogueFile(file.filename, file.data)) {
+                    cerr << "Failed to process dialogue file " << file.filename << endl;
+                    return 1;
+                }
+            } else if (ft == RESOURCE_TYPE_CHARACTER &&
+                       file.filename.size() > 8 &&
+                       file.filename.substr(file.filename.size() - 8) == ".chr.json") {
+                // .chr.json -> binary character definition resource
+                if (!processCharacterFile(file.filename, file.data)) {
+                    cerr << "Failed to process character file " << file.filename << endl;
                     return 1;
                 }
             } else if (ft == RESOURCE_TYPE_SOUND) {
