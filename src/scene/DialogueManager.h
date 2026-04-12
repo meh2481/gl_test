@@ -163,6 +163,7 @@ private:
     struct CharCache {
         Uint64      id;
         CharacterDef def;
+        int         revealAudioBufferId; // -1 = not yet loaded
     };
     CharCache charCache_[MAX_CHAR_CACHE];
     int       charCacheCount_;

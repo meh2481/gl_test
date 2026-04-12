@@ -190,6 +190,7 @@ const CharacterDef* DialogueManager::loadCharacter(Uint64 characterId) {
 
     CharCache& entry = charCache_[charCacheCount_];
     entry.id = characterId;
+    entry.revealAudioBufferId = -1;
     CharacterDef& def = entry.def;
     SDL_memset(&def, 0, sizeof(def));
 
@@ -457,14 +458,53 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
     else if (charDef && charDef->revealSoundPath[0])
         soundPath = charDef->revealSoundPath;
 
-    if (soundPath) {
-        // The sound source is pre-loaded; we just look up the resource ID here.
-        // The caller (LuaInterface / game code) is responsible for pre-loading the
-        // audio source. We store the resource ID and play it via audioManager_.
-        // This mirrors the previous revealSoundSourceId_ pattern: we keep a
-        // per-frame playback approach.  Nothing to do here beyond storing the fact
-        // that a sound should play; actual source ID resolution is app-level.
-        (void)soundPath; // sound integration is app-level (see revealSoundSourceId_)
+    // Stop and release any previous reveal sound source.
+    if (revealSoundSourceId_ >= 0 && audioManager_) {
+        audioManager_->stopSource(revealSoundSourceId_);
+        audioManager_->releaseSource(revealSoundSourceId_);
+        revealSoundSourceId_ = -1;
+    }
+
+    if (soundPath && audioManager_ && pakResource_) {
+        // Resolve audio buffer — check char cache first to avoid reloading.
+        int bufferId = -1;
+        if (charDef) {
+            for (int i = 0; i < charCacheCount_; i++) {
+                if (charCache_[i].id != 0 &&
+                    SDL_strcmp(charCache_[i].def.revealSoundPath, soundPath) == 0) {
+                    bufferId = charCache_[i].revealAudioBufferId;
+                    break;
+                }
+            }
+        }
+
+        // Load from pak if not yet cached.
+        if (bufferId < 0) {
+            Uint64 resId = hashCString(soundPath);
+            pakResource_->requestResourceAsync(resId);
+            ResourceData resData{nullptr, 0, 0};
+            if (pakResource_->tryGetResource(resId, resData) && resData.data && resData.size > 0) {
+                bufferId = audioManager_->loadGlaAudioFromMemory(resData.data, resData.size);
+                // Cache the buffer ID in the char cache entry.
+                if (charDef && bufferId >= 0) {
+                    for (int i = 0; i < charCacheCount_; i++) {
+                        if (charCache_[i].id != 0 &&
+                            SDL_strcmp(charCache_[i].def.revealSoundPath, soundPath) == 0) {
+                            charCache_[i].revealAudioBufferId = bufferId;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Create a looping source and start it immediately.
+        if (bufferId >= 0) {
+            revealSoundSourceId_ = audioManager_->createAudioSource(bufferId, /*looping=*/true, 1.0f);
+            if (revealSoundSourceId_ >= 0) {
+                audioManager_->playSource(revealSoundSourceId_);
+            }
+        }
     }
 
     // Portrait layer management.
@@ -533,6 +573,12 @@ void DialogueManager::advance(Uint64 sceneId) {
     if (state_ == STATE_IDLE || state_ == STATE_TRANSITIONING) return;
 
     if (state_ == STATE_REVEALING) {
+        // Stop the looping reveal sound immediately when skipping.
+        if (revealSoundSourceId_ >= 0 && audioManager_) {
+            audioManager_->stopSource(revealSoundSourceId_);
+            audioManager_->releaseSource(revealSoundSourceId_);
+            revealSoundSourceId_ = -1;
+        }
         // Jump to full reveal: skip remaining pause timers too.
         pauseTimer_         = 0.0f;
         pauseAnimWaiting_   = false;
@@ -610,10 +656,18 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
     if (pauseTimer_ > 0.0f) {
         pauseTimer_ -= dt;
         if (pauseTimer_ > 0.0f) {
+            // Pause the reveal sound while the [pause=N] delay is active.
+            if (revealSoundSourceId_ >= 0 && audioManager_) {
+                audioManager_->pauseSource(revealSoundSourceId_);
+            }
             bodyText_->updateFadesAndEffects(dt, sceneId); // freeze reveal, keep effects
             return;
         }
         pauseTimer_ = 0.0f; // just expired; fall through to normal reveal
+        // Resume the reveal sound now that the pause has ended.
+        if (revealSoundSourceId_ >= 0 && audioManager_) {
+            audioManager_->playSource(revealSoundSourceId_);
+        }
     }
 
     // Normal reveal: update with full dt.
@@ -625,9 +679,9 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
         if (pausePoints_[i].duration > 0.0f &&
             newReveal >= pausePoints_[i].charIndex &&
             lastRevealCount_ < pausePoints_[i].charIndex) {
-            // Play reveal sound for chars newly uncovered up to this threshold.
-            if (revealSoundSourceId_ >= 0 && newReveal > lastRevealCount_) {
-                audioManager_->playSource(revealSoundSourceId_);
+            // Pause the reveal sound at a [pause=N] boundary.
+            if (revealSoundSourceId_ >= 0 && audioManager_) {
+                audioManager_->pauseSource(revealSoundSourceId_);
             }
             lastRevealCount_ = newReveal;
             float dur = pausePoints_[i].duration;
@@ -645,14 +699,16 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
         }
     }
 
-    // Play reveal sound for each newly revealed character.
-    if (revealSoundSourceId_ >= 0 && newReveal > lastRevealCount_) {
-        audioManager_->playSource(revealSoundSourceId_);
-    }
     lastRevealCount_ = newReveal;
 
     // Check if reveal is complete.
     if (newReveal >= bodyText_->getTotalChars() && bodyText_->getTotalChars() > 0) {
+        // Stop the looping reveal sound now that all text is visible.
+        if (revealSoundSourceId_ >= 0 && audioManager_) {
+            audioManager_->stopSource(revealSoundSourceId_);
+            audioManager_->releaseSource(revealSoundSourceId_);
+            revealSoundSourceId_ = -1;
+        }
         state_ = STATE_WAITING_ADVANCE;
     }
 }
