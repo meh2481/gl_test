@@ -5,8 +5,9 @@ local btnTexId    = nil
 local btnShaderId = nil
 
 -- Button node instances
-local physicsBtn = nil
-local audioBtn   = nil
+local physicsBtn  = nil
+local audioBtn    = nil
+local dialogueBtn = nil
 
 -- Vector shape handle and its persistent layer id for the "OhHai" glyph demo
 local vectorShapeHandle = nil
@@ -31,13 +32,22 @@ local function createButtons()
         action   = ACTION_AUDIO_TEST,
         r = 0.3, g = 0.6, b = 1.0,
     })
+    dialogueBtn = loadObject("res/nodes/button.lua", {
+        texId    = btnTexId,
+        shaderId = btnShaderId,
+        x = 0.0, y = -0.60, size = 0.22,
+        action   = ACTION_DIALOGUE_TEST,
+        r = 0.6, g = 0.3, b = 0.9,
+    })
 end
 
 local function destroyButtons()
-    if physicsBtn then physicsBtn.cleanup() end
-    if audioBtn   then audioBtn.cleanup()   end
-    physicsBtn = nil
-    audioBtn   = nil
+    if physicsBtn   then physicsBtn.cleanup()   end
+    if audioBtn     then audioBtn.cleanup()     end
+    if dialogueBtn  then dialogueBtn.cleanup()  end
+    physicsBtn  = nil
+    audioBtn    = nil
+    dialogueBtn = nil
 end
 
 -- ---------------------------------------------------------------------------
@@ -157,8 +167,9 @@ end
 
 -- Scene update function called every frame
 function update(deltaTime)
-    if physicsBtn then physicsBtn.update(deltaTime) end
-    if audioBtn   then audioBtn.update(deltaTime)   end
+    if physicsBtn  then physicsBtn.update(deltaTime)  end
+    if audioBtn    then audioBtn.update(deltaTime)    end
+    if dialogueBtn then dialogueBtn.update(deltaTime) end
     -- The vector shape is rendered via a persistent layer set up in init();
     -- no per-frame draw call is needed here.
 end
@@ -166,8 +177,9 @@ end
 -- Handle actions
 function onAction(action)
     -- Forward input actions to button nodes first (so they can fire their own actions)
-    if physicsBtn then physicsBtn.onAction(action) end
-    if audioBtn   then audioBtn.onAction(action)   end
+    if physicsBtn  then physicsBtn.onAction(action)  end
+    if audioBtn    then audioBtn.onAction(action)    end
+    if dialogueBtn then dialogueBtn.onAction(action) end
 
     if action == ACTION_EXIT then
         if vectorLayerId then destroyVectorLayer(vectorLayerId) end
@@ -185,6 +197,10 @@ function onAction(action)
         destroyButtons()
         destroyTextDemo()
         pushScene("res/scenes/audio_test.lua")
+    elseif action == ACTION_DIALOGUE_TEST then
+        destroyButtons()
+        destroyTextDemo()
+        pushScene("res/scenes/dialogue_test.lua")
     elseif action == ACTION_PARTICLE_EDITOR then
         destroyButtons()
         destroyTextDemo()

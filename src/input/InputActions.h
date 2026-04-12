@@ -22,6 +22,7 @@ enum Action {
     ACTION_PAN_START,
     ACTION_PAN_END,
     ACTION_TOGGLE_BLADE,
+    ACTION_DIALOGUE_TEST,
     ACTION_COUNT  // Always keep last
 };
 
