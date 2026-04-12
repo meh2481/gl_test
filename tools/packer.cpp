@@ -553,22 +553,12 @@ static bool processWavToGla(const string& filename, vector<char>& output) {
             blockPtr += GLA_STEREO_BLOCK_BYTES;
         }
     }
-
-    cout << "WAV " << filename << ": " << totalSamples << " samples/ch, "
-         << channels << " ch, " << sampleRate << " Hz -> "
-         << numBlocks << " IMA4 blocks, " << outputSize << " bytes" << endl;
-
     return true;
 }
 
 Uint32 getFileType(const string& filename, bool isAtlas = false) {
     if (isAtlas) return RESOURCE_TYPE_IMAGE_ATLAS;
     string ext = filesystem::path(filename).extension().string();
-    // Check compound extensions first.
-    if (filename.size() > 8 && filename.substr(filename.size() - 8) == ".dlg.json")
-        return RESOURCE_TYPE_DIALOGUE;
-    if (filename.size() > 8 && filename.substr(filename.size() - 8) == ".chr.json")
-        return RESOURCE_TYPE_CHARACTER;
     if (ext == ".lua") return RESOURCE_TYPE_LUA;
     if (ext == ".spv") return RESOURCE_TYPE_SHADER;
     if (ext == ".png") return RESOURCE_TYPE_IMAGE;
@@ -1502,9 +1492,6 @@ static bool processSvgToVectorShape(const string& filename, vector<char>& output
     shapeHdr.bboxMaxY      = ctrlMaxY + BBOX_MARGIN;
     shapeHdr.totalSegments = (Uint32)flatSegments.size();
 
-    cout << "  SVG " << filename << ": " << contourHeaders.size() << " contours, "
-         << flatSegments.size() << " segments" << endl;
-
     // Write binary output: SdfShapeHeader + SdfContourHeader[] + SdfSegment[]
     output.resize(sizeof(SdfShapeHeader)
                 + contourHeaders.size() * sizeof(SdfContourHeader)
@@ -2264,18 +2251,14 @@ int main(int argc, char* argv[]) {
                     cerr << "Failed to process loop file " << file.filename << endl;
                     return 1;
                 }
-            } else if (ft == RESOURCE_TYPE_DIALOGUE &&
-                       file.filename.size() > 8 &&
-                       file.filename.substr(file.filename.size() - 8) == ".dlg.json") {
-                // .dlg.json -> binary dialogue resource
+            } else if (ft == RESOURCE_TYPE_DIALOGUE) {
+                // .dlg.json or .dlg -> binary dialogue resource
                 if (!processDialogueFile(file.filename, file.data)) {
                     cerr << "Failed to process dialogue file " << file.filename << endl;
                     return 1;
                 }
-            } else if (ft == RESOURCE_TYPE_CHARACTER &&
-                       file.filename.size() > 8 &&
-                       file.filename.substr(file.filename.size() - 8) == ".chr.json") {
-                // .chr.json -> binary character definition resource
+            } else if (ft == RESOURCE_TYPE_CHARACTER) {
+                // .chr.json or .chr -> binary character definition resource
                 if (!processCharacterFile(file.filename, file.data)) {
                     cerr << "Failed to process character file " << file.filename << endl;
                     return 1;
