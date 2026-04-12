@@ -207,7 +207,8 @@ void TextLayer::parseMarkup(const char* raw) {
     char* buf = static_cast<char*>(allocator_->allocate((Uint64)rawLen + 1, "TextLayer::parseMarkup::buf"));
     assert(buf != nullptr);
 
-    int    plainLen = 0;
+    int    plainLen  = 0;
+    int    charCount = 0; // codepoint counter — matches TextLayout's charIdx
     const char* p  = raw;
 
     struct OpenSpan { int startChar; MarkupEffect effect; float params[4]; int fontHandle; };
@@ -216,7 +217,10 @@ void TextLayer::parseMarkup(const char* raw) {
 
     while (*p) {
         if (*p != '[') {
+            unsigned char uc = (unsigned char)*p;
             buf[plainLen++] = *p++;
+            // Count codepoints: skip UTF-8 continuation bytes (0x80–0xBF)
+            if ((uc & 0xC0) != 0x80) charCount++;
             continue;
         }
         const char* tagStart = p + 1;
@@ -224,6 +228,7 @@ void TextLayer::parseMarkup(const char* raw) {
         while (*tagEnd && *tagEnd != ']') tagEnd++;
         if (*tagEnd != ']') {
             buf[plainLen++] = *p++;
+            charCount++; // '[' is ASCII, always a codepoint
             continue;
         }
         const char* t = tagStart;
@@ -305,13 +310,14 @@ void TextLayer::parseMarkup(const char* raw) {
             }
         } else {
             buf[plainLen++] = '[';
+            charCount++; // '[' is ASCII, always a codepoint
             p++;
             continue;
         }
 
         if (!isClose) {
             if (stackTop < 8) {
-                stack[stackTop].startChar  = plainLen;
+                stack[stackTop].startChar  = charCount;
                 stack[stackTop].effect     = effect;
                 stack[stackTop].fontHandle = spanFontHandle;
                 for (int i = 0; i < 4; i++) stack[stackTop].params[i] = params[i];
@@ -322,7 +328,7 @@ void TextLayer::parseMarkup(const char* raw) {
                 if (stack[si].effect == effect) {
                     MarkupSpan span{};
                     span.startChar  = stack[si].startChar;
-                    span.endChar    = plainLen;
+                    span.endChar    = charCount;
                     span.effect     = effect;
                     span.fontHandle = stack[si].fontHandle;
                     for (int i = 0; i < 4; i++) span.params[i] = stack[si].params[i];
