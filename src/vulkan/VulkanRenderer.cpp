@@ -2431,11 +2431,24 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, Uint32 i
                 vkCmdDraw(commandBuffer, 6, 1, 0, 0);
             };
 
-            // Persistent layers (set-once, rendered every frame)
+            // Persistent layers (set-once, rendered every frame).
+            // Draw in deterministic layer-id order so creation order is preserved
+            // (e.g. text drop shadows created before glyphs always stay behind).
+            Vector<int> sortedVectorLayerIds(*m_allocator,
+                "VulkanRenderer::recordCommandBuffer::sortedVectorLayerIds");
+            sortedVectorLayerIds.reserve(m_vectorLayers.size());
             for (auto it = m_vectorLayers.begin(); it != m_vectorLayers.end(); ++it) {
-                const VectorLayerEntry& e = it.value();
-                if (e.sceneId != m_activeVectorSceneId) continue;
-                drawShape(e.shapeId, e.x, e.y, e.scale, e.r, e.g, e.b, e.a);
+                if (it.value().sceneId == m_activeVectorSceneId) {
+                    sortedVectorLayerIds.push_back(it.key());
+                }
+            }
+            sortedVectorLayerIds.sort([](const int& a, const int& b) {
+                return a < b;
+            });
+            for (Uint64 vi = 0; vi < sortedVectorLayerIds.size(); ++vi) {
+                const VectorLayerEntry* e = m_vectorLayers.find(sortedVectorLayerIds[vi]);
+                if (!e) continue;
+                drawShape(e->shapeId, e->x, e->y, e->scale, e->r, e->g, e->b, e->a);
             }
 
             // Per-frame draw calls (queued by Lua drawVectorShape each frame)

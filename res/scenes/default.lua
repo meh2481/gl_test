@@ -69,19 +69,19 @@ local function createTextDemo()
     textLayerSetColor(tl2, 0.85, 0.85, 1.0, 1.0)
     textLayerSetWrapWidth(tl2, 1.7)
     textLayerSetAlignment(tl2, TEXT_ALIGN_LEFT)
-    textLayerSetString(tl2, "M4: wrap + left-align")
+    textLayerSetString(tl2, "M4: wrap + left-align this is a really long thing that should ideally wrap but I have no idea if it actually works that way so have some UTF-8 stuff: こんにちは世界")
     textLayers[#textLayers+1] = tl2
 
     -- Row 3 — M5: colour markup
     local tl3 = createTextLayer(fontReg)
-    textLayerSetPosition(tl3, -0.85, 0.60)
+    textLayerSetPosition(tl3, -0.85, 0.30)
     textLayerSetSize(tl3, 0.08)
     textLayerSetString(tl3, "M5: [color=FF4444FF]red[/color] [color=44FF88FF]green[/color] [color=4488FFFF]blue[/color]")
     textLayers[#textLayers+1] = tl3
 
     -- Row 4 — M5: wave + shake + rainbow effects
     local tl4 = createTextLayer(fontReg)
-    textLayerSetPosition(tl4, -0.85, 0.45)
+    textLayerSetPosition(tl4, -0.85, 0.14)
     textLayerSetSize(tl4, 0.08)
     textLayerSetString(tl4, "[wave amp=0.012 freq=3]wave[/wave]  [shake mag=0.008]shake[/shake]  [rainbow speed=0.4]rainbow[/rainbow]")
     textLayers[#textLayers+1] = tl4
@@ -89,7 +89,7 @@ local function createTextDemo()
     -- Row 5 — M6: multi-font runs
     if fontBold and fontItalic then
         local tl5 = createTextLayer(fontReg)
-        textLayerSetPosition(tl5, -0.85, 0.30)
+        textLayerSetPosition(tl5, -0.85, -0.02)
         textLayerSetSize(tl5, 0.08)
         textLayerSetFontFamily(tl5, fontBold, fontItalic, -1)
         textLayerSetString(tl5, "M6: [font=bold]Bold[/font]  [font=italic]Italic[/font]  Regular")
@@ -98,7 +98,7 @@ local function createTextDemo()
 
     -- Row 6 — M8: drop shadow
     local tl6 = createTextLayer(fontBold or fontReg)
-    textLayerSetPosition(tl6, -0.85, 0.14)
+    textLayerSetPosition(tl6, -0.85, -0.18)
     textLayerSetSize(tl6, 0.10)
     textLayerSetColor(tl6, 1.0, 0.92, 0.3, 1.0)
     textLayerSetShadow(tl6, 0.006, -0.006, 0.0, 0.0, 0.0, 0.75)
@@ -107,7 +107,7 @@ local function createTextDemo()
 
     -- Row 7 — M6+M8: bold + rainbow + shadow combo
     local tl7 = createTextLayer(fontBold or fontReg)
-    textLayerSetPosition(tl7, -0.85, -0.02)
+    textLayerSetPosition(tl7, -0.85, -0.34)
     textLayerSetSize(tl7, 0.08)
     textLayerSetShadow(tl7, 0.005, -0.005, 0.05, 0.0, 0.1, 0.7)
     textLayerSetString(tl7, "[rainbow speed=0.5]M6+M8: rainbow bold with shadow[/rainbow]")

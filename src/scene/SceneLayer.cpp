@@ -308,8 +308,25 @@ void SceneLayerManager::updateLayerVertices(Vector<SpriteBatch>& batches, float 
     };
     HashTable<BatchKey, Uint64> batchMap(*allocator_, "updateLayerVertices::batchMap");
 
+    // Build a deterministic processing order for layers.
+    // layers_ is a hash table, so direct iteration order can vary and cause
+    // non-deterministic draw order for quads merged into the same batch.
+    Vector<int> sortedLayerIds(*allocator_, "updateLayerVertices::sortedLayerIds");
+    sortedLayerIds.reserve(layers_.size());
     for (auto it = layers_.begin(); it != layers_.end(); ++it) {
-        const SceneLayer& layer = it.value();
+        sortedLayerIds.push_back(it.key());
+    }
+    sortedLayerIds.sort([](const int& a, const int& b) {
+        return a < b;
+    });
+
+    for (Uint64 i = 0; i < sortedLayerIds.size(); ++i) {
+        const int layerId = sortedLayerIds[i];
+        const SceneLayer* layerPtr = layers_.find(layerId);
+        if (layerPtr == nullptr) {
+            continue;
+        }
+        const SceneLayer& layer = *layerPtr;
 
         // Skip disabled layers
         // Allow layers without physics bodies if they have a parallax depth set (static layers)
