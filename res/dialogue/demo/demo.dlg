@@ -5,7 +5,8 @@
             "portrait": "default",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "Welcome, traveller. [pause=0.4]I am your [color=FFD700FF]Guide[/color]. This chamber tests the limits of what words can express." }
+                { "language": "en", "text": "Welcome, traveller. [pause=0.4]I am your [color=FFD700FF]Guide[/color]. This chamber tests the limits of what words can express." },
+                { "language": "ro", "text": "Bine ai venit, călătorule. [pause=0.4]Eu sunt [color=FFD700FF]Ghidul[/color] tău. Această cameră testează limitele a ceea ce pot exprima cuvintele." }
             ]
         },
         {
@@ -13,7 +14,8 @@
             "portrait": "default",
             "portraitSide": "right",
             "text": [
-                { "language": "en", "text": "Uh... [pause=0.3]sure. Where do we start?" }
+                { "language": "en", "text": "Uh... [pause=0.3]sure. Where do we start?" },
+                { "language": "ro", "text": "Uh... [pause=0.3]bine... De unde începem?" }
             ]
         },
         {
@@ -21,7 +23,8 @@
             "portrait": "happy",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "We start with [color=FF4444FF]colour[/color]. Words can be painted [color=44FF88FF]green[/color], [color=4488FFFF]blue[/color], or [color=FF88AAFF]rose[/color] to carry extra meaning." }
+                { "language": "en", "text": "We start with [color=FF4444FF]colour[/color]. Words can be painted [color=44FF88FF]green[/color], [color=4488FFFF]blue[/color], or [color=FF88AAFF]rose[/color] to carry extra meaning." },
+                { "language": "ro", "text": "Începem cu [color=FF4444FF]culoarea[/color]. Cuvintele pot fi vopsite [color=44FF88FF]verde[/color], [color=4488FFFF]albastru[/color], sau [color=FF88AAFF]roz[/color] pentru a purta un înțeles suplimentar." }
             ]
         },
         {
@@ -29,7 +32,8 @@
             "portrait": "happy",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "They can [wave amp=0.014 freq=2.5]rise and fall like ocean waves[/wave], or [shake mag=0.009]tremble with urgency[/shake]." }
+                { "language": "en", "text": "They can [wave amp=0.014 freq=2.5]rise and fall like ocean waves[/wave], or [shake mag=0.009]tremble with urgency[/shake]." },
+                { "language": "ro", "text": "Ele pot [wave amp=0.014 freq=2.5]urca și coborî precum valurile oceanului[/wave], sau [shake mag=0.009]tremura de urgență[/shake]." }
             ]
         },
         {
@@ -37,7 +41,8 @@
             "portrait": "surprised",
             "portraitSide": "right",
             "text": [
-                { "language": "en", "text": "[color=88DDFFFF]Whoa![/color][pause=0.5] That actually [shake mag=0.007]moves[/shake]?" }
+                { "language": "en", "text": "[color=88DDFFFF]Whoa![/color][pause=0.5] That actually [shake mag=0.007]moves[/shake]?" },
+                { "language": "ro", "text": "[color=88DDFFFF]Whoa![/color][pause=0.5] Asta chiar [shake mag=0.007]se mișcă[/shake]?" }
             ]
         },
         {
@@ -45,7 +50,8 @@
             "portrait": "serious",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "Indeed. And when ordinary prose falls short, we let [rainbow speed=0.35]every colour of the spectrum[/rainbow] speak at once." }
+                { "language": "en", "text": "Indeed. And when ordinary prose falls short, we let [rainbow speed=0.35]every colour of the spectrum[/rainbow] speak at once." },
+                { "language": "ro", "text": "Așa este. Și când proza obișnuită nu e suficientă, lăsăm [rainbow speed=0.35]toate culorile spectrului[/rainbow] să vorbească odată." }
             ]
         },
         {
@@ -53,7 +59,8 @@
             "portrait": "serious",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "Typography matters too. [font=bold]Bold strokes[/font] demand attention. [font=italic]Italic lines[/font] lend nuance. Together they give language its full [font=bold]weight[/font] and [font=italic]texture[/font]." }
+                { "language": "en", "text": "Typography matters too. [font=bold]Bold strokes[/font] demand attention. [font=italic]Italic lines[/font] lend nuance. Together they give language its full [font=bold]weight[/font] and [font=italic]texture[/font]." },
+                { "language": "ro", "text": "Tipografia contează și ea. [font=bold]Liniile îndrăznețe[/font] atrag atenția. [font=italic]Liniile italice[/font] oferă nuanță. Împreună, ele dau limbajului întreaga sa [font=bold]greutate[/font] și [font=italic]textură[/font]." }
             ]
         },
         {
@@ -61,7 +68,8 @@
             "portrait": "default",
             "portraitSide": "right",
             "text": [
-                { "language": "en", "text": "And pauses?[pause=0.6] Like...[pause=0.8] dramatic ones?" }
+                { "language": "en", "text": "And pauses?[pause=0.6] Like...[pause=0.8] dramatic ones?" },
+                { "language": "ro", "text": "Și pauzele?[pause=0.6] De genul...[pause=0.8] dramatice?" }
             ]
         },
         {
@@ -69,7 +77,8 @@
             "portrait": "happy",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "Precisely.[pause=1.0] Silence is part of the story. A beat held just long enough becomes [wave amp=0.01 freq=3][color=FFD700FF]emphasis[/color][/wave]." }
+                { "language": "en", "text": "Precisely.[pause=1.0] Silence is part of the story. A beat held just long enough becomes [wave amp=0.01 freq=3][color=FFD700FF]emphasis[/color][/wave]." },
+                { "language": "ro", "text": "Exact.[pause=1.0] Tăcerea face parte din poveste. O pauză ținută suficient de mult devine [wave amp=0.01 freq=3][color=FFD700FF]emfază[/color][/wave]." }
             ]
         },
         {
@@ -77,7 +86,8 @@
             "portrait": "surprised",
             "portraitSide": "right",
             "text": [
-                { "language": "en", "text": "[rainbow speed=0.5]Amazing![/rainbow] Can we combine everything at once?" }
+                { "language": "en", "text": "[rainbow speed=0.5]Amazing![/rainbow] Can we combine everything at once?" },
+                { "language": "ro", "text": "[rainbow speed=0.5]Uimitor![/rainbow] Putem combina totul odată?" }
             ]
         },
         {
@@ -85,7 +95,8 @@
             "portrait": "serious",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "[font=bold][color=FF4444FF][shake mag=0.008]Yes.[/shake][/color][/font][pause=0.4] [font=bold][color=FFD700FF][wave amp=0.012 freq=2]Yes, we can.[/wave][/color][/font]" }
+                { "language": "en", "text": "[font=bold][color=FF4444FF][shake mag=0.008]Yes.[/shake][/color][/font][pause=0.4] [font=bold][color=FFD700FF][wave amp=0.012 freq=2]Yes, we can.[/wave][/color][/font]" },
+                { "language": "ro", "text": "[font=bold][color=FF4444FF][shake mag=0.008]Da.[/shake][/color][/font][pause=0.4] [font=bold][color=FFD700FF][wave amp=0.012 freq=2]Da, putem.[/wave][/color][/font]" }
             ]
         },
         {
@@ -93,7 +104,8 @@
             "portrait": "happy",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "That concludes the demonstration. [color=88DDFFFF]The dialogue will now loop.[/color] [wave amp=0.01 freq=2.5]Speak again whenever you are ready.[/wave]" }
+                { "language": "en", "text": "That concludes the demonstration. [color=88DDFFFF]The dialogue will now loop.[/color] [wave amp=0.01 freq=2.5]Speak again whenever you are ready.[/wave]" },
+                { "language": "ro", "text": "Aceasta încheie demonstrația. [color=88DDFFFF]Dialogul se va repeta acum.[/color] [wave amp=0.01 freq=2.5]Vorbește din nou când ești gata.[/wave]" }
             ]
         }
     ]

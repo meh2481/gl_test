@@ -1602,10 +1602,6 @@ bool processLoopFile(const string& filename, vector<char>& output) {
             ptr += sizeof(Uint64);
         }
     }
-
-    cout << "Loop file " << filename << " -> " << numIntensities
-         << " intensities, " << totalLayers << " total layer refs, "
-         << output.size() << " bytes" << endl;
     return true;
 }
 
@@ -1739,10 +1735,6 @@ bool processDialogueFile(const string& filename, vector<char>& output) {
     }
 
     memcpy(ptr, allRecords.data(), allRecords.size() * sizeof(DialogueLineRecord));
-
-    cout << "Dialogue file " << filename << " -> " << lineCount
-         << " lines, " << languageCount << " language(s), "
-         << output.size() << " bytes" << endl;
     return true;
 }
 
@@ -1806,10 +1798,6 @@ bool processCharacterFile(const string& filename, vector<char>& output) {
     if (numPortraits > 0) {
         memcpy(ptr, portEntries.data(), numPortraits * sizeof(CharacterPortraitEntry));
     }
-
-    cout << "Character file " << filename << " -> '" << name << "', "
-         << numPortraits << " portrait(s), "
-         << output.size() << " bytes" << endl;
     return true;
 }
 
