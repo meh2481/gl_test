@@ -5,7 +5,7 @@
     "revealSound": "res/sfx/sfx.wav",
     "portraits": [
         { "tag": "default", "path": "res/objects/rock/rock.png" },
-        { "tag": "serious", "path": "res/objects/rock/rock.png" },
+        { "tag": "serious", "path": "res/objects/rock/rock.norm.png" },
         { "tag": "happy",   "path": "res/objects/rock/rock.png" }
     ]
 }
