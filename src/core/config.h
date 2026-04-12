@@ -15,6 +15,10 @@
 #define PREF_PATH_APPLICATION "ShaderTriangle"
 #define MAX_PREF_PATH 1024
 
+// Maximum length of an ISO 639-1 language code (e.g. "en", "fr"), including null terminator.
+// Must match DIALOGUE_LANG_CODE_LEN in ResourceTypes.h.
+#define MAX_LANGUAGE_CODE 8
+
 struct Config {
     int display = 0;
     SDL_WindowFlags fullscreenMode = SDL_WINDOW_FULLSCREEN;
@@ -31,6 +35,8 @@ struct Config {
 #else
         SDL_LOG_PRIORITY_ERROR;
 #endif
+    // ISO 639-1 language code used for dialogue text selection (e.g. "en", "fr", "es").
+    char language[MAX_LANGUAGE_CODE] = "en";
 };
 
 // Config manager for INI-style configuration files
@@ -86,6 +92,11 @@ public:
 // Legacy functions for backward compatibility
 Config loadConfig();
 void saveConfig(const Config& config);
+
+// Global current language used by dialogue loading at runtime.
+extern char gCurrentLanguage[MAX_LANGUAGE_CODE];
+void setCurrentLanguage(const char* languageCode);
+const char* getCurrentLanguage();
 
 // Helper function to build a path in the config directory
 // Returns true if successful, false otherwise

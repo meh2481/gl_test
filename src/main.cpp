@@ -435,6 +435,7 @@ extern "C" int app_main()
 
     // Set SceneManager pointer in LuaInterface after SceneManager is created
     luaInterface->setSceneManager(sceneManager);
+    setCurrentLanguage(config.language);
     *consoleBuffer << SDL_LOG_PRIORITY_VERBOSE << "Created SceneManager and linked with LuaInterface" << ConsoleBuffer::endl;
 
     // Allocate KeybindingManager

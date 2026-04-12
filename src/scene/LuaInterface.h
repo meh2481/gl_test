@@ -214,7 +214,6 @@ private:
     static int dialogueLoad(lua_State* L);
     static int dialogueStart(lua_State* L);
     static int dialogueAdvance(lua_State* L);
-    static int dialogueSetLanguage(lua_State* L);
     static int dialogueIsRevealing(lua_State* L);
     static int dialogueGetCurrentLine(lua_State* L);
     static int dialogueGetTotalLines(lua_State* L);

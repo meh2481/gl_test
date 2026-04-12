@@ -418,7 +418,7 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
                                      "textLayerSetFontFamily", "textLayerSetShadow", "textLayerClearShadow",
                                      "createDialogueBox", "destroyDialogueBox",
                                      "dialogueLoad", "dialogueStart", "dialogueAdvance",
-                                     "dialogueSetLanguage", "dialogueIsRevealing", "dialogueGetCurrentLine",
+                                     "dialogueIsRevealing", "dialogueGetCurrentLine",
                                      "dialogueGetTotalLines", "dialogueSetBackdrop",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
@@ -1178,7 +1178,6 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "dialogueLoad",          dialogueLoad);
     lua_register(luaState_, "dialogueStart",         dialogueStart);
     lua_register(luaState_, "dialogueAdvance",       dialogueAdvance);
-    lua_register(luaState_, "dialogueSetLanguage",   dialogueSetLanguage);
     lua_register(luaState_, "dialogueIsRevealing",   dialogueIsRevealing);
     lua_register(luaState_, "dialogueGetCurrentLine",dialogueGetCurrentLine);
     lua_register(luaState_, "dialogueGetTotalLines", dialogueGetTotalLines);
@@ -5490,7 +5489,7 @@ int LuaInterface::destroyDialogueBox(lua_State* L) {
     return 0;
 }
 
-// dialogueLoad(dlgId, resourcePath [, languageCode])
+// dialogueLoad(dlgId, resourcePath)
 // Returns true on success.
 int LuaInterface::dialogueLoad(lua_State* L) {
     int         id   = (int)luaL_checkinteger(L, 1);
@@ -5502,11 +5501,6 @@ int LuaInterface::dialogueLoad(lua_State* L) {
 
     DialogueManager** ptr = iface->dialogueBoxes_.find(id);
     if (!ptr) { lua_pushboolean(L, 0); return 1; }
-
-    // Optional language code (arg 3).
-    if (lua_isstring(L, 3)) {
-        (*ptr)->setLanguage(lua_tostring(L, 3));
-    }
 
     lua_pushboolean(L, (*ptr)->loadDialogue(path) ? 1 : 0);
     return 1;
@@ -5542,21 +5536,6 @@ int LuaInterface::dialogueAdvance(lua_State* L) {
 
     DialogueManager** ptr = iface->dialogueBoxes_.find(id);
     if (ptr) (*ptr)->advance(iface->currentSceneId_);
-    return 0;
-}
-
-// dialogueSetLanguage(dlgId, langCode)
-// Sets the language used on the next dialogueLoad() call.
-int LuaInterface::dialogueSetLanguage(lua_State* L) {
-    int         id   = (int)luaL_checkinteger(L, 1);
-    const char* code = luaL_checkstring(L, 2);
-
-    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
-    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
-    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
-    if (ptr) (*ptr)->setLanguage(code);
     return 0;
 }
 

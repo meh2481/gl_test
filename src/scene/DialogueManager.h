@@ -20,7 +20,6 @@ class PakResource;
 // Usage (Lua):
 //   local dlg = createDialogueBox({ font=fh, x=100, y=500, width=600, textSize=24 })
 //   dialogueLoad(dlg, "res/dialogue/intro.dlg")
-//   dialogueSetLanguage(dlg, "en")   -- optional; defaults to first language
 //   dialogueStart(dlg, function() print("done") end)
 //   dialogueAdvance(dlg)             -- on player input
 //   destroyDialogueBox(dlg)
@@ -92,11 +91,6 @@ public:
     // Configure the dialogue box parameters.
     void configure(const DialogueBoxConfig& cfg);
 
-    // Select the display language by ISO code (e.g. "en").
-    // Must be called after loadDialogue() and before start().
-    // Falls back to the first available language if the code is not found.
-    void setLanguage(const char* isoCode);
-
     // Load dialogue lines from a binary dialogue resource in the pak.
     // resourcePath is the path used to compute the resource ID.
     // Returns true on success.
@@ -154,9 +148,6 @@ private:
 
     DialogueBoxConfig cfg_;
     Vector<DialogueLine> lines_;
-
-    // Language selection: loaded language index applied during loadDialogue().
-    char pendingLanguage_[DIALOGUE_LANG_CODE_LEN];
 
     // Character definition cache (up to a small fixed number of characters).
     static const int MAX_CHAR_CACHE = 8;

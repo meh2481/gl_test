@@ -2,6 +2,16 @@
 #include <SDL3/SDL.h>
 #include <cassert>
 
+char gCurrentLanguage[MAX_LANGUAGE_CODE] = "en";
+
+void setCurrentLanguage(const char* languageCode) {
+    SDL_strlcpy(gCurrentLanguage, languageCode, sizeof(gCurrentLanguage));
+}
+
+const char* getCurrentLanguage() {
+    return gCurrentLanguage;
+}
+
 // ConfigManager implementation
 
 ConfigManager::ConfigManager() : entryCount(0), commentCount(0) {
@@ -338,8 +348,11 @@ Config loadConfig() {
             if (logLevel[0] != '\0') {
                 config.logLevel = parseLogLevelEnum(logLevel);
             }
+            const char* language = manager.getString("Language", "language", "en");
+            SDL_strlcpy(config.language, language, sizeof(config.language));
         }
     }
+    setCurrentLanguage(config.language);
     return config;
 }
 
@@ -358,6 +371,9 @@ void saveConfig(const Config& config) {
         manager.setKeyComment("Graphics", "present_mode", "; Vulkan present mode: fifo (vsync), mailbox (triple-buffered uncapped fps), immediate (no buffering), fifo_relaxed (good for low spec)");
         manager.setString("Logging", "log_level", getLogLevelString(config.logLevel));
         manager.setKeyComment("Logging", "log_level", "; Log level: verbose, debug, info, warn, error, critical");
+        setCurrentLanguage(config.language);
+        manager.setString("Language", "language", config.language);
+        manager.setKeyComment("Language", "language", "; ISO 639-1 language code for dialogue text (e.g. en, fr, es, de, ja)");
         manager.save();
     }
 }

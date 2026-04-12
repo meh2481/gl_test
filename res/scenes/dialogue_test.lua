@@ -14,7 +14,7 @@ local btnShader = nil
 
 local function startDialogue()
     if dlg then
-        dialogueLoad(dlg, "res/dialogue/demo/demo.dlg", "en")
+        dialogueLoad(dlg, "res/dialogue/demo/demo.dlg")
         dialogueStart(dlg, function()
             -- Loop: restart from the beginning
             startDialogue()

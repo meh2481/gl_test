@@ -1,5 +1,6 @@
 #include "DialogueManager.h"
 #include "../audio/AudioManager.h"
+#include "../core/config.h"
 #include "../vulkan/VulkanRenderer.h"
 #include "../text/FontManager.h"
 #include "../resources/resource.h"
@@ -53,7 +54,6 @@ DialogueManager::DialogueManager(MemoryAllocator*   allocator,
     cfg_.boldFontHandle      = -1;
     cfg_.italicFontHandle    = -1;
     cfg_.transitionDuration  = 0.2f;
-    pendingLanguage_[0]      = '\0';
     SDL_memset(charCache_, 0, sizeof(charCache_));
 }
 
@@ -68,14 +68,6 @@ DialogueManager::~DialogueManager() {
 void DialogueManager::configure(const DialogueBoxConfig& cfg) {
     cfg_ = cfg;
     portraitPipelineId_ = cfg.portraitPipelineId;
-}
-
-void DialogueManager::setLanguage(const char* isoCode) {
-    if (isoCode && isoCode[0]) {
-        SDL_strlcpy(pendingLanguage_, isoCode, DIALOGUE_LANG_CODE_LEN);
-    } else {
-        pendingLanguage_[0] = '\0';
-    }
 }
 
 bool DialogueManager::loadDialogue(const char* resourcePath) {
@@ -118,14 +110,21 @@ bool DialogueManager::loadDialogue(const char* resourcePath) {
 
     // Determine which language index to load.
     Uint32 langIndex = 0;
-    if (pendingLanguage_[0] != '\0') {
+    const char* currentLanguage = getCurrentLanguage();
+    if (currentLanguage && currentLanguage[0] != '\0') {
+        bool foundLanguage = false;
         for (Uint32 i = 0; i < hdr->languageCount; i++) {
-            if (SDL_strcmp(langTable[i].code, pendingLanguage_) == 0) {
+            if (SDL_strcmp(langTable[i].code, currentLanguage) == 0) {
                 langIndex = i;
+                foundLanguage = true;
                 break;
             }
         }
-        // If not found, langIndex stays 0 (fallback).
+        if (!foundLanguage) {
+            console_->log(SDL_LOG_PRIORITY_WARN,
+                "DialogueManager: language '%s' not found in '%s', falling back to '%s'",
+                currentLanguage, resourcePath, langTable[0].code);
+        }
     }
 
     // Records are ordered language-major:
@@ -149,8 +148,8 @@ bool DialogueManager::loadDialogue(const char* resourcePath) {
     }
 
     console_->log(SDL_LOG_PRIORITY_INFO,
-        "DialogueManager: loaded %d lines (lang[%d]) from '%s'",
-        (int)lines_.size(), (int)langIndex, resourcePath);
+        "DialogueManager: loaded %d lines (lang=%s, index=%d) from '%s'",
+        (int)lines_.size(), langTable[langIndex].code, (int)langIndex, resourcePath);
     return true;
 }
 
