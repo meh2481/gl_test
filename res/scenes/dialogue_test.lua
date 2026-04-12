@@ -76,11 +76,6 @@ function init()
     startDialogue()
 end
 
-function onResume()
-    createBackButton()
-    -- Dialogue resumes from where it was (no need to restart).
-end
-
 function update(deltaTime)
     if backBtn then backBtn.update(deltaTime) end
     -- Dialogue update is called automatically by the engine each frame.

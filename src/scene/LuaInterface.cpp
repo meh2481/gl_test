@@ -931,9 +931,9 @@ void LuaInterface::resumeScene(Uint64 sceneId) {
     if (lua_isfunction(luaState_, -1)) {
         if (lua_pcall(luaState_, 0, 0, 0) != LUA_OK) {
             const char* errorMsg = lua_tostring(luaState_, -1);
-            consoleBuffer_->log(SDL_LOG_PRIORITY_ERROR, "Lua onResume error: %s", (errorMsg ? errorMsg : "unknown error"));
+            consoleBuffer_->log(SDL_LOG_PRIORITY_DEBUG, "Lua onResume error: %s", (errorMsg ? errorMsg : "unknown error"));
             lua_pop(luaState_, 1); // Pop error message
-            assert(false);
+            return;
         }
     } else {
         lua_pop(luaState_, 1); // Pop non-function

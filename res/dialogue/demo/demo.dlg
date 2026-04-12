@@ -13,7 +13,7 @@
             "portrait": "default",
             "portraitSide": "right",
             "text": [
-                { "language": "en", "text": "Uh[pause=0.3]... sure. Where do we start?" }
+                { "language": "en", "text": "Uh... [pause=0.3]sure. Where do we start?" }
             ]
         },
         {

@@ -597,12 +597,11 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
     // We call updateFadesAndEffects so the reveal accumulator does NOT advance.
     if (pauseAnimWaiting_) {
         bodyText_->updateFadesAndEffects(dt, sceneId);
-            // All fades done — now start the actual pause.
-            pauseTimer_         = pauseWaitDuration_;
-            pauseAnimWaiting_   = false;
-            pauseWaitCharIndex_ = 0;
-            pauseWaitDuration_  = 0.0f;
-        }
+        // All fades done — now start the actual pause.
+        pauseTimer_         = pauseWaitDuration_;
+        pauseAnimWaiting_   = false;
+        pauseWaitCharIndex_ = 0;
+        pauseWaitDuration_  = 0.0f;
         return;
     }
 
