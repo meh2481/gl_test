@@ -829,8 +829,13 @@ void TextLayer::updateReveal(float dt, Uint64 /*sceneId*/) {
 }
 
 static float stableRand(int charIdx, int seed, float time) {
+    // LCG-style hash mixing for stable per-character, per-frame random values.
+    // Multipliers are standard Numerical Recipes LCG constants.
+    static const Uint32 LCG_A  = 1664525u;
+    static const Uint32 LCG_B  = 1013904223u;
+    static const Uint32 LCG_C  = 22695477u;
     int t   = (int)(time * 10.0f);
-    Uint32 h = (Uint32)(charIdx * 1664525 + seed * 1013904223 + t * 22695477);
+    Uint32 h = (Uint32)(charIdx * LCG_A + seed * LCG_B + t * LCG_C);
     h ^= (h >> 16);
     h *= 0x45d9f3b;
     h ^= (h >> 16);
