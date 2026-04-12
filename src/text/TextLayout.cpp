@@ -93,6 +93,7 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
     int charIdx = 0;
     Uint32 prevGlyphIndex = 0xFFFFFFFF;
     int prevFontHandle    = -1;
+    bool atSoftWrapLineStart = false;
 
     while (*src) {
         // Scan ahead to find the end of the current word (up to next whitespace or end).
@@ -137,6 +138,7 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
                 lineStarts.push_back({(int)glyphs_.size(), cursorX});
                 prevGlyphIndex = 0xFFFFFFFF;
                 prevFontHandle = -1;
+                atSoftWrapLineStart = true;
             }
         }
 
@@ -148,6 +150,13 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
             lineStarts.push_back({(int)glyphs_.size(), cursorX});
             prevGlyphIndex = 0xFFFFFFFF;
             prevFontHandle = -1;
+            atSoftWrapLineStart = false;
+            charIdx++;
+            continue;
+        }
+
+        // Drop leading spaces/tabs only for auto-wrapped lines.
+        if (atSoftWrapLineStart && (cp == ' ' || cp == '\t')) {
             charIdx++;
             continue;
         }
@@ -159,6 +168,7 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
                 cursorX = params.originX + next;
             }
             prevGlyphIndex = 0xFFFFFFFF;
+            atSoftWrapLineStart = false;
             charIdx++;
             continue;
         }
@@ -200,6 +210,7 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
         cursorX += (float)ge->advanceWidth * efScale;
         prevGlyphIndex = ge->glyphIndex;
         prevFontHandle = ef;
+        atSoftWrapLineStart = false;
         charIdx++;
     }
 
