@@ -1521,6 +1521,11 @@ void VulkanRenderer::loadTexture(Uint64 textureId, const ResourceData& imageData
 }
 
 void VulkanRenderer::loadVectorShape(Uint64 shapeId, const ResourceData& shapeData) {
+    // Skip if already uploaded (e.g. font loaded twice, or same glyph shared across calls).
+    if (m_vectorShapes.find(shapeId) != nullptr) {
+        return;
+    }
+
     if (shapeData.size < sizeof(SdfShapeHeader)) {
         m_consoleBuffer->log(SDL_LOG_PRIORITY_ERROR, "loadVectorShape: resource too small for header (id=%llu)",
             (unsigned long long)shapeId);

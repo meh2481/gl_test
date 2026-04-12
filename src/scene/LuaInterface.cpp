@@ -100,15 +100,14 @@ LuaInterface::~LuaInterface() {
     }
     scenePipelines_.clear();
 
-    // Don't delete stringAllocator_ - we don't own it anymore
-    stringAllocator_ = nullptr;
-
     if (fontManager_) {
         fontManager_->~FontManager();
-        // fontManager_ memory comes from stringAllocator_ which is already null here;
-        // the arena allocator will clean it up when it is destroyed.
+        stringAllocator_->free(fontManager_);
         fontManager_ = nullptr;
     }
+
+    // Don't delete stringAllocator_ - we don't own it anymore
+    stringAllocator_ = nullptr;
 }
 
 void LuaInterface::onPhysicsSensorEvent(const SensorEvent& event, void* userData) {
@@ -5038,16 +5037,24 @@ int LuaInterface::unloadFont(lua_State* L) {
     return 0;
 }
 
+// createTextLayer(fontHandle) -> textLayerId
 // createTextLayer(fontHandle, x, y, pointSize) -> textLayerId
 int LuaInterface::createTextLayer(lua_State* L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
     LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
     lua_pop(L, 1);
 
+    int argc = lua_gettop(L);
     int   fontHandle = (int)luaL_checkinteger(L, 1);
-    float x          = (float)luaL_checknumber(L, 2);
-    float y          = (float)luaL_checknumber(L, 3);
-    float pointSize  = (float)luaL_checknumber(L, 4);
+    float x          = 0.0f;
+    float y          = 0.0f;
+    float pointSize  = 16.0f;
+
+    if (argc >= 4) {
+        x         = (float)luaL_checknumber(L, 2);
+        y         = (float)luaL_checknumber(L, 3);
+        pointSize = (float)luaL_checknumber(L, 4);
+    }
 
     TextLayer* tl = static_cast<TextLayer*>(
         iface->stringAllocator_->allocate(sizeof(TextLayer), "TextLayer"));
@@ -5198,7 +5205,10 @@ int LuaInterface::textLayerSetAlignment(lua_State* L) {
     lua_pop(L, 1);
 
     int id    = (int)luaL_checkinteger(L, 1);
-    int align = (int)luaL_checkinteger(L, 2);
+    int align = TEXT_ALIGN_LEFT;
+    if (!lua_isnoneornil(L, 2)) {
+        align = (int)luaL_checkinteger(L, 2);
+    }
     TextLayer** ptr = iface->textLayers_.find(id);
     if (ptr) { (*ptr)->setAlignment(align); (*ptr)->rebuild(iface->currentSceneId_); }
     return 0;

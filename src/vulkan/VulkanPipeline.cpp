@@ -1790,8 +1790,9 @@ void VulkanPipeline::createVectorPipeline(const ResourceData& vertShader, const 
         }
     }
 
-    // Descriptor pool: up to 64 vector shapes, each needs 2 SSBO descriptors.
-    static const Uint32 MAX_VECTOR_SHAPES = 64;
+    // Descriptor pool: enough for many font glyphs + standalone shapes.
+    // A single font can have 200-500+ outline glyphs, so allow room for several fonts.
+    static const Uint32 MAX_VECTOR_SHAPES = 1024;
     VkDescriptorPoolSize poolSize{};
     poolSize.type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     poolSize.descriptorCount = MAX_VECTOR_SHAPES * 2;
