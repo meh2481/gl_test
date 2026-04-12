@@ -946,3 +946,45 @@ void TextLayer::destroyGlyphLayers() {
     revealCount_      = 0;
     revealComplete_   = true;
 }
+
+bool TextLayer::isRevealAnimComplete(int upToCharIndex) const {
+    for (int i = 0; i < (int)glyphLayers_.size() && i < upToCharIndex; i++) {
+        const GlyphLayerInfo& gl = glyphLayers_[i];
+        if (gl.revealed && gl.revealTimer >= 0.0f && gl.revealTimer < FADE_IN_TIME) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void TextLayer::updateFadesOnly(float dt, Uint64 sceneId) {
+    (void)sceneId;
+    time_ += dt;
+    // Advance fade-in timers for already-revealed glyphs without touching
+    // the reveal accumulator.
+    if (textLayerGpuId_ >= 0) {
+        for (auto& gl : glyphLayers_) {
+            if (!gl.hasOutline || gl.sdfGlyphIdx < 0 || !gl.revealed) continue;
+            if (gl.revealTimer >= 0.0f && gl.revealTimer < FADE_IN_TIME) {
+                gl.revealTimer += dt;
+                float alpha = (FADE_IN_TIME > 0.0f)
+                    ? SDL_clamp(gl.revealTimer / FADE_IN_TIME, 0.0f, 1.0f) : 1.0f;
+                int mainIdx = (mainVertOffset_ + gl.sdfGlyphIdx) * TEXT_VERTS_PER_GLYPH;
+                updateGlyphQuadColor(cpuVertices_.data(), mainIdx,
+                    gl.baseR, gl.baseG, gl.baseB, gl.baseA * alpha);
+                if (shadowEnabled_) {
+                    int shadowIdx = gl.sdfGlyphIdx * TEXT_VERTS_PER_GLYPH;
+                    updateGlyphQuadColor(cpuVertices_.data(), shadowIdx,
+                        shadowR_, shadowG_, shadowB_, shadowA_ * alpha);
+                }
+                verticesDirty_ = true;
+            }
+        }
+    }
+    applyEffects(dt);
+    if (verticesDirty_ && textLayerGpuId_ >= 0 && totalSdfVertices_ > 0) {
+        renderer_->updateTextLayerVertices(textLayerGpuId_,
+            cpuVertices_.data(), totalSdfVertices_);
+        verticesDirty_ = false;
+    }
+}

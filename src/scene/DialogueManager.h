@@ -189,6 +189,12 @@ private:
     int        numPausePoints_;
     float      pauseTimer_;        // countdown; >0 = paused
 
+    // When a [pause=N] charIndex is reached we freeze reveal and wait for
+    // all prior fade-ins to finish before starting the actual pauseTimer_.
+    bool  pauseAnimWaiting_;   // true = waiting for fade-in to finish
+    int   pauseWaitCharIndex_; // which charIndex we're waiting for
+    float pauseWaitDuration_;  // duration to apply once anim is done
+
     // TRANSITIONING state
     float transitionTimer_;
     // Next line to show after transition completes.

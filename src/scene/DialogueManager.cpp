@@ -310,6 +310,9 @@ void DialogueManager::start(lua_State* L, int onCompleteRef, Uint64 sceneId) {
     lastRevealCount_   = 0;
     numPausePoints_    = 0;
     pauseTimer_        = 0.0f;
+    pauseAnimWaiting_  = false;
+    pauseWaitCharIndex_= 0;
+    pauseWaitDuration_ = 0.0f;
     transitionTimer_   = 0.0f;
     transitionTargetLine_ = -1;
     showLine(0, sceneId);
@@ -400,7 +403,10 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
     char cleanText[DIALOGUE_MAX_TEXT];
     preprocessPauses(line.text, cleanText, DIALOGUE_MAX_TEXT,
                      pausePoints_, MAX_PAUSE_POINTS, numPausePoints_);
-    pauseTimer_ = 0.0f;
+    pauseTimer_         = 0.0f;
+    pauseAnimWaiting_   = false;
+    pauseWaitCharIndex_ = 0;
+    pauseWaitDuration_  = 0.0f;
 
     // Set body text (parses markup, runs layout, rebuilds glyph layers).
     bodyText_->setString(cleanText, sceneId);
@@ -462,8 +468,8 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
         activePortraitTex_ = newTex;
         if (newTex != 0 && layerManager_) {
             float px = (line.portraitSide == 0)
-                ? (cfg_.x - cfg_.portraitWidth * 0.6f)
-                : (cfg_.x + cfg_.width + cfg_.portraitWidth * 0.1f);
+                ? (cfg_.x - cfg_.portraitWidth * 0.5f)
+                : (cfg_.x + cfg_.width + cfg_.portraitWidth * 0.5f);
             float py = cfg_.y;
 
             if (portraitLayerId_ < 0) {
@@ -521,7 +527,10 @@ void DialogueManager::advance(Uint64 sceneId) {
 
     if (state_ == STATE_REVEALING) {
         // Jump to full reveal: skip remaining pause timers too.
-        pauseTimer_ = 0.0f;
+        pauseTimer_         = 0.0f;
+        pauseAnimWaiting_   = false;
+        pauseWaitCharIndex_ = 0;
+        pauseWaitDuration_  = 0.0f;
         if (bodyText_) {
             bodyText_->setRevealSpeed(0.0f);
         }
@@ -548,32 +557,17 @@ void DialogueManager::advance(Uint64 sceneId) {
 void DialogueManager::update(float dt, Uint64 sceneId) {
     if (state_ == STATE_IDLE) return;
 
-    // While a pause point is active the body text must not advance its reveal.
-    // TextLayer::setRevealSpeed(0) means "instant reveal all" — so we instead
-    // pass dt=0 to bodyText_->update() to freeze the accumulator without
-    // changing the configured reveal speed.
-    float bodyDt = dt;
-    if (state_ == STATE_REVEALING && pauseTimer_ > 0.0f) {
-        pauseTimer_ -= dt;
-        if (pauseTimer_ > 0.0f) {
-            bodyDt = 0.0f; // still paused
-        } else {
-            pauseTimer_ = 0.0f; // just expired; resume this frame
-        }
-    }
-
-    // Update text layers.
-    if (bodyText_)    bodyText_->update(bodyDt, sceneId);
+    // Always keep the speaker text running.
     if (speakerText_) speakerText_->update(dt, sceneId);
 
+    // --- TRANSITIONING: portrait crossfade in progress ---
     if (state_ == STATE_TRANSITIONING) {
+        if (bodyText_) bodyText_->update(dt, sceneId);
         transitionTimer_ -= dt;
         if (transitionTimer_ <= 0.0f) {
-            // Transition complete: apply the new portrait and show the target line.
             transitionTimer_ = 0.0f;
             state_ = STATE_IDLE; // reset so showLine sets STATE_REVEALING
             if (transitionTargetLine_ >= 0) {
-                // Clear activePortraitTex_ so showLine doesn't re-trigger transition.
                 activePortraitTex_ = 0;
                 showLine(transitionTargetLine_, sceneId);
                 transitionTargetLine_ = -1;
@@ -582,34 +576,80 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
         return;
     }
 
-    if (state_ == STATE_REVEALING && bodyText_) {
-        // If still paused this frame, skip pause-point detection and completion check.
-        if (bodyDt == 0.0f) return;
+    // --- WAITING_ADVANCE: fully revealed, waiting for player input ---
+    if (state_ == STATE_WAITING_ADVANCE) {
+        if (bodyText_) bodyText_->update(dt, sceneId);
+        return;
+    }
 
-        int newReveal = bodyText_->getRevealCount();
+    // --- REVEALING ---
+    if (state_ != STATE_REVEALING || !bodyText_) return;
 
-        // Check if a pause point is reached.
-        for (int i = 0; i < numPausePoints_; i++) {
-            if (pausePoints_[i].duration > 0.0f &&
-                newReveal >= pausePoints_[i].charIndex &&
-                lastRevealCount_ < pausePoints_[i].charIndex) {
-                pauseTimer_ = pausePoints_[i].duration;
-                pausePoints_[i].duration = 0.0f; // consume it
-                lastRevealCount_ = newReveal;
-                return;
+    // Pause-anim-waiting: a [pause=N] threshold was crossed; let the fade-in
+    // animations of the already-revealed characters finish before we freeze.
+    // We call updateFadesOnly so the reveal accumulator does NOT advance.
+    if (pauseAnimWaiting_) {
+        bodyText_->updateFadesOnly(dt, sceneId);
+        if (bodyText_->isRevealAnimComplete(pauseWaitCharIndex_)) {
+            // All fades done — now start the actual pause.
+            pauseTimer_         = pauseWaitDuration_;
+            pauseAnimWaiting_   = false;
+            pauseWaitCharIndex_ = 0;
+            pauseWaitDuration_  = 0.0f;
+        }
+        return;
+    }
+
+    // Active pause countdown: pass dt=0 so the reveal accumulator and effects
+    // are frozen. (Fades for the most recently-revealed chars are already done
+    // because we waited for them before starting this timer.)
+    if (pauseTimer_ > 0.0f) {
+        pauseTimer_ -= dt;
+        if (pauseTimer_ > 0.0f) {
+            bodyText_->update(0.0f, sceneId); // freeze reveal + effects
+            return;
+        }
+        pauseTimer_ = 0.0f; // just expired; fall through to normal reveal
+    }
+
+    // Normal reveal: update with full dt.
+    bodyText_->update(dt, sceneId);
+    int newReveal = bodyText_->getRevealCount();
+
+    // Detect pause-point threshold crossings.
+    for (int i = 0; i < numPausePoints_; i++) {
+        if (pausePoints_[i].duration > 0.0f &&
+            newReveal >= pausePoints_[i].charIndex &&
+            lastRevealCount_ < pausePoints_[i].charIndex) {
+            // Play reveal sound for chars newly uncovered up to this threshold.
+            if (revealSoundSourceId_ >= 0 && newReveal > lastRevealCount_) {
+                audioManager_->playSource(revealSoundSourceId_);
             }
+            lastRevealCount_ = newReveal;
+            float dur = pausePoints_[i].duration;
+            pausePoints_[i].duration = 0.0f; // consume
+            if (bodyText_->isRevealAnimComplete(pausePoints_[i].charIndex)) {
+                // Fades already done (instant reveal speed): start pause immediately.
+                pauseTimer_ = dur;
+            } else {
+                // Wait for fade-in animations to finish before freezing.
+                pauseAnimWaiting_   = true;
+                pauseWaitCharIndex_ = pausePoints_[i].charIndex;
+                pauseWaitDuration_  = dur;
+            }
+            return;
         }
+    }
 
-        // Play reveal sound for each newly revealed character.
-        if (revealSoundSourceId_ >= 0 && newReveal > lastRevealCount_) {
-            audioManager_->playSource(revealSoundSourceId_);
-        }
-        lastRevealCount_ = newReveal;
+    // Play reveal sound for each newly revealed character.
+    if (revealSoundSourceId_ >= 0 && newReveal > lastRevealCount_) {
+        audioManager_->playSource(revealSoundSourceId_);
+    }
+    lastRevealCount_ = newReveal;
 
-        // Check if reveal is complete.
-        if (newReveal >= bodyText_->getTotalChars() && bodyText_->getTotalChars() > 0) {
-            state_ = STATE_WAITING_ADVANCE;
-        }
+    // Check if reveal is complete.
+    if (newReveal >= bodyText_->getTotalChars() && bodyText_->getTotalChars() > 0) {
+        state_ = STATE_WAITING_ADVANCE;
     }
 }
 

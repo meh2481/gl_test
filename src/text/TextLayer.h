@@ -93,6 +93,17 @@ public:
     int getTotalChars() const { return totalChars_; }
     int getRevealCount() const { return revealCount_; }
 
+    // Returns true if all glyphs with index < upToCharIndex have finished their
+    // fade-in animation (revealTimer >= FADE_IN_TIME, or not yet revealed but
+    // below the threshold which shouldn't happen in normal flow).
+    bool isRevealAnimComplete(int upToCharIndex) const;
+
+    // Like update(), but advances only the fade-in timers and effects for
+    // already-revealed glyphs — does NOT advance the reveal accumulator.
+    // Use this when you want characters to finish fading in without revealing
+    // additional characters (e.g. while waiting before starting a pause).
+    void updateFadesOnly(float dt, Uint64 sceneId);
+
 private:
     // Per-glyph runtime state (M8: no per-glyph VectorLayer IDs)
     struct GlyphLayerInfo {
