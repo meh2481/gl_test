@@ -34,6 +34,9 @@ public:
     // Glyph lookup by Unicode codepoint.  Returns nullptr if not found.
     const FontGlyphEntry* lookupGlyph(int handle, Uint32 codepoint) const;
 
+    // Glyph lookup by glyph index.  Returns nullptr if not found.
+    const FontGlyphEntry* lookupGlyphByIndex(int handle, Uint32 glyphIndex) const;
+
     // Kerning lookup.  Returns kerning value in design units (0 if no pair).
     Sint32 getKern(int handle, Uint32 leftGlyphIndex, Uint32 rightGlyphIndex) const;
 

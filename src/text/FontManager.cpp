@@ -158,6 +158,20 @@ const FontGlyphEntry* FontManager::lookupGlyph(int handle, Uint32 codepoint) con
     return nullptr;
 }
 
+const FontGlyphEntry* FontManager::lookupGlyphByIndex(int handle, Uint32 glyphIndex) const {
+    const LoadedFont* const* ptr = fonts_.find(handle);
+    if (ptr == nullptr) return nullptr;
+    const LoadedFont* font = *ptr;
+
+    // Linear search for glyph by index (glyphs array is sorted by codepoint, not glyphIndex).
+    for (Uint32 i = 0; i < font->header.numGlyphs; i++) {
+        if (font->glyphs[i].glyphIndex == glyphIndex) {
+            return &font->glyphs[i];
+        }
+    }
+    return nullptr;
+}
+
 Sint32 FontManager::getKern(int handle,
                              Uint32 leftGlyphIndex,
                              Uint32 rightGlyphIndex) const {

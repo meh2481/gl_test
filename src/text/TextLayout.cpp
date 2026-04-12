@@ -119,6 +119,7 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
                 int ef = getEffectiveFont(wcharIdx);
                 const FontGlyphEntry* ge = fontManager_->lookupGlyph(ef, cp);
                 if (!ge) ge = fontManager_->lookupGlyph(ef, 0xFFFD);
+                if (!ge) ge = fontManager_->lookupGlyphByIndex(ef, 0);  // Fallback to box glyph
                 if (ge) {
                     Sint32 kern = 0;
                     if (prevWIdx != 0xFFFFFFFF)
@@ -183,6 +184,10 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
         if (!ge) {
             // Try the replacement character
             ge = fontManager_->lookupGlyph(ef, 0xFFFD);
+        }
+        if (!ge) {
+            // Fallback to the box glyph (glyph index 0) for unavailable glyphs
+            ge = fontManager_->lookupGlyphByIndex(ef, 0);
         }
         if (!ge) {
             charIdx++;
