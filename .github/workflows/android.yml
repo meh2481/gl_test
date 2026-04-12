@@ -119,14 +119,16 @@ jobs:
           # --- FreeType ---
           curl -fsSL https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz | tar xJ
           cd freetype-2.13.3
-          PKG_CONFIG_LIBDIR=$SYSROOT/lib/pkgconfig \
-          CC=$CC AR=$AR RANLIB=$RANLIB STRIP=$STRIP \
-          CFLAGS="--target=${TARGET} --sysroot=$TOOLCHAIN/sysroot -fPIC -I$SYSROOT/include" \
-          LDFLAGS="--target=${TARGET} --sysroot=$TOOLCHAIN/sysroot -L$SYSROOT/lib" \
-          ./configure --host=$TARGET --prefix=$SYSROOT \
-            --enable-static --disable-shared
-          make -j$(nproc)
-          make install
+          cmake -B build "${ANDROID_CMAKE_ARGS[@]}" \
+            -DCMAKE_PREFIX_PATH=$SYSROOT \
+            -DFT_DISABLE_ZLIB=OFF \
+            -DFT_DISABLE_PNG=OFF \
+            -DFT_DISABLE_HARFBUZZ=ON \
+            -DFT_DISABLE_BZIP2=ON \
+            -DFT_DISABLE_BROTLI=ON \
+            .
+          cmake --build build -j$(nproc)
+          cmake --install build
           cd ..
 
           # --- libsquish ---
