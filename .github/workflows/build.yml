@@ -194,7 +194,7 @@ jobs:
         id: cache-win64-deps
         with:
           path: ~/.win64
-          key: win64-deps-${{ runner.os }}-v9  # v9: Remove opus/ogg dependencies
+          key: win64-deps-${{ runner.os }}-v10  # v10: Add freetype2 cross-compiled dependency
 
       - name: Build Windows cross-compile dependencies
         if: steps.cache-win64-deps.outputs.cache-hit != 'true'
@@ -220,6 +220,19 @@ jobs:
             --disable-shared --enable-static \
             CPPFLAGS="-I$SYSROOT/include" LDFLAGS="-L$SYSROOT/lib"
           make -j$(nproc) && make install
+          cd ..
+
+          # --- FreeType ---
+          curl -fsSL https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz | tar xJ
+          cd freetype-2.13.3
+          PKG_CONFIG_LIBDIR=$SYSROOT/lib/pkgconfig \
+          CC=$CROSS-gcc AR=$CROSS-ar RANLIB=$CROSS-ranlib STRIP=$CROSS-strip \
+          CPPFLAGS="-I$SYSROOT/include" \
+          LDFLAGS="-L$SYSROOT/lib" \
+          ./configure --host=$CROSS --prefix=$SYSROOT \
+            --enable-static --disable-shared
+          make -j$(nproc)
+          make install
           cd ..
 
           # --- libsquish (compile source files directly) ---

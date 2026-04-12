@@ -65,7 +65,7 @@ jobs:
         id: cache-android-deps
         with:
           path: ~/.android-arm64
-          key: android-arm64-deps-${{ runner.os }}-v5
+          key: android-arm64-deps-${{ runner.os }}-v6
 
       - name: Build Android ARM64 dependencies
         if: steps.cache-android-deps.outputs.cache-hit != 'true'
@@ -114,6 +114,19 @@ jobs:
             .
           cmake --build build -j$(nproc)
           cmake --install build
+          cd ..
+
+          # --- FreeType ---
+          curl -fsSL https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz | tar xJ
+          cd freetype-2.13.3
+          PKG_CONFIG_LIBDIR=$SYSROOT/lib/pkgconfig \
+          CC=$CC AR=$AR RANLIB=$RANLIB STRIP=$STRIP \
+          CFLAGS="--target=${TARGET} --sysroot=$TOOLCHAIN/sysroot -fPIC -I$SYSROOT/include" \
+          LDFLAGS="--target=${TARGET} --sysroot=$TOOLCHAIN/sysroot -L$SYSROOT/lib" \
+          ./configure --host=$TARGET --prefix=$SYSROOT \
+            --enable-static --disable-shared
+          make -j$(nproc)
+          make install
           cd ..
 
           # --- libsquish ---
