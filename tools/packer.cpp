@@ -1680,7 +1680,7 @@ bool processDialogueFile(const string& filename, vector<char>& output) {
     auto speakerToCharId = [&](const string& speaker) -> Uint64 {
         if (speaker.empty()) return 0;
         string lower = speaker;
-        for (char& c : lower) c = (char)tolower((unsigned char)c);
+        for (char& c : lower) c = static_cast<char>(static_cast<unsigned char>(tolower(static_cast<unsigned char>(c))));
         string path = "res/characters/" + lower + "/" + lower + ".chr";
         return hashCString(path.c_str());
     };

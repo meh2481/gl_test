@@ -304,11 +304,15 @@ void DialogueManager::start(lua_State* L, int onCompleteRef, Uint64 sceneId) {
 
 // Strips [pause=N] tags from `src`, writes cleaned text to `dst` (max dstLen),
 // and fills out pausePoints/numPausePoints.
+// charCount tracks visible codepoints only — markup tags like [wave]...[/wave]
+// are copied through unchanged but their bracket/tag bytes are not counted, so
+// pause point indices match TextLayer's getRevealCount() which also skips markup.
 static void preprocessPauses(const char* src, char* dst, int dstLen,
                               PausePoint* pausePoints, int maxPoints, int& numPoints) {
     numPoints = 0;
     int out = 0;
-    int charCount = 0; // visible character index for pause insertion
+    int charCount = 0; // visible character index (codepoint count, excluding markup tags)
+    bool inMarkup = false; // true while inside [...] brackets
     while (*src && out < dstLen - 1) {
         if (*src == '[') {
             // Check for [pause=N]
@@ -332,15 +336,24 @@ static void preprocessPauses(const char* src, char* dst, int dstLen,
                     continue;
                 }
             }
+            // Not a [pause=N] tag: copy '[' and enter markup mode.
+            inMarkup = true;
+            dst[out++] = *src++;
+            continue;
+        }
+        if (*src == ']' && inMarkup) {
+            inMarkup = false;
+            dst[out++] = *src++;
+            continue;
         }
         dst[out++] = *src++;
-        // Count visible characters (skip other markup chars — TextLayer handles those).
-        // We treat every byte we copy as a potential character start; multi-byte UTF-8
-        // is fine here since TextLayer counts codepoints, not bytes.  A simple heuristic:
-        // only count bytes that are not UTF-8 continuation bytes (0x80..0xBF).
-        unsigned char c = (unsigned char)dst[out - 1];
-        if ((c & 0xC0) != 0x80) {
-            charCount++;
+        if (!inMarkup) {
+            // Count visible codepoints: only the leading byte of each UTF-8 sequence
+            // (not continuation bytes 0x80..0xBF).
+            unsigned char c = (unsigned char)dst[out - 1];
+            if ((c & 0xC0) != 0x80) {
+                charCount++;
+            }
         }
     }
     dst[out] = '\0';
