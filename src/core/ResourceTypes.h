@@ -124,58 +124,103 @@ typedef struct //Structure for (non-atlased) image data
 // Fonts
 //--------------------------------------------------------------
 
-// Legacy UV-atlas font header (RESOURCE_TYPE_FONT < version 2, never shipped).
-// Kept for reference only; replaced by FontBinaryHeader below.
-typedef struct
-{
-    Uint32 numChars;
-    Uint64 textureId;    //ID of texture resource to use
-    Uint32 pad;
-    //Followed by numChars Uint32's (aka 32-bit UTF-8 codepoints), sorted from lowest to highest
-    //Followed by numChars * 8 floats (the UV coordinate rectangles for the characters, each float in range [0..1])
-} FontAtlasHeader;
-
 // Binary analytic-SDF font resource (RESOURCE_TYPE_FONT, produced by font_extractor).
 //
-// Binary layout:
-//   FontBinaryHeader
-//   FontGlyphEntry[numGlyphs]   -- sorted by codepoint ascending (0 = uncoded glyph)
-//   FontKernPair[numKernPairs]  -- sorted by (leftGlyphIndex, rightGlyphIndex)
-//   [SDF data section]          -- referenced by FontGlyphEntry.sdfOffset
+// Version 2 binary layout:
+//   FontBinaryHeader                        (32 bytes)
+//   FontGlyphEntryDisk[numGlyphs]           (16 bytes each, sorted by glyph index 0..numGlyphs-1)
+//   FontKernPairDisk[numKernPairs]          (8 bytes each, sorted by (left,right) glyph index)
+//   [Compact SDF section]                   -- referenced by FontGlyphEntryDisk.sdfOffset
 //
-// Each glyph's SDF blob (SdfShapeHeader + SdfContourHeader[] + SdfSegment[]) is
-// stored contiguously in the SDF section.  FontGlyphEntry.sdfOffset is the byte
-// offset from the *start of the SDF section* to that glyph's SdfShapeHeader.
-// sdfSize == 0 means the glyph has no outline (e.g. space, newline).
+// Each glyph's compact SDF blob layout:
+//   CompactShapeHeader                      (12 bytes)
+//   CompactContourHeader[numContours]       (2 bytes each)
+//   [Segment stream]                        -- variable-length typed records
 //
-// All glyph outline coordinates are normalised by unitsPerEM: a design-unit value
-// of V maps to the normalised float V / unitsPerEM.  The baseline is at y=0 and
-// Y is up (FreeType convention, no flip required).
-#define FONT_BINARY_MAGIC    0x544E4F46u  // 'F','O','N','T'
-#define FONT_BINARY_VERSION  1u
+// Segment stream for each contour:
+//   Sint16[2]                               -- explicit start point p0 (x, y)
+//   For each segment (numSegments total):
+//     Uint8 type                            -- FONT_SEG_LINE or FONT_SEG_CUBIC
+//     If FONT_SEG_LINE:  Sint16[2] p3       -- endpoint only; p0 implicit from chain
+//     If FONT_SEG_CUBIC: Sint16[6] p1,p2,p3 -- three new control points; p0 implicit
+//
+// All coordinates are normalised by unitsPerEM and encoded as:
+//   int16_value = round(normalised_float * FONT_COORD_SCALE)
+//
+// At load time FontManager decodes these back to SdfShapeHeader + SdfContourHeader[]
+// + SdfSegment[] so the GPU upload path (VulkanRenderer::loadVectorShape) is unchanged.
+
+// Scale factor for encoding normalised glyph coordinates as Sint16.
+// Sint16 range [-32768, 32767] covers normalised values in [-2.0, ~2.0], which is
+// sufficient for any real font (Aileron coords are in [-0.23, 1.06]).
+#define FONT_COORD_SCALE     16384.0f
+
+// Compact segment type tags written into the segment stream.
+#define FONT_SEG_LINE        0u   // line: 1-byte type + 2*Sint16 endpoint
+#define FONT_SEG_CUBIC       1u   // cubic Bezier: 1-byte type + 6*Sint16 (p1,p2,p3)
 
 typedef struct
 {
-    Uint32 magic;           // FONT_BINARY_MAGIC
-    Uint32 version;         // FONT_BINARY_VERSION
-    Uint32 numGlyphs;       // number of FontGlyphEntry records that follow
-    Uint32 numKernPairs;    // number of FontKernPair records that follow
+    Uint32 numGlyphs;       // number of FontGlyphEntryDisk records (== face->num_glyphs)
+    Uint32 numKernPairs;    // number of FontKernPairDisk records
     Sint32 unitsPerEM;      // font design units per em square
     Sint32 ascender;        // typical ascender height in design units (positive)
     Sint32 descender;       // typical descender depth in design units (negative)
     Sint32 lineGap;         // extra leading between lines in design units
 } FontBinaryHeader;
 
+// On-disk glyph entry (16 bytes).  Entries are stored in glyph-index order so
+// the array position equals the font-internal glyph index (no field needed).
 typedef struct
 {
     Uint32 codepoint;       // Unicode codepoint (0 for glyphs not in any charmap)
-    Uint32 glyphIndex;      // font-internal glyph index
+    Sint16 advanceWidth;    // horizontal advance in design units
+    Sint16 leftBearing;     // left-side bearing in design units
+    Uint32 sdfOffset;       // byte offset into compact SDF section (0 if sdfSize == 0)
+    Uint32 sdfSize;         // byte size of compact SDF blob (0 = glyph has no outline)
+} FontGlyphEntryDisk;
+
+// On-disk kern pair (8 bytes).
+typedef struct
+{
+    Uint16 leftGlyphIndex;
+    Uint16 rightGlyphIndex;
+    Sint32 kernValue;       // kern adjustment in design units (negative = tighten)
+} FontKernPairDisk;
+
+// Compact SDF shape header (12 bytes).
+typedef struct
+{
+    Uint16 numContours;     // number of CompactContourHeader entries that follow
+    Uint16 totalSegments;   // total segments across all contours
+    Sint16 bboxMinX;        // tight bounding box (FONT_COORD_SCALE units)
+    Sint16 bboxMinY;
+    Sint16 bboxMaxX;
+    Sint16 bboxMaxY;
+} CompactShapeHeader;
+
+// Per-contour header in compact SDF (2 bytes).
+typedef struct
+{
+    Uint16 numSegments;     // number of segments in this contour
+} CompactContourHeader;
+
+// In-memory glyph entry used by FontManager and TextLayout (unchanged public struct).
+// Populated at load time by decoding FontGlyphEntryDisk[].
+// glyphIndex is set to the array position (== font-internal glyph index).
+// advanceWidth and leftBearing are sign-extended from the on-disk Sint16 values.
+typedef struct
+{
+    Uint32 codepoint;       // Unicode codepoint (0 for glyphs not in any charmap)
+    Uint32 glyphIndex;      // font-internal glyph index (= array position in loaded font)
     Sint32 advanceWidth;    // horizontal advance in design units
     Sint32 leftBearing;     // left-side bearing in design units
-    Uint32 sdfOffset;       // byte offset into SDF section (0 if sdfSize == 0)
-    Uint32 sdfSize;         // byte size of SDF blob (0 = glyph has no outline)
+    Uint32 sdfOffset;       // byte offset into decoded SDF buffer (0 if sdfSize == 0)
+    Uint32 sdfSize;         // byte size of decoded SDF blob (0 = glyph has no outline)
 } FontGlyphEntry;
 
+// In-memory kern pair used by FontManager (unchanged public struct).
+// Populated at load time by decoding FontKernPairDisk[].
 typedef struct
 {
     Uint32 leftGlyphIndex;

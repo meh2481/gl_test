@@ -64,11 +64,14 @@ public:
 private:
     struct LoadedFont {
         FontBinaryHeader header;
-        // Pointers into the borrowed resource data (PakResource keeps it alive).
-        const FontGlyphEntry* glyphs;
-        const FontKernPair*   kernPairs;
-        const char*           sdfSection;   // start of the SDF blobs region
-        const char*           resourceData; // borrowed pointer
+        // Pointers into decoded glyph/kern arrays (owned, allocated with allocator_).
+        FontGlyphEntry* glyphs;      // decoded glyph entries (numGlyphs elements, indexed by glyphIndex)
+        FontKernPair*   kernPairs;   // decoded kern pairs (numKernPairs elements)
+        // Decoded SDF section: array of fully-expanded SdfShapeHeader blobs owned by this font.
+        char*           sdfSection;  // base of decoded SDF buffer; sdfSection + ge.sdfOffset = blob
+        // Index for O(log N) codepoint lookup: cpSortedIndex[i] is the glyphIndex of
+        // the i-th glyph in codepoint-ascending order.  Built at load time.
+        Uint32*         cpSortedIndex;
 
         // Per-glyph shape IDs (index matches glyphs[] index, 0 = no outline).
         Uint64*  glyphShapeIds;
