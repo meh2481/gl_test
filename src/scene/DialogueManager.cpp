@@ -67,6 +67,7 @@ DialogueManager::~DialogueManager() {
 
 void DialogueManager::configure(const DialogueBoxConfig& cfg) {
     cfg_ = cfg;
+    portraitPipelineId_ = cfg.portraitPipelineId;
 }
 
 void DialogueManager::setLanguage(const char* isoCode) {
@@ -281,7 +282,7 @@ void DialogueManager::start(lua_State* L, int onCompleteRef, Uint64 sceneId) {
             cfg_.x, cfg_.y, cfg_.textSize, cfg_.width);
     }
     if (!speakerText_ && cfg_.speakerTextSize > 0.0f) {
-        float speakerY = cfg_.y - cfg_.speakerTextSize * 1.5f;
+        float speakerY = cfg_.y + cfg_.speakerTextSize * 1.5f;
         speakerText_ = createAndConfigureTextLayer(
             allocator_, fontManager_, renderer_, console_,
             cfg_.fontHandle, cfg_.boldFontHandle, cfg_.italicFontHandle,
@@ -391,6 +392,16 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
     // Speaker name.
     if (speakerText_) {
         const char* name = (charDef && charDef->speakerName[0]) ? charDef->speakerName : "";
+        // Apply character name colour (RRGGBBAA packed), defaulting to white.
+        if (charDef && charDef->nameColor != 0) {
+            float r = ((charDef->nameColor >> 24) & 0xFF) / 255.0f;
+            float g = ((charDef->nameColor >> 16) & 0xFF) / 255.0f;
+            float b = ((charDef->nameColor >>  8) & 0xFF) / 255.0f;
+            float a = ((charDef->nameColor       ) & 0xFF) / 255.0f;
+            speakerText_->setColor(r, g, b, a);
+        } else {
+            speakerText_->setColor(1.0f, 1.0f, 1.0f, 1.0f);
+        }
         speakerText_->setString(name, sceneId);
         speakerText_->setRevealSpeed(0.0f); // instant
     }
@@ -435,9 +446,8 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
         if (newTex != 0 && layerManager_) {
             if (portraitLayerId_ < 0) {
                 // Create the portrait layer on first use.
-                // Pipeline -1 → layerManager will use default textured pipeline.
                 portraitLayerId_ = layerManager_->createLayer(
-                    newTex, cfg_.portraitWidth, cfg_.portraitHeight, 0, -1);
+                    newTex, cfg_.portraitWidth, cfg_.portraitHeight, 0, portraitPipelineId_);
                 // Position: left or right of the text box.
                 float px = (line.portraitSide == 0)
                     ? (cfg_.x - cfg_.portraitWidth * 0.6f)
@@ -448,7 +458,7 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
                 // Update existing layer's texture by destroying and recreating.
                 layerManager_->destroyLayer(portraitLayerId_);
                 portraitLayerId_ = layerManager_->createLayer(
-                    newTex, cfg_.portraitWidth, cfg_.portraitHeight, 0, -1);
+                    newTex, cfg_.portraitWidth, cfg_.portraitHeight, 0, portraitPipelineId_);
                 float px = (line.portraitSide == 0)
                     ? (cfg_.x - cfg_.portraitWidth * 0.6f)
                     : (cfg_.x + cfg_.width + cfg_.portraitWidth * 0.1f);
@@ -541,19 +551,19 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
         // Handle [pause=N] points.
         if (pauseTimer_ > 0.0f) {
             pauseTimer_ -= dt;
-            if (pauseTimer_ <= 0.0f) {
-                pauseTimer_ = 0.0f;
-                // Resume reveal.
-                float speed = cfg_.defaultRevealSpeed;
-                if (currentLine_ >= 0 && currentLine_ < (int)lines_.size()) {
-                    const DialogueLine& line = lines_[currentLine_];
-                    if (line.revealSpeed > 0.0f) speed = line.revealSpeed;
-                }
-                bodyText_->setRevealSpeed(speed);
+            if (pauseTimer_ > 0.0f) {
+                // Still paused: keep reveal frozen.
+                bodyText_->setRevealSpeed(0.0f);
+                return;
             }
-            // While paused, freeze reveal by setting speed to 0.
-            bodyText_->setRevealSpeed(0.0f);
-            return;
+            // Timer just expired: restore reveal speed and let the frame continue.
+            pauseTimer_ = 0.0f;
+            float speed = cfg_.defaultRevealSpeed;
+            if (currentLine_ >= 0 && currentLine_ < (int)lines_.size()) {
+                const DialogueLine& line = lines_[currentLine_];
+                if (line.revealSpeed > 0.0f) speed = line.revealSpeed;
+            }
+            bodyText_->setRevealSpeed(speed);
         }
 
         int newReveal = bodyText_->getRevealCount();

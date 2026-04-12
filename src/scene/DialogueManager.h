@@ -75,6 +75,7 @@ struct DialogueBoxConfig {
     float portraitWidth;        // portrait sprite width in world units (0 = no portrait)
     float portraitHeight;       // portrait sprite height in world units
     float transitionDuration;   // inter-line portrait crossfade duration (seconds)
+    int   portraitPipelineId;   // pipeline used to render portrait sprites (-1 = none)
 };
 
 class DialogueManager {

@@ -5439,6 +5439,10 @@ int LuaInterface::createDialogueBox(lua_State* L) {
     cfg.transitionDuration = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.2f;
     lua_pop(L, 1);
 
+    lua_getfield(L, 1, "portraitPipelineId");
+    cfg.portraitPipelineId = lua_isinteger(L, -1) ? (int)lua_tointeger(L, -1) : -1;
+    lua_pop(L, 1);
+
     void* mem = iface->stringAllocator_->allocate(sizeof(DialogueManager), "DialogueManager");
     assert(mem != nullptr);
     DialogueManager* dlg = new (mem) DialogueManager(

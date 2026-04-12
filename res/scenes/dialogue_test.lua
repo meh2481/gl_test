@@ -2,10 +2,11 @@
 -- Showcases the full dialogue system: multi-character, portraits, all markup features.
 -- Press SPACE / click to advance. The dialogue loops back to the beginning on completion.
 
-local dlg       = nil          -- dialogue box ID
-local font      = nil
-local fontBold  = nil
-local fontItalic = nil
+local dlg           = nil          -- dialogue box ID
+local font          = nil
+local fontBold      = nil
+local fontItalic    = nil
+local portraitShader = nil         -- sprite pipeline for portrait rendering
 
 local backBtn   = nil          -- "Back" button to return to default scene
 local btnTexId  = nil
@@ -42,6 +43,9 @@ function init()
     btnShader = loadAnimTexturedShaders(
         "res/shaders/anim_sprite_vertex.spv",
         "res/shaders/anim_sprite_fragment.spv", 1, 1)
+    portraitShader = loadAnimTexturedShaders(
+        "res/shaders/anim_sprite_vertex.spv",
+        "res/shaders/anim_sprite_fragment.spv", 1, 1)
 
     createBackButton()
 
@@ -53,19 +57,20 @@ function init()
     -- Create dialogue box centred near the bottom third of the screen.
     -- Portrait slots flank the text area on left and right.
     dlg = createDialogueBox({
-        font              = font,
-        boldFont          = fontBold  or font,
-        italicFont        = fontItalic or font,
-        x                 = -0.6,    -- left edge of text area
-        y                 = -0.55,   -- vertical centre of text area
-        width             = 1.2,     -- text wrap width
-        height            = 0.4,
-        textSize          = 0.07,
-        speakerTextSize   = 0.055,
-        revealSpeed       = 20,
-        portraitWidth     = 0.35,
-        portraitHeight    = 0.35,
+        font               = font,
+        boldFont           = fontBold  or font,
+        italicFont         = fontItalic or font,
+        x                  = -0.6,    -- left edge of text area
+        y                  = -0.55,   -- vertical centre of text area
+        width              = 1.2,     -- text wrap width
+        height             = 0.4,
+        textSize           = 0.07,
+        speakerTextSize    = 0.055,
+        revealSpeed        = 20,
+        portraitWidth      = 0.35,
+        portraitHeight     = 0.35,
         transitionDuration = 0.18,
+        portraitPipelineId = portraitShader,
     })
 
     startDialogue()
