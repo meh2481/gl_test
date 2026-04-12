@@ -76,6 +76,7 @@ local function createTextDemo()
     local tl3 = createTextLayer(fontReg)
     textLayerSetPosition(tl3, -0.85, 0.30)
     textLayerSetSize(tl3, 0.08)
+    textLayerSetAlignment(tl2, TEXT_ALIGN_RIGHT)
     textLayerSetString(tl3, "M5: [color=FF4444FF]red[/color] [color=44FF88FF]green[/color] [color=4488FFFF]blue[/color]")
     textLayers[#textLayers+1] = tl3
 
@@ -83,6 +84,7 @@ local function createTextDemo()
     local tl4 = createTextLayer(fontReg)
     textLayerSetPosition(tl4, -0.85, 0.14)
     textLayerSetSize(tl4, 0.08)
+    textLayerSetAlignment(tl4, TEXT_ALIGN_CENTER)
     textLayerSetString(tl4, "[wave amp=0.012 freq=3]wave[/wave]  [shake mag=0.008]shake[/shake]  [rainbow speed=0.4]rainbow[/rainbow]")
     textLayers[#textLayers+1] = tl4
 

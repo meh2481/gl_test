@@ -14,3 +14,80 @@
     [55/96] Building CXX object CMakeFiles/OpenAL.dir/alc/effects/modulator.cpp.o
     [56/96] Building CXX object CMakeFiles/OpenAL.dir/alc/effects/pshifter.cpp.o
 * Fix c-coder.agent.md to have the necessary libraries to build
+* Potentially ask agent to make .font files smaller
+* Text align right/center not working
+* Milestone 7:
+M7 — Dialogue System
+
+Goal: A full dialogue system driven from Lua/JSON with all the existing text features.
+
+Dialogue script format (JSON, converted and packed as binary with a new resource type):
+
+JSON
+
+{
+  "lines": [
+    {
+      "speaker": "Guide",
+      "text": [
+        {
+            "language": "en",
+            "text": "Ah, a [wave]traveler[/wave]! Welcome to [color=FFD700FF]Goldenvale[/color]."
+        }, {
+            "language": "es",
+            "text": "¡Ah, un [wave]viajero[/wave]! Bienvenido a [color=FFD700FF]Goldenvale[/color]."
+        }, {
+            "language": "de",
+            "text": "Ah, ein [wave]Reisender[/wave]! Willkommen in [color=FFD700FF]Goldenvale[/color]."
+        }, {
+            "language": "fr",
+            "text": "Ah, un [wave]voyageur[/wave]! Bienvenue à [color=FFD700FF]Goldenvale[/color]."
+        }, {
+            "language": "ro",
+            "text": "Ah, un [wave]călător[/wave]! Bine ați venit în [color=FFD700FF]Goldenvale[/color]."
+        }
+      ],
+      "portrait": "res/portraits/guide.png",
+      "revealSpeed": 22,
+      "revealSound": "res/sfx/typing_soft.wav",
+      "pauseAfter": 0.0,
+      "voice": "res/sfx/guide_welcome.wav"
+    }
+  ]
+}
+
+
+DialogueManager (src/scene/DialogueManager.h/cpp):
+
+
+    Owns: TextLayer for body text, TextLayer for speaker name, portrait SceneLayer, backdrop SceneLayer
+
+    State machine: IDLE → REVEALING → WAITING_ADVANCE → TRANSITIONING → IDLE
+
+    showLine(lineIndex): parses markup, rebuilds TextLayer, starts reveal
+
+    advance(): if still revealing → jump to full reveal; if fully revealed → go to next line or fire onComplete
+
+    Handles [pause=N] markers by suspending reveal for N seconds
+
+    Fires a Lua onComplete callback when the last line finishes
+
+
+Lua API:
+
+Lua
+
+local dlg = createDialogueBox({
+    font = fontHandle,
+    boldFont = fontBoldHandle,
+    x=100, y=500, width=600, height=150,
+    textSize=24
+})
+destroyDialogueBox(dlg)
+dialogueLoad(dlg, "res/dialogue/intro.json")  -- or binary format, whatever extension
+dialogueStart(dlg, onComplete)
+dialogueAdvance(dlg)
+dialogueSetRevealSound(dlg, soundHandle)
+dialogueIsRevealing(dlg)   -- returns bool
+dialogueGetCurrentLine(dlg)
+
