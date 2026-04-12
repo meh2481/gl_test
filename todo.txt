@@ -21,3 +21,5 @@
 * Add global language setting in config
 * Convert dialogue layout to lua instead of hardcoded C
 * Add dialogue backgrounds - different per character
+* Add drop shadow text option to dialogue
+* Add support for underline text
