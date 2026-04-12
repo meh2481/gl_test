@@ -1827,6 +1827,8 @@ bool processCharacterFile(const string& filename, vector<char>& output) {
 }
 
 
+int main(int argc, char* argv[]) {
+
 
     if (argc < 3) {
         cerr << "Usage: packer <output.pak> <file1> <file2> ... [--output-atlases] [--max-atlas-size N] [--etc]" << endl;

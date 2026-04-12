@@ -8,7 +8,6 @@
 #include <SDL3/SDL.h>
 #include <cassert>
 #include <cstring>
-#include <cstdlib>  // strtof
 
 // ============================================================================
 // DialogueManager implementation
@@ -327,7 +326,7 @@ static void preprocessPauses(const char* src, char* dst, int dstLen,
                 // Parse the number.
                 const char* numStart = p + 6;
                 char* numEnd = nullptr;
-                float duration = strtof(numStart, &numEnd);
+                float duration = (float)SDL_strtod(numStart, &numEnd);
                 if (numEnd && *numEnd == ']' && numPoints < maxPoints) {
                     PausePoint& pp = pausePoints[numPoints++];
                     pp.charIndex = charCount;
