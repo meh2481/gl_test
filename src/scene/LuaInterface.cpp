@@ -455,6 +455,7 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
         "ACTION_DRAG_START", "ACTION_DRAG_END",
         "ACTION_PAN_START", "ACTION_PAN_END",
         "ACTION_TOGGLE_BLADE",
+        "ACTION_DIALOGUE_TEST",
         nullptr
     };
     for (const char** constant = actionConstants; *constant; ++constant) {
@@ -1220,6 +1221,8 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_PAN_END");
     lua_pushinteger(luaState_, ACTION_TOGGLE_BLADE);
     lua_setglobal(luaState_, "ACTION_TOGGLE_BLADE");
+    lua_pushinteger(luaState_, ACTION_DIALOGUE_TEST);
+    lua_setglobal(luaState_, "ACTION_DIALOGUE_TEST");
 
     // Register Audio effect constants
     lua_pushinteger(luaState_, AUDIO_EFFECT_NONE);

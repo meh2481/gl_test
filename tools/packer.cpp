@@ -1883,7 +1883,15 @@ int main(int argc, char* argv[]) {
             continue;
         }
         string relativePath = getRelativePath(filename);
-        Uint64 id = hashCString(relativePath.c_str());
+        // .chr.json and .dlg.json are processed to binary .chr/.dlg resources at
+        // pack time.  Strip the trailing ".json" so the stored resource ID matches
+        // what the runtime looks up (e.g. "res/characters/foo/foo.chr").
+        string idPath = relativePath;
+        if (idPath.size() > 8 && idPath.substr(idPath.size() - 8) == ".dlg.json")
+            idPath = idPath.substr(0, idPath.size() - 5); // -> ".dlg"
+        else if (idPath.size() > 8 && idPath.substr(idPath.size() - 8) == ".chr.json")
+            idPath = idPath.substr(0, idPath.size() - 5); // -> ".chr"
+        Uint64 id = hashCString(idPath.c_str());
         files.push_back({filename, id});
         cout << "Adding file: " << filename << " with ID " << id << endl;
     }

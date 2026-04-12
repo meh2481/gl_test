@@ -1,0 +1,100 @@
+-- Dialogue test scene
+-- Showcases the full dialogue system: multi-character, portraits, all markup features.
+-- Press SPACE / click to advance. The dialogue loops back to the beginning on completion.
+
+local dlg       = nil          -- dialogue box ID
+local font      = nil
+local fontBold  = nil
+local fontItalic = nil
+
+local backBtn   = nil          -- "Back" button to return to default scene
+local btnTexId  = nil
+local btnShader = nil
+
+local function startDialogue()
+    if dlg then
+        dialogueLoad(dlg, "res/dialogue/demo/demo.dlg", "en")
+        dialogueStart(dlg, function()
+            -- Loop: restart from the beginning
+            startDialogue()
+        end)
+    end
+end
+
+local function createBackButton()
+    backBtn = loadObject("res/nodes/button.lua", {
+        texId    = btnTexId,
+        shaderId = btnShader,
+        x = -0.82, y = 0.88, size = 0.16,
+        action   = ACTION_EXIT,
+        r = 0.6, g = 0.6, b = 0.6,
+    })
+end
+
+function init()
+    loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", 0)
+
+    font        = loadFont("res/fonts/aileron/Aileron-Regular.font")
+    fontBold    = loadFont("res/fonts/aileron/Aileron-Bold.font")
+    fontItalic  = loadFont("res/fonts/aileron/Aileron-Italic.font")
+
+    btnTexId  = loadTexture("res/objects/rock/rock.png")
+    btnShader = loadAnimTexturedShaders(
+        "res/shaders/anim_sprite_vertex.spv",
+        "res/shaders/anim_sprite_fragment.spv", 1, 1)
+
+    createBackButton()
+
+    if not font then
+        print("dialogue_test: font not available, scene will be mostly empty")
+        return
+    end
+
+    -- Create dialogue box centred near the bottom third of the screen.
+    -- Portrait slots flank the text area on left and right.
+    dlg = createDialogueBox({
+        font              = font,
+        boldFont          = fontBold  or font,
+        italicFont        = fontItalic or font,
+        x                 = -0.6,    -- left edge of text area
+        y                 = -0.55,   -- vertical centre of text area
+        width             = 1.2,     -- text wrap width
+        height            = 0.4,
+        textSize          = 0.07,
+        speakerTextSize   = 0.055,
+        revealSpeed       = 20,
+        portraitWidth     = 0.35,
+        portraitHeight    = 0.35,
+        transitionDuration = 0.18,
+    })
+
+    startDialogue()
+end
+
+function onResume()
+    createBackButton()
+    -- Dialogue resumes from where it was (no need to restart).
+end
+
+function update(deltaTime)
+    if backBtn then backBtn.update(deltaTime) end
+    -- Dialogue update is called automatically by the engine each frame.
+end
+
+function onAction(action)
+    if backBtn then backBtn.onAction(action) end
+
+    if action == ACTION_EXIT then
+        -- Clean up and return to the default scene.
+        if dlg then
+            destroyDialogueBox(dlg)
+            dlg = nil
+        end
+        popScene()
+    elseif action == ACTION_DRAG_END or action == ACTION_TOGGLE_BLADE then
+        -- Advance dialogue on click / Space
+        if dlg then
+            dialogueAdvance(dlg)
+        end
+    end
+end

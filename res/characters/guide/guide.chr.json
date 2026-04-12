@@ -1,0 +1,11 @@
+{
+    "name": "Guide",
+    "nameColor": "FFD700FF",
+    "revealSpeed": 18,
+    "revealSound": "res/sfx/sfx.wav",
+    "portraits": [
+        { "tag": "default", "path": "res/objects/rock/rock.png" },
+        { "tag": "serious", "path": "res/objects/rock/rock.png" },
+        { "tag": "happy",   "path": "res/objects/rock/rock.png" }
+    ]
+}

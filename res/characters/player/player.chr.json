@@ -1,0 +1,10 @@
+{
+    "name": "Player",
+    "nameColor": "88DDFFFF",
+    "revealSpeed": 22,
+    "revealSound": "res/sfx/sfx.wav",
+    "portraits": [
+        { "tag": "default", "path": "res/objects/destructible_box/metalwall.png" },
+        { "tag": "surprised", "path": "res/objects/destructible_box/metalwall.png" }
+    ]
+}

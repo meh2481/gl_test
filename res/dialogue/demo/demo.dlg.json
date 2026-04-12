@@ -1,0 +1,100 @@
+{
+    "lines": [
+        {
+            "speaker": "Guide",
+            "portrait": "default",
+            "portraitSide": "left",
+            "text": [
+                { "language": "en", "text": "Welcome, traveller. [pause=0.4]I am your [color=FFD700FF]Guide[/color]. This chamber tests the limits of what words can express." }
+            ]
+        },
+        {
+            "speaker": "Player",
+            "portrait": "default",
+            "portraitSide": "right",
+            "text": [
+                { "language": "en", "text": "Uh[pause=0.3]... sure. Where do we start?" }
+            ]
+        },
+        {
+            "speaker": "Guide",
+            "portrait": "happy",
+            "portraitSide": "left",
+            "text": [
+                { "language": "en", "text": "We start with [color=FF4444FF]colour[/color]. Words can be painted [color=44FF88FF]green[/color], [color=4488FFFF]blue[/color], or [color=FF88AAFF]rose[/color] to carry extra meaning." }
+            ]
+        },
+        {
+            "speaker": "Guide",
+            "portrait": "happy",
+            "portraitSide": "left",
+            "text": [
+                { "language": "en", "text": "They can [wave amp=0.014 freq=2.5]rise and fall like ocean waves[/wave], or [shake mag=0.009]tremble with urgency[/shake]." }
+            ]
+        },
+        {
+            "speaker": "Player",
+            "portrait": "surprised",
+            "portraitSide": "right",
+            "text": [
+                { "language": "en", "text": "[color=88DDFFFF]Whoa![/color][pause=0.5] That actually [shake mag=0.007]moves[/shake]?" }
+            ]
+        },
+        {
+            "speaker": "Guide",
+            "portrait": "serious",
+            "portraitSide": "left",
+            "text": [
+                { "language": "en", "text": "Indeed. And when ordinary prose falls short, we let [rainbow speed=0.35]every colour of the spectrum[/rainbow] speak at once." }
+            ]
+        },
+        {
+            "speaker": "Guide",
+            "portrait": "serious",
+            "portraitSide": "left",
+            "text": [
+                { "language": "en", "text": "Typography matters too. [font=bold]Bold strokes[/font] demand attention. [font=italic]Italic lines[/font] lend nuance. Together they give language its full [font=bold]weight[/font] and [font=italic]texture[/font]." }
+            ]
+        },
+        {
+            "speaker": "Player",
+            "portrait": "default",
+            "portraitSide": "right",
+            "text": [
+                { "language": "en", "text": "And pauses?[pause=0.6] Like...[pause=0.8] dramatic ones?" }
+            ]
+        },
+        {
+            "speaker": "Guide",
+            "portrait": "happy",
+            "portraitSide": "left",
+            "text": [
+                { "language": "en", "text": "Precisely.[pause=1.0] Silence is part of the story. A beat held just long enough becomes [wave amp=0.01 freq=3][color=FFD700FF]emphasis[/color][/wave]." }
+            ]
+        },
+        {
+            "speaker": "Player",
+            "portrait": "surprised",
+            "portraitSide": "right",
+            "text": [
+                { "language": "en", "text": "[rainbow speed=0.5]Amazing![/rainbow] Can we combine everything at once?" }
+            ]
+        },
+        {
+            "speaker": "Guide",
+            "portrait": "serious",
+            "portraitSide": "left",
+            "text": [
+                { "language": "en", "text": "[font=bold][color=FF4444FF][shake mag=0.008]Yes.[/shake][/color][/font][pause=0.4] [font=bold][color=FFD700FF][wave amp=0.012 freq=2]Yes, we can.[/wave][/color][/font]" }
+            ]
+        },
+        {
+            "speaker": "Guide",
+            "portrait": "happy",
+            "portraitSide": "left",
+            "text": [
+                { "language": "en", "text": "That concludes the demonstration. [color=88DDFFFF]The dialogue will now loop.[/color] [wave amp=0.01 freq=2.5]Speak again whenever you are ready.[/wave]" }
+            ]
+        }
+    ]
+}
