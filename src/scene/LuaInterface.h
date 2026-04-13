@@ -218,6 +218,7 @@ private:
     static int dialogueGetCurrentLine(lua_State* L);
     static int dialogueGetTotalLines(lua_State* L);
     static int dialogueSetBackdrop(lua_State* L);
+    static int setDialogueAutoplay(lua_State* L);
 
     // Audio Lua bindings
     static int audioLoadGla(lua_State* L);

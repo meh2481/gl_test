@@ -44,6 +44,9 @@ DialogueManager::DialogueManager(MemoryAllocator*   allocator,
     , pauseTimer_(0.0f)
     , transitionTimer_(0.0f)
     , transitionTargetLine_(-1)
+    , autoplayEnabled_(false)
+    , autoplayDelay_(0.5f)
+    , autoplayTimer_(0.0f)
     , lua_(nullptr)
     , onCompleteRef_(LUA_NOREF)
 {
@@ -330,6 +333,7 @@ void DialogueManager::start(lua_State* L, int onCompleteRef, Uint64 sceneId) {
     pauseWaitDuration_ = 0.0f;
     transitionTimer_   = 0.0f;
     transitionTargetLine_ = -1;
+    autoplayTimer_     = 0.0f;
     showLine(0, sceneId);
 }
 
@@ -427,6 +431,7 @@ void DialogueManager::showLine(int lineIndex, Uint64 sceneId) {
     }
 
     currentLine_ = lineIndex;
+    autoplayTimer_ = 0.0f;
 
     // Determine reveal speed.
     float speed = line.revealSpeed;
@@ -579,6 +584,15 @@ void DialogueManager::setBackdrop(Uint64 textureId, int pipelineId) {
     }
 }
 
+void DialogueManager::setAutoplay(bool enabled, float delaySeconds) {
+    autoplayEnabled_ = enabled;
+    autoplayDelay_ = (delaySeconds < 0.0f) ? 0.0f : delaySeconds;
+    autoplayTimer_ = 0.0f;
+    if (autoplayEnabled_ && state_ == STATE_WAITING_ADVANCE) {
+        autoplayTimer_ = autoplayDelay_;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // advance()
 // ---------------------------------------------------------------------------
@@ -602,6 +616,7 @@ void DialogueManager::advance(Uint64 sceneId) {
             bodyText_->setRevealSpeed(0.0f);
         }
         state_ = STATE_WAITING_ADVANCE;
+        if (autoplayEnabled_) autoplayTimer_ = autoplayDelay_;
         return;
     }
 
@@ -646,6 +661,13 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
     // --- WAITING_ADVANCE: fully revealed, waiting for player input ---
     if (state_ == STATE_WAITING_ADVANCE) {
         if (bodyText_) bodyText_->update(dt, sceneId);
+        if (autoplayEnabled_) {
+            autoplayTimer_ -= dt;
+            if (autoplayTimer_ <= 0.0f) {
+                autoplayTimer_ = 0.0f;
+                advance(sceneId);
+            }
+        }
         return;
     }
 
@@ -724,6 +746,7 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
             revealSoundSourceId_ = -1;
         }
         state_ = STATE_WAITING_ADVANCE;
+        if (autoplayEnabled_) autoplayTimer_ = autoplayDelay_;
     }
 }
 

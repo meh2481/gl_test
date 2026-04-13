@@ -7,8 +7,11 @@ local font          = nil
 local fontBold      = nil
 local fontItalic    = nil
 local portraitShader = nil         -- sprite pipeline for portrait rendering
+local autoplayEnabled = false
+local autoplayDelaySec = 1.5
 
 local backBtn   = nil          -- "Back" button to return to default scene
+local autoplayBtn = nil        -- autoplay toggle button (checkbox)
 local btnTexId  = nil
 local btnShader = nil
 
@@ -32,6 +35,17 @@ local function createBackButton()
     })
 end
 
+local function createAutoplayButton()
+    autoplayBtn = loadObject("res/nodes/button.lua", {
+        texId      = btnTexId,
+        shaderId   = btnShader,
+        x          = 0.82, y = 0.88, size = 0.16,
+        action     = ACTION_TOGGLE_DIALOGUE_AUTOPLAY,
+        isCheckbox = true,
+        r = 0.45, g = 0.9, b = 0.45,
+    })
+end
+
 function init()
     loadShaders("res/shaders/vertex.spv", "res/shaders/nebula_fragment.spv", 0)
 
@@ -48,6 +62,7 @@ function init()
         "res/shaders/anim_sprite_fragment.spv", 1, 1)
 
     createBackButton()
+    createAutoplayButton()
 
     if not font then
         print("dialogue_test: font not available, scene will be mostly empty")
@@ -79,16 +94,20 @@ function init()
         portraitPipelineId = portraitShader,
     })
 
+    setDialogueAutoplay(dlg, autoplayEnabled, autoplayDelaySec)
+
     startDialogue()
 end
 
 function update(deltaTime)
     if backBtn then backBtn.update(deltaTime) end
+    if autoplayBtn then autoplayBtn.update(deltaTime) end
     -- Dialogue update is called automatically by the engine each frame.
 end
 
 function onAction(action)
     if backBtn then backBtn.onAction(action) end
+    if autoplayBtn then autoplayBtn.onAction(action) end
 
     if action == ACTION_EXIT then
         -- Clean up and return to the default scene.
@@ -97,6 +116,11 @@ function onAction(action)
             dlg = nil
         end
         popScene()
+    elseif action == ACTION_TOGGLE_DIALOGUE_AUTOPLAY then
+        autoplayEnabled = not autoplayEnabled
+        if dlg then
+            setDialogueAutoplay(dlg, autoplayEnabled, autoplayDelaySec)
+        end
     elseif action == ACTION_DRAG_END or action == ACTION_TOGGLE_BLADE then
         -- Advance dialogue on click / Space
         if dlg then

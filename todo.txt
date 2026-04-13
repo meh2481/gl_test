@@ -18,4 +18,6 @@
 * Add global text scale
 * Convert dialogue layout to lua instead of hardcoded C
 * Add dialogue backgrounds - different per character
+* Add autoplay and skip options for dialogue
+* Ballpark: 250wpm average, 350 extremely fast, 150 extremely slow.
 

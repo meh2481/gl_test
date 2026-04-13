@@ -112,6 +112,10 @@ public:
     //          if fully revealed → show next line or fire onComplete.
     void advance(Uint64 sceneId);
 
+    // Enable/disable autoplay. When enabled, lines auto-advance after delaySeconds
+    // once a line has fully revealed.
+    void setAutoplay(bool enabled, float delaySeconds);
+
     // Per-frame update.
     void update(float dt, Uint64 sceneId);
 
@@ -199,6 +203,10 @@ private:
     float transitionTimer_;
     // Next line to show after transition completes.
     int   transitionTargetLine_;
+
+    bool  autoplayEnabled_;
+    float autoplayDelay_;
+    float autoplayTimer_;
 
     lua_State* lua_;
     int        onCompleteRef_;     // Lua registry ref

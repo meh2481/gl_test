@@ -419,7 +419,7 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
                                      "createDialogueBox", "destroyDialogueBox",
                                      "dialogueLoad", "dialogueStart", "dialogueAdvance",
                                      "dialogueIsRevealing", "dialogueGetCurrentLine",
-                                     "dialogueGetTotalLines", "dialogueSetBackdrop",
+                                     "dialogueGetTotalLines", "dialogueSetBackdrop", "setDialogueAutoplay",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -455,6 +455,7 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
         "ACTION_DRAG_START", "ACTION_DRAG_END",
         "ACTION_PAN_START", "ACTION_PAN_END",
         "ACTION_TOGGLE_BLADE",
+        "ACTION_TOGGLE_DIALOGUE_AUTOPLAY",
         "ACTION_DIALOGUE_TEST",
         nullptr
     };
@@ -1189,6 +1190,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "dialogueGetCurrentLine",dialogueGetCurrentLine);
     lua_register(luaState_, "dialogueGetTotalLines", dialogueGetTotalLines);
     lua_register(luaState_, "dialogueSetBackdrop",   dialogueSetBackdrop);
+    lua_register(luaState_, "setDialogueAutoplay",   setDialogueAutoplay);
 
     // Text alignment constants
     lua_pushinteger(luaState_, TEXT_ALIGN_LEFT);
@@ -1237,6 +1239,8 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_PAN_END");
     lua_pushinteger(luaState_, ACTION_TOGGLE_BLADE);
     lua_setglobal(luaState_, "ACTION_TOGGLE_BLADE");
+    lua_pushinteger(luaState_, ACTION_TOGGLE_DIALOGUE_AUTOPLAY);
+    lua_setglobal(luaState_, "ACTION_TOGGLE_DIALOGUE_AUTOPLAY");
     lua_pushinteger(luaState_, ACTION_DIALOGUE_TEST);
     lua_setglobal(luaState_, "ACTION_DIALOGUE_TEST");
 
@@ -5624,6 +5628,21 @@ int LuaInterface::dialogueSetBackdrop(lua_State* L) {
 
     DialogueManager** ptr = iface->dialogueBoxes_.find(id);
     if (ptr) (*ptr)->setBackdrop(textureId, pipelineId);
+    return 0;
+}
+
+// setDialogueAutoplay(dlgId, enabled [, delaySeconds])
+int LuaInterface::setDialogueAutoplay(lua_State* L) {
+    int   id      = (int)luaL_checkinteger(L, 1);
+    bool  enabled = lua_toboolean(L, 2) != 0;
+    float delay   = lua_isnumber(L, 3) ? (float)lua_tonumber(L, 3) : 0.5f;
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    if (ptr) (*ptr)->setAutoplay(enabled, delay);
     return 0;
 }
 
