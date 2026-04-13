@@ -2059,6 +2059,7 @@ void VulkanPipeline::createTextPipeline(const ResourceData& vertShader, const Re
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes    = &poolSize;
     poolInfo.maxSets       = MAX_TEXT_LAYERS;
@@ -2111,6 +2112,11 @@ void VulkanPipeline::createTextPipeline(const ResourceData& vertShader, const Re
     vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
 
     m_consoleBuffer->log(SDL_LOG_PRIORITY_VERBOSE, "Created text SDF pipeline (M8)");
+}
+
+void VulkanPipeline::freeTextDescriptorSet(VkDescriptorSet set) {
+    if (set == VK_NULL_HANDLE || m_textDescriptorPool == VK_NULL_HANDLE) return;
+    vkFreeDescriptorSets(m_device, m_textDescriptorPool, 1, &set);
 }
 
 VkDescriptorSet VulkanPipeline::allocateTextDescriptorSet() {

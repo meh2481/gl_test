@@ -1804,6 +1804,7 @@ void VulkanRenderer::destroyTextLayerGpu(int gpuId) {
     if (tl->contourMemory != VK_NULL_HANDLE) { vkFreeMemory   (m_device, tl->contourMemory, nullptr); }
     if (tl->segmentBuffer != VK_NULL_HANDLE) { vkDestroyBuffer(m_device, tl->segmentBuffer, nullptr); }
     if (tl->segmentMemory != VK_NULL_HANDLE) { vkFreeMemory   (m_device, tl->segmentMemory, nullptr); }
+    if (tl->descriptorSet != VK_NULL_HANDLE) { m_pipelineManager.freeTextDescriptorSet(tl->descriptorSet); }
     m_textLayers.remove(gpuId);
 }
 

@@ -81,6 +81,7 @@ public:
     // Push constants: 6 floats (width, height, time, cameraX, cameraY, cameraZoom).
     void createTextPipeline(const ResourceData& vertShader, const ResourceData& fragShader);
     VkDescriptorSet allocateTextDescriptorSet();
+    void freeTextDescriptorSet(VkDescriptorSet set);
     void writeTextDescriptorSet(VkDescriptorSet set,
                                 VkBuffer glyphDescBuf, VkDeviceSize glyphDescSize,
                                 VkBuffer contourBuf,   VkDeviceSize contourSize,
