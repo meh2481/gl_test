@@ -19,6 +19,8 @@ class PakResource;
 //
 // Usage (Lua):
 //   local dlg = createDialogueBox({ font=fh, x=100, y=500, width=600, textSize=24 })
+//   -- Optional drop shadow:
+//   -- textShadowDx=2, textShadowDy=-2, textShadowR=0, textShadowG=0, textShadowB=0, textShadowA=0.7
 //   dialogueLoad(dlg, "res/dialogue/intro.dlg")
 //   dialogueStart(dlg, function() print("done") end)
 //   dialogueAdvance(dlg)             -- on player input
@@ -71,6 +73,12 @@ struct DialogueBoxConfig {
     float textSize;             // point size for body text
     float speakerTextSize;      // point size for speaker name (0 = same as textSize)
     float defaultRevealSpeed;   // chars/sec when line doesn't specify; 0 = instant
+    float textShadowDx;         // body text drop-shadow X offset (world units)
+    float textShadowDy;         // body text drop-shadow Y offset (world units)
+    float textShadowR;          // body text drop-shadow colour
+    float textShadowG;
+    float textShadowB;
+    float textShadowA;          // <= 0 disables drop shadow
     float portraitWidth;        // portrait sprite width in world units (0 = no portrait)
     float portraitHeight;       // portrait sprite height in world units
     float transitionDuration;   // inter-line portrait crossfade duration (seconds)

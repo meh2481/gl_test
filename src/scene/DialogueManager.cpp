@@ -53,6 +53,12 @@ DialogueManager::DialogueManager(MemoryAllocator*   allocator,
     cfg_.speakerTextSize     = 0.0f;
     cfg_.boldFontHandle      = -1;
     cfg_.italicFontHandle    = -1;
+    cfg_.textShadowDx        = 0.0f;
+    cfg_.textShadowDy        = 0.0f;
+    cfg_.textShadowR         = 0.0f;
+    cfg_.textShadowG         = 0.0f;
+    cfg_.textShadowB         = 0.0f;
+    cfg_.textShadowA         = 0.0f;
     cfg_.transitionDuration  = 0.2f;
     SDL_memset(charCache_, 0, sizeof(charCache_));
 }
@@ -297,6 +303,15 @@ void DialogueManager::start(lua_State* L, int onCompleteRef, Uint64 sceneId) {
             allocator_, fontManager_, renderer_, console_,
             cfg_.fontHandle, cfg_.boldFontHandle, cfg_.italicFontHandle,
             cfg_.x, cfg_.y, cfg_.textSize, cfg_.width);
+    }
+    if (bodyText_) {
+        if (cfg_.textShadowA > 0.0f) {
+            bodyText_->setShadow(cfg_.textShadowDx, cfg_.textShadowDy,
+                                 cfg_.textShadowR, cfg_.textShadowG,
+                                 cfg_.textShadowB, cfg_.textShadowA);
+        } else {
+            bodyText_->clearShadow();
+        }
     }
     if (!speakerText_ && cfg_.speakerTextSize > 0.0f) {
         float speakerY = cfg_.y + cfg_.speakerTextSize * 1.5f;

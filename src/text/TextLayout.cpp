@@ -102,6 +102,7 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
             float wordW = 0.0f;
             const char* ws = src;
             Uint32 prevWIdx = prevGlyphIndex;
+            int prevWFontHandle = prevFontHandle;
             int    wcharIdx = charIdx;
             bool inWord = false;
             while (*ws) {
@@ -111,22 +112,26 @@ void TextLayout::layout(const char* text, const TextLayoutParams& params) {
                     ws++;                   // skip leading whitespace
                     wcharIdx++;
                     prevWIdx = 0xFFFFFFFF;
+                    prevWFontHandle = -1;
                     continue;
                 }
                 inWord = true;
                 const char* tmp = ws;
                 Uint32 cp = decodeUtf8(&tmp);
                 int ef = getEffectiveFont(wcharIdx);
+                Sint32 efUnitsPerEM = fontManager_->getUnitsPerEM(ef);
+                if (efUnitsPerEM <= 0) efUnitsPerEM = unitsPerEM;
+                float efScale = params.pointSize / (float)efUnitsPerEM;
                 const FontGlyphEntry* ge = fontManager_->lookupGlyph(ef, cp);
                 if (!ge) ge = fontManager_->lookupGlyph(ef, 0xFFFD);
                 if (!ge) ge = fontManager_->lookupGlyphByIndex(ef, 0);  // Fallback to box glyph
                 if (ge) {
                     Sint32 kern = 0;
-                    if (prevWIdx != 0xFFFFFFFF)
+                    if (prevWIdx != 0xFFFFFFFF && prevWFontHandle == ef)
                         kern = fontManager_->getKern(ef, prevWIdx, ge->glyphIndex);
-                    // Use base scale for wrap measurement (approximate; sufficient for variants)
-                    wordW += ((float)ge->advanceWidth + (float)kern) * scale;
+                    wordW += ((float)ge->advanceWidth + (float)kern) * efScale;
                     prevWIdx = ge->glyphIndex;
+                    prevWFontHandle = ef;
                 }
                 ws = tmp;
                 wcharIdx++;

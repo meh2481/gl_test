@@ -59,8 +59,17 @@
             "portrait": "serious",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "Typography matters too. [font=bold]Bold strokes[/font] demand attention. [font=italic]Italic lines[/font] lend nuance. Together they give language its full [font=bold]weight[/font] and [font=italic]texture[/font]." },
-                { "language": "ro", "text": "Tipografia contează și ea. [font=bold]Liniile îndrăznețe[/font] atrag atenția. [font=italic]Liniile italice[/font] oferă nuanță. Împreună, ele dau limbajului întreaga sa [font=bold]greutate[/font] și [font=italic]textură[/font]." }
+                { "language": "en", "text": "Typography matters too. [font=bold]Bold strokes[/font] demand attention. [font=italic]Italic lines[/font] lend nuance. [underline]Underlined words[/underline] add deliberate focus." },
+                { "language": "ro", "text": "Tipografia contează și ea. [font=bold]Liniile îndrăznețe[/font] atrag atenția. [font=italic]Liniile italice[/font] oferă nuanță. [underline]Cuvintele subliniate[/underline] adaugă un accent intenționat." }
+            ]
+        },
+        {
+            "speaker": "Guide",
+            "portrait": "serious",
+            "portraitSide": "left",
+            "text": [
+                { "language": "en", "text": "Together they give language its full [font=bold]weight[/font] and [font=italic]texture[/font]." },
+                { "language": "ro", "text": "Împreună, ele dau limbajului întreaga sa [font=bold]greutate[/font] și [font=italic]textură[/font]." }
             ]
         },
         {
@@ -77,8 +86,8 @@
             "portrait": "happy",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "Precisely.[pause=1.0] Silence is part of the story. A beat held just long enough becomes [wave amp=0.01 freq=3][color=FFD700FF]emphasis[/color][/wave]." },
-                { "language": "ro", "text": "Exact.[pause=1.0] Tăcerea face parte din poveste. O pauză ținută suficient de mult devine [wave amp=0.01 freq=3][color=FFD700FF]emfază[/color][/wave]." }
+                { "language": "en", "text": "[underline]Precisely.[pause=1.0] Silence is part of the story. A beat held just long enough becomes [wave amp=0.01 freq=3][color=FFD700FF]emphasis[/color][/wave].[/underline]" },
+                { "language": "ro", "text": "[underline]Exact.[pause=1.0] Tăcerea face parte din poveste. O pauză ținută suficient de mult devine [wave amp=0.01 freq=3][color=FFD700FF]emfază[/color][/wave].[/underline]" }
             ]
         },
         {
@@ -95,8 +104,8 @@
             "portrait": "serious",
             "portraitSide": "left",
             "text": [
-                { "language": "en", "text": "[font=bold][color=FF4444FF][shake mag=0.008]Yes.[/shake][/color][/font][pause=0.4] [font=bold][color=FFD700FF][wave amp=0.012 freq=2]Yes, we can.[/wave][/color][/font]" },
-                { "language": "ro", "text": "[font=bold][color=FF4444FF][shake mag=0.008]Da.[/shake][/color][/font][pause=0.4] [font=bold][color=FFD700FF][wave amp=0.012 freq=2]Da, putem.[/wave][/color][/font]" }
+                { "language": "en", "text": "[underline][font=bold][color=FF4444FF][shake mag=0.008]Yes.[/shake][/color][/font][pause=0.4][/underline] [underline][font=bold][rainbow speed=0.5][wave amp=0.012 freq=2]Yes, we can.[/wave][/rainbow][/font][/underline]" },
+                { "language": "ro", "text": "[underline][font=bold][color=FF4444FF][shake mag=0.008]Da.[/shake][/color][/font][pause=0.4][/underline] [underline][font=bold][rainbow speed=0.5][wave amp=0.012 freq=2]Da, putem.[/wave][/rainbow][/font][/underline]" }
             ]
         },
         {

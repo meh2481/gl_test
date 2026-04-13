@@ -5391,6 +5391,8 @@ void LuaInterface::clearDialogueBoxes() {
 // createDialogueBox({ font=fh, boldFont=bh, italicFont=ih,
 //                     x=N, y=N, width=N, height=N, textSize=N,
 //                     speakerTextSize=N, revealSpeed=N,
+//                     textShadowDx=N, textShadowDy=N,
+//                     textShadowR=N, textShadowG=N, textShadowB=N, textShadowA=N,
 //                     portraitWidth=N, portraitHeight=N, transitionDuration=N })
 // Returns a dialogue box ID (integer).
 int LuaInterface::createDialogueBox(lua_State* L) {
@@ -5441,6 +5443,30 @@ int LuaInterface::createDialogueBox(lua_State* L) {
 
     lua_getfield(L, 1, "revealSpeed");
     cfg.defaultRevealSpeed = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 20.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "textShadowDx");
+    cfg.textShadowDx = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "textShadowDy");
+    cfg.textShadowDy = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "textShadowR");
+    cfg.textShadowR = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "textShadowG");
+    cfg.textShadowG = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "textShadowB");
+    cfg.textShadowB = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "textShadowA");
+    cfg.textShadowA = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
     lua_pop(L, 1);
 
     lua_getfield(L, 1, "portraitWidth");

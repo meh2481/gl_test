@@ -308,6 +308,8 @@ void TextLayer::parseMarkup(const char* raw) {
                     }
                 }
             }
+        } else if (iTagMatch(t, "underline")) {
+            effect = MARKUP_EFFECT_UNDERLINE;
         } else {
             buf[plainLen++] = '[';
             charCount++; // '[' is ASCII, always a codepoint
@@ -461,7 +463,12 @@ void TextLayer::rebuild(Uint64 sceneId) {
     layout.layout(plainText_, p);
 
     int n = layout.getGlyphCount();
-    totalChars_ = n;
+    int maxCharIndex = -1;
+    for (int i = 0; i < n; i++) {
+        const GlyphInstance& gi = layout.getGlyph(i);
+        if (gi.charIndex > maxCharIndex) maxCharIndex = gi.charIndex;
+    }
+    totalChars_ = maxCharIndex + 1;
 
     if (revealSpeed_ <= 0.0f) {
         revealCount_    = n;
@@ -471,6 +478,39 @@ void TextLayer::rebuild(Uint64 sceneId) {
         if (revealCount_ > n) revealCount_ = n;
         revealComplete_ = (revealCount_ >= n);
     }
+
+    auto isSpanActiveAt = [&](int charIdx, MarkupEffect effect) -> bool {
+        for (int si = 0; si < (int)spans_.size(); si++) {
+            const MarkupSpan& sp = spans_[si];
+            if (sp.effect != effect) continue;
+            if (charIdx >= sp.startChar && charIdx < sp.endChar) return true;
+        }
+        return false;
+    };
+
+    auto resolveColorAt = [&](int charIdx, float& r, float& g, float& b, float& a) {
+        r = colorR_; g = colorG_; b = colorB_; a = colorA_;
+        for (int si = 0; si < (int)spans_.size(); si++) {
+            const MarkupSpan& sp = spans_[si];
+            if (sp.effect != MARKUP_EFFECT_COLOR) continue;
+            if (charIdx < sp.startChar || charIdx >= sp.endChar) continue;
+            r = sp.params[0];
+            g = sp.params[1];
+            b = sp.params[2];
+            a = sp.params[3];
+        }
+    };
+
+    auto resolveScaleAt = [&](int charIdx) -> float {
+        float s = 1.0f;
+        for (int si = 0; si < (int)spans_.size(); si++) {
+            const MarkupSpan& sp = spans_[si];
+            if (sp.effect != MARKUP_EFFECT_SCALE) continue;
+            if (charIdx < sp.startChar || charIdx >= sp.endChar) continue;
+            s *= sp.params[0];
+        }
+        return s;
+    };
 
     // ------------------------------------------------------------------
     // Pass 1: build GlyphLayerInfo list and per-string flat SDF arrays.
@@ -503,17 +543,24 @@ void TextLayer::rebuild(Uint64 sceneId) {
         info.baseA       = colorA_;
         info.revealTimer = -1.0f;
         info.charIndex   = gi.charIndex;
-        info.revealed    = (i < revealCount_);
+        info.advanceX    = 0.0f;
+        info.revealed    = (gi.charIndex < revealCount_);
         info.hasOutline  = gi.hasOutline;
+        info.isUnderlineRun = false;
+        info.underlineEndChar = gi.charIndex + 1;
+        info.underlineFullMaxX = 0.0f;
         info.sdfGlyphIdx = -1;
 
-        for (int si = 0; si < (int)spans_.size(); si++) {
-            const MarkupSpan& sp = spans_[si];
-            if (gi.charIndex < sp.startChar || gi.charIndex >= sp.endChar) continue;
-            if (sp.effect == MARKUP_EFFECT_COLOR) {
-                info.baseR = sp.params[0]; info.baseG = sp.params[1];
-                info.baseB = sp.params[2]; info.baseA = sp.params[3];
-            }
+        resolveColorAt(gi.charIndex, info.baseR, info.baseG, info.baseB, info.baseA);
+
+        const FontGlyphEntry* advanceGlyph = fontManager_->lookupGlyph(gi.fontHandle, gi.codepoint);
+        if (!advanceGlyph) advanceGlyph = fontManager_->lookupGlyph(gi.fontHandle, 0xFFFD);
+        if (!advanceGlyph) advanceGlyph = fontManager_->lookupGlyphByIndex(gi.fontHandle, 0);
+        float scaleForAdvance = resolveScaleAt(gi.charIndex);
+        if (advanceGlyph) {
+            info.advanceX = (float)advanceGlyph->advanceWidth * gi.scale * scaleForAdvance;
+        } else {
+            info.advanceX = pointSize_ * 0.25f * scaleForAdvance;
         }
 
         if (!gi.hasOutline) {
@@ -523,13 +570,7 @@ void TextLayer::rebuild(Uint64 sceneId) {
         }
 
         float layerScale = gi.scale;
-        for (int si = 0; si < (int)spans_.size(); si++) {
-            const MarkupSpan& sp = spans_[si];
-            if (gi.charIndex >= sp.startChar && gi.charIndex < sp.endChar
-                && sp.effect == MARKUP_EFFECT_SCALE) {
-                layerScale *= sp.params[0];
-            }
-        }
+        layerScale *= resolveScaleAt(gi.charIndex);
         float glyphScale = layerScale * (float)fontManager_->getUnitsPerEM(gi.fontHandle);
 
         Uint32 contourOffset = 0, numContours = 0;
@@ -606,7 +647,170 @@ void TextLayer::rebuild(Uint64 sceneId) {
 
         numSdfGlyphs_++;
         glyphLayers_.push_back(info);
+
     }
+
+    struct UnderlineRun {
+        float baseX;
+        float baseY;
+        float minX;
+        float maxX;
+        float yTop;
+        float yBottom;
+        float r, g, b, a;
+        int   startChar;
+        int   endChar;
+    };
+
+    Vector<UnderlineRun> underlineRuns(*allocator_, "TextLayer::rebuild::underlineRuns");
+
+    bool runActive = false;
+    UnderlineRun run{};
+    float runBaselineY = 0.0f;
+    float runColorR = colorR_, runColorG = colorG_, runColorB = colorB_, runColorA = colorA_;
+
+    for (int i = 0; i < n; i++) {
+        const GlyphInstance& gi = layout.getGlyph(i);
+        bool under = isSpanActiveAt(gi.charIndex, MARKUP_EFFECT_UNDERLINE);
+
+        const FontGlyphEntry* ge = fontManager_->lookupGlyph(gi.fontHandle, gi.codepoint);
+        if (!ge) ge = fontManager_->lookupGlyph(gi.fontHandle, 0xFFFD);
+        if (!ge) ge = fontManager_->lookupGlyphByIndex(gi.fontHandle, 0);
+        if (!ge) {
+            if (runActive) {
+                underlineRuns.push_back(run);
+                runActive = false;
+            }
+            continue;
+        }
+
+        float underlineScale = resolveScaleAt(gi.charIndex);
+        float adv = (float)ge->advanceWidth * gi.scale * underlineScale;
+        if (adv < pointSize_ * 0.04f) adv = pointSize_ * 0.04f;
+
+        float thickness = pointSize_ * 0.06f * underlineScale;
+        if (thickness < pointSize_ * 0.01f) thickness = pointSize_ * 0.01f;
+
+        float yTop = -pointSize_ * 0.12f * underlineScale;
+        float yBottom = yTop - thickness;
+
+        float leftX = gi.x;
+        float rightX = gi.x + adv;
+        float cr, cg, cb, ca;
+        resolveColorAt(gi.charIndex, cr, cg, cb, ca);
+
+        bool lineChanged = runActive && (SDL_fabsf(gi.y - runBaselineY) > 0.0001f);
+        bool colorChanged = runActive &&
+            (SDL_fabsf(cr - runColorR) > 0.0001f ||
+             SDL_fabsf(cg - runColorG) > 0.0001f ||
+             SDL_fabsf(cb - runColorB) > 0.0001f ||
+             SDL_fabsf(ca - runColorA) > 0.0001f);
+
+        if (!under || lineChanged || colorChanged) {
+            if (runActive) {
+                underlineRuns.push_back(run);
+                runActive = false;
+            }
+            if (!under) continue;
+        }
+
+        if (!runActive) {
+            runActive = true;
+            run.baseX = gi.x;
+            run.baseY = gi.y;
+            run.minX = 0.0f;
+            run.maxX = adv;
+            run.yTop = yTop;
+            run.yBottom = yBottom;
+            run.r = cr; run.g = cg; run.b = cb; run.a = ca;
+            run.startChar = gi.charIndex;
+            run.endChar = gi.charIndex + 1;
+            runBaselineY = gi.y;
+            runColorR = cr; runColorG = cg; runColorB = cb; runColorA = ca;
+        } else {
+            float relMin = leftX - run.baseX;
+            float relMax = rightX - run.baseX;
+            if (relMin < run.minX) run.minX = relMin;
+            if (relMax > run.maxX) run.maxX = relMax;
+            run.endChar = gi.charIndex + 1;
+        }
+    }
+
+    if (runActive) underlineRuns.push_back(run);
+
+    for (int i = 0; i < (int)underlineRuns.size(); i++) {
+        const UnderlineRun& ur = underlineRuns[i];
+
+        Uint32 uContourOffset = (Uint32)flatContours.size();
+        Uint32 uSegmentOffset = (Uint32)flatSegments.size();
+
+        SdfContourHeader contour{};
+        contour.numSegments = 4;
+        contour.winding = 1;
+        contour.segmentOffset = uSegmentOffset;
+        flatContours.push_back(contour);
+
+        SdfSegment seg0{};
+        seg0.p0x = ur.minX; seg0.p0y = ur.yBottom;
+        seg0.p1x = ur.minX; seg0.p1y = ur.yBottom;
+        seg0.p2x = ur.maxX; seg0.p2y = ur.yBottom;
+        seg0.p3x = ur.maxX; seg0.p3y = ur.yBottom;
+        flatSegments.push_back(seg0);
+
+        SdfSegment seg1{};
+        seg1.p0x = ur.maxX; seg1.p0y = ur.yBottom;
+        seg1.p1x = ur.maxX; seg1.p1y = ur.yBottom;
+        seg1.p2x = ur.maxX; seg1.p2y = ur.yTop;
+        seg1.p3x = ur.maxX; seg1.p3y = ur.yTop;
+        flatSegments.push_back(seg1);
+
+        SdfSegment seg2{};
+        seg2.p0x = ur.maxX; seg2.p0y = ur.yTop;
+        seg2.p1x = ur.maxX; seg2.p1y = ur.yTop;
+        seg2.p2x = ur.minX; seg2.p2y = ur.yTop;
+        seg2.p3x = ur.minX; seg2.p3y = ur.yTop;
+        flatSegments.push_back(seg2);
+
+        SdfSegment seg3{};
+        seg3.p0x = ur.minX; seg3.p0y = ur.yTop;
+        seg3.p1x = ur.minX; seg3.p1y = ur.yTop;
+        seg3.p2x = ur.minX; seg3.p2y = ur.yBottom;
+        seg3.p3x = ur.minX; seg3.p3y = ur.yBottom;
+        flatSegments.push_back(seg3);
+
+        GlyphLayerInfo ul{};
+        ul.baseX       = ur.baseX;
+        ul.baseY       = ur.baseY;
+        ul.baseR       = ur.r;
+        ul.baseG       = ur.g;
+        ul.baseB       = ur.b;
+        ul.baseA       = ur.a;
+        ul.revealTimer = -1.0f;
+        ul.charIndex   = ur.startChar;
+        ul.advanceX    = 0.0f;
+        ul.revealed    = (ur.startChar < revealCount_);
+        ul.hasOutline  = true;
+        ul.isUnderlineRun = true;
+        ul.underlineEndChar = ur.endChar;
+        ul.underlineFullMaxX = ur.maxX;
+        ul.sdfGlyphIdx = numSdfGlyphs_;
+        ul.bboxMinX    = ur.minX;
+        ul.bboxMinY    = ur.yBottom;
+        ul.bboxMaxX    = ur.maxX;
+        ul.bboxMaxY    = ur.yTop;
+        ul.glyphScale  = 1.0f;
+        if (ul.revealed) ul.revealTimer = FADE_IN_TIME + 1.0f;
+
+        glyphDescData.push_back(uContourOffset);
+        glyphDescData.push_back(1);
+        glyphDescData.push_back(0);
+        glyphDescData.push_back(0);
+
+        numSdfGlyphs_++;
+        glyphLayers_.push_back(ul);
+    }
+
+    updateUnderlineRunRevealGeometry();
 
     // ------------------------------------------------------------------
     // Pass 2: build CPU vertex buffer.
@@ -664,6 +868,67 @@ void TextLayer::rebuild(Uint64 sceneId) {
     verticesDirty_ = false;
 }
 
+void TextLayer::updateUnderlineRunRevealGeometry() {
+    if (textLayerGpuId_ < 0) return;
+
+    for (auto& ul : glyphLayers_) {
+        if (!ul.isUnderlineRun || !ul.hasOutline || ul.sdfGlyphIdx < 0) continue;
+
+        float visibleRightWorld = ul.baseX + ul.bboxMinX;
+        bool anyVisible = false;
+
+        for (const auto& ch : glyphLayers_) {
+            if (ch.isUnderlineRun) continue;
+            if (ch.charIndex < ul.charIndex || ch.charIndex >= ul.underlineEndChar) continue;
+            if (ch.charIndex >= revealCount_) continue;
+
+            float right = ch.baseX + ch.advanceX;
+            if (!anyVisible || right > visibleRightWorld) {
+                visibleRightWorld = right;
+                anyVisible = true;
+            }
+        }
+
+        float visibleMaxX = ul.bboxMinX;
+        if (anyVisible) {
+            visibleMaxX = visibleRightWorld - ul.baseX;
+            if (visibleMaxX > ul.underlineFullMaxX) visibleMaxX = ul.underlineFullMaxX;
+            if (visibleMaxX < ul.bboxMinX) visibleMaxX = ul.bboxMinX;
+        }
+
+        float alpha = ul.baseA;
+        if (!anyVisible) {
+            alpha = 0.0f;
+        } else if (ul.revealTimer >= 0.0f && ul.revealTimer < FADE_IN_TIME && FADE_IN_TIME > 0.0f) {
+            alpha *= SDL_clamp(ul.revealTimer / FADE_IN_TIME, 0.0f, 1.0f);
+        }
+
+        int mainIdx = (mainVertOffset_ + ul.sdfGlyphIdx) * TEXT_VERTS_PER_GLYPH;
+        writeGlyphQuad(cpuVertices_.data(), mainIdx, ul.sdfGlyphIdx,
+                       ul.baseX, ul.baseY,
+                       ul.bboxMinX, ul.bboxMinY,
+                       visibleMaxX, ul.bboxMaxY,
+                       ul.glyphScale,
+                       ul.baseR, ul.baseG, ul.baseB, alpha);
+
+        if (shadowEnabled_) {
+            float shadowAlpha = anyVisible ? shadowA_ : 0.0f;
+            if (anyVisible && ul.revealTimer >= 0.0f && ul.revealTimer < FADE_IN_TIME && FADE_IN_TIME > 0.0f) {
+                shadowAlpha *= SDL_clamp(ul.revealTimer / FADE_IN_TIME, 0.0f, 1.0f);
+            }
+            int shadowIdx = ul.sdfGlyphIdx * TEXT_VERTS_PER_GLYPH;
+            writeGlyphQuad(cpuVertices_.data(), shadowIdx, ul.sdfGlyphIdx,
+                           ul.baseX + shadowDX_, ul.baseY + shadowDY_,
+                           ul.bboxMinX, ul.bboxMinY,
+                           visibleMaxX, ul.bboxMaxY,
+                           ul.glyphScale,
+                           shadowR_, shadowG_, shadowB_, shadowAlpha);
+        }
+
+        verticesDirty_ = true;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Reveal
 // ---------------------------------------------------------------------------
@@ -689,32 +954,34 @@ void TextLayer::setRevealSpeed(float charsPerSecond) {
             verticesDirty_ = true;
         }
         for (auto& gl : glyphLayers_) gl.revealed = true;
+        updateUnderlineRunRevealGeometry();
     }
 }
 
 void TextLayer::setRevealCount(int n) {
     if (n < 0) n = 0;
     if (n > totalChars_) n = totalChars_;
-    for (int i = revealCount_; i < n; i++) {
-        if (i < (int)glyphLayers_.size()) {
-            GlyphLayerInfo& gl = glyphLayers_[i];
-            gl.revealed    = true;
-            gl.revealTimer = FADE_IN_TIME + 1.0f;
-            if (gl.hasOutline && gl.sdfGlyphIdx >= 0 && textLayerGpuId_ >= 0) {
-                int mainIdx = (mainVertOffset_ + gl.sdfGlyphIdx) * TEXT_VERTS_PER_GLYPH;
-                updateGlyphQuadColor(cpuVertices_.data(), mainIdx,
-                    gl.baseR, gl.baseG, gl.baseB, gl.baseA);
-                if (shadowEnabled_) {
-                    int shadowIdx = gl.sdfGlyphIdx * TEXT_VERTS_PER_GLYPH;
-                    updateGlyphQuadColor(cpuVertices_.data(), shadowIdx,
-                        shadowR_, shadowG_, shadowB_, shadowA_);
-                }
-                verticesDirty_ = true;
+    for (auto& gl : glyphLayers_) {
+        if (gl.charIndex < revealCount_ || gl.charIndex >= n) continue;
+        if (gl.revealed) continue;
+
+        gl.revealed    = true;
+        gl.revealTimer = FADE_IN_TIME + 1.0f;
+        if (gl.hasOutline && gl.sdfGlyphIdx >= 0 && textLayerGpuId_ >= 0) {
+            int mainIdx = (mainVertOffset_ + gl.sdfGlyphIdx) * TEXT_VERTS_PER_GLYPH;
+            updateGlyphQuadColor(cpuVertices_.data(), mainIdx,
+                gl.baseR, gl.baseG, gl.baseB, gl.baseA);
+            if (shadowEnabled_) {
+                int shadowIdx = gl.sdfGlyphIdx * TEXT_VERTS_PER_GLYPH;
+                updateGlyphQuadColor(cpuVertices_.data(), shadowIdx,
+                    shadowR_, shadowG_, shadowB_, shadowA_);
             }
+            verticesDirty_ = true;
         }
     }
     revealCount_    = n;
     revealComplete_ = (n >= totalChars_);
+    updateUnderlineRunRevealGeometry();
 }
 
 void TextLayer::setOnRevealComplete(lua_State* L, int funcRef) {
@@ -779,8 +1046,10 @@ void TextLayer::updateReveal(float dt, Uint64 /*sceneId*/) {
     int newReveal = (int)revealAccum_;
     if (newReveal > totalChars_) newReveal = totalChars_;
 
-    for (int i = revealCount_; i < newReveal && i < (int)glyphLayers_.size(); i++) {
-        GlyphLayerInfo& gl = glyphLayers_[i];
+    for (auto& gl : glyphLayers_) {
+        if (gl.charIndex < revealCount_ || gl.charIndex >= newReveal) continue;
+        if (gl.revealed) continue;
+
         gl.revealed    = true;
         gl.revealTimer = 0.0f;
 
@@ -795,8 +1064,10 @@ void TextLayer::updateReveal(float dt, Uint64 /*sceneId*/) {
             }
             verticesDirty_ = true;
         }
+    }
 
-        if (lua_ && onCharRevealedRef_ != LUA_NOREF) {
+    if (lua_ && onCharRevealedRef_ != LUA_NOREF) {
+        for (int i = revealCount_; i < newReveal; i++) {
             lua_rawgeti(lua_, LUA_REGISTRYINDEX, onCharRevealedRef_);
             lua_pushinteger(lua_, i);
             lua_pcall(lua_, 1, 0, 0);
@@ -804,6 +1075,7 @@ void TextLayer::updateReveal(float dt, Uint64 /*sceneId*/) {
     }
 
     revealCount_ = newReveal;
+    updateUnderlineRunRevealGeometry();
 
     if (revealCount_ >= totalChars_ && !revealComplete_) {
         revealComplete_ = true;
@@ -886,7 +1158,8 @@ void TextLayer::applyEffects(float /*dt*/) {
         if (sp.effect == MARKUP_EFFECT_NONE  ||
             sp.effect == MARKUP_EFFECT_COLOR  ||
             sp.effect == MARKUP_EFFECT_SCALE  ||
-            sp.effect == MARKUP_EFFECT_FONT) continue;
+            sp.effect == MARKUP_EFFECT_FONT   ||
+            sp.effect == MARKUP_EFFECT_UNDERLINE) continue;
 
         for (int gi = 0; gi < (int)glyphLayers_.size(); gi++) {
             GlyphLayerInfo& gl = glyphLayers_[gi];

@@ -19,6 +19,7 @@ enum MarkupEffect {
     MARKUP_EFFECT_RAINBOW = 4,  // params: speed, 0, 0, 0
     MARKUP_EFFECT_SCALE   = 5,  // params: scale, 0, 0, 0
     MARKUP_EFFECT_FONT    = 6,  // fontHandle stored in fontHandle field
+    MARKUP_EFFECT_UNDERLINE = 7, // underline glyph quads for [underline] spans
 };
 
 struct MarkupSpan {
@@ -111,8 +112,12 @@ private:
         float baseR, baseG, baseB, baseA;  // base colour
         float revealTimer;    // 0..FADE_IN_TIME during fade-in, <0 = not yet revealed
         int   charIndex;      // position in the plain text (for markup range checks)
+        float advanceX;       // character advance in world units (for progressive underline)
         bool  revealed;
         bool  hasOutline;     // false for space, newline, or glyphs with no SDF blob
+        bool  isUnderlineRun; // true for synthetic [underline] run geometry
+        int   underlineEndChar; // exclusive char index for underline run
+        float underlineFullMaxX; // local-space full run max X for underline geometry
 
         // M8 text-pipeline fields (valid only when hasOutline)
         int   sdfGlyphIdx;    // index in GlyphDesc SSBO / vertex buffer (-1 if !hasOutline)
@@ -125,6 +130,7 @@ private:
 
     void applyEffects(float dt);
     void updateReveal(float dt, Uint64 sceneId);
+    void updateUnderlineRunRevealGeometry();
 
     // Helpers that write into / update cpuVertices_.
     // vertIdx is the index of the first of 6 vertices for this glyph (in units of 11 floats).
