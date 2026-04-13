@@ -419,7 +419,7 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
                                      "createDialogueBox", "destroyDialogueBox",
                                      "dialogueLoad", "dialogueStart", "dialogueAdvance",
                                      "dialogueIsRevealing", "dialogueGetCurrentLine",
-                                     "dialogueGetTotalLines", "dialogueSetBackdrop", "setDialogueAutoplay",
+                                     "dialogueGetTotalLines", "dialogueSetBackdrop", "setDialogueAutoplay", "setDialogueSkip",
                                      "ipairs", "pairs", nullptr};
     for (const char** func = globalFunctions; *func; ++func) {
         lua_getglobal(luaState_, *func);
@@ -456,6 +456,7 @@ void LuaInterface::loadScene(Uint64 sceneId, const ResourceData& scriptData) {
         "ACTION_PAN_START", "ACTION_PAN_END",
         "ACTION_TOGGLE_BLADE",
         "ACTION_TOGGLE_DIALOGUE_AUTOPLAY",
+        "ACTION_TOGGLE_DIALOGUE_SKIP",
         "ACTION_DIALOGUE_TEST",
         nullptr
     };
@@ -1191,6 +1192,7 @@ void LuaInterface::registerFunctions() {
     lua_register(luaState_, "dialogueGetTotalLines", dialogueGetTotalLines);
     lua_register(luaState_, "dialogueSetBackdrop",   dialogueSetBackdrop);
     lua_register(luaState_, "setDialogueAutoplay",   setDialogueAutoplay);
+    lua_register(luaState_, "setDialogueSkip",        setDialogueSkip);
 
     // Text alignment constants
     lua_pushinteger(luaState_, TEXT_ALIGN_LEFT);
@@ -1241,6 +1243,8 @@ void LuaInterface::registerFunctions() {
     lua_setglobal(luaState_, "ACTION_TOGGLE_BLADE");
     lua_pushinteger(luaState_, ACTION_TOGGLE_DIALOGUE_AUTOPLAY);
     lua_setglobal(luaState_, "ACTION_TOGGLE_DIALOGUE_AUTOPLAY");
+    lua_pushinteger(luaState_, ACTION_TOGGLE_DIALOGUE_SKIP);
+    lua_setglobal(luaState_, "ACTION_TOGGLE_DIALOGUE_SKIP");
     lua_pushinteger(luaState_, ACTION_DIALOGUE_TEST);
     lua_setglobal(luaState_, "ACTION_DIALOGUE_TEST");
 
@@ -5643,6 +5647,20 @@ int LuaInterface::setDialogueAutoplay(lua_State* L) {
 
     DialogueManager** ptr = iface->dialogueBoxes_.find(id);
     if (ptr) (*ptr)->setAutoplay(enabled, delay);
+    return 0;
+}
+
+// setDialogueSkip(dlgId, enabled)
+int LuaInterface::setDialogueSkip(lua_State* L) {
+    int  id      = (int)luaL_checkinteger(L, 1);
+    bool enabled = lua_toboolean(L, 2) != 0;
+
+    lua_getfield(L, LUA_REGISTRYINDEX, "LuaInterface");
+    LuaInterface* iface = (LuaInterface*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    DialogueManager** ptr = iface->dialogueBoxes_.find(id);
+    if (ptr) (*ptr)->setSkip(enabled);
     return 0;
 }
 

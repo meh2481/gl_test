@@ -116,6 +116,10 @@ public:
     // once a line has fully revealed.
     void setAutoplay(bool enabled, float delaySeconds);
 
+    // Enable/disable skip. When enabled, reveal runs at 100× speed and lines
+    // advance immediately with no inter-line pause. Mutually exclusive with autoplay.
+    void setSkip(bool enabled);
+
     // Per-frame update.
     void update(float dt, Uint64 sceneId);
 
@@ -207,6 +211,8 @@ private:
     bool  autoplayEnabled_;
     float autoplayDelay_;
     float autoplayTimer_;
+
+    bool  skipEnabled_;
 
     lua_State* lua_;
     int        onCompleteRef_;     // Lua registry ref

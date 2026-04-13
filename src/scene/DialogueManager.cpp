@@ -8,7 +8,8 @@
 #include "../debug/ConsoleBuffer.h"
 #include <SDL3/SDL.h>
 #include <cassert>
-#include <cstring>
+
+#define DIALOGUE_SKIP_SPEED 100.0f
 
 // ============================================================================
 // DialogueManager implementation
@@ -47,6 +48,7 @@ DialogueManager::DialogueManager(MemoryAllocator*   allocator,
     , autoplayEnabled_(false)
     , autoplayDelay_(0.5f)
     , autoplayTimer_(0.0f)
+    , skipEnabled_(false)
     , lua_(nullptr)
     , onCompleteRef_(LUA_NOREF)
 {
@@ -586,10 +588,19 @@ void DialogueManager::setBackdrop(Uint64 textureId, int pipelineId) {
 
 void DialogueManager::setAutoplay(bool enabled, float delaySeconds) {
     autoplayEnabled_ = enabled;
+    if (enabled) skipEnabled_ = false;
     autoplayDelay_ = (delaySeconds < 0.0f) ? 0.0f : delaySeconds;
     autoplayTimer_ = 0.0f;
     if (autoplayEnabled_ && state_ == STATE_WAITING_ADVANCE) {
         autoplayTimer_ = autoplayDelay_;
+    }
+}
+
+void DialogueManager::setSkip(bool enabled) {
+    skipEnabled_ = enabled;
+    if (enabled) {
+        autoplayEnabled_ = false;
+        autoplayTimer_   = 0.0f;
     }
 }
 
@@ -645,7 +656,7 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
     // --- TRANSITIONING: portrait crossfade in progress ---
     if (state_ == STATE_TRANSITIONING) {
         if (bodyText_) bodyText_->update(dt, sceneId);
-        transitionTimer_ -= dt;
+        transitionTimer_ -= skipEnabled_ ? dt * DIALOGUE_SKIP_SPEED : dt;
         if (transitionTimer_ <= 0.0f) {
             transitionTimer_ = 0.0f;
             state_ = STATE_IDLE; // reset so showLine sets STATE_REVEALING
@@ -661,6 +672,10 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
     // --- WAITING_ADVANCE: fully revealed, waiting for player input ---
     if (state_ == STATE_WAITING_ADVANCE) {
         if (bodyText_) bodyText_->update(dt, sceneId);
+        if (skipEnabled_) {
+            advance(sceneId);
+            return;
+        }
         if (autoplayEnabled_) {
             autoplayTimer_ -= dt;
             if (autoplayTimer_ <= 0.0f) {
@@ -673,6 +688,20 @@ void DialogueManager::update(float dt, Uint64 sceneId) {
 
     // --- REVEALING ---
     if (state_ != STATE_REVEALING || !bodyText_) return;
+
+    // When skipping: bypass all [pause=N] handling and reveal at 100× speed.
+    if (skipEnabled_) {
+        bodyText_->update(dt * DIALOGUE_SKIP_SPEED, sceneId);
+        if (bodyText_->getRevealCount() >= bodyText_->getTotalChars() && bodyText_->getTotalChars() > 0) {
+            if (revealSoundSourceId_ >= 0 && audioManager_) {
+                audioManager_->stopSource(revealSoundSourceId_);
+                audioManager_->releaseSource(revealSoundSourceId_);
+                revealSoundSourceId_ = -1;
+            }
+            state_ = STATE_WAITING_ADVANCE;
+        }
+        return;
+    }
 
     // Pause-anim-waiting: a [pause=N] threshold was crossed; let the fade-in
     // animations of the already-revealed characters finish before we freeze.

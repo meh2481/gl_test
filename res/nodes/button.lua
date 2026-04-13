@@ -128,6 +128,12 @@ function Btn.onAction(action)
     end
 end
 
+function Btn.setChecked(val)
+    if not isCheckbox then return end
+    checked = val
+    applyCheckboxColor()
+end
+
 function Btn.cleanup()
     if layer then
         destroyLayer(layer)
